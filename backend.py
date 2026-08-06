@@ -1,5 +1,5 @@
 """
-SkillSync Backend API v4.0
+SkillSync Backend API v5.0
 Deployed on Render — production backend for SkillSync Android app.
 
 Auth: POST /api/auth/login — @koenig-solutions.com only, manager or Trainer Plus role.
@@ -9,6 +9,10 @@ Data: GET /api/data/unified-manager-intelligence?email=EMAIL — dashboard paylo
       manager_action_objects, trainer_decision_objects).
       GET /api/data/trainer-360?email=EMAIL — deep single-trainer profile
       (capability, certifications, delivery history, feedback, availability).
+      GET /api/data/allocation-desk?email=EMAIL — unallocated batches ranked by
+      how well the manager's own team can cover them (real capability matching).
+      POST /api/action/mark-skill — records a trainer skill. WRITES to production
+      RMS (Add Trainer Skill / IDP, key 255); inputs are validated server-side.
 
 RMS schema notes — all verified against live responses, not the instruction files,
 which have proven wrong more than once:
@@ -25,6 +29,8 @@ which have proven wrong more than once:
                         vendor, "Assignment City", NoOfParticipants, AssignmentID
   * trainerSkills (217), trainerNegFeedback (218), last3MonthsUtil (39) key off
     employee_id / EmpCode — passing an email or blank returns zero rows silently.
+  * unallocated (190) also carries CourseId, a direct TOC pdf URL, CourseURL,
+    and HTML blobs in SCID / TOTRecords that must be stripped before display.
 
 There is no leave/absence endpoint in the RMS catalogue. The only unavailability
 signal is the *OffDates fields on trainerDetails, which are frequently null.
@@ -172,6 +178,19 @@ _APIS = {
         "pass": "TmSe!9A!@GfL",
         "role": "Trainer_Last_3_Months_Utilization",
         "key":  "39",
+    },
+    # ── Write endpoint — mutates production RMS ──────────────────────────────
+    "addTrainerSkill": {
+        "user": "AISHWAR_AddTrainerSkill",
+        "pass": "2bd6UhV#PJ#T",
+        "role": "Add Trainer Skill (IDP)",
+        "key":  "255",
+    },
+    "courseAvailability": {
+        "user": "AISHWAR_CheckCourseAvai",
+        "pass": "$3GapuDUF5XU",
+        "role": "Check Course Availability in RMS",
+        "key":  "104",
     },
 }
 
@@ -405,6 +424,88 @@ def _off_dates(email):
     }
     return {k: str(row.get(v)).strip() for k, v in fields.items()
             if row.get(v) not in (None, "", "null")}
+
+
+# ─── Course matching (allocation relevance) ───────────────────────────────────
+
+_STOP = {"the", "and", "for", "with", "using", "to", "in", "of", "on", "a", "an",
+         "introduction", "fundamentals", "course", "training", "certification"}
+# Vendor course codes are the strongest identity signal. Two shapes occur:
+# letter-led ("PL-300T00", "AI-102T00", "DP-900T00-A") and Microsoft's numeric
+# MOC codes ("55071-A"). Matching only the first shape missed the latter entirely.
+_CODE_ALPHA = _re.compile(r'\b([a-z]{2,6}[-\s]?\d{2,5}[a-z]?(?:[-\s]?\d{2,3})?[a-z]?)\b')
+_CODE_NUM = _re.compile(r'\b(\d{4,6}[-\s]?[a-z]?)\b')
+
+
+def _norm(s):
+    return _re.sub(r'[^a-z0-9\s-]', ' ', str(s or "").lower()).strip()
+
+
+def _course_code(name):
+    n = _norm(name)
+    m = _CODE_ALPHA.search(n) or _CODE_NUM.search(n)
+    return _re.sub(r'[\s-]', '', m.group(1)) if m else ""
+
+
+def _tokens(name):
+    return {t for t in _norm(name).split() if len(t) > 2 and t not in _STOP}
+
+
+def _match_score(batch_course, batch_vendor, cap_course, cap_vendor):
+    """0-100 for how well one capability row covers a demanded course."""
+    a, b = _norm(batch_course), _norm(cap_course)
+    if not a or not b:
+        return 0
+    if a == b:
+        return 100
+
+    ca, cb = _course_code(batch_course), _course_code(cap_course)
+    if ca and ca == cb:
+        return 92                       # same vendor course code, different title text
+
+    ta, tb = _tokens(batch_course), _tokens(cap_course)
+    if not ta or not tb:
+        return 0
+    jaccard = len(ta & tb) / len(ta | tb)
+    score = jaccard * 78
+    if batch_vendor and cap_vendor and _norm(batch_vendor) == _norm(cap_vendor):
+        score += 10                     # same vendor family is a real, weaker signal
+    return int(min(100, round(score)))
+
+
+def _team_capability(reportees):
+    """[(trainer_name, email, [capability rows])] for the manager's roster."""
+    def one(r):
+        email = str(r.get("OffEmail", "")).strip().lower()
+        name = _re.sub(r"\s+", " ", str(r.get("TrainerName", ""))).strip()
+        return name, email, (_skills(email) if email else [])
+
+    rows = [r for r in (reportees if isinstance(reportees, list) else []) if isinstance(r, dict)]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        return list(pool.map(one, rows))
+
+
+def _rank_batch(batch, team):
+    """Best team match for one unallocated batch, plus the ranked candidate list."""
+    course, vendor = batch.get("course_name", ""), batch.get("customer", "")
+    candidates = []
+    for name, email, caps in team:
+        best, best_course, best_q = 0, "", 0
+        for c in caps:
+            s = _match_score(course, vendor, c["course"], c["vendor"])
+            if s > best:
+                best, best_course, best_q = s, c["course"], c["qubits_score"]
+        if best > 0:
+            candidates.append({
+                "trainer_name":  name,
+                "trainer_email": email,
+                "match":         best,
+                "via_course":    best_course,
+                "qubits_score":  best_q,
+                "exact":         best >= 92,
+            })
+    candidates.sort(key=lambda c: (-c["match"], -c["qubits_score"]))
+    return (candidates[0]["match"] if candidates else 0), candidates[:5]
 
 
 def _certifications(email):
@@ -648,7 +749,7 @@ def healthz():
     return jsonify({
         "status":    "ok",
         "service":   "SkillSync Backend",
-        "version":   "4.0.0",
+        "version":   "5.0.0",
         "timestamp": datetime.utcnow().isoformat(),
     }), 200
 
@@ -935,6 +1036,134 @@ def trainer_360():
     }), 200
 
 
+def _demand_rows():
+    """Unallocated batches, normalised. Field names verified against live RMS."""
+    raw = _rms("unallocated", {})
+    if raw is None:
+        return None
+    out = []
+    for d in (raw if isinstance(raw, list) else []):
+        if not isinstance(d, dict):
+            continue
+        st, en = _parse_date(d.get("CourseSDate", "")), _parse_date(d.get("CourseEDate", ""))
+        out.append({
+            "demand_id":     str(d.get("AssignmentID", "")),
+            "course_id":     str(d.get("CourseId", "")),
+            "course_name":   str(d.get("Coursename", "") or "").strip(),
+            "start_date":    _iso(st),
+            "end_date":      _iso(en),
+            "days":          ((en - st).days + 1) if (st and en) else None,
+            "delivery_mode": str(d.get("Delivery Mode", "") or "").strip(),
+            "customer":      str(d.get("vendor", "") or "").strip(),
+            "location":      ", ".join(x for x in [str(d.get("Assignment City", "") or "").strip(),
+                                                   str(d.get("Assignment Country", "") or "").strip()] if x),
+            "participants":  d.get("NoOfParticipants", 0),
+            "language":      str(d.get("Assignmentid Language", "") or "").strip(),
+            "courseware":    str(d.get("CoursewareType", "") or "").strip(),
+            "allocation_for": str(d.get("Allocation Required For", "") or "").strip(),
+            "third_party":   str(d.get("Third Party", "") or "").strip(),
+            "tentative":     str(d.get("Tentetive or Not", "") or "").strip(),
+            "remarks":       str(d.get("fmatRemarks", "") or "").strip(),
+            "toc_url":       str(d.get("TOC", "") or "").strip(),
+            "course_url":    str(d.get("CourseURL", "") or "").strip(),
+            # SCID and TOTRecords arrive as HTML blobs; strip to readable text.
+            "scid":          _re.sub(r"<[^>]+>", " ", str(d.get("SCID", "") or "")).strip(),
+            "schedule":      _re.sub(r"<br\s*/?>", "\n", str(d.get("TOTRecords", "") or "")),
+        })
+    for r in out:
+        r["schedule"] = _re.sub(r"<[^>]+>", " ", r["schedule"])
+        r["schedule"] = _re.sub(r"[ \t]+", " ", r["schedule"]).strip()
+    return out
+
+
+@app.route('/api/data/allocation-desk', methods=['GET'])
+def allocation_desk():
+    """
+    Unallocated batches ranked by how well the manager's own team can cover them.
+    Relevance is computed against real capability rows (course + Qubits per
+    trainer), not guessed from the course title alone.
+    """
+    email = request.args.get('email', '').strip().lower()
+    if not email:
+        return jsonify({"error": "email query param required"}), 400
+
+    demand = _demand_rows()
+    if demand is None:
+        return jsonify({"error": "Cannot reach RMS — please retry"}), 503
+
+    reportees = _rms("reportees", {"email": email}) or []
+    team = _team_capability(reportees)
+
+    for b in demand:
+        b["relevance"], b["candidates"] = _rank_batch(b, team)
+        b["relevance_band"] = (
+            "high" if b["relevance"] >= 75 else
+            "medium" if b["relevance"] >= 50 else
+            "low" if b["relevance"] > 0 else "none"
+        )
+    demand.sort(key=lambda b: (-b["relevance"], b["start_date"] or ""))
+
+    return jsonify({
+        "manager": email,
+        "team_size": len(team),
+        "batches": demand,
+        "summary": {
+            "total": len(demand),
+            "high": sum(1 for b in demand if b["relevance_band"] == "high"),
+            "medium": sum(1 for b in demand if b["relevance_band"] == "medium"),
+            "unmatched": sum(1 for b in demand if b["relevance"] == 0),
+        },
+        "timestamp": datetime.utcnow().isoformat(),
+    }), 200
+
+
+@app.route('/api/action/mark-skill', methods=['POST'])
+def mark_skill():
+    """
+    Records a trainer skill in RMS (Add Trainer Skill / IDP, key 255).
+
+    This WRITES to production RMS. Inputs are validated here rather than trusted,
+    because a bad SkillLevel or CourseId would create a real, wrong record.
+    """
+    data = request.get_json(silent=True) or {}
+    course_id = str(data.get("course_id", "")).strip()
+    trainer_email = str(data.get("trainer_email", "")).strip().lower()
+    from_date = str(data.get("from_date", "")).strip()
+    approved = str(data.get("officially_approved", "No")).strip() or "No"
+
+    if not course_id.isdigit():
+        return jsonify({"success": False, "error": "course_id must be numeric"}), 400
+    if not trainer_email.endswith("@koenig-solutions.com"):
+        return jsonify({"success": False, "error": "trainer_email must be a Koenig address"}), 400
+    if not _parse_date(from_date):
+        return jsonify({"success": False, "error": "from_date must be a valid date"}), 400
+    try:
+        level = int(str(data.get("skill_level", "")).strip())
+    except ValueError:
+        return jsonify({"success": False, "error": "skill_level must be a number"}), 400
+    if not 1 <= level <= 10:
+        return jsonify({"success": False, "error": "skill_level must be between 1 and 10"}), 400
+
+    result = _rms("addTrainerSkill", {
+        "CourseId":           course_id,
+        "TrainerEmail":       trainer_email,
+        "SkillLevel":         str(level),
+        "OfficiallyApproved": approved,
+        "FromDate":           _iso(_parse_date(from_date)),
+    })
+    if result is None:
+        return jsonify({"success": False, "error": "RMS unreachable — skill not recorded"}), 503
+
+    return jsonify({
+        "success": True,
+        "trainer_email": trainer_email,
+        "course_id": course_id,
+        "skill_level": level,
+        "from_date": _iso(_parse_date(from_date)),
+        "rms_response": result,
+    }), 200
+
+
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({"error": "Not found", "path": request.path}), 404
@@ -949,7 +1178,7 @@ def internal_error(error):
 def root():
     return jsonify({
         "service":  "SkillSync Backend",
-        "version":  "4.0.0",
+        "version":  "5.0.0",
         "endpoints": {
             "POST /api/auth/login":                               "Authenticate (role-verified)",
             "POST /api/auth/logout":                              "Logout",
