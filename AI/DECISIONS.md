@@ -2,6 +2,17 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-06 — v1.3.0: Full Dashboard Redesign with Live RMS Data Model
+
+- **Decision:** Completely rewrite `backend.py` (Render) and `MainScreen.kt` (Android) to return and render the full web-frontend data model — the same `trainer_operations_df`, `trainer_current_state_df`, `batch_engagement_df`, `unallocated_demand_df`, `trainer_feedback_summary_df`, `manager_action_objects`, `trainer_decision_objects` arrays that the SkillEdge web dashboard consumes.
+- **Rationale:** The v1.2.x Android app only showed static trainer cards from a minimal response. The web dashboard has a rich, proven data model with KPI calculations already tested in production. Matching this model means one backend serves both web and mobile consistently.
+- **Implementation:** Per-trainer parallel fetch (ThreadPoolExecutor, max_workers=8) calls 3 RMS APIs per trainer: utilization (key=55), negative feedback count (key=58), previous+upcoming assignments (key=16). These feed status detection (teaching_now / preparing / free / unknown) and readiness/risk scoring.
+- **Android UI:** Mirrors the web Manager Command Dashboard layout: dark header cards for Team Deployment / Capacity Signal / Manager Control KPIs, per-trainer cards with avatar initials, color-coded status badges, utilization progress bars, current/next course display, feedback risk badges. Brand colors match web (Teal #00ACAC, Blue #348FE2, Amber #F59C1A, Red #FF5B57).
+- **Key discovery:** Unallocated demand API (key=190) uses `Coursename` (not Course), `CourseSDate`/`CourseEDate` (not StarDate/EndDate), `"Delivery Mode"` (with space), `vendor` (not customer). Discovered empirically via /debug/unallocated endpoint — field names differ from documentation.
+- **Backward compatibility:** Old `kpis`, `manager`, `trainers`, `actions` fields retained in response alongside new arrays so v1.2.x APKs continue working.
+
+## 2026-08-06 — Login fix: @koenig-solutions.com domain check + RMS role verification
+
 ## 2026-08-06 — Android App: Kotlin + Jetpack Compose, feature-parity MVP scaffold
 
 - **Decision:** Build native Kotlin Android app (not React Native, not Flutter, not cross-platform abstraction) using Jetpack Compose (not XML layouts), with complete feature parity to web app, LinkedIn-inspired design, and responsive layouts for mobile to 10" tablet.

@@ -66,6 +66,26 @@ assignments, course technology/domain/names/availability/schedule/trainers).
 
 Start the server, then run `python tests/smoke_test.py`.
 
+## SkillSync Android App (separate product, same backend data)
+
+- **Repo subfolder:** `SkillEdge_Android/` — Kotlin/Jetpack Compose, package `com.example.skillsync`
+- **Backend:** `backend.py` (root) — single-file Flask, deployed to Render at `https://skilledge-backend-fpcl.onrender.com/`
+- **Auth pattern:** POST `/api/auth/login` (email-only, `@koenig-solutions.com` domain check + RMS role verification). Returns `session_id`, `email`, `role`.
+- **Dashboard data:** GET `/api/data/unified-manager-intelligence?email=EMAIL` — returns full web-frontend data model arrays (trainer_operations_df, trainer_current_state_df, batch_engagement_df, unallocated_demand_df, manager_action_objects, etc.) + backward-compat KPI fields.
+- **Key Android files:**
+  - `NavigationKeys.kt` — `Login` + `Main(email)` NavKey data classes
+  - `Navigation.kt` — Navigation3 based nav with currentScreen state
+  - `ui/auth/LoginScreen.kt` + `LoginViewModel.kt` — email-only login, role-aware errors
+  - `ui/main/MainScreen.kt` — rich dashboard: dark KPI cards, trainer roster, attention queue, demand queue
+  - `ui/main/MainScreenViewModel.kt` — calls `loadData(email)` lazily
+  - `data/api/SkillEdgeApi.kt` — Retrofit interface + response models
+  - `data/api/RetrofitClient.kt` — OkHttp with 60s timeout (Render cold start)
+- **Versioning:** versionCode=10, versionName=1.3.0 (as of 2026-08-06)
+- **CI/CD:** `.github/workflows/android-release.yml` — builds release APK → GitHub Release `SkillEdge-v{versionName}.{versionCode}.apk`
+- **Unallocated demand API field names (key=190, discovered empirically):** `Coursename`, `CourseSDate`, `CourseEDate`, `"Delivery Mode"` (space!), `vendor`, `"Assignment City"`, `NoOfParticipants`, `AssignmentID`
+- **Utilization API (key=55):** returns single row per trainer with monthly columns `"Jun 2026": "75.77 / 43.05"` (load%/util%). Parse: split `/`, take index [1] as util%, average last 3 months.
+- **Assignments API (key=16 prevUpcoming):** fields `StarDate` (typo), `EndDate`, `Course`, `Mode`, `Location`, `AssignmentId`, `NoOfParticipants`, `Vendor`.
+
 ## Deployment
 
 See `DEPLOYMENT.md` for deployment details; `docs/` holds architecture and status.
