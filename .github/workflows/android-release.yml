@@ -45,6 +45,12 @@ jobs:
         echo "version_name=$(grep versionName app/build.gradle.kts | awk -F '"' '{print $2}')" >> $GITHUB_OUTPUT
         echo "version_code=$(grep versionCode app/build.gradle.kts | awk '{print $3}')" >> $GITHUB_OUTPUT
 
+    - name: Rename APK
+      run: |
+        VERSION_NAME=${{ steps.get_version.outputs.version_name }}
+        VERSION_CODE=${{ steps.get_version.outputs.version_code }}
+        mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/SkillEdge-v${VERSION_NAME}.${VERSION_CODE}.apk
+
     - name: Create Release
       id: create_release
       uses: softprops/action-gh-release@v1
@@ -52,7 +58,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: v${{ steps.get_version.outputs.version_name }}.${{ steps.get_version.outputs.version_code }}
-        name: SkillSync Release v${{ steps.get_version.outputs.version_name }}
+        name: SkillSync Release v${{ steps.get_version.outputs.version_name }}.${{ steps.get_version.outputs.version_code }}
         draft: false
         prerelease: false
-        files: SkillEdge_Android/app/build/outputs/apk/release/app-release.apk
+        files: SkillEdge_Android/app/build/outputs/apk/release/SkillEdge-v*.apk
