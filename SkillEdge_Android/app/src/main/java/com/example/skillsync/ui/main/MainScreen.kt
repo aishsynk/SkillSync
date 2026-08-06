@@ -452,10 +452,11 @@ private fun AttentionCard(action: Map<*, *>) {
 
 @Composable
 private fun DemandCard(demand: Map<*, *>) {
-    val course   = demand.str("course_name").ifBlank { "Course not specified" }
-    val date     = demand.str("start_date")
-    val mode     = demand.str("delivery_mode")
-    val customer = demand.str("customer")
+    val course       = demand.str("course_name").ifBlank { "Course not specified" }
+    val date         = demand.str("start_date")
+    val mode         = demand.str("delivery_mode")
+    val customer     = demand.str("customer")
+    val participants = demand.str("participants")
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -474,7 +475,7 @@ private fun DemandCard(demand: Map<*, *>) {
             Column(Modifier.weight(1f)) {
                 Text(course, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = BodyText, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    listOf(date, mode, customer).filter { it.isNotBlank() }.joinToString(" · "),
+                    listOf(date, mode, customer, if (participants.isNotBlank()) "$participants pax" else "").filter { it.isNotBlank() }.joinToString(" · "),
                     fontSize = 10.sp, color = SubText, maxLines = 1,
                 )
             }

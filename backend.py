@@ -565,17 +565,21 @@ def unified_intelligence():
                     if isinstance(r, dict)][:20]
 
     # ── Step 2: unallocated demand (global) ──────────────────────────────
+    # Field names from live API: AssignmentID, Coursename, CourseSDate, CourseEDate,
+    # "Delivery Mode" (with space), vendor, "Assignment City"
     unallocated_raw = _rms("unallocated", {}) or []
     demand_df = []
     for d in (unallocated_raw if isinstance(unallocated_raw, list) else []):
         if isinstance(d, dict):
             demand_df.append({
-                "demand_id":     str(d.get("AssignmentId", d.get("id", ""))),
-                "course_name":   str(d.get("Course", d.get("CourseName", "Course"))),
-                "start_date":    str(d.get("StarDate", d.get("StartDate", ""))),
-                "delivery_mode": str(d.get("Mode", d.get("DeliveryMode", ""))),
-                "customer":      str(d.get("Customer", d.get("client", ""))),
-                "location":      str(d.get("Location", "")),
+                "demand_id":     str(d.get("AssignmentID", d.get("AssignmentId", ""))),
+                "course_name":   str(d.get("Coursename", d.get("Course", d.get("CourseName", "")))),
+                "start_date":    str(d.get("CourseSDate", d.get("StarDate", d.get("StartDate", "")))).split("T")[0],
+                "end_date":      str(d.get("CourseEDate", d.get("EndDate", ""))).split("T")[0],
+                "delivery_mode": str(d.get("Delivery Mode", d.get("Mode", d.get("DeliveryMode", "")))),
+                "customer":      str(d.get("vendor", d.get("Customer", d.get("client", "")))),
+                "location":      str(d.get("Assignment City", d.get("Location", ""))),
+                "participants":  str(d.get("NoOfParticipants", "")),
             })
 
     # ── Step 3: per-trainer data (parallel) ──────────────────────────────
@@ -658,16 +662,6 @@ def unified_intelligence():
         },
         "cache":     {"age": 0, "ttl": 3600, "source": "rms_live"},
         "timestamp": datetime.utcnow().isoformat(),
-    }), 200
-
-
-@app.route('/debug/unallocated', methods=['GET'])
-def debug_unallocated():
-    """Diagnostic — returns first 3 raw rows from unallocated demand API."""
-    raw = _rms("unallocated", {}) or []
-    return jsonify({
-        "count": len(raw) if isinstance(raw, list) else 0,
-        "sample": (raw if isinstance(raw, list) else [])[:3],
     }), 200
 
 
