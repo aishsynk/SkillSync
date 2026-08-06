@@ -1,35 +1,68 @@
 package com.example.skillsync.ui.main
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavKey
-
-// ── Brand colours (mirrors web frontend) ──────────────────────────────────────
-private val Teal     = Color(0xFF00ACAC)
-private val Blue     = Color(0xFF348FE2)
-private val Green    = Color(0xFF90CA4B)
-private val Amber    = Color(0xFFF59C1A)
-private val Red      = Color(0xFFFF5B57)
-private val Indigo   = Color(0xFF6610F2)
-private val DarkBg   = Color(0xFF333F4A)
-private val PageBg   = Color(0xFFF2F5F8)
-private val CardBg   = Color.White
-private val SubText  = Color(0xFF8A97A0)
-private val BodyText = Color(0xFF3A4552)
+import com.example.skillsync.R
+import com.example.skillsync.theme.StatusBarIcons
+import com.example.skillsync.theme.skill
+import com.example.skillsync.ui.components.AnimatedCount
+import com.example.skillsync.ui.components.Appear
+import com.example.skillsync.ui.components.Motion
+import com.example.skillsync.ui.components.ShimmerBox
+import com.example.skillsync.ui.components.SkillSyncLogo
+import com.example.skillsync.ui.components.animateProgressFromZero
 
 // ── Screen entry point ────────────────────────────────────────────────────────
 
@@ -43,56 +76,117 @@ fun MainScreen(
 ) {
     LaunchedEffect(email) { viewModel.loadData(email) }
     val state by viewModel.uiState.collectAsState()
+    val refreshing by viewModel.refreshing.collectAsState()
+
+    StatusBarIcons(lightIcons = true)
 
     Scaffold(
+        containerColor = MaterialTheme.skill.pageBg,
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("SkillSync", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
-                        Text("Manager Command Dashboard", fontSize = 10.sp, color = Color.White.copy(alpha = 0.75f))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SkillSyncLogo(size = 30.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                "SkillSync",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 16.sp,
+                                color = Color.White,
+                            )
+                            Text(
+                                "Manager Command Dashboard",
+                                fontSize = 9.5.sp,
+                                color = Color.White.copy(alpha = 0.78f),
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Teal,
+                    containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = Color.White,
                 ),
             )
         },
     ) { pv ->
-        Box(modifier = modifier.fillMaxSize().padding(pv).background(PageBg)) {
+        Box(modifier.fillMaxSize().padding(pv)) {
             when (state) {
-                is DashboardState.Loading -> DashLoadingView()
-                is DashboardState.Error   -> DashErrorView((state as DashboardState.Error).message)
-                is DashboardState.Success -> DashboardContent((state as DashboardState.Success).intelligenceData)
+                is DashboardState.Loading -> DashboardSkeleton()
+                is DashboardState.Error -> DashErrorView(
+                    message = (state as DashboardState.Error).message,
+                    onRetry = { viewModel.refresh(email) },
+                )
+                is DashboardState.Success -> PullToRefreshBox(
+                    isRefreshing = refreshing,
+                    onRefresh = { viewModel.refresh(email) },
+                ) {
+                    DashboardContent((state as DashboardState.Success).intelligenceData)
+                }
             }
         }
     }
 }
 
+// ── Loading & error states ────────────────────────────────────────────────────
+
+/** Skeleton mirroring the real layout, so the page doesn't jump when data lands. */
 @Composable
-private fun DashLoadingView() {
+private fun DashboardSkeleton() {
     Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.skill.pageBg)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        CircularProgressIndicator(color = Teal, strokeWidth = 3.dp)
-        Spacer(Modifier.height(16.dp))
-        Text("Loading manager intelligence…", style = MaterialTheme.typography.bodyMedium, color = SubText)
+        ShimmerBox(height = 168.dp, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth())
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ShimmerBox(height = 132.dp, shape = RoundedCornerShape(10.dp), modifier = Modifier.weight(1f))
+            ShimmerBox(height = 132.dp, shape = RoundedCornerShape(10.dp), modifier = Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(4.dp))
+        ShimmerBox(width = 170.dp, height = 14.dp)
+        repeat(4) {
+            ShimmerBox(height = 116.dp, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth())
+        }
     }
 }
 
 @Composable
-private fun DashErrorView(message: String) {
+private fun DashErrorView(message: String, onRetry: () -> Unit) {
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(28.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("⚠", fontSize = 48.sp)
-        Spacer(Modifier.height(12.dp))
-        Text(message, color = Red, style = MaterialTheme.typography.bodyMedium)
+        Icon(
+            painter = painterResource(R.drawable.ic_alert),
+            contentDescription = null,
+            tint = MaterialTheme.skill.amber,
+            modifier = Modifier.size(44.dp),
+        )
+        Spacer(Modifier.height(14.dp))
+        Text(
+            "Couldn't load your dashboard",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.skill.bodyText,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.skill.subText,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(20.dp))
+        Button(
+            onClick = onRetry,
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+        ) {
+            Text("Try again", style = MaterialTheme.typography.labelLarge)
+        }
     }
 }
 
@@ -103,149 +197,139 @@ fun DashboardContent(data: Map<String, Any>) {
     val trainerOps    = data.listOf("trainer_operations_df")
     val trainerStates = data.listOf("trainer_current_state_df")
     val demands       = data.listOf("unallocated_demand_df")
-    val allActions    = data.listOf("manager_action_objects")
-    val openActions   = allActions.filter { it.str("lifecycle_state") != "closed" }
+    val openActions   = data.listOf("manager_action_objects").filter { it.str("lifecycle_state") != "closed" }
     val decisions     = data.listOf("trainer_decision_objects")
-    val manager       = data["manager"] as? Map<*, *>
 
-    val stateMap  = trainerStates.associateBy { it.str("trainer_email").lowercase() }
-    val live      = trainerStates.count { it.str("current_status") == "teaching_now" }
-    val preparing = trainerStates.count { it.str("current_status") in setOf("scheduled_today", "preparing") }
-    val unknown   = trainerStates.count { it.str("current_status") == "unknown" }
-    val blocked   = decisions.count { it.str("assignment_status") == "blocked" }
-    val negFbCount= trainerOps.count { it.int("negative_count") > 0 }
-    val utilVals  = trainerOps.mapNotNull { t ->
-        val v = t["current_utilization"]
-        when (v) {
+    val stateMap   = trainerStates.associateBy { it.str("trainer_email").lowercase() }
+    val live       = trainerStates.count { it.str("current_status") == "teaching_now" }
+    val preparing  = trainerStates.count { it.str("current_status") in setOf("scheduled_today", "preparing") }
+    val unknown    = trainerStates.count { it.str("current_status") == "unknown" }
+    val blocked    = decisions.count { it.str("assignment_status") == "blocked" }
+    val negFeedback= trainerOps.count { it.int("negative_count") > 0 }
+
+    val utilVals = trainerOps.mapNotNull { t ->
+        when (val v = t["current_utilization"]) {
             is Number -> v.toDouble().takeIf { it.isFinite() && it > 0 }
             is String -> v.toDoubleOrNull()?.takeIf { it > 0 }
-            else      -> null
+            else -> null
         }
     }
     val avgUtil   = if (utilVals.isNotEmpty()) utilVals.average().toInt() else 0
     val underUtil = utilVals.count { it < 60 }
     val overUtil  = utilVals.count { it > 85 }
     val known     = trainerStates.count { it.str("current_status") != "unknown" }
-    val knownPct  = if (trainerOps.isNotEmpty()) (known * 100 / trainerOps.size) else 0
+    val knownPct  = if (trainerOps.isNotEmpty()) known * 100 / trainerOps.size else 0
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(PageBg),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.skill.pageBg),
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-
-        // ── 1. Team Deployment header card ───────────────────────────────
+        // 1 · Team deployment hero
         item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = DarkBg),
-                shape = RoundedCornerShape(6.dp),
-                elevation = CardDefaults.cardElevation(2.dp),
-            ) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(
-                        "TEAM DEPLOYMENT",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFADB5BD),
-                        letterSpacing = 0.1.sp,
-                    )
+            Appear(0) {
+                HeroCard {
+                    HeroLabel("TEAM DEPLOYMENT")
                     Spacer(Modifier.height(6.dp))
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "${trainerOps.size}",
-                            fontSize = 34.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                        AnimatedCount(
+                            target = trainerOps.size,
+                            style = MaterialTheme.typography.displaySmall,
+                            color = MaterialTheme.skill.heroText,
                         )
                         Text(
                             " reportees",
-                            fontSize = 15.sp,
-                            color = Color(0xFFADB5BD),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.skill.heroMuted,
                             modifier = Modifier.padding(start = 6.dp, top = 10.dp),
                         )
                         Spacer(Modifier.weight(1f))
-                        Chip("$knownPct% verified", Teal)
+                        Chip("$knownPct% verified", MaterialTheme.skill.teal)
                     }
                     Spacer(Modifier.height(14.dp))
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f), thickness = 1.dp)
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
                     Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        DeployStat("Delivering", live, Teal, trainerOps.size, Modifier.weight(1f))
-                        DeployStat("Upcoming",   preparing, Blue, trainerOps.size, Modifier.weight(1f))
-                        DeployStat("Unknown",    unknown, Color(0xFF7C8791), trainerOps.size, Modifier.weight(1f))
+                        DeployStat("Delivering", live, MaterialTheme.skill.teal, trainerOps.size, Modifier.weight(1f))
+                        DeployStat("Upcoming", preparing, MaterialTheme.skill.blue, trainerOps.size, Modifier.weight(1f))
+                        DeployStat("Unknown", unknown, MaterialTheme.skill.subText, trainerOps.size, Modifier.weight(1f))
                     }
                 }
             }
         }
 
-        // ── 2. Capacity + Control ────────────────────────────────────────
+        // 2 · Capacity + control
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Card(
-                    modifier = Modifier.weight(1f),
-                    colors = CardDefaults.cardColors(containerColor = DarkBg),
-                    shape = RoundedCornerShape(6.dp),
-                    elevation = CardDefaults.cardElevation(2.dp),
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text("CAPACITY SIGNAL", fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFADB5BD), letterSpacing = 0.1.sp)
+            Appear(1) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HeroCard(Modifier.weight(1f), padding = 12.dp) {
+                        HeroLabel("CAPACITY SIGNAL")
                         Spacer(Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.Bottom) {
-                            Text("$avgUtil", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text("%", fontSize = 14.sp, color = Color(0xFFADB5BD), modifier = Modifier.padding(bottom = 5.dp, start = 2.dp))
+                            AnimatedCount(
+                                target = avgUtil,
+                                style = MaterialTheme.typography.headlineLarge,
+                                color = MaterialTheme.skill.heroText,
+                                suffix = "%",
+                            )
                         }
-                        Text("avg utilization · ${utilVals.size} trainers", fontSize = 9.sp, color = SubText, modifier = Modifier.padding(bottom = 10.dp))
-                        MiniStat("< 60% util", underUtil.toString(), Green)
-                        MiniStat("> 85% util", overUtil.toString(), Red)
+                        Text(
+                            "avg utilization · ${utilVals.size} trainers",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.skill.subText,
+                            modifier = Modifier.padding(bottom = 10.dp),
+                        )
+                        MiniStat("< 60% util", underUtil, MaterialTheme.skill.green)
+                        MiniStat("> 85% util", overUtil, MaterialTheme.skill.red)
                     }
-                }
-                Card(
-                    modifier = Modifier.weight(1f),
-                    colors = CardDefaults.cardColors(containerColor = DarkBg),
-                    shape = RoundedCornerShape(6.dp),
-                    elevation = CardDefaults.cardElevation(2.dp),
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text("MANAGER CONTROL", fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFADB5BD), letterSpacing = 0.1.sp)
+                    HeroCard(Modifier.weight(1f), padding = 12.dp) {
+                        HeroLabel("MANAGER CONTROL")
                         Spacer(Modifier.height(4.dp))
-                        Text("${openActions.size}", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text("open decisions", fontSize = 9.sp, color = SubText, modifier = Modifier.padding(bottom = 10.dp))
-                        MiniStat("Blocked",      blocked.toString(), Red)
-                        MiniStat("Neg feedback", negFbCount.toString(), Amber)
-                        MiniStat("Demand",       demands.size.toString(), Blue)
+                        AnimatedCount(
+                            target = openActions.size,
+                            style = MaterialTheme.typography.headlineLarge,
+                            color = MaterialTheme.skill.heroText,
+                        )
+                        Text(
+                            "open decisions",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.skill.subText,
+                            modifier = Modifier.padding(bottom = 10.dp),
+                        )
+                        MiniStat("Blocked", blocked, MaterialTheme.skill.red)
+                        MiniStat("Neg feedback", negFeedback, MaterialTheme.skill.amber)
+                        MiniStat("Demand", demands.size, MaterialTheme.skill.blue)
                     }
                 }
             }
         }
 
-        // ── 3. Team roster ───────────────────────────────────────────────
-        item {
-            SectionHeader("Team — right now  (${trainerOps.size})")
-        }
+        // 3 · Team roster
+        item { Appear(2) { SectionHeader("Team — right now", trainerOps.size) } }
 
         if (trainerOps.isEmpty()) {
             item { EmptyCard("No reportees returned. Check your account permissions.") }
         } else {
-            items(trainerOps) { trainer ->
-                val trEmail = trainer.str("official_email").lowercase()
-                TrainerCard(trainer = trainer, state = stateMap[trEmail])
+            itemsIndexed(trainerOps) { i, trainer ->
+                Appear(i + 3) {
+                    TrainerCard(trainer, stateMap[trainer.str("official_email").lowercase()])
+                }
             }
         }
 
-        // ── 4. Attention queue ───────────────────────────────────────────
+        // 4 · Attention queue
         if (openActions.isNotEmpty()) {
-            item { SectionHeader("Manager Attention  (${openActions.size})") }
-            items(openActions.take(6)) { action ->
-                AttentionCard(action)
+            item { SectionHeader("Manager attention", openActions.size) }
+            itemsIndexed(openActions.take(6)) { i, action ->
+                Appear(i) { AttentionCard(action) }
             }
         }
 
-        // ── 5. Unallocated demand ────────────────────────────────────────
+        // 5 · Unallocated demand
         if (demands.isNotEmpty()) {
-            item { SectionHeader("Unallocated Sales Demand  (${demands.size})") }
-            items(demands.take(8)) { demand ->
-                DemandCard(demand)
+            item { SectionHeader("Unallocated sales demand", demands.size) }
+            itemsIndexed(demands.take(8)) { i, demand ->
+                Appear(i) { DemandCard(demand) }
             }
         }
 
@@ -253,7 +337,32 @@ fun DashboardContent(data: Map<String, Any>) {
     }
 }
 
-// ── Trainer card ─────────────────────────────────────────────────────────────
+// ── Cards ─────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun HeroCard(
+    modifier: Modifier = Modifier,
+    padding: Dp = 16.dp,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.skill.heroBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+    ) {
+        Column(
+            Modifier
+                .background(
+                    Brush.linearGradient(
+                        listOf(MaterialTheme.skill.heroBg, MaterialTheme.skill.heroBgAlt)
+                    )
+                )
+                .padding(padding),
+            content = content,
+        )
+    }
+}
 
 @Composable
 private fun TrainerCard(trainer: Map<*, *>, state: Map<*, *>?) {
@@ -275,54 +384,74 @@ private fun TrainerCard(trainer: Map<*, *>, state: Map<*, *>?) {
     val nxtCourse   = nxtBatch?.str("course_name")?.takeIf { it.isNotBlank() }
     val nxtDate     = nxtBatch?.str("start_at")?.takeIf { it.isNotBlank() }
 
+    val sk = MaterialTheme.skill
     val statusColor = when (status) {
-        "teaching_now"    -> Teal
-        "scheduled_today" -> Blue
-        "preparing"       -> Indigo
-        "free"            -> Green
-        "blocked"         -> Red
-        else              -> SubText
+        "teaching_now" -> sk.teal
+        "scheduled_today" -> sk.blue
+        "preparing" -> sk.indigo
+        "free" -> sk.green
+        "blocked" -> sk.red
+        else -> sk.subText
     }
     val fbColor = when (fbRisk.lowercase()) {
-        "high"   -> Red
-        "medium" -> Amber
-        else     -> Green
+        "high" -> sk.red
+        "medium" -> sk.amber
+        else -> sk.green
     }
     val utilColor = when {
-        util > 85 -> Red
-        util > 60 -> Teal
-        util > 30 -> Amber
-        else      -> SubText
+        util > 85 -> sk.red
+        util > 60 -> sk.teal
+        util > 30 -> sk.amber
+        else -> sk.subText
     }
+
+    val utilProgress by animateProgressFromZero(util / 100f)
+    val barColor by animateColorAsState(utilColor, tween(Motion.NORMAL), label = "barColor")
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(6.dp),
-        elevation = CardDefaults.cardElevation(1.dp),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Column(Modifier.padding(12.dp)) {
-
-            // Name + designation + status badge
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier
+                    Modifier
                         .size(38.dp)
-                        .background(Teal.copy(alpha = 0.1f), RoundedCornerShape(6.dp)),
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(statusColor.copy(alpha = 0.20f), statusColor.copy(alpha = 0.07f))
+                            )
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        name.split(" ").take(2).joinToString("") { it.take(1).uppercase() },
-                        fontSize = 12.sp,
+                        name.split(" ").filter { it.isNotBlank() }.take(2)
+                            .joinToString("") { it.take(1).uppercase() },
+                        style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.ExtraBold,
-                        color = Teal,
+                        color = statusColor,
                     )
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = BodyText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = sk.bodyText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     if (desig.isNotBlank()) {
-                        Text(desig, fontSize = 10.sp, color = SubText, maxLines = 1)
+                        Text(
+                            desig,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.subText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
                 Spacer(Modifier.width(8.dp))
@@ -331,127 +460,130 @@ private fun TrainerCard(trainer: Map<*, *>, state: Map<*, *>?) {
 
             Spacer(Modifier.height(10.dp))
 
-            // Utilization bar
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Util", fontSize = 9.sp, color = SubText, modifier = Modifier.width(26.dp))
+                Text("Util", style = MaterialTheme.typography.labelSmall, color = sk.subText, modifier = Modifier.width(26.dp))
                 LinearProgressIndicator(
-                    progress = { (util / 100f).coerceIn(0f, 1f) },
-                    modifier = Modifier.weight(1f).height(5.dp).clip(RoundedCornerShape(3.dp)),
-                    color = utilColor,
-                    trackColor = Color(0xFFE8EBEE),
+                    progress = { utilProgress },
+                    modifier = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)),
+                    color = barColor,
+                    trackColor = sk.track,
+                    gapSize = 0.dp,
+                    drawStopIndicator = {},
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "$util%",
-                    fontSize = 11.sp,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = utilColor,
+                    color = barColor,
                 )
                 if (confidence > 0) {
-                    Text("  $confidence% conf.", fontSize = 8.5.sp, color = SubText)
+                    Text(
+                        "  $confidence% conf.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText,
+                    )
                 }
             }
 
-            // Current delivery
             if (curCourse != null) {
-                Spacer(Modifier.height(7.dp))
+                Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.Top) {
-                    Text("→ ", fontSize = 9.sp, color = Teal, fontWeight = FontWeight.Bold)
+                    Text("▸ ", style = MaterialTheme.typography.labelSmall, color = sk.teal)
                     Column {
-                        Text(curCourse, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = BodyText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            curCourse,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = sk.bodyText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                         if (!curMode.isNullOrBlank()) {
-                            Text(curMode, fontSize = 9.sp, color = SubText)
+                            Text(curMode, style = MaterialTheme.typography.labelSmall, color = sk.subText)
                         }
                     }
                 }
             }
 
-            // Next batch
             if (nxtCourse != null) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     buildString {
-                        append("↗ Next: ")
-                        append(nxtCourse)
+                        append("↗ Next: ").append(nxtCourse)
                         if (!nxtDate.isNullOrBlank()) append("  ($nxtDate)")
                     },
-                    fontSize = 10.sp,
-                    color = Color(0xFF5A6472),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.subText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
 
             Spacer(Modifier.height(9.dp))
-            HorizontalDivider(color = Color(0xFFF0F2F4), thickness = 1.dp)
-            Spacer(Modifier.height(7.dp))
+            HorizontalDivider(color = sk.cardBorder)
+            Spacer(Modifier.height(8.dp))
 
-            // Feedback risk + readiness + action hint
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Chip(
-                    text = "FB: $fbRisk${if (negCount > 0) " ($negCount)" else ""}",
-                    tint = fbColor,
-                )
+                Chip("FB: $fbRisk${if (negCount > 0) " ($negCount)" else ""}", fbColor)
                 Spacer(Modifier.width(5.dp))
-                Chip(readiness, SubText)
+                Chip(readiness, sk.subText)
                 Spacer(Modifier.weight(1f))
                 Text(
                     actionLbl,
-                    fontSize = 9.sp,
-                    color = SubText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.subText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 160.dp),
+                    modifier = Modifier.widthIn(max = 150.dp),
                 )
             }
         }
     }
 }
 
-// ── Attention card ────────────────────────────────────────────────────────────
-
 @Composable
 private fun AttentionCard(action: Map<*, *>) {
+    val sk = MaterialTheme.skill
     val title    = action.str("title").ifBlank { "Manager action required" }
     val trainer  = action.str("trainer_name")
     val category = action.str("category").ifBlank { "Action" }
     val priority = action.str("priority")
     val catColor = when (category.lowercase()) {
-        "feedback"   -> Red
-        "allocation" -> Blue
-        else         -> Amber
+        "feedback" -> sk.red
+        "allocation" -> sk.blue
+        else -> sk.amber
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(6.dp),
-        elevation = CardDefaults.cardElevation(1.dp),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
-        Row(Modifier.padding(0.dp)) {
+        Row {
             Box(Modifier.width(3.dp).fillMaxHeight().background(catColor))
             Column(Modifier.padding(start = 12.dp, top = 10.dp, end = 12.dp, bottom = 10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Chip(category, catColor)
                     if (priority.equals("high", ignoreCase = true)) {
                         Spacer(Modifier.width(5.dp))
-                        Chip("HIGH", Red)
+                        Chip("HIGH", sk.red)
                     }
                 }
                 Spacer(Modifier.height(5.dp))
-                Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = BodyText, maxLines = 2)
+                Text(title, style = MaterialTheme.typography.titleSmall, color = sk.bodyText, maxLines = 2)
                 if (trainer.isNotBlank()) {
-                    Text(trainer, fontSize = 10.sp, color = SubText)
+                    Text(trainer, style = MaterialTheme.typography.labelSmall, color = sk.subText)
                 }
             }
         }
     }
 }
 
-// ── Demand card ───────────────────────────────────────────────────────────────
-
 @Composable
 private fun DemandCard(demand: Map<*, *>) {
+    val sk = MaterialTheme.skill
     val course       = demand.str("course_name").ifBlank { "Course not specified" }
     val date         = demand.str("start_date")
     val mode         = demand.str("delivery_mode")
@@ -460,43 +592,52 @@ private fun DemandCard(demand: Map<*, *>) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(6.dp),
-        elevation = CardDefaults.cardElevation(1.dp),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(36.dp).background(Blue.copy(alpha = 0.1f), RoundedCornerShape(6.dp)),
+                Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(sk.blue.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("!", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Blue)
+                Text("!", style = MaterialTheme.typography.titleLarge, color = sk.blue)
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text(course, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = BodyText, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    listOf(date, mode, customer, if (participants.isNotBlank()) "$participants pax" else "").filter { it.isNotBlank() }.joinToString(" · "),
-                    fontSize = 10.sp, color = SubText, maxLines = 1,
+                    course,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = sk.bodyText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    listOf(date, mode, customer, participants.takeIf { it.isNotBlank() }?.let { "$it pax" })
+                        .filterNotNull().filter { it.isNotBlank() }.joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.subText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Spacer(Modifier.width(8.dp))
-            Chip("Match", Blue)
+            Chip("Match", sk.blue)
         }
     }
 }
 
-// ── Reusable small components ─────────────────────────────────────────────────
+// ── Small building blocks ─────────────────────────────────────────────────────
 
 @Composable
 private fun Chip(text: String, tint: Color) {
-    Surface(
-        color = tint.copy(alpha = 0.13f),
-        shape = RoundedCornerShape(12.dp),
-    ) {
+    Surface(color = tint.copy(alpha = 0.14f), shape = RoundedCornerShape(12.dp)) {
         Text(
             text,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.labelSmall,
             color = tint,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
         )
@@ -504,78 +645,96 @@ private fun Chip(text: String, tint: Color) {
 }
 
 @Composable
+private fun HeroLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.skill.heroMuted,
+    )
+}
+
+@Composable
 private fun DeployStat(label: String, count: Int, color: Color, total: Int, modifier: Modifier) {
-    val frac = if (total > 0) (count.toFloat() / total).coerceIn(0f, 1f) else 0f
+    val p by animateProgressFromZero(if (total > 0) count.toFloat() / total else 0f)
     Column(modifier) {
-        Text(label, fontSize = 9.sp, color = Color(0xFFADB5BD))
-        Text("$count", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.heroMuted)
+        AnimatedCount(
+            target = count,
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.skill.heroText,
+        )
         LinearProgressIndicator(
-            progress = { frac },
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp).height(3.dp).clip(RoundedCornerShape(2.dp)),
+            progress = { p },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp)
+                .height(3.dp)
+                .clip(RoundedCornerShape(2.dp)),
             color = color,
-            trackColor = Color.White.copy(alpha = 0.1f),
+            trackColor = Color.White.copy(alpha = 0.10f),
+            gapSize = 0.dp,
+            drawStopIndicator = {},
         )
     }
 }
 
 @Composable
-private fun MiniStat(label: String, value: String, color: Color) {
+private fun MiniStat(label: String, value: Int, color: Color) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(6.dp).background(color, RoundedCornerShape(50)))
+            Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(color))
             Spacer(Modifier.width(5.dp))
-            Text(label, fontSize = 9.sp, color = Color(0xFFADB5BD))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.heroMuted)
         }
-        Text(value, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text(
+            "$value",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.skill.heroText,
+        )
     }
 }
 
 @Composable
-private fun SectionHeader(title: String) {
-    Text(
-        title,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.ExtraBold,
-        color = BodyText,
-        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
-    )
+private fun SectionHeader(title: String, count: Int) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.skill.bodyText,
+        )
+        Spacer(Modifier.width(8.dp))
+        Chip("$count", MaterialTheme.skill.subText)
+    }
 }
 
 @Composable
 private fun EmptyCard(message: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(6.dp),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.skill.cardBg),
     ) {
         Box(Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) {
-            Text(message, fontSize = 12.sp, color = SubText)
-        }
-    }
-}
-
-// ── Legacy KpiCard (kept for any callers outside this file) ───────────────────
-
-@Composable
-fun KpiCard(title: String, value: String, modifier: Modifier = Modifier) {
-    Card(modifier = modifier) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(value, style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-            Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.skill.subText,
+            )
         }
     }
 }
 
 // ── Extension helpers ─────────────────────────────────────────────────────────
 
-@Suppress("UNCHECKED_CAST")
 private fun Map<String, Any>.listOf(key: String): List<Map<*, *>> =
     (this[key] as? List<*>)?.filterIsInstance<Map<*, *>>() ?: emptyList()
 
@@ -584,16 +743,12 @@ private fun Map<*, *>.str(key: String): String {
     return if (v is String) v.trim() else v.toString().trim()
 }
 
-private fun Map<*, *>.int(key: String): Int {
-    val v = this[key] ?: return 0
-    return when (v) {
-        is Int    -> v
-        is Double -> v.toInt()
-        is Float  -> v.toInt()
-        is Long   -> v.toInt()
-        is String -> v.toDoubleOrNull()?.toInt() ?: 0
-        else      -> 0
-    }
+private fun Map<*, *>.int(key: String): Int = when (val v = this[key]) {
+    null -> 0
+    is Int -> v
+    is Double -> v.toInt()
+    is Float -> v.toInt()
+    is Long -> v.toInt()
+    is String -> v.toDoubleOrNull()?.toInt() ?: 0
+    else -> 0
 }
-
-private fun Map<*, *>.intVal(key: String): Int = int(key)

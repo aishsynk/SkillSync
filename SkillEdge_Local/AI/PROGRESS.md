@@ -44,3 +44,17 @@
   - [x] AI/CONTEXT.md and AI/DECISIONS.md updated with durable knowledge
   - [ ] Application launched on device — pending user APK install test
   - [x] No build errors
+
+## v1.4.0 — Brand Identity + Premium UI/UX — 2026-08-06
+- **Agent/Tool**: Claude Code (claude-opus-5)
+- **Files Modified**: `theme/Color.kt`, `theme/Theme.kt`, `theme/Type.kt`, `ui/components/Motion.kt` (new), `ui/components/Branding.kt` (new), `ui/auth/LoginScreen.kt`, `ui/main/MainScreen.kt`, `ui/main/MainScreenViewModel.kt`, `Navigation.kt`, `res/drawable/ic_logo.xml` (new), `ic_launcher_foreground.xml`, `ic_launcher_background.xml`, `ic_mail/ic_check/ic_alert.xml` (new), `res/values/themes.xml`, `colors.xml` (new), `tools/gen_logo.py` + `tools/preview_logo.py` (new), `build.gradle.kts`
+- **Work Completed**:
+  - **Brand mark**: Generated the low-poly brain + neural-network logo as a Delaunay-triangulated VectorDrawable (transparent background, scales cleanly). Two variants — full detail for in-app, simplified/bolder for the launcher adaptive icon, sized to the 66x66 safe zone. Replaced the stock Android-green launcher background with a white→pale-blue gradient. Generator script committed so the mark is reproducible; PIL preview script used to visually verify before wiring in.
+  - **Theme**: Removed Material You dynamic colour (was overriding the brand with wallpaper hues on Android 12+). Brand-locked light/dark schemes plus a `SkillColors` CompositionLocal for hero/status/table colours. Full typography scale. `MainScreen.kt`'s previously hard-coded private colour constants now come from the theme, so dark mode works.
+  - **Motion system**: shared `Motion.kt` — staggered `Appear`, counting KPI numbers, progress bars that grow from zero, error shake, shimmer skeletons.
+  - **Login**: animated aurora background, floating/breathing logo, staggered entrance, focus-reactive email field, button that morphs Sign in → spinner → check, shake + slide-in error banner.
+  - **Navigation**: dashboard rises over a fading login via `AnimatedContent`.
+  - **Dashboard**: skeleton loading mirroring the real layout (replacing the bare spinner), staggered card entrance, animated counters and bars, pull-to-refresh, and a **Try again** button on the error state (previously a dead end with no retry path).
+  - **versionCode 10→11, versionName 1.3.0→1.4.0**
+- **Defects found and fixed during review**: `animateFloatAsState` does not animate on first composition (bars were snapping, not growing); `Arrangement.Center` is a no-op inside `verticalScroll` (login content would have sat top-aligned); dashboard error state had no retry affordance; a failed refresh could wipe on-screen data.
+- **Verification**: `assembleDebug` + `testDebugUnitTest` green; logo rasterised and visually checked against the reference. No emulator/AVD on this machine, so on-device visual confirmation is still pending.

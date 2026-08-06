@@ -72,6 +72,13 @@ Start the server, then run `python tests/smoke_test.py`.
 - **Backend:** `backend.py` (root) — single-file Flask, deployed to Render at `https://skilledge-backend-fpcl.onrender.com/`
 - **Auth pattern:** POST `/api/auth/login` (email-only, `@koenig-solutions.com` domain check + RMS role verification). Returns `session_id`, `email`, `role`.
 - **Dashboard data:** GET `/api/data/unified-manager-intelligence?email=EMAIL` — returns full web-frontend data model arrays (trainer_operations_df, trainer_current_state_df, batch_engagement_df, unallocated_demand_df, manager_action_objects, etc.) + backward-compat KPI fields.
+- **Design system (v1.4.0+):**
+  - `theme/Color.kt` — brand palette + `SkillColors` (light/dark) for colours Material has no slot for
+  - `theme/Theme.kt` — `SkillSyncTheme` (dynamic colour deliberately OFF), `MaterialTheme.skill.*` accessor, `StatusBarIcons()` per-screen helper
+  - `theme/Type.kt` — dense dashboard-oriented type scale
+  - `ui/components/Motion.kt` — `Appear` (staggered entrance), `AnimatedCount`, `animateProgressFromZero`, `rememberShake`, `ShimmerBox`
+  - `ui/components/Branding.kt` — `SkillSyncLogo` (floating/breathing), `SkillSyncWordmark`
+  - `tools/gen_logo.py` — regenerates `ic_logo.xml` + `ic_launcher_foreground.xml`; `tools/preview_logo.py` rasterises a PNG preview (needs numpy/scipy/Pillow)
 - **Key Android files:**
   - `NavigationKeys.kt` — `Login` + `Main(email)` NavKey data classes
   - `Navigation.kt` — Navigation3 based nav with currentScreen state

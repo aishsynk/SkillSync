@@ -2,6 +2,20 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-06 — v1.4.0: Brand identity + premium UI/UX motion system
+
+- **Decision:** Drop Material You dynamic colour (`dynamicColor` was `true`, so on Android 12+ the whole app took its palette from the user's wallpaper) and lock the app to a brand scheme. SkillSync is a corporate tool; wallpaper-driven theming actively destroyed the teal/blue identity shared with the web dashboard.
+- **Decision:** Extend Material's scheme with a `SkillColors` CompositionLocal (`MaterialTheme.skill.*`) rather than scattering hard-coded `Color(0xFF…)` constants through screens. Material has no slot for the dashboard's hero-card chrome, status hues or table borders; the CompositionLocal lets light/dark swap atomically. The previous `MainScreen.kt` declared its own private colour constants, which could not respond to dark mode at all.
+- **Decision:** Generate the brand mark as a **Delaunay-triangulated VectorDrawable** via a committed script (`SkillEdge_Android/tools/gen_logo.py`), not a hand-authored path or a raster asset.
+  - A `<clip-path>` over a smooth silhouette was tried first and rejected — it produces a *blob* edge. Real low-poly art needs the triangles themselves to form the outline, so the script resamples the brain outline into boundary vertices, scatters interior points, triangulates, and drops triangles whose centroid falls outside the polygon (which is what carves the brain-stem notch).
+  - Two variants: `ic_logo.xml` (full detail, in-app) and `ic_launcher_foreground.xml` (fewer/larger facets, compact heavier mesh, sized to the adaptive-icon 66x66 safe zone) — the full mark turns to mush at 48dp.
+  - `tools/preview_logo.py` rasterises the same geometry with PIL so the mark can be eyeballed without building the app.
+- **Decision:** Centralise animation in `ui/components/Motion.kt` (`Appear`, `AnimatedCount`, `animateProgressFromZero`, `rememberShake`, `ShimmerBox`) instead of per-screen ad-hoc animations, so timing/easing stay consistent.
+  - **Gotcha worth remembering:** `animateFloatAsState` seeds its animator with the *first* target value, so it does **not** animate on initial composition. Anything that should grow from zero on first paint needs an explicit `var started by remember { … }` + `LaunchedEffect(Unit)` gate. Both the utilisation bars and the deployment stats were silently snapping before this was fixed.
+- **Decision:** Loading state is a **skeleton mirroring the real layout**, not a centred spinner, so the page doesn't reflow when data lands.
+- **Decision:** `MainScreenViewModel` gained `refresh()` separate from `loadData()`. A failed refresh must not replace data the manager is already reading, and `loadData` is now idempotent per-email so returning to the screen doesn't refetch.
+- **Layout gotcha:** inside `Modifier.verticalScroll`, `Arrangement.Center` is a no-op — the scroll container measures children with `minHeight = 0`, so the column wraps its content and centring has no space to act in. The login screen uses `BoxWithConstraints` + `heightIn(min = maxHeight)` so it centres when short and scrolls when the keyboard is up.
+
 ## 2026-08-06 — v1.3.0: Full Dashboard Redesign with Live RMS Data Model
 
 - **Decision:** Completely rewrite `backend.py` (Render) and `MainScreen.kt` (Android) to return and render the full web-frontend data model — the same `trainer_operations_df`, `trainer_current_state_df`, `batch_engagement_df`, `unallocated_demand_df`, `trainer_feedback_summary_df`, `manager_action_objects`, `trainer_decision_objects` arrays that the SkillEdge web dashboard consumes.
