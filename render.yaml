@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: skilledge-backend
+    runtime: python
+    runtimeVersion: 3.11.0
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 4 -b 0.0.0.0:$PORT server:app
+    envVars:
+      - key: SKILLEDGE_ENV
+        value: production
+      - key: SKILLEDGE_PORT
+        value: '8080'
+      - key: SKILLEDGE_LOG_LEVEL
+        value: INFO
+      - key: SKILLEDGE_LOG_FORMAT
+        value: json
+      - key: PYTHONUNBUFFERED
+        value: 'true'
+      - key: SKILLEDGE_DEFAULT_EMAIL
+        sync: false
+      - key: SKILLEDGE_REFRESH_EMAIL
+        sync: false
+
+  - type: web
+    name: skilledge-frontend
+    runtime: static
+    buildCommand: echo "Frontend served from frontend/ directory"
+    staticPublishPath: frontend
+    routes:
+      - path: /assets
+        destination: /frontend/assets
+      - path: /js
+        destination: /frontend/js
+      - path: /
+        destination: /frontend/pages/index.html
