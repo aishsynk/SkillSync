@@ -1,44 +1,9 @@
 {
-  "buildCommand": "pip install -r requirements.txt",
-  "outputDirectory": ".",
-  "functions": {
-    "backend.py": {
-      "runtime": "python3.11",
-      "memory": 1024,
-      "maxDuration": 60
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/backend.py"
-    },
-    {
-      "source": "/healthz",
-      "destination": "/backend.py"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/backend.py"
-    }
+  "version": 2,
+  "builds": [
+    { "src": "backend.py", "use": "@vercel/python" }
   ],
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        },
-        {
-          "key": "Content-Type",
-          "value": "application/json"
-        }
-      ]
-    }
-  ],
-  "env": {
-    "FLASK_ENV": "production",
-    "PYTHONUNBUFFERED": "true"
-  }
+  "routes": [
+    { "src": "/(.*)", "dest": "backend.py" }
+  ]
 }
