@@ -6,7 +6,7 @@ import retrofit2.http.Body
 import retrofit2.http.Query
 import com.google.gson.annotations.SerializedName
 
-data class LoginRequest(@SerializedName("email") val username: String, val password: String = "")
+data class LoginRequest(val email: String)
 data class LoginResponse(val email: String?, val error: String?)
 
 interface SkillEdgeApi {

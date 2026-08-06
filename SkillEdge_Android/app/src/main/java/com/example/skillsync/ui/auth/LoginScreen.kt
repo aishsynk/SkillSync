@@ -14,8 +14,7 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit,
     viewModel: LoginViewModel = viewModel()
 ) {
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     
     val loginState by viewModel.loginState.collectAsState()
 
@@ -38,24 +37,16 @@ fun LoginScreen(
         )
 
         OutlinedTextField(
-            value = username,
-            onValueChange = { username = it },
-            label = { Text("Email / Username") },
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-        )
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password (Optional for testing)") },
-            visualTransformation = PasswordVisualTransformation(),
+            value = email,
+            onValueChange = { email = it },
+            label = { Text("Work Email") },
             modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
         )
 
         Button(
-            onClick = { viewModel.login(username, password) },
+            onClick = { viewModel.login(email) },
             modifier = Modifier.fillMaxWidth().height(50.dp),
-            enabled = loginState !is LoginState.Loading && username.isNotBlank()
+            enabled = loginState !is LoginState.Loading && email.isNotBlank()
         ) {
             if (loginState is LoginState.Loading) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))

@@ -19,11 +19,11 @@ class LoginViewModel : ViewModel() {
     private val _loginState = MutableStateFlow<LoginState>(LoginState.Idle)
     val loginState: StateFlow<LoginState> = _loginState
 
-    fun login(username: String, password: String = "") {
+    fun login(email: String) {
         viewModelScope.launch {
             _loginState.value = LoginState.Loading
             try {
-                val request = LoginRequest(username = username, password = password)
+                val request = LoginRequest(email = email)
                 val response = RetrofitClient.instance.login(request)
                 if (response.email != null) {
                     _loginState.value = LoginState.Success(response.email)
