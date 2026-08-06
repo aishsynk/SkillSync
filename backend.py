@@ -1,12 +1,33 @@
 """
-SkillSync Backend API v3.0
+SkillSync Backend API v4.0
 Deployed on Render — production backend for SkillSync Android app.
 
 Auth: POST /api/auth/login — @koenig-solutions.com only, manager or Trainer Plus role.
-Data: GET /api/data/unified-manager-intelligence?email=EMAIL — full dashboard payload
+Data: GET /api/data/unified-manager-intelligence?email=EMAIL — dashboard payload
       matching the web frontend data model (trainer_operations_df, trainer_current_state_df,
       batch_engagement_df, unallocated_demand_df, trainer_feedback_summary_df,
       manager_action_objects, trainer_decision_objects).
+      GET /api/data/trainer-360?email=EMAIL — deep single-trainer profile
+      (capability, certifications, delivery history, feedback, availability).
+
+RMS schema notes — all verified against live responses, not the instruction files,
+which have proven wrong more than once:
+  * reportees (82)      TrainerName, TrainerId, EmpId, OffEmail, TrainerPlus,
+                        IsdirectReportee, Designation
+  * utilization (55)    one row; TrainerId/TrainerName/EmailId/DOJ plus a
+                        "Mon YYYY" column per month holding "load / utilization"
+  * trainerDetails (75) one row PER COURSE (capability), not a profile record —
+                        CourseName, VendorName, QubitsScore, SkillLevel,
+                        OfficiallyApproved, Is Future Skill, Course Assignment
+  * prevUpcoming (16)   dates as "03-Aug-2026"; note the StarDate spelling
+  * vendorCertCount(57) Trainer is "Name;EmpCode"; one "True"/"False" column per body
+  * unallocated (190)   Coursename, CourseSDate/CourseEDate, "Delivery Mode",
+                        vendor, "Assignment City", NoOfParticipants, AssignmentID
+  * trainerSkills (217), trainerNegFeedback (218), last3MonthsUtil (39) key off
+    employee_id / EmpCode — passing an email or blank returns zero rows silently.
+
+There is no leave/absence endpoint in the RMS catalogue. The only unavailability
+signal is the *OffDates fields on trainerDetails, which are frequently null.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -221,9 +242,17 @@ def _verify_role(email):
     """
     Returns:
       ("manager",      reportees_list)  — user has direct/indirect reportees
-      ("trainer_plus", [details_row])   — user is a Trainer Plus designation
+      ("trainer_plus", [util_row])      — user is a trainer flagged Trainer Plus
       ("rms_error",    None)            — RMS unreachable
       (None,           None)            — no qualifying role found
+
+    Note on Trainer Plus: the flag lives on the *manager's* reportee rows
+    (`TrainerPlus: "Yes"|"No"`), and RMS exposes no self-service lookup for it.
+    The previous implementation read `Designation` off `trainerDetails`, but that
+    API returns one row *per course* and has no Designation field at all — so the
+    check always failed and every Trainer Plus was rejected with 401.
+    Until a self-lookup API exists, a non-manager is admitted only if RMS knows
+    them as a trainer, and the session is marked `trainer_plus_unverified`.
     """
     reportees = _rms("reportees", {"email": email})
     if reportees is None:
@@ -231,35 +260,49 @@ def _verify_role(email):
     if isinstance(reportees, list) and reportees:
         return "manager", reportees
 
-    details = _rms("trainerDetails", {"email": email})
-    if isinstance(details, list) and details:
-        row = details[0] if isinstance(details[0], dict) else {}
-    elif isinstance(details, dict):
-        row = details
-    else:
-        row = {}
-    desig = str(row.get("Designation", row.get("Role", row.get("designation", "")))).lower()
-    if "plus" in desig or "senior" in desig:
-        return "trainer_plus", [row]
+    util = _rms("utilization", {"email": email})
+    if util is None:
+        return "rms_error", None
+    if isinstance(util, list) and util and isinstance(util[0], dict) and util[0].get("TrainerId"):
+        return "trainer_plus", util
 
     return None, None
 
 
 # ─── Date helpers ─────────────────────────────────────────────────────────────
 
-_DATE_FMTS = ["%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y", "%Y/%m/%d", "%d %b %Y"]
+# RMS is not consistent: assignments come back as "03-Aug-2026", unallocated
+# demand as "2026-08-27T00:00:00+05:30". Missing %d-%b-%Y here meant every
+# assignment date silently parsed to None, so no trainer could ever be detected
+# as delivering and current/next batch were always empty.
+_DATE_FMTS = [
+    "%d-%b-%Y", "%d-%B-%Y", "%d %b %Y", "%d %B %Y",
+    "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y", "%Y/%m/%d",
+    "%b %d %Y", "%d.%m.%Y",
+]
 
 
 def _parse_date(s, default=None):
     if not s:
         return default
-    s = str(s).strip().split("T")[0].split(" ")[0]
+    s = str(s).strip().split("T")[0].strip()
     for fmt in _DATE_FMTS:
         try:
             return datetime.strptime(s, fmt).date()
         except ValueError:
             pass
+    # Last resort: leading ISO date inside a longer string.
+    m = _re.match(r"(\d{4})-(\d{2})-(\d{2})", s)
+    if m:
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            pass
     return default
+
+
+def _iso(d):
+    return d.isoformat() if isinstance(d, date) else ""
 
 
 def _engagement_state(assignment, today):
@@ -280,38 +323,125 @@ def _engagement_state(assignment, today):
 _mpat = _re.compile(r'^[A-Z][a-z]{2}\s+\d{4}$')
 
 
+def _util_row(email):
+    """Raw utilization row: TrainerId, TrainerName, EmailId, DOJ + 'Mon YYYY' columns."""
+    rows = _rms("utilization", {"email": email}) or []
+    if isinstance(rows, list) and rows and isinstance(rows[0], dict):
+        return rows[0]
+    return rows if isinstance(rows, dict) else {}
+
+
+def _util_series(row):
+    """[{month, load, utilization}] in calendar order from the monthly columns."""
+    out = []
+    for k, v in row.items():
+        if not _mpat.match(str(k).strip()) or not isinstance(v, str) or "/" not in v:
+            continue
+        load, util = (v.split("/") + [""])[:2]
+        try:
+            out.append({
+                "month": str(k).strip(),
+                "load": round(float(load.strip()), 1),
+                "utilization": round(float(util.strip()), 1),
+            })
+        except ValueError:
+            pass
+    out.sort(key=lambda m: _parse_date("01 " + m["month"], default=date.min))
+    return out
+
+
+def _avg_util(series):
+    """Average of the trailing three months, which is what the web dashboard shows."""
+    recent = [m["utilization"] for m in series][-3:]
+    return max(0, min(100, round(sum(recent) / len(recent)))) if recent else 0
+
+
 def _safe_util(email):
-    """Return avg util% for last 3 months from monthly-column format ('Jun 2026': '75.77 / 43.05')."""
     try:
-        rows = _rms("utilization", {"email": email}) or []
-        row = rows[0] if (isinstance(rows, list) and rows and isinstance(rows[0], dict)) \
-              else (rows if isinstance(rows, dict) else {})
-        monthly = []
-        for k, v in row.items():
-            if _mpat.match(str(k).strip()) and isinstance(v, str) and "/" in v:
-                try:
-                    monthly.append(float(v.split("/")[1].strip()))
-                except (ValueError, IndexError):
-                    pass
-        if monthly:
-            return max(0, min(100, round(sum(monthly[-3:]) / len(monthly[-3:]))))
+        return _avg_util(_util_series(_util_row(email)))
     except Exception:
-        pass
-    return 0
+        return 0
+
+
+def _skills(email):
+    """Capability rows from trainerDetails (one row per course the trainer holds)."""
+    rows = _rms("trainerDetails", {"email": email}) or []
+    out = []
+    for r in (rows if isinstance(rows, list) else []):
+        if not isinstance(r, dict) or not r.get("CourseName"):
+            continue
+        try:
+            qubits = float(r.get("QubitsScore") or 0)
+        except (TypeError, ValueError):
+            qubits = 0.0
+        try:
+            delivered = int(str(r.get("Course Assignment") or "0").strip() or 0)
+        except ValueError:
+            delivered = 0
+        out.append({
+            "course":       str(r.get("CourseName", "")).strip(),
+            "vendor":       str(r.get("VendorName", "") or "").strip(),
+            "qubits_score": round(qubits),
+            "skill_level":  str(r.get("SkillLevel", "") or "").strip(),
+            "approved":     str(r.get("OfficiallyApproved", "")).strip().lower() == "yes",
+            "future_skill": str(r.get("Is Future Skill", "")).strip().lower() == "yes",
+            "delivered":    delivered,
+        })
+    out.sort(key=lambda s: (-s["qubits_score"], s["course"]))
+    return out
+
+
+def _off_dates(email):
+    """Availability constraints. RMS has no leave endpoint — these off-date fields
+    on trainerDetails are the only unavailability signal, and are often null."""
+    rows = _rms("trainerDetails", {"email": email}) or []
+    row = rows[0] if (isinstance(rows, list) and rows and isinstance(rows[0], dict)) else {}
+    fields = {
+        "roaming":               "RoamingOffDates",
+        "international_roaming": "InternationaRoamingOffDates",
+        "night_il":              "NightILOffDates",
+        "morning_il":            "MorningILOffDates",
+        "evening_il":            "EveningILOffDates",
+    }
+    return {k: str(row.get(v)).strip() for k, v in fields.items()
+            if row.get(v) not in (None, "", "null")}
+
+
+def _certifications(email):
+    """{count, held[]} — vendorCertCount returns one 'True'/'False' column per body."""
+    rows = _rms("vendorCertCount", {"email": email}) or []
+    row = rows[0] if (isinstance(rows, list) and rows and isinstance(rows[0], dict)) else {}
+    skip = {"Trainer", "EmailId", "Certificate Count"}
+    held = [k for k, v in row.items()
+            if k not in skip and str(v).strip().lower() == "true"]
+    try:
+        count = int(row.get("Certificate Count") or 0)
+    except (TypeError, ValueError):
+        count = len(held)
+    emp_code = ""
+    if ";" in str(row.get("Trainer", "")):
+        emp_code = str(row["Trainer"]).split(";")[-1].strip()
+    return {"count": count, "held": held, "emp_code": emp_code}
 
 
 # ─── Per-trainer build (runs in ThreadPoolExecutor) ───────────────────────────
 
 def _build_trainer(r, today):
     """Fetch all per-trainer data and build ops/state/batches/feedback rows."""
+    # Real reportee schema (verified live): TrainerName, TrainerId, EmpId,
+    # OffEmail, TrainerPlus, IsdirectReportee, Designation.
     t_email = str(r.get("OffEmail", r.get("Email", ""))).strip().lower()
-    t_name  = str(r.get("Name", r.get("TrainerName", "Unknown"))).strip()
-    emp_id  = str(r.get("EmpId", r.get("TrainerId", ""))).strip()
-    desig   = str(r.get("Designation", r.get("designation", ""))).strip()
-    t_type  = str(r.get("Type", "direct")).strip().lower()
+    t_name  = _re.sub(r"\s+", " ", str(r.get("TrainerName", r.get("Name", "Unknown")))).strip()
+    emp_id  = str(r.get("EmpId", "")).strip()
+    trn_id  = str(r.get("TrainerId", "")).strip()
+    desig   = str(r.get("Designation", "")).strip()
+    t_type  = "direct" if str(r.get("IsdirectReportee", "")).strip().lower() == "yes" else "indirect"
+    is_plus = str(r.get("TrainerPlus", "")).strip().lower() == "yes"
 
     # ── Parallel sub-fetches (sequential within this worker) ────────────
-    util = _safe_util(t_email) if t_email else 0
+    u_row  = _util_row(t_email) if t_email else {}
+    series = _util_series(u_row)
+    util   = _avg_util(series)
 
     neg_count = 0
     try:
@@ -323,10 +453,17 @@ def _build_trainer(r, today):
 
     window_start = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
     window_end   = (datetime.utcnow() + timedelta(days=90)).strftime("%Y-%m-%d")
+    # _rms returns None on failure and [] for a genuinely empty result. Collapsing
+    # the two (the old `or []`) made a transient RMS outage look like "no
+    # assignments", so a busy trainer would be reported as Available. Keep them
+    # distinct and degrade to "unknown" instead of asserting something false.
     assignments_raw = _rms("prevUpcoming", {
         "Startdate": window_start, "Enddate": window_end, "Email": t_email,
-    }) or []
-    assignments = [a for a in (assignments_raw if isinstance(assignments_raw, list) else []) if isinstance(a, dict)]
+    })
+    assignments_ok = assignments_raw is not None
+    assignments = [a for a in (assignments_raw if isinstance(assignments_raw, list) else [])
+                   if isinstance(a, dict)]
+    util_ok = bool(u_row)
 
     # ── Determine current status ─────────────────────────────────────────
     current_a = None
@@ -348,29 +485,30 @@ def _build_trainer(r, today):
                 if existing_st and st < existing_st:
                     upcoming_a = a
 
-    if current_a:
+    if not assignments_ok:
+        status = "unknown"          # RMS did not answer — assert nothing
+    elif current_a:
         status = "teaching_now"
     elif upcoming_a:
         days_to = (_parse_date(upcoming_a.get("StarDate", ""), default=today) - today).days
         status = "scheduled_today" if days_to <= 3 else "preparing"
     else:
-        status = "free" if util < 30 else "unknown"
+        status = "free"
 
-    # ── Readiness score ──────────────────────────────────────────────────
-    base_score = util
-    if neg_count > 2:
-        base_score -= 20
-    elif neg_count > 0:
-        base_score -= 8
-    if status == "teaching_now":
-        base_score += 5
-    readiness_score = max(0, min(100, round(base_score)))
-
-    readiness_bucket = (
-        "Ready" if readiness_score >= 70 else
-        "Needs Coaching" if readiness_score >= 45 else
-        "At Risk"
+    # ── Capacity bucket ──────────────────────────────────────────────────
+    # This is deliberately *capacity*, not "readiness". The dashboard path has
+    # no capability signal (qubits/approvals cost two extra RMS calls per
+    # trainer), so the previous "readiness" bucket was just utilisation wearing
+    # a different name — which labelled a 39%-utilised trainer "At Risk" when
+    # they are simply under-booked. Real readiness is computed in trainer-360.
+    capacity_bucket = (
+        "Unknown" if not util_ok else
+        "Stretched" if util > 85 else
+        "Balanced" if util >= 60 else
+        "Light" if util >= 30 else
+        "On Bench"
     )
+    readiness_score = util
 
     feedback_risk = "High" if neg_count > 2 else ("Medium" if neg_count > 0 else "Low")
 
@@ -385,24 +523,31 @@ def _build_trainer(r, today):
     else:
         recommended = "Monitor performance"
 
-    confidence = 90 if current_a else (70 if upcoming_a else 40)
+    confidence = 0 if not assignments_ok else (90 if current_a else (70 if upcoming_a else 55))
 
     cur_batch = {}
     nxt_batch = {}
+    def _batch(a):
+        st, en = _parse_date(a.get("StarDate", "")), _parse_date(a.get("EndDate", ""))
+        return {
+            "course_name":   str(a.get("Course", "") or "").strip(),
+            "delivery_mode": str(a.get("Mode", "") or "").strip(),
+            "location":      str(a.get("Location", "") or "").strip(),
+            "vendor":        str(a.get("Vendor", "") or "").strip(),
+            "assignment_id": str(a.get("AssignmentId", "") or ""),
+            "participants":  a.get("NoOfParticipants", 0),
+            "start_at":      _iso(st),
+            "end_at":        _iso(en),
+            "start_time":    str(a.get("StartTime", "") or ""),
+            "end_time":      str(a.get("EndTime", "") or ""),
+            "days_left":     (en - today).days if en else None,
+            "days_until":    (st - today).days if st else None,
+        }
+
     if current_a:
-        cur_batch = {
-            "course_name":    current_a.get("Course", ""),
-            "delivery_mode":  current_a.get("Mode", ""),
-            "location":       current_a.get("Location", ""),
-            "assignment_id":  current_a.get("AssignmentId", ""),
-            "participants":   current_a.get("NoOfParticipants", ""),
-        }
+        cur_batch = _batch(current_a)
     if upcoming_a:
-        nxt_batch = {
-            "course_name": upcoming_a.get("Course", ""),
-            "start_at":    upcoming_a.get("StarDate", ""),
-            "delivery_mode": upcoming_a.get("Mode", ""),
-        }
+        nxt_batch = _batch(upcoming_a)
 
     days_label = ""
     if upcoming_a:
@@ -423,15 +568,22 @@ def _build_trainer(r, today):
         "trainer_name":           t_name,
         "official_email":         t_email,
         "emp_id":                 emp_id,
+        "trainer_id":             trn_id,
         "designation":            desig,
         "direct_or_indirect":     t_type,
+        "trainer_plus":           is_plus,
         "current_utilization":    util,
         "utilization_current":    util,
-        "readiness_bucket":       readiness_bucket,
+        "utilization_series":     series,
+        "capacity_bucket":        capacity_bucket,
+        "readiness_bucket":        capacity_bucket,   # legacy key, v1.4.x clients
         "overall_readiness_score": readiness_score,
         "feedback_risk":          feedback_risk,
         "negative_count":         neg_count,
         "recommended_action":     recommended,
+        "assignment_count":       len(assignments),
+        "upcoming_count":         sum(1 for a in assignments
+                                      if _engagement_state(a, today) == "upcoming"),
     }
 
     state_row = {
@@ -443,24 +595,23 @@ def _build_trainer(r, today):
         "current_batch":  cur_batch,
         "next_batch":     nxt_batch,
         "reason": (
+            "Assignment data unavailable from RMS" if not assignments_ok else
             "Currently on assignment" if current_a else
             (days_label if upcoming_a else "No scheduled assignment")
         ),
+        "data_complete": assignments_ok and util_ok,
     }
 
     batch_rows = []
     for a in assignments:
-        es = _engagement_state(a, today)
-        batch_rows.append({
-            "trainer_name":   t_name,
-            "trainer_email":  t_email,
-            "course_name":    a.get("Course", ""),
-            "delivery_mode":  a.get("Mode", ""),
-            "start_at":       a.get("StarDate", ""),
-            "end_at":         a.get("EndDate", ""),
-            "assignment_id":  a.get("AssignmentId", ""),
-            "engagement_state": es,
+        row = _batch(a)
+        row.update({
+            "trainer_name":     t_name,
+            "trainer_email":    t_email,
+            "engagement_state": _engagement_state(a, today),
         })
+        batch_rows.append(row)
+    batch_rows.sort(key=lambda b: b["start_at"] or "")
 
     feedback_row = {
         "trainer_email":  t_email,
@@ -497,7 +648,7 @@ def healthz():
     return jsonify({
         "status":    "ok",
         "service":   "SkillSync Backend",
-        "version":   "3.0.0",
+        "version":   "4.0.0",
         "timestamp": datetime.utcnow().isoformat(),
     }), 200
 
@@ -665,6 +816,125 @@ def unified_intelligence():
     }), 200
 
 
+@app.route('/api/data/trainer-360', methods=['GET'])
+def trainer_360():
+    """
+    Deep profile for one trainer. Kept off the dashboard payload deliberately —
+    skills and certifications are two extra RMS round-trips per trainer, which
+    would multiply across a full roster. Fetched on demand instead.
+    """
+    email = request.args.get('email', '').strip().lower()
+    if not email:
+        return jsonify({"error": "email query param required"}), 400
+
+    today = datetime.utcnow().date()
+
+    def _identity_and_util():
+        row = _util_row(email)
+        return row, _util_series(row)
+
+    def _assignments():
+        return _rms("prevUpcoming", {
+            "Startdate": (datetime.utcnow() - timedelta(days=365)).strftime("%Y-%m-%d"),
+            "Enddate":   (datetime.utcnow() + timedelta(days=180)).strftime("%Y-%m-%d"),
+            "Email":     email,
+        }) or []
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        f_util   = pool.submit(_identity_and_util)
+        f_skills = pool.submit(_skills, email)
+        f_certs  = pool.submit(_certifications, email)
+        f_assign = pool.submit(_assignments)
+        f_off    = pool.submit(_off_dates, email)
+        f_neg    = pool.submit(_rms, "negFeedbackCount", {"email": email})
+        f_hr     = pool.submit(_rms, "hrIncident", {"email": email})
+
+        u_row, series = f_util.result()
+        skills   = f_skills.result()
+        certs    = f_certs.result()
+        assigns  = [a for a in (f_assign.result() or []) if isinstance(a, dict)]
+        off      = f_off.result()
+        neg_rows = f_neg.result() or []
+        hr_rows  = f_hr.result() or []
+
+    emp_code = certs.get("emp_code", "")
+    # Negative-feedback detail keys off employee_id, not email.
+    neg_detail = (_rms("trainerNegFeedback", {"employee_id": emp_code}) or []) if emp_code else []
+
+    delivery = []
+    for a in assigns:
+        st, en = _parse_date(a.get("StarDate", "")), _parse_date(a.get("EndDate", ""))
+        delivery.append({
+            "course":         str(a.get("Course", "") or "").strip(),
+            "vendor":         str(a.get("Vendor", "") or "").strip(),
+            "mode":           str(a.get("Mode", "") or "").strip(),
+            "location":       str(a.get("Location", "") or "").strip(),
+            "participants":   a.get("NoOfParticipants", 0),
+            "assignment_id":  str(a.get("AssignmentId", "") or ""),
+            "start_at":       _iso(st),
+            "end_at":         _iso(en),
+            "start_time":     str(a.get("StartTime", "") or ""),
+            "end_time":       str(a.get("EndTime", "") or ""),
+            "state":          _engagement_state(a, today),
+        })
+    delivery.sort(key=lambda d: d["start_at"] or "", reverse=True)
+
+    def _num(v):
+        try:
+            return int(v or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    neg_total = sum(_num(r.get("Total")) for r in neg_rows if isinstance(r, dict))
+    hr_pos = sum(_num(r.get("Positive Count")) for r in hr_rows if isinstance(r, dict))
+    hr_neg = sum(_num(r.get("Negative Count")) for r in hr_rows if isinstance(r, dict))
+
+    approved = [s for s in skills if s["approved"]]
+    future   = [s for s in skills if s["future_skill"]]
+    avg_qubits = round(sum(s["qubits_score"] for s in skills) / len(skills)) if skills else 0
+
+    return jsonify({
+        "identity": {
+            "name":        _re.sub(r"\s+", " ", str(u_row.get("TrainerName", "") or "")).strip(),
+            "email":       str(u_row.get("EmailId", email) or email),
+            "trainer_id":  str(u_row.get("TrainerId", "") or ""),
+            "emp_code":    emp_code,
+            "date_of_joining": _iso(_parse_date(u_row.get("DOJ", ""))),
+        },
+        "utilization": {
+            "current": _avg_util(series),
+            "series":  series,
+            "peak":    max((m["utilization"] for m in series), default=0),
+        },
+        "capability": {
+            "total_courses":    len(skills),
+            "approved_courses": len(approved),
+            "future_skills":    len(future),
+            "avg_qubits":       avg_qubits,
+            "courses":          skills,
+        },
+        "certifications": {"count": certs["count"], "held": certs["held"]},
+        "delivery": {
+            "total":    len(delivery),
+            "upcoming": sum(1 for d in delivery if d["state"] == "upcoming"),
+            "current":  sum(1 for d in delivery if d["state"] == "current"),
+            "assignments": delivery,
+        },
+        "feedback": {
+            "negative_total":   neg_total,
+            "hr_positive":      hr_pos,
+            "hr_negative":      hr_neg,
+            "negative_details": [r for r in neg_detail if isinstance(r, dict)],
+        },
+        # Surfaced so the UI can say "no data" honestly rather than implying zero.
+        "availability": {
+            "off_dates": off,
+            "leave_data_available": False,
+        },
+        "timestamp": datetime.utcnow().isoformat(),
+    }), 200
+
+
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({"error": "Not found", "path": request.path}), 404
@@ -679,11 +949,12 @@ def internal_error(error):
 def root():
     return jsonify({
         "service":  "SkillSync Backend",
-        "version":  "3.0.0",
+        "version":  "4.0.0",
         "endpoints": {
             "POST /api/auth/login":                               "Authenticate (role-verified)",
             "POST /api/auth/logout":                              "Logout",
             "GET  /api/data/unified-manager-intelligence?email=": "Full dashboard payload",
+            "GET  /api/data/trainer-360?email=":                  "Deep single-trainer profile",
             "GET  /healthz":                                      "Health check",
         },
     }), 200
