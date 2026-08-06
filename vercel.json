@@ -1,65 +1,9 @@
 {
-  "version": 2,
-  "name": "skilledge",
-  "env": {
-    "SKILLEDGE_ENV": {
-      "description": "Environment (production, staging, development)",
-      "default": "production"
-    },
-    "SKILLEDGE_PORT": {
-      "description": "Server port",
-      "default": "8080"
-    },
-    "SKILLEDGE_LOG_LEVEL": {
-      "description": "Log level (DEBUG, INFO, WARNING, ERROR)",
-      "default": "INFO"
-    },
-    "SKILLEDGE_LOG_FORMAT": {
-      "description": "Log format (text or json)",
-      "default": "json"
-    },
-    "SKILLEDGE_DEFAULT_EMAIL": {
-      "description": "Default manager email for testing"
-    },
-    "SKILLEDGE_REFRESH_EMAIL": {
-      "description": "Email to use for background refresh"
-    }
-  },
-  "buildCommand": "pip install -r requirements.txt",
-  "installCommand": "pip install -r requirements.txt",
-  "devCommand": "python server.py",
-  "framework": "python",
-  "functions": {
-    "backend/**": {
-      "runtime": "python3.11",
-      "includeFiles": "backend/**"
-    }
-  },
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "server.py",
-      "methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
-    }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=3600"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "SAMEORIGIN"
-        }
-      ]
-    }
-  ],
-  "public": true
+    "version": 2,
+    "builds": [
+          { "src": "server.py", "use": "@vercel/python" }
+    ],
+    "routes": [
+          { "src": "/(.*)", "dest": "server.py" }
+    ]
 }
