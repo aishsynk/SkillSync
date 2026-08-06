@@ -661,6 +661,16 @@ def unified_intelligence():
     }), 200
 
 
+@app.route('/debug/unallocated', methods=['GET'])
+def debug_unallocated():
+    """Diagnostic — returns first 3 raw rows from unallocated demand API."""
+    raw = _rms("unallocated", {}) or []
+    return jsonify({
+        "count": len(raw) if isinstance(raw, list) else 0,
+        "sample": (raw if isinstance(raw, list) else [])[:3],
+    }), 200
+
+
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({"error": "Not found", "path": request.path}), 404
