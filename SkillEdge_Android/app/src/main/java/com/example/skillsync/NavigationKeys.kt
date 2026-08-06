@@ -4,4 +4,16 @@ import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 
 @Serializable data object Login : NavKey
-@Serializable data class Main(val email: String) : NavKey
+
+/** Tabbed shell. [tab] selects the destination inside the bottom bar. */
+@Serializable data class Main(val email: String, val tab: String = HomeTab.DASHBOARD) : NavKey
+
+/** Deep profile for a single trainer, pushed over the shell. */
+@Serializable data class Trainer360(val email: String, val trainerEmail: String, val trainerName: String) : NavKey
+
+object HomeTab {
+    const val DASHBOARD = "dashboard"
+    const val TEAM = "team"
+    const val DEMAND = "demand"
+    const val ACTIONS = "actions"
+}

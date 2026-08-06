@@ -22,4 +22,8 @@ interface SkillEdgeApi {
 
     @GET("api/data/unified-manager-intelligence")
     suspend fun getTrainerIntelligence(@Query("email") email: String): Map<String, Any>
+
+    /** Deep single-trainer profile; two extra RMS round-trips, so fetched on demand. */
+    @GET("api/data/trainer-360")
+    suspend fun getTrainer360(@Query("email") email: String): Map<String, Any>
 }
