@@ -1,0 +1,76 @@
+Steps to access API
+
+1. Get Access Token & Device Token with help of username, password & role.
+2. Use above access token & device token to access next API
+
+-------------------------------------------------------
+username : AISHWAR_GetInhouseandFL
+password : 2XC!2LBpsTJh
+role     : Get Inhouse and FL Trainers Of Courses
+
+API Base URL : https://api.koenig-solutions.com
+
+--------------------------------------------------------
+
+Step-1 : Getting access token
+
+URL : API Base URL + api/Kites/Operator/GetToken
+
+json request : 
+
+{
+  "userName": "<username>",
+  "userPassword": "<password>",
+  "userRole": "<role>"
+}
+
+json response : 
+
+{
+  "statuscode": 200,
+  "message": "OK",
+  "content": {
+    "accessToken": "<access token>",
+    "deviceToken": "<device token>",
+    "Username": "<username>",
+    "Role": "<role>"
+  }
+}
+
+----------------------------------------------
+
+Example Request for Get Token API:
+
+{
+  "userName": "AISHWAR_GetInhouseandFL",
+  "userPassword": "2XC!2LBpsTJh",
+  "userRole": "Get Inhouse and FL Trainers Of Courses"
+}
+
+-----------------------------------------------
+-----------------------------------------------
+
+Step-2 : Access Get Inhouse and FL Trainers Of Courses
+
+URL : Base API + api/Kites/Operator/common?apikey={api_key}&accessToken={youraccesstoken}&deviceToken={YourdeviceToken}
+
+json request : 
+{
+  "Course": "",
+  "TrainerType": ""
+}
+
+json response :
+{
+  "statuscode": 200,
+  "message": "OK",
+  "content": "[...results...]"
+}
+
+-------------------------------------------------------
+
+Your Key Parameter:
+
+ "api_key": "157"
+
+--------------------------------------------------------

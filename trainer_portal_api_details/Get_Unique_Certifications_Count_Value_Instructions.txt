@@ -1,0 +1,75 @@
+Steps to access API
+
+1. Get Access Token & Device Token with help of username, password & role.
+2. Use above access token & device token to access next API
+
+-------------------------------------------------------
+username : AISHWAR_GetUniqueCertif
+password : G8!9P@$m3t25
+role     : Get Unique Certifications Count Value
+
+API Base URL : https://api.koenig-solutions.com
+
+--------------------------------------------------------
+
+Step-1 : Getting access token
+
+URL : API Base URL + api/Kites/Operator/GetToken
+
+json request : 
+
+{
+  "userName": "<username>",
+  "userPassword": "<password>",
+  "userRole": "<role>"
+}
+
+json response : 
+
+{
+  "statuscode": 200,
+  "message": "OK",
+  "content": {
+    "accessToken": "<access token>",
+    "deviceToken": "<device token>",
+    "Username": "<username>",
+    "Role": "<role>"
+  }
+}
+
+----------------------------------------------
+
+Example Request for Get Token API:
+
+{
+  "userName": "AISHWAR_GetUniqueCertif",
+  "userPassword": "G8!9P@$m3t25",
+  "userRole": "Get Unique Certifications Count Value"
+}
+
+-----------------------------------------------
+-----------------------------------------------
+
+Step-2 : Access Get Unique Certifications Count Value
+
+URL : Base API + api/Kites/Operator/common?apikey={api_key}&accessToken={youraccesstoken}&deviceToken={YourdeviceToken}
+
+json request : 
+{
+  "email": ""
+}
+
+json response :
+{
+  "statuscode": 200,
+  "message": "OK",
+  "content": "[...results...]"
+}
+
+-------------------------------------------------------
+
+Your Key Parameter:
+
+ "api_key": "72"
+
+--------------------------------------------------------

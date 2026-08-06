@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SkillEdge | Global Allocation Desk</title>
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
+  <link href="/assets/css/vendor.min.css" rel="stylesheet" />
+  <link href="/assets/css/default/app.min.css" rel="stylesheet" />
+  <link href="/assets/plugins/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet" />
+  <style>
+    body{background:#f2f5f8}
+    .cmd-header{background:#fff;border:1px solid #dfe6ec;border-left:4px solid var(--bs-theme-color,#00acac);border-radius:4px;padding:9px 14px;margin-bottom:8px}
+    .cmd-header .cmd-title{font-size:15px;font-weight:800;color:#3a4552;white-space:nowrap}
+    .cmd-header .cmd-meta{font-size:11px;color:#8a97a0}
+    .hero-sub{font-size:12px;color:#6c757d;line-height:1.35}
+    .panel,.card{border-radius:4px}
+    .panel .panel-heading,.panel-heading{padding:8px 12px!important}
+    .panel .panel-body,.panel-body{padding:10px!important}
+    .panel .panel-heading .panel-title,.panel-title{font-size:12.5px!important;font-weight:700}
+    .soft-muted{color:#6c757d}
+    .mini-kpi{min-height:84px;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease;padding:0!important}
+    .mini-kpi:hover{transform:translateY(-2px);box-shadow:0 3px 10px rgba(0,0,0,.12)}
+    .mini-kpi .stats-icon{top:10px;right:10px;font-size:15px;opacity:.85}
+    .mini-kpi .stats-title{font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+    .mini-kpi .stats-number{font-size:19px;line-height:1.05;font-weight:700}
+    .mini-kpi .stats-desc{font-size:9.5px}
+    .mini-kpi .stats-content{padding:11px 12px}
+    .dense-scroll{max-height:400px;overflow-y:auto}
+    .ops-table{font-size:11.5px}
+    .ops-table thead th{position:sticky;top:0;background:#f8fafb;z-index:1;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#8a97a0;white-space:nowrap}
+    .table.table-panel.ops-table>thead>tr>th,
+    .table.table-panel.ops-table>tbody>tr>td{padding:6px 10px!important;border-left:0;border-right:0}
+    .ops-table td{vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+    .ops-table td.ops-wrap{white-space:normal}
+    .ops-table tbody tr{height:46px;cursor:pointer;transition:background-color .1s ease}
+    .ops-table .ops-name a{color:#3a4552;font-weight:600;text-decoration:none}
+    .ops-table .ops-name a:hover{color:var(--bs-theme-color,#00acac);text-decoration:underline}
+    .ops-table .badge{font-size:10px;font-weight:600;vertical-align:middle}
+    .ops-empty{padding:26px 12px;text-align:center;color:#8a97a0;font-size:12px}
+    .nav-tabs-v2.px-2 .nav-link{font-size:11.5px;padding:6px 10px!important;cursor:pointer;font-weight:500;color:#6c757d}
+    .nav-tabs-v2.px-2 .nav-link.active{font-weight:700;color:#3a4552}
+    .filter-strip .form-control,.filter-strip .form-select{font-size:12px}
+    .filter-strip label{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:#8a97a0;font-weight:700;margin-bottom:2px}
+    .render-fallback{padding:18px 14px;text-align:center;color:#6c757d;font-size:12px;background:#f8fafb;border-radius:4px}
+  </style>
+</head>
+<body class="pace-top">
+  <div id="loader" class="app-loader"><span class="spinner"></span></div>
+  <div id="app" class="app app-header-fixed app-sidebar-fixed">
+    <div id="content" class="app-content">
+      <ol class="breadcrumb float-xl-end">
+        <li class="breadcrumb-item"><a href="index.html">Home</a></li>
+        <li class="breadcrumb-item"><a href="javascript:;">Delivery</a></li>
+        <li class="breadcrumb-item active">Allocation Desk</li>
+      </ol>
+      <h1 class="page-header mb-3">Global Allocation Desk <small>course-to-trainer matching board — trainer detail lives in Trainer Cockpit</small></h1>
+
+      <div id="loadError" class="alert alert-danger" style="display:none;">
+        <b><i class="bi bi-exclamation-octagon me-1"></i>Could not load</b><div id="loadErrorText" class="small mt-1"></div>
+      </div>
+
+      <div id="deskLoading" class="text-center py-5 text-muted">
+        <div class="spinner-border text-theme mb-3" style="width:3rem;height:3rem;"></div>
+        <div>Loading Allocation Desk…</div>
+      </div>
+
+      <div id="desk" style="display:none;">
+        <div class="cmd-header">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="cmd-title"><i class="bi bi-diagram-3-fill me-1 text-theme"></i>Global Allocation Desk</span>
+            <a href="javascript:;" class="badge bg-teal fs-11px" id="confidenceBadge" onclick="openDataConfidenceModal()" title="Open source &amp; confidence evidence">- % confidence</a>
+            <span class="cmd-meta" id="sourceBadge">-</span>
+            <span id="freshnessBadge"></span>
+            <div class="ms-auto d-flex align-items-center gap-2">
+              <div class="input-group input-group-sm" style="width:230px">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input id="fSearch" class="form-control" placeholder="Search course / trainer…" oninput="applyFilters()" />
+              </div>
+              <button class="btn btn-sm btn-theme" id="refreshBtn" onclick="reload(true)"><i class="bi bi-arrow-repeat me-1"></i>Refresh</button>
+            </div>
+          </div>
+          <div class="hero-sub mt-2" id="insight">Loading course-to-trainer matches…</div>
+        </div>
+
+        <div id="freshnessBanner" class="mb-2" style="display:none;"></div>
+        <div class="row g-2 mb-2" id="kpiStrip"></div>
+
+        <div class="panel panel-inverse mb-2">
+          <div class="panel-heading d-flex justify-content-between align-items-center">
+            <h4 class="panel-title mb-0">Filter Allocation Board <small class="soft-muted ms-1" id="filterCount"></small></h4>
+            <button class="btn btn-xs btn-default" onclick="resetFilters()"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
+          </div>
+          <div class="panel-body filter-strip">
+            <div class="row g-2">
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Vendor / OEM</label><select id="fVendor" class="form-select form-select-sm" onchange="applyFilters()"></select></div>
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Readiness</label><select id="fReady" class="form-select form-select-sm" onchange="applyFilters()"></select></div>
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Risk</label><select id="fRisk" class="form-select form-select-sm" onchange="applyFilters()"></select></div>
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Blocker</label><select id="fBlocker" class="form-select form-select-sm" onchange="applyFilters()"><option value="">All</option><option value="yes">Blocked</option><option value="no">Not blocked</option></select></div>
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Allocation Status</label><select id="fStatus" class="form-select form-select-sm" onchange="applyFilters()"></select></div>
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Availability</label><select id="fAvail" class="form-select form-select-sm" onchange="applyFilters()"></select></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel panel-inverse mb-2">
+          <div class="panel-heading d-flex justify-content-between align-items-center">
+            <h4 class="panel-title mb-0"><i class="bi bi-inbox-fill me-1"></i>Sales &amp; Unallocated Demand</h4>
+            <a href="custom-course-match.html" class="btn btn-xs btn-theme"><i class="bi bi-file-earmark-arrow-up me-1"></i>Upload TOC</a>
+          </div>
+          <div class="panel-body p-0">
+            <div class="table-responsive dense-scroll">
+              <table class="table table-panel table-hover ops-table mb-0">
+                <thead><tr><th>Demand</th><th>Course</th><th>Dates</th><th>Mode</th><th>Location</th><th>Urgency</th><th>Action</th></tr></thead>
+                <tbody id="demandBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel panel-inverse mb-2">
+          <div class="panel-heading d-flex justify-content-between align-items-center">
+            <h4 class="panel-title mb-0">Course Allocation Board <small class="soft-muted ms-1" id="cardCount"></small></h4>
+            <a href="trainer-intelligence.html" class="btn btn-xs btn-default">Trainer Cockpit</a>
+          </div>
+          <div class="panel-body p-0">
+            <div class="table-responsive dense-scroll">
+              <table class="table table-panel table-striped table-hover ops-table mb-0">
+                <thead class="table-light"><tr>
+                  <th>Course / Session</th><th>Vendor</th><th>Best Trainer</th><th>Score</th><th>Readiness</th><th>Risk</th><th>Backup</th><th>Blocker</th><th>Confidence</th><th></th>
+                </tr></thead>
+                <tbody id="board"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-2 mb-2">
+          <div class="col-xl-6">
+            <div class="panel panel-inverse h-100 mb-0">
+              <div class="panel-heading"><h4 class="panel-title mb-0">Backup Coverage</h4></div>
+              <div class="panel-body p-0">
+                <div class="table-responsive dense-scroll">
+                  <table class="table table-panel table-hover ops-table mb-0">
+                    <thead class="table-light"><tr><th>Course</th><th>Primary</th><th>Backup(s)</th><th>Depth</th><th>Risk</th></tr></thead>
+                    <tbody id="backupBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-xl-6">
+            <div class="panel panel-inverse h-100 mb-0">
+              <div class="panel-heading"><h4 class="panel-title mb-0">Candidate Split <small class="soft-muted ms-1">how to use each trainer</small></h4></div>
+              <div class="panel-body p-0">
+                <div class="table-responsive dense-scroll">
+                  <table class="table table-panel table-hover ops-table mb-0">
+                    <thead class="table-light"><tr><th>Trainer</th><th>Bucket</th><th>Readiness</th></tr></thead>
+                    <tbody id="splitBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-2 mb-2">
+          <div class="col-xl-3 col-md-6">
+            <div class="panel panel-inverse h-100 mb-0">
+              <div class="panel-heading"><h4 class="panel-title mb-0">Allocation Readiness</h4></div>
+              <div class="panel-body"><div id="chReadiness" style="height:170px;"></div></div>
+            </div>
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <div class="panel panel-inverse h-100 mb-0">
+              <div class="panel-heading"><h4 class="panel-title mb-0">Risk / Blocker Mix</h4></div>
+              <div class="panel-body"><div id="chRisk" style="height:170px;"></div></div>
+            </div>
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <div class="panel panel-inverse h-100 mb-0">
+              <div class="panel-heading"><h4 class="panel-title mb-0">Backup Missing by Vendor</h4></div>
+              <div class="panel-body"><div id="chBackup" style="height:170px;"></div></div>
+            </div>
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <div class="panel panel-inverse h-100 mb-0">
+              <div class="panel-heading"><h4 class="panel-title mb-0">Utilization Pressure</h4></div>
+              <div class="panel-body"><div id="chUtil" style="height:170px;"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel panel-inverse mb-2">
+          <div class="panel-heading d-flex justify-content-between align-items-center">
+            <h4 class="panel-title mb-0">Review Queue</h4>
+            <a href="actions.html" class="btn btn-xs btn-default">Action Center</a>
+          </div>
+          <ul class="nav nav-tabs-v2 px-2 pt-1 mb-0" id="queueTabs"></ul>
+          <div class="panel-body p-0">
+            <div class="table-responsive dense-scroll">
+              <table class="table table-panel table-hover ops-table mb-0">
+                <thead class="table-light"><tr><th>Course</th><th>Trainer</th><th>Issue</th><th>Priority</th><th>Confidence</th></tr></thead>
+                <tbody id="queueBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="allocDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="allocDetailTitle">Allocation detail</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="allocDetailBody"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-default" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="chartDrilldownModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="chartDrilldownTitle"><i class="bi bi-people-fill me-1"></i>Detail</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="chartDrilldownBody"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-default" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="dataConfidenceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-shield-check me-1"></i>Source &amp; Confidence Evidence</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="dataConfidenceBody"></div>
+        <div class="modal-footer">
+          <a href="data-health.html" class="btn btn-sm btn-theme">Open Data Health</a>
+          <button type="button" class="btn btn-sm btn-default" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/js/vendor.min.js"></script>
+  <script src="/assets/js/app.min.js"></script>
+  <script src="/assets/plugins/apexcharts/dist/apexcharts.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+  injectLayout('allocation-desk.html');
+  let DATA=null, ALL=[], TMAP={}, CH={};
+  let QUEUE_TAB='all', QUEUE_ROWS=[], BOARD_ROWS=[];
+
+  const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const clean=n=>String(n||'').replace(/\s+/g,' ').trim();
+  const initials=n=>{const p=clean(n).split(' ');return((p[0]||'?')[0]+(p[1]||'')[0]||'').toUpperCase();};
+  const r1=n=>n==null?'—':(Math.round(n*10)/10);
+  const pct=n=>n==null?'—':Math.round(n)+'%';
+  const readTone=r=>r>=80?'success':r>=65?'lime':r>=45?'warning':'danger';
+  const statusTone=s=>({'Ready Now':'success','Needs Prep':'warning','Blocked':'danger','Not Recommended':'gray-500'}[s]||'gray-500');
+  const riskTone=p=>p==='High'?'danger':p==='Medium'?'warning':'success';
+  const badge=(label,tone='gray-500')=>`<span class="badge bg-${tone}${tone==='warning'?' text-dark':''}">${esc(label)}</span>`;
+  const profile=e=>`trainer-intelligence.html?email=${encodeURIComponent(e||'')}`;
+  const trainerLink=(name,email)=>email?`<a href="${profile(email)}" onclick="event.stopPropagation()">${esc(clean(name)||'Trainer')}</a>`:esc(clean(name)||'Trainer');
+
+  const allocationObjects=()=>Array.isArray(DATA?.allocation_decision_objects)&&DATA.allocation_decision_objects.length?DATA.allocation_decision_objects:[];
+  const trainerDecisionObjects=()=>Array.isArray(DATA?.trainer_decision_objects)&&DATA.trainer_decision_objects.length?DATA.trainer_decision_objects:[];
+  const managerActionObjects=()=>Array.isArray(DATA?.manager_action_objects)&&DATA.manager_action_objects.length?DATA.manager_action_objects:[];
+  const allocationRows=()=>allocationObjects().length?allocationObjects():(DATA?.course_allocation_df||[]);
+  const allocationRankedRows=()=>allocationObjects().length?allocationObjects():(DATA?.allocation_ranked_trainer_df||[]);
+  const allocationIntelRows=()=>allocationObjects().length?allocationObjects():(DATA?.allocation_intelligence_df||[]);
+  function firstRow(key){ return Array.isArray(DATA?.[key])&&DATA[key].length&&typeof DATA[key][0]==='object'?DATA[key][0]:null; }
+  function decisionForTrainer(email){ return trainerDecisionObjects().find(d=>(d.trainer_email||'').toLowerCase()===(email||'').toLowerCase())||null; }
+
+  function chartTooltipNames(names){
+    const sorted=names.filter(Boolean).sort((a,b)=>a.localeCompare(b));
+    const shown=sorted.slice(0,8);
+    const more=sorted.length-shown.length;
+    return shown.map(n=>`<div>${esc(n)}</div>`).join('')+(more>0?`<div class="text-muted">+${more} more</div>`:'');
+  }
+  function chartTooltipCard(title,countLabel,names){
+    return `<div class="p-2 fs-11px" style="max-width:230px;">
+      <div class="fw-bold mb-1">${esc(title)}</div>
+      <div class="text-muted mb-2">${esc(countLabel)}</div>
+      ${chartTooltipNames(names)}
+    </div>`;
+  }
+  function openChartDrilldown(title,items){
+    chartDrilldownTitle.innerHTML=`<i class="bi bi-diagram-3-fill me-1"></i>${esc(title)}`;
+    const sorted=(items||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    chartDrilldownBody.innerHTML=sorted.length?`<div class="list-group list-group-flush">${sorted.map(t=>`
+      <a href="${t.email?profile(t.email):'javascript:;'}" class="list-group-item list-group-item-action">${esc(t.name||'Item')}</a>`).join('')}</div>`
+      : `<div class="p-3 text-center text-muted">No items in this segment.</div>`;
+    new bootstrap.Modal(chartDrilldownModal).show();
+  }
+
+  async function reload(force){
+    document.getElementById('desk').style.display='none';
+    document.getElementById('deskLoading').style.display='';
+    document.getElementById('loadError').style.display='none';
+    const b=document.getElementById('refreshBtn'); if(b) b.disabled=true;
+    try{
+      DATA=await API.getUnifiedManagerIntelligence({refresh:!!force});
+      ALL=allocationRows();
+      TMAP={}; (DATA.trainer_operations_df||[]).forEach(t=>{TMAP[(t.official_email||'').toLowerCase()]=t;});
+      document.getElementById('deskLoading').style.display='none';
+      if(!ALL.length){ document.getElementById('loadErrorText').textContent='No course allocations available for your team.'; document.getElementById('loadError').style.display=''; return; }
+      initFilters(); render(); applyFilters();
+      document.getElementById('desk').style.display='';
+    }catch(ex){
+      if (API.isAuthError(ex)) { API.handleAuthFailure(); return; }
+      document.getElementById('deskLoading').style.display='none';
+      document.getElementById('loadErrorText').textContent=ex.message||String(ex);
+      document.getElementById('loadError').style.display='';
+    }finally{ if(b) b.disabled=false; }
+  }
+
+  function uniq(arr){return [...new Set(arr.filter(Boolean))].sort();}
+  function opt(v){return `<option value="${esc(v)}">${esc(v)}</option>`;}
+  function initFilters(){
+    fVendor.innerHTML='<option value="">All vendors</option>'+uniq(ALL.map(a=>a.vendor)).map(opt).join('');
+    fStatus.innerHTML='<option value="">All statuses</option>'+uniq(ALL.map(a=>a.allocation_status)).map(opt).join('');
+    fReady.innerHTML='<option value="">All readiness</option>'+uniq(Object.values(TMAP).map(t=>t.readiness_bucket)).map(opt).join('');
+    fAvail.innerHTML='<option value="">All availability</option>'+uniq(Object.values(TMAP).map(t=>t.availability_status)).map(opt).join('');
+    fRisk.innerHTML='<option value="">All risk</option>'+['Low','Medium','High'].map(opt).join('');
+  }
+  function resetFilters(){ ['fSearch','fVendor','fStatus','fReady','fAvail','fRisk','fBlocker'].forEach(id=>document.getElementById(id).value=''); applyFilters(); }
+
+  function rowRisk(a){
+    const d=decisionForTrainer(a.trainer_email);
+    if(d && Array.isArray(d.risk_register) && d.risk_register.length){
+      const sev=String(d.risk_register[0].severity||'').toLowerCase();
+      return sev==='high'?'High':sev==='medium'?'Medium':'Low';
+    }
+    // Prefer the trainer's backend-resolved classification over this
+    // allocation row's own copied hr_risk/feedback_risk fields.
+    const t=TMAP[(a.trainer_email||'').toLowerCase()];
+    if(t && t.classification){
+      if(t.classification.assignability==='hold') return 'High';
+      if(t.classification.review_flag_type!=='none') return 'Medium';
+      return 'Low';
+    }
+    if(a.hr_risk==='High' || a.feedback_risk==='High') return 'High';
+    if(a.hr_risk==='Medium' || a.feedback_risk==='Medium') return 'Medium';
+    return 'Low';
+  }
+  function isBlocked(a){ return !!a.blocker || a.allocation_status==='Blocked'; }
+
+  function currentFilter(){
+    const s=fSearch.value.toLowerCase();
+    const v=fVendor.value, st=fStatus.value, rd=fReady.value, avl=fAvail.value, rk=fRisk.value, bl=fBlocker.value;
+    return ALL.filter(a=>{
+      const t=TMAP[(a.trainer_email||'').toLowerCase()]||{};
+      if(s && !((a.course_name||'').toLowerCase().includes(s) || (a.trainer_name||'').toLowerCase().includes(s) || (a.vendor||'').toLowerCase().includes(s))) return false;
+      if(v && a.vendor!==v) return false;
+      if(st && a.allocation_status!==st) return false;
+      if(rd && t.readiness_bucket!==rd) return false;
+      if(avl && t.availability_status!==avl) return false;
+      if(rk && rowRisk(a)!==rk) return false;
+      if(bl==='yes' && !isBlocked(a)) return false;
+      if(bl==='no' && isBlocked(a)) return false;
+      return true;
+    });
+  }
+
+  function backupDepthByCourse(){
+    const byCourse={};
+    allocationRankedRows().forEach(r=>{
+      const key=String(r.course_name||'').trim().toLowerCase(); if(!key) return;
+      (byCourse[key]=byCourse[key]||[]).push(r);
+    });
+    return byCourse;
+  }
+
+  function render(){
+    const exec=firstRow('executive_summary_df')||{};
+    const trust=Math.round(ALL.length?ALL.reduce((s,a)=>s+(a.confidence||0),0)/ALL.length:0);
+    confidenceBadge.textContent=`${trust}% confidence`;
+    confidenceBadge.className=`badge fs-11px bg-${trust>=80?'teal':trust>=60?'warning text-dark':'red'}`;
+    sourceBadge.textContent=allocationObjects().length?`Decision objects · ${allocationObjects().length} row(s)`:'Legacy allocation dataframe';
+    SkillEdge.renderFreshnessBadge('freshnessBadge', DATA);
+    SkillEdge.renderFreshnessBanner('freshnessBanner', DATA);
+
+    renderDemandInbox(); applyFilters();
+  }
+
+  function renderDemandInbox(){
+    const rows=Array.isArray(DATA?.unallocated_demand_df)?DATA.unallocated_demand_df:[];
+    if(!rows.length){ demandBody.innerHTML='<tr><td colspan="7" class="ops-empty">No unallocated Sales demand is available from RMS. Upload a TOC to create a custom matching request.</td></tr>'; return; }
+    demandBody.innerHTML=rows.slice(0,30).map(d=>`<tr>
+      <td class="ops-name">${esc(d.demand_id||'Demand')}</td><td>${esc(d.course_name||'Custom requirement')}</td>
+      <td>${esc([d.start_date,d.end_date].filter(Boolean).join(' – ')||'Not supplied')}</td><td>${esc(d.delivery_mode||'Not supplied')}</td>
+      <td>${esc(d.location||'Not supplied')}</td><td>${badge(d.urgency||'Unspecified',d.urgency==='High'?'danger':'gray-500')}</td>
+      <td><a class="btn btn-xs btn-theme" href="custom-course-match.html?demand_id=${encodeURIComponent(d.demand_id||'')}">Find trainers</a></td>
+    </tr>`).join('');
+  }
+
+  function applyFilters(){
+    const rows=currentFilter().slice().sort((a,b)=>(b.overall_allocation_score||0)-(a.overall_allocation_score||0));
+    BOARD_ROWS=rows;
+    const courses=new Set(ALL.map(a=>a.course_name));
+    const readyCourses=new Set(ALL.filter(a=>a.allocation_status==='Ready Now').map(a=>a.course_name));
+    insight.innerHTML=`<b>${courses.size}</b> deliverable courses · <b>${readyCourses.size}</b> with a ready-now trainer · <b>${Object.keys(TMAP).length}</b> trainers in scope.`;
+    filterCount.textContent=`${rows.length} of ${ALL.length}`;
+    cardCount.textContent=`${rows.length} match${rows.length===1?'':'es'}`;
+
+    renderKpis(); renderBoard(rows); renderBackup(); renderSplit(); renderCharts(rows); renderQueue();
+  }
+
+  function renderKpis(){
+    const depthByCourse=backupDepthByCourse();
+    const coursesNeeding=new Set(ALL.map(a=>a.course_name)).size;
+    const readyNow=ALL.filter(a=>a.allocation_status==='Ready Now').length;
+    const backupMissing=[...new Set(ALL.map(a=>a.course_name))].filter(c=>(depthByCourse[String(c).trim().toLowerCase()]||[]).length<2).length;
+    const blocked=ALL.filter(isBlocked).length;
+    const highRiskReviewable=ALL.filter(a=>rowRisk(a)==='High' && !isBlocked(a)).length;
+    const overloaded=Object.values(TMAP).filter(t=>(t.current_utilization||0)>=85).length;
+    const underused=Object.values(TMAP).filter(t=>t.current_utilization!=null && t.current_utilization<40).length;
+    const avgConfidence=Math.round(ALL.length?ALL.reduce((s,a)=>s+(a.confidence||0),0)/ALL.length:0);
+
+    SkillEdge.renderKpiStrip(kpiStrip, [
+      {title:'Courses Needing Allocation', value:coursesNeeding, tone:'bg-teal', icon:'bi-journal-bookmark-fill'},
+      {title:'Ready Now Matches', value:readyNow, tone:'bg-green', icon:'bi-check2-circle', onClick:()=>{fStatus.value='Ready Now';applyFilters();}},
+      {title:'Backup Missing', value:backupMissing, tone:'bg-orange', icon:'bi-person-dash-fill'},
+      {title:'Blocked Allocations', value:blocked, tone:'bg-red', icon:'bi-slash-circle-fill', onClick:()=>{fBlocker.value='yes';applyFilters();}},
+      {title:'High Risk (Reviewable)', value:highRiskReviewable, tone:'bg-purple', icon:'bi-exclamation-triangle-fill', onClick:()=>{fRisk.value='High';fBlocker.value='no';applyFilters();}},
+      {title:'Overloaded Trainers', value:overloaded, tone:'bg-gray-800', icon:'bi-battery-full'},
+      {title:'Underused Capacity', value:underused, tone:'bg-blue', icon:'bi-battery'},
+      {title:'Average Confidence', value:`${avgConfidence}%`, tone:'bg-indigo', icon:'bi-shield-check', onClick:()=>openDataConfidenceModal()},
+    ], {colClass:'col-xl-3 col-md-6'});
+  }
+
+  function renderBoard(rows){
+    if(!rows.length){ board.innerHTML='<tr><td colspan="10" class="ops-empty">No matches for these filters.</td></tr>'; return; }
+    board.innerHTML=rows.slice(0,60).map((a,i)=>{
+      const tone=readTone(a.overall_allocation_score);
+      const risk=rowRisk(a);
+      const depth=(backupDepthByCourse()[String(a.course_name||'').trim().toLowerCase()]||[]).length;
+      return `<tr onclick="openAllocDetail(${i})">
+        <td class="ops-name" title="${esc(a.course_name)}">${esc(a.course_name)}</td>
+        <td>${esc(a.vendor||'-')}</td>
+        <td>${trainerLink(a.trainer_name,a.trainer_email)}</td>
+        <td><b class="text-${tone}">${r1(a.overall_allocation_score)}</b></td>
+        <td>${badge(a.allocation_status||'Not available',statusTone(a.allocation_status))}</td>
+        <td>${badge(risk,riskTone(risk))}</td>
+        <td>${depth>1?badge(`${depth-1} backup`,'success'):badge('Missing','gray-500')}</td>
+        <td>${a.blocker?badge('Blocked','danger'):badge('None','gray-500')}</td>
+        <td>${pct(a.confidence)}</td>
+        <td><button class="btn btn-primary btn-xs" onclick="event.stopPropagation();openAllocDetail(${i})">Review</button></td>
+      </tr>`;
+    }).join('')+(rows.length>60?`<tr><td colspan="10" class="ops-empty">Showing top 60 of ${rows.length} — narrow the filters to see more.</td></tr>`:'');
+  }
+
+  function openAllocDetail(i){
+    const a=BOARD_ROWS[i]; if(!a) return;
+    const t=TMAP[(a.trainer_email||'').toLowerCase()]||{};
+    const tone=readTone(a.overall_allocation_score);
+    const depthRows=(backupDepthByCourse()[String(a.course_name||'').trim().toLowerCase()]||[]).filter(r=>(r.trainer_email||'').toLowerCase()!==(a.trainer_email||'').toLowerCase());
+    allocDetailTitle.textContent=a.course_name||'Course';
+    allocDetailBody.innerHTML=`
+      <div class="d-flex align-items-center mb-3">
+        <div class="w-40px h-40px rounded bg-${tone} text-white d-flex align-items-center justify-content-center fw-bold">${initials(a.trainer_name)}</div>
+        <div class="ms-2 flex-1">${trainerLink(a.trainer_name,a.trainer_email)} <span class="fs-11px text-muted d-block">${esc(t.designation||'Trainer')} &middot; ${esc(a.vendor||'Vendor not available')}</span></div>
+        <div class="text-end"><div class="fw-bold fs-20px text-${tone}">${r1(a.overall_allocation_score)}</div>${badge(a.allocation_status||'Not available',statusTone(a.allocation_status))}</div>
+      </div>
+      <div class="row g-2 mb-2">
+        <div class="col-4"><div class="border rounded p-2 text-center"><div class="fs-9px text-uppercase text-muted">Readiness</div><div class="fw-bold">${r1(a.readiness_score)}</div></div></div>
+        <div class="col-4"><div class="border rounded p-2 text-center"><div class="fs-9px text-uppercase text-muted">Utilization</div><div class="fw-bold">${pct(t.current_utilization)}</div></div></div>
+        <div class="col-4"><div class="border rounded p-2 text-center"><div class="fs-9px text-uppercase text-muted">Confidence</div><div class="fw-bold">${pct(a.confidence)}</div></div></div>
+      </div>
+      <p class="mb-1 fs-13px"><i class="bi bi-check2-circle text-teal me-1"></i>${esc(a.why_this_trainer||'Matched from unified RMS intelligence.')}</p>
+      ${a.blocker?`<p class="mb-2 fs-13px text-danger"><i class="bi bi-slash-circle me-1"></i>${esc(a.blocker)}</p>`:''}
+      <div class="mb-2"><span class="fs-11px fw-bold text-uppercase text-muted">Backup trainers</span><br>
+        ${depthRows.length?depthRows.slice(0,4).map(r=>trainerLink(r.trainer_name,r.trainer_email)).join(', '):'<span class="text-muted fs-12px">No backup trainer identified for this course.</span>'}</div>
+      <div class="p-2 bg-light rounded mb-2"><b>Manager action:</b> ${esc(a.blocker?'Hold — resolve blocker first.':a.allocation_status==='Ready Now'?'Allocate this course.':a.allocation_status==='Needs Prep'?'Assign after a technical mock.':'Do not assign yet.')}</div>
+      <div class="fs-11px text-muted"><b>Source:</b> ${esc(a.decision_contract_version?`Decision object v${a.decision_contract_version}`:(a.source_datasets||[]).join(', ')||'course_allocation_df')}</div>
+    `;
+    new bootstrap.Modal(allocDetailModal).show();
+  }
+
+  let BACKUP_ROWS=[];
+  function renderBackup(){
+    const byCourse=backupDepthByCourse();
+    const courses=[...new Set(ALL.map(a=>a.course_name).filter(Boolean))].slice(0,20);
+    if(!courses.length){ backupBody.innerHTML='<tr><td colspan="5" class="ops-empty">No course backup signals available.</td></tr>'; return; }
+    BACKUP_ROWS=courses.map(name=>{
+      const candidates=(byCourse[String(name).trim().toLowerCase()]||[]).slice().sort((a,b)=>(a.rank||99)-(b.rank||99));
+      return {name,candidates};
+    });
+    backupBody.innerHTML=BACKUP_ROWS.map((row,i)=>{
+      const {name,candidates}=row;
+      const primary=candidates[0];
+      const backups=candidates.slice(1,3);
+      const depth=Math.max(0,candidates.length-1);
+      const risk=primary?rowRisk(primary):'Low';
+      return `<tr onclick="openBackupRow(${i})">
+        <td class="ops-name" title="${esc(name)}">${esc(name)}</td>
+        <td>${primary?trainerLink(primary.trainer_name,primary.trainer_email):'<span class="text-muted">Not available</span>'}</td>
+        <td class="ops-wrap">${backups.length?backups.map(b=>trainerLink(b.trainer_name,b.trainer_email)).join(', '):'<span class="text-muted">None</span>'}</td>
+        <td>${depth>0?badge(depth,'success'):badge('0','gray-500')}</td>
+        <td>${badge(risk,riskTone(risk))}</td>
+      </tr>`;
+    }).join('');
+  }
+  function openBackupRow(i){
+    const row=BACKUP_ROWS[i]; if(!row) return;
+    openChartDrilldown(`${row.name} candidates`, row.candidates.map(c=>({name:c.trainer_name,email:c.trainer_email})));
+  }
+
+  function bucketOf(t){
+    if(!t) return 'Do Not Assign Yet';
+    const hasComplianceFlag = t.classification ? t.classification.has_compliance_flag : t.hr_negative_count>0;
+    if(hasComplianceFlag||t.growth_bucket==='Do Not Risk') return 'Do Not Assign Yet';
+    if(t.growth_bucket==='Safe Expert') return 'Safe Expert';
+    if(t.growth_bucket==='Risk Taker') return 'Risk-Taker';
+    if(t.readiness_bucket==='Can Deliver with Prep') return 'Can Deliver with Prep';
+    return 'Growth Candidate';
+  }
+  function renderSplit(){
+    const tone={'Safe Expert':'success','Can Deliver with Prep':'warning','Growth Candidate':'blue','Risk-Taker':'purple','Do Not Assign Yet':'danger'};
+    const rows=Object.values(TMAP).slice().sort((a,b)=>(b.overall_readiness_score||0)-(a.overall_readiness_score||0));
+    if(!rows.length){ splitBody.innerHTML='<tr><td colspan="3" class="ops-empty">No trainer capacity data available.</td></tr>'; return; }
+    splitBody.innerHTML=rows.slice(0,10).map(t=>{
+      const b=bucketOf(t);
+      return `<tr onclick="window.location.href='${profile(t.official_email)}'">
+        <td class="ops-name">${esc(clean(t.trainer_name))}</td>
+        <td>${badge(b,tone[b]||'gray-500')}</td>
+        <td>${r1(t.overall_readiness_score)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function emptyChart(id,msg){ const el=document.getElementById(id); if(el) el.innerHTML=`<div class="text-center text-muted py-4 fs-12px">${esc(msg)}</div>`; }
+  function renderCharts(rows){
+    Object.values(CH).forEach(c=>{try{c.destroy();}catch(e){}}); CH={};
+
+    // Allocation readiness distribution
+    const statusGroups={};
+    rows.forEach(a=>{ const k=a.allocation_status||'Not available'; (statusGroups[k]=statusGroups[k]||[]).push(a); });
+    const statusEntries=Object.entries(statusGroups);
+    if(statusEntries.length){
+      CH.readiness=new ApexCharts(document.getElementById('chReadiness'),{
+        chart:{type:'donut',height:170,fontFamily:'inherit',events:{dataPointSelection:(e,ctx,cfg)=>openChartDrilldown(statusEntries[cfg.dataPointIndex][0],statusEntries[cfg.dataPointIndex][1].map(a=>({name:`${a.course_name} · ${a.trainer_name}`,email:a.trainer_email})))}},
+        series:statusEntries.map(([,v])=>v.length), labels:statusEntries.map(([k])=>k),
+        colors:['#00acac','#f59c1a','#ff5b57','#8a97a0'], legend:{position:'bottom',fontSize:'9px',markers:{width:8,height:8}}, dataLabels:{enabled:true,formatter:v=>`${Math.round(v)}%`},
+        tooltip:{custom:({seriesIndex})=>{const[label,items]=statusEntries[seriesIndex];const pctVal=Math.round((items.length/(rows.length||1))*100);return chartTooltipCard(label,`${items.length} allocations · ${pctVal}%`,items.map(a=>`${a.course_name} · ${a.trainer_name}`));}}
+      }); CH.readiness.render();
+    } else emptyChart('chReadiness','No allocation status data.');
+
+    // Risk / blocker mix
+    const riskGroups={};
+    rows.forEach(a=>{ const k=isBlocked(a)?'Blocked':rowRisk(a); (riskGroups[k]=riskGroups[k]||[]).push(a); });
+    const riskEntries=Object.entries(riskGroups);
+    if(riskEntries.length){
+      CH.risk=new ApexCharts(document.getElementById('chRisk'),{
+        chart:{type:'donut',height:170,fontFamily:'inherit',events:{dataPointSelection:(e,ctx,cfg)=>openChartDrilldown(riskEntries[cfg.dataPointIndex][0],riskEntries[cfg.dataPointIndex][1].map(a=>({name:`${a.course_name} · ${a.trainer_name}`,email:a.trainer_email})))}},
+        series:riskEntries.map(([,v])=>v.length), labels:riskEntries.map(([k])=>k),
+        colors:['#00acac','#f59c1a','#ff5b57','#2d353c'], legend:{position:'bottom',fontSize:'9px',markers:{width:8,height:8}}, dataLabels:{enabled:false},
+        tooltip:{custom:({seriesIndex})=>{const[label,items]=riskEntries[seriesIndex];return chartTooltipCard(label,`${items.length} allocations`,items.map(a=>`${a.course_name} · ${a.trainer_name}`));}}
+      }); CH.risk.render();
+    } else emptyChart('chRisk','No risk signals available.');
+
+    // Backup missing by vendor
+    const byCourse=backupDepthByCourse();
+    const vendorMissing={};
+    [...new Set(ALL.map(a=>a.course_name).filter(Boolean))].forEach(name=>{
+      const row=ALL.find(a=>a.course_name===name); if(!row) return;
+      const depth=(byCourse[String(name).trim().toLowerCase()]||[]).length;
+      if(depth<2){ const v=row.vendor||'Unspecified vendor'; (vendorMissing[v]=vendorMissing[v]||[]).push({name,email:row.trainer_email}); }
+    });
+    const vendorEntries=Object.entries(vendorMissing).sort((a,b)=>b[1].length-a[1].length).slice(0,6);
+    if(vendorEntries.length){
+      CH.backup=new ApexCharts(document.getElementById('chBackup'),{
+        chart:{type:'bar',height:170,toolbar:{show:false},fontFamily:'inherit',events:{dataPointSelection:(e,ctx,cfg)=>openChartDrilldown(`${vendorEntries[cfg.dataPointIndex][0]} — backup missing`,vendorEntries[cfg.dataPointIndex][1])}},
+        series:[{name:'Backup missing',data:vendorEntries.map(([,v])=>v.length)}], xaxis:{categories:vendorEntries.map(([k])=>k),labels:{style:{fontSize:'10px'}}},
+        colors:['#f59c1a'], plotOptions:{bar:{borderRadius:3,columnWidth:'45%',horizontal:true}}, dataLabels:{enabled:true},
+        tooltip:{custom:({dataPointIndex})=>{const[vendor,items]=vendorEntries[dataPointIndex];return chartTooltipCard(vendor,`${items.length} course(s) without backup`,items.map(i=>i.name));}}
+      }); CH.backup.render();
+    } else emptyChart('chBackup','No backup-coverage gaps in the current payload.');
+
+    // Utilization pressure
+    const utilBuckets={'Under 40%':[],'40-69%':[],'70-84%':[],'85%+':[],'Unknown':[]};
+    Object.values(TMAP).forEach(t=>{
+      const u=t.current_utilization;
+      if(u==null||u==='') utilBuckets.Unknown.push(t);
+      else if(u<40) utilBuckets['Under 40%'].push(t);
+      else if(u<70) utilBuckets['40-69%'].push(t);
+      else if(u<85) utilBuckets['70-84%'].push(t);
+      else utilBuckets['85%+'].push(t);
+    });
+    const utilKeys=Object.keys(utilBuckets);
+    CH.util=new ApexCharts(document.getElementById('chUtil'),{
+      chart:{type:'bar',height:170,toolbar:{show:false},fontFamily:'inherit',events:{dataPointSelection:(e,ctx,cfg)=>openChartDrilldown(utilKeys[cfg.dataPointIndex],utilBuckets[utilKeys[cfg.dataPointIndex]].map(t=>({name:t.trainer_name,email:t.official_email})))}},
+      series:[{name:'Trainers',data:utilKeys.map(k=>utilBuckets[k].length)}], xaxis:{categories:utilKeys,labels:{style:{fontSize:'9px'}}},
+      colors:['#348fe2'], plotOptions:{bar:{borderRadius:3,columnWidth:'45%'}}, dataLabels:{enabled:false},
+      tooltip:{custom:({dataPointIndex})=>{const k=utilKeys[dataPointIndex];const items=utilBuckets[k];return chartTooltipCard(k,`${items.length} trainer(s)`,items.map(t=>t.trainer_name));}}
+    }); CH.util.render();
+  }
+
+  const QUEUE_TABS=[['all','All'],['blocked','Blocked'],['high_risk','High Risk'],['backup_missing','Backup Missing'],['low_confidence','Low Confidence'],['overloaded','Overloaded'],['underused','Underused']];
+  function setQueueTab(tab){ QUEUE_TAB=tab; renderQueue(); }
+  function openQueueRow(i){
+    const r=QUEUE_ROWS[i]; if(!r) return;
+    chartDrilldownTitle.innerHTML=`<i class="bi bi-flag-fill me-1"></i>${esc(r.course||r.trainer||'Detail')}`;
+    chartDrilldownBody.innerHTML=`<div class="mb-2">${badge(r.priority,riskTone(r.priority==='Critical'?'High':r.priority))}</div><p class="mb-1"><b>Trainer:</b> ${trainerLink(r.trainer,r.email)}</p><p class="mb-0"><b>Issue:</b> ${esc(r.issue)}</p>`;
+    new bootstrap.Modal(chartDrilldownModal).show();
+  }
+  function renderQueue(){
+    const byCourse=backupDepthByCourse();
+    const items=[];
+    ALL.forEach(a=>{
+      const trainer=a.trainer_name, email=a.trainer_email, course=a.course_name;
+      const depth=(byCourse[String(course||'').trim().toLowerCase()]||[]).length;
+      if(isBlocked(a)) items.push({type:'blocked',course,trainer,email,issue:a.blocker||'Allocation blocked',priority:'Critical',confidence:a.confidence});
+      if(rowRisk(a)==='High' && !isBlocked(a)) items.push({type:'high_risk',course,trainer,email,issue:'High allocation risk, reviewable',priority:'High',confidence:a.confidence});
+      if(depth<2) items.push({type:'backup_missing',course,trainer,email,issue:'No backup trainer identified',priority:'Medium',confidence:a.confidence});
+      if((a.confidence||0)<60) items.push({type:'low_confidence',course,trainer,email,issue:'Low decision confidence',priority:'Medium',confidence:a.confidence});
+    });
+    Object.values(TMAP).forEach(t=>{
+      if((t.current_utilization||0)>=85) items.push({type:'overloaded',course:'-',trainer:t.trainer_name,email:t.official_email,issue:`Utilization ${pct(t.current_utilization)} — overloaded`,priority:'Medium',confidence:null});
+      if(t.current_utilization!=null && t.current_utilization<40) items.push({type:'underused',course:'-',trainer:t.trainer_name,email:t.official_email,issue:`Utilization ${pct(t.current_utilization)} — underused`,priority:'Low',confidence:null});
+    });
+    const counts={all:items.length};
+    QUEUE_TABS.forEach(([k])=>{ if(k!=='all') counts[k]=items.filter(i=>i.type===k).length; });
+    queueTabs.innerHTML=QUEUE_TABS.map(([key,label])=>`<li class="nav-item"><a class="nav-link${QUEUE_TAB===key?' active':''}" href="javascript:;" onclick="setQueueTab('${key}')">${esc(label)} <span class="badge bg-gray-500 ms-1">${counts[key]||0}</span></a></li>`).join('');
+    QUEUE_ROWS=(QUEUE_TAB==='all'?items:items.filter(i=>i.type===QUEUE_TAB)).slice(0,30);
+    queueBody.innerHTML=QUEUE_ROWS.length?QUEUE_ROWS.map((r,i)=>`<tr onclick="openQueueRow(${i})">
+      <td class="ops-name" title="${esc(r.course)}">${esc(r.course)}</td>
+      <td>${trainerLink(r.trainer,r.email)}</td>
+      <td class="ops-wrap">${esc(r.issue)}</td>
+      <td>${badge(r.priority,r.priority==='Critical'?'danger':r.priority==='High'?'danger':r.priority==='Medium'?'warning':'gray-500')}</td>
+      <td>${r.confidence!=null?pct(r.confidence):'-'}</td>
+    </tr>`).join(''):'<tr><td colspan="5" class="ops-empty">No items in this queue.</td></tr>';
+  }
+
+  function openDataConfidenceModal(){
+    const required=['allocation_decision_objects','trainer_decision_objects','manager_action_objects','course_allocation_df','allocation_ranked_trainer_df','allocation_intelligence_df','course_best_trainer_df','allocation_risk_df','vendor_strength_df','certification_intelligence_df','delivery_intelligence_df','trainer_availability_engine_df','trainer_operations_df','manager_action_df','data_health_df'];
+    const avgConfidence=Math.round(ALL.length?ALL.reduce((s,a)=>s+(a.confidence||0),0)/ALL.length:0);
+    const lowConf=ALL.filter(a=>(a.confidence||0)<60).length;
+    dataConfidenceBody.innerHTML=`
+      <div class="alert alert-secondary py-2 fs-12px"><b>Average allocation confidence:</b> ${avgConfidence}% &middot; <b>Low-confidence allocations:</b> ${lowConf}</div>
+      <h6 class="fs-12px fw-bold text-uppercase text-muted mb-2">Decision objects in use</h6>
+      <div class="ti-mini d-flex justify-content-between fs-12px py-1 border-bottom mb-3"><span>allocation_decision_objects</span><b>${allocationObjects().length?`${allocationObjects().length} row(s)`:'Empty — using legacy dataframe fallback'}</b></div>
+      ${SkillEdge.renderDatasetCoverage(required, DATA)}`;
+    new bootstrap.Modal(dataConfidenceModal).show();
+  }
+
+  reload(false);
+  </script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+{"id": "fb-6a6424077cfe", "ts": "2026-08-03T03:14:49.176323+00:00", "manager_email": "manager@x.com", "entity_type": "manager_action", "entity_id": "manager_action:1", "decision": "state:closed", "outcome": "positive", "note": "resolved well", "features": {"qubit": 0.9, "feedback": 0.5, "certs": 0.3}}
