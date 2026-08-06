@@ -148,15 +148,23 @@ def _verify_role(email):
 # ─── Utilization helper (per trainer, used in ThreadPoolExecutor) ─────────────
 
 def _safe_util(email):
+    """Parse utilization from RMS monthly-column format 'Jun 2026': '75.77 / 43.05' (load / util%)."""
+    import re as _re
+    _mpat = _re.compile(r'^[A-Z][a-z]{2}\s+\d{4}$')
     try:
         rows = _rms("utilization", {"email": email}) or []
-        if isinstance(rows, list) and rows:
-            row = rows[0] if isinstance(rows[0], dict) else {}
-            raw = str(row.get("Utilization", row.get("utilization", "0"))).replace("%", "").strip()
-            return max(0, min(100, int(float(raw or "0"))))
-        if isinstance(rows, dict):
-            raw = str(rows.get("Utilization", "0")).replace("%", "").strip()
-            return max(0, min(100, int(float(raw or "0"))))
+        row = rows[0] if (isinstance(rows, list) and rows and isinstance(rows[0], dict)) \
+              else (rows if isinstance(rows, dict) else {})
+        monthly = []
+        for k, v in row.items():
+            if _mpat.match(str(k).strip()) and isinstance(v, str) and '/' in v:
+                try:
+                    monthly.append(float(v.split('/')[1].strip()))
+                except (ValueError, IndexError):
+                    pass
+        if monthly:
+            recent = monthly[-3:]
+            return max(0, min(100, round(sum(recent) / len(recent))))
     except Exception:
         pass
     return 0
