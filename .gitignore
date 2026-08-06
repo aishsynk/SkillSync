@@ -30,3 +30,7 @@ Thumbs.db
 
 # Build outputs
 app/build/
+
+# Backend (Keep out of GitHub)
+SkillEdge_Local/
+SkillEdge_Local.zip
