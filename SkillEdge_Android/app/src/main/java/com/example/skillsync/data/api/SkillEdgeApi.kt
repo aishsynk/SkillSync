@@ -7,12 +7,12 @@ import retrofit2.http.Query
 import com.google.gson.annotations.SerializedName
 
 data class LoginRequest(val email: String)
-data class LoginResponse(val email: String?, val error: String?)
+data class LoginResponse(val success: Boolean?, val session_id: String?, val error: String?, val message: String?)
 
 interface SkillEdgeApi {
-    @POST("auth/login")
+    @POST("api/auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
     
-    @GET("data/unified-manager-intelligence")
+    @GET("api/data/unified-manager-intelligence")
     suspend fun getTrainerIntelligence(@Query("email") email: String): Map<String, Any>
 }
