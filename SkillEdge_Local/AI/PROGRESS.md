@@ -15,3 +15,12 @@
 - **Next Actions**: 
   1. Await final confirmation that GitHub successfully releases the APK.
   2. Test or request user testing of the downloaded APK.
+
+## Dashboard Processing UI - 2026-08-06T18:45:00+05:30
+- **Agent/Tool**: Antigravity (Gemini 3.1 Pro) / `replace_file_content`
+- **Files Modified**: `MainScreen.kt`, `build.gradle.kts`
+- **Work Completed**: Overhauled `MainScreen.kt` UI to cleanly parse the complex JSON schema emitted by the Render Flask backend (mapping `manager`, `kpis`, `trainers`, and `actions` accurately without crash-causing type assumptions). Verified UI syntax locally by compiling `assembleDebug`. Bumping to `v1.2.0` in `build.gradle.kts` and pushed to remote to trigger Action.
+- **Current Status**: v1.2.0 building on remote CI/CD. UI is deeply integrated with the true shape of the data.
+- **Next Actions**:
+  1. Wait for GitHub Action to finish.
+  2. Have user verify the beautiful layout.

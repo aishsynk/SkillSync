@@ -12,21 +12,24 @@ import com.example.skillsync.ui.main.MainScreen
 
 import com.example.skillsync.ui.auth.LoginScreen
 
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+
 @Composable
 fun MainNavigation() {
-  val backStack = rememberNavBackStack(Login)
+  var currentScreen by remember { mutableStateOf<NavKey>(Login) }
 
-  NavDisplay(
-    backStack = backStack,
-    onBack = { backStack.removeLastOrNull() },
-    entryProvider =
-      entryProvider {
-        entry<Login> {
-          LoginScreen(onLoginSuccess = { backStack.add(Main) })
-        }
-        entry<Main> {
-          MainScreen(onItemClick = { navKey -> backStack.add(navKey) }, modifier = Modifier.safeDrawingPadding().padding(16.dp))
-        }
-      },
-  )
+  when (currentScreen) {
+      is Login -> {
+          LoginScreen(onLoginSuccess = { currentScreen = Main })
+      }
+      is Main -> {
+          MainScreen(
+              onItemClick = { navKey -> currentScreen = navKey }, 
+              modifier = Modifier.safeDrawingPadding().padding(16.dp)
+          )
+      }
+  }
 }
