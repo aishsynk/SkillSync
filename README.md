@@ -1,4 +1,4 @@
-# SkillEdge / Manager OS
+# SkillEdge / Manager OS 
 
 AI-assisted delivery-intelligence workspace for Koenig delivery managers. A manager
 logs in with their official email; the backend fetches their scoped reportees from the
