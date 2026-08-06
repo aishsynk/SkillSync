@@ -1,0 +1,443 @@
+/*
+ * festive.css — CertReady Auto-Festive Theme
+ * Automatically activated by festive.js based on today's date.
+ *
+ * Festivals covered:
+ *   .festival-holi         — Holi (variable, ~March)
+ *   .festival-diwali       — Diwali (variable, Oct/Nov)
+ *   .festival-eid          — Eid al-Fitr (variable)
+ *   .festival-independence — Independence Day (15 Aug)
+ *   .festival-republic     — Republic Day (26 Jan)
+ *   .festival-christmas    — Christmas (25 Dec)
+ */
+
+/* ═══════════════════════════════════════════════════
+   SHARED FESTIVAL INFRASTRUCTURE
+   ═══════════════════════════════════════════════════ */
+
+/* Canvas layer — sits behind content, above body background */
+#festive-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 9990;
+}
+
+/* Top announcement banner */
+#festive-banner {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 9px 20px;
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-align: center;
+    animation: festive-banner-in 0.6s cubic-bezier(0.22,1,0.36,1) both;
+}
+
+#festive-banner .festive-close {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0,0,0,0.12);
+    border: none;
+    border-radius: 50%;
+    width: 22px; height: 22px;
+    font-size: 12px;
+    line-height: 22px;
+    cursor: pointer;
+    color: inherit;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s;
+}
+#festive-banner .festive-close:hover { background: rgba(0,0,0,0.25); }
+
+/* Push the app-content down so banner doesn't overlap header */
+body.festive-active #app,
+body.festive-active.cr-public-layout,
+body.festive-active.cr-portal-layout,
+body.festive-active.cr-auth-layout {
+    padding-top: 40px;
+    transition: padding-top 0.3s ease;
+}
+
+body.festive-active.cr-public-layout .cr-header {
+    top: 40px;
+    transition: top 0.3s ease;
+}
+
+@keyframes festive-banner-in {
+    from { transform: translateY(-100%); opacity: 0; }
+    to   { transform: translateY(0);     opacity: 1; }
+}
+
+/* Sidebar decoration strip */
+.festive-sidebar-strip {
+    height: 3px;
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+
+/* ═══════════════════════════════════════════════════
+   🌈  HOLI  — Rainbow powder explosion
+   ═══════════════════════════════════════════════════ */
+body.festival-holi #festive-banner {
+    background: linear-gradient(90deg,
+        #FF4E50, #FC913A, #F9D62E, #62D96B, #5BCBF5, #8B5CF6, #FF4E50);
+    background-size: 300% 100%;
+    animation: festive-banner-in 0.6s cubic-bezier(0.22,1,0.36,1) both,
+               holi-banner-shift 4s linear infinite;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+@keyframes holi-banner-shift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+body.festival-holi .app-header,
+body.festival-holi .cr-header {
+    border-bottom: 3px solid transparent !important;
+    border-image: linear-gradient(90deg,#FF4E50,#FC913A,#F9D62E,#62D96B,#5BCBF5,#8B5CF6) 1 !important;
+}
+
+body.festival-holi .app-sidebar {
+    border-right: 2px solid transparent;
+    border-image: linear-gradient(180deg,#FF4E50,#8B5CF6,#62D96B) 1;
+}
+
+/* Holi — rainbow gradient headings */
+body.festival-holi .page-header,
+body.festival-holi .cr-section-title,
+body.festival-holi .cr-hero-title {
+    background: linear-gradient(90deg,#FF4E50,#FC913A,#F9D62E,#4CAF50,#5BCBF5,#8B5CF6) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    color: transparent !important;
+}
+
+body.festival-holi .card,
+body.festival-holi .cr-card {
+    border-top: 3px solid !important;
+    border-image: linear-gradient(90deg,#FF4E50,#FC913A,#F9D62E) 1 !important;
+}
+
+body.festival-holi .btn-theme,
+body.festival-holi .btn-primary,
+body.festival-holi .cr-btn-cta,
+body.festival-holi .cr-hero2-btn-primary,
+body.festival-holi .cr-cwx-btn-primary,
+body.festival-holi .cr-cwx-submit,
+body.festival-holi .cr-track2-cta-btn,
+body.festival-holi .cr-rdx-action-btn {
+    background: linear-gradient(90deg, #FF4E50, #FC913A, #F9D62E) !important;
+    border-color: #FC913A !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(252,145,58,0.4) !important;
+}
+
+.festive-sidebar-strip.holi {
+    background: linear-gradient(90deg,#FF4E50,#FC913A,#F9D62E,#62D96B,#5BCBF5,#8B5CF6);
+}
+
+/* ═══════════════════════════════════════════════════
+   🪔  DIWALI  — Golden glow, diya warmth
+   ═══════════════════════════════════════════════════ */
+body.festival-diwali #festive-banner {
+    background: linear-gradient(90deg, #1a0a00, #3d1c02, #1a0a00);
+    background-size: 200% 100%;
+    animation: festive-banner-in 0.6s cubic-bezier(0.22,1,0.36,1) both,
+               diwali-banner-shimmer 3s ease-in-out infinite;
+    color: #FFD700;
+    text-shadow: 0 0 12px #FF8C00, 0 0 24px #FF4500;
+    border-bottom: 1px solid #FF8C00;
+}
+
+@keyframes diwali-banner-shimmer {
+    0%,100% { background-position: 0% 50%; }
+    50%      { background-position: 100% 50%; }
+}
+
+body.festival-diwali .app-header,
+body.festival-diwali .cr-header {
+    box-shadow: 0 2px 16px rgba(255,140,0,0.35) !important;
+    border-bottom: 2px solid #FF8C00 !important;
+}
+
+body.festival-diwali .sidebar {
+    box-shadow: 2px 0 20px rgba(255,100,0,0.18);
+}
+
+body.festival-diwali .page-header,
+body.festival-diwali .cr-section-title,
+body.festival-diwali .cr-hero-title {
+    color: #FF8C00 !important;
+    text-shadow: 0 0 20px rgba(255,140,0,0.3) !important;
+}
+
+body.festival-diwali .btn-theme,
+body.festival-diwali .btn-primary,
+body.festival-diwali .cr-btn-cta,
+body.festival-diwali .cr-hero2-btn-primary,
+body.festival-diwali .cr-cwx-btn-primary,
+body.festival-diwali .cr-cwx-submit,
+body.festival-diwali .cr-track2-cta-btn,
+body.festival-diwali .cr-rdx-action-btn {
+    background: linear-gradient(135deg, #FF8C00, #FF4500) !important;
+    border-color: #FF6600 !important;
+    color: #fff !important;
+    box-shadow: 0 4px 15px rgba(255,100,0,0.4) !important;
+}
+
+body.festival-diwali .btn-theme:hover,
+body.festival-diwali .btn-primary:hover,
+body.festival-diwali .cr-btn-cta:hover,
+body.festival-diwali .cr-hero2-btn-primary:hover,
+body.festival-diwali .cr-cwx-btn-primary:hover,
+body.festival-diwali .cr-cwx-submit:hover,
+body.festival-diwali .cr-track2-cta-btn:hover,
+body.festival-diwali .cr-rdx-action-btn:hover {
+    background: linear-gradient(135deg, #ffa500, #ff5500) !important;
+}
+
+body.festival-diwali .card,
+body.festival-diwali .cr-card {
+    border-top: 3px solid #FF8C00 !important;
+    box-shadow: 0 4px 20px rgba(255,140,0,0.12) !important;
+}
+
+/* Diya flame glow on sidebar active item */
+body.festival-diwali .menu-item.active > .menu-link {
+    background: linear-gradient(90deg,rgba(255,140,0,0.2),transparent);
+    border-left: 3px solid #FFD700;
+}
+
+.festive-sidebar-strip.diwali {
+    background: linear-gradient(90deg, #FF4500, #FF8C00, #FFD700, #FF8C00, #FF4500);
+    box-shadow: 0 2px 10px rgba(255,140,0,0.6);
+}
+
+/* ═══════════════════════════════════════════════════
+   🌙  EID  — Crescent glow, emerald & gold
+   ═══════════════════════════════════════════════════ */
+body.festival-eid #festive-banner {
+    background: linear-gradient(90deg, #0d3320, #1a5c37, #0d3320);
+    background-size: 200% 100%;
+    animation: festive-banner-in 0.6s cubic-bezier(0.22,1,0.36,1) both,
+               eid-banner-shift 4s ease-in-out infinite;
+    color: #FFD700;
+    text-shadow: 0 0 10px rgba(255,215,0,0.5);
+    border-bottom: 1px solid #2e7d54;
+}
+
+@keyframes eid-banner-shift {
+    0%,100% { background-position: 0% 50%; }
+    50%      { background-position: 100% 50%; }
+}
+
+body.festival-eid .app-header,
+body.festival-eid .cr-header {
+    border-bottom: 2px solid #2e7d54 !important;
+    box-shadow: 0 2px 14px rgba(46,125,84,0.25) !important;
+}
+
+body.festival-eid .page-header,
+body.festival-eid .cr-section-title,
+body.festival-eid .cr-hero-title {
+    color: #1a7d46 !important;
+}
+
+body.festival-eid .btn-theme,
+body.festival-eid .btn-primary,
+body.festival-eid .cr-btn-cta,
+body.festival-eid .cr-hero2-btn-primary,
+body.festival-eid .cr-cwx-btn-primary,
+body.festival-eid .cr-cwx-submit,
+body.festival-eid .cr-track2-cta-btn,
+body.festival-eid .cr-rdx-action-btn {
+    background: linear-gradient(135deg, #1a7d46, #0d5c30) !important;
+    border-color: #1a5c37 !important;
+    color: #fff !important;
+}
+
+body.festival-eid .card,
+body.festival-eid .cr-card {
+    border-top: 3px solid #2e7d54 !important;
+}
+
+.festive-sidebar-strip.eid {
+    background: linear-gradient(90deg, #0d5c30, #FFD700, #0d5c30);
+}
+
+/* ═══════════════════════════════════════════════════
+   🇮🇳  INDEPENDENCE DAY / REPUBLIC DAY — Tricolor
+   Colors: Saffron #FF9933 | White #FFFFFF | Green #138808
+   ═══════════════════════════════════════════════════ */
+body.festival-independence #festive-banner,
+body.festival-republic #festive-banner {
+    background: linear-gradient(90deg,
+        #FF9933 0%, #FF9933 33.3%,
+        #ffffff 33.3%, #ffffff 66.6%,
+        #138808 66.6%, #138808 100%);
+    color: #000080; /* navy — matches flag text */
+    font-weight: 700;
+    font-size: 14px;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.6);
+    border-bottom: 2px solid #000080;
+}
+
+body.festival-independence .app-header,
+body.festival-republic .app-header,
+body.festival-independence .cr-header,
+body.festival-republic .cr-header {
+    border-bottom: 3px solid transparent !important;
+    border-image: linear-gradient(90deg,#FF9933,#FF9933,#138808,#138808) 1 !important;
+}
+
+body.festival-independence .page-header,
+body.festival-republic .page-header,
+body.festival-independence .cr-section-title,
+body.festival-republic .cr-section-title,
+body.festival-independence .cr-hero-title,
+body.festival-republic .cr-hero-title {
+    color: #FF9933 !important;
+}
+
+body.festival-independence .card,
+body.festival-republic .card,
+body.festival-independence .cr-card,
+body.festival-republic .cr-card {
+    border-top: 3px solid #FF9933 !important;
+}
+
+body.festival-independence .btn-theme,
+body.festival-republic .btn-theme,
+body.festival-independence .btn-primary,
+body.festival-republic .btn-primary,
+body.festival-independence .cr-btn-cta,
+body.festival-republic .cr-btn-cta,
+body.festival-independence .cr-hero2-btn-primary,
+body.festival-republic .cr-hero2-btn-primary,
+body.festival-independence .cr-cwx-btn-primary,
+body.festival-republic .cr-cwx-btn-primary,
+body.festival-independence .cr-cwx-submit,
+body.festival-republic .cr-cwx-submit,
+body.festival-independence .cr-track2-cta-btn,
+body.festival-republic .cr-track2-cta-btn,
+body.festival-independence .cr-rdx-action-btn,
+body.festival-republic .cr-rdx-action-btn {
+    background: linear-gradient(135deg, #FF9933, #FF7700) !important;
+    border-color: #FF9933 !important;
+    color: #fff !important;
+}
+
+.festive-sidebar-strip.independence,
+.festive-sidebar-strip.republic {
+    background: linear-gradient(90deg, #FF9933 33%, #fff 33% 66%, #138808 66%);
+}
+
+/* Ashoka Chakra SVG spinner — injected by JS */
+.ashoka-chakra {
+    display: inline-block;
+    animation: chakra-spin 4s linear infinite;
+    color: #000080;
+    font-size: 18px;
+    vertical-align: middle;
+}
+
+@keyframes chakra-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════
+   🎄  CHRISTMAS  — Snowfall, red & green
+   ═══════════════════════════════════════════════════ */
+body.festival-christmas #festive-banner {
+    background: linear-gradient(90deg, #1a4a1a, #8B0000, #1a4a1a);
+    background-size: 200% 100%;
+    animation: festive-banner-in 0.6s cubic-bezier(0.22,1,0.36,1) both,
+               xmas-banner-shift 5s ease-in-out infinite;
+    color: #FFD700;
+    text-shadow: 0 0 8px rgba(255,215,0,0.4);
+    border-bottom: 1px solid #8B0000;
+}
+
+@keyframes xmas-banner-shift {
+    0%,100% { background-position: 0% 50%; }
+    50%      { background-position: 100% 50%; }
+}
+
+body.festival-christmas .app-header,
+body.festival-christmas .cr-header {
+    border-bottom: 2px solid #8B0000 !important;
+}
+
+body.festival-christmas .page-header,
+body.festival-christmas .cr-section-title,
+body.festival-christmas .cr-hero-title {
+    color: #8B0000 !important;
+}
+
+body.festival-christmas .card,
+body.festival-christmas .cr-card {
+    border-top: 3px solid #8B0000 !important;
+}
+
+body.festival-christmas .btn-theme,
+body.festival-christmas .btn-primary,
+body.festival-christmas .cr-btn-cta,
+body.festival-christmas .cr-hero2-btn-primary,
+body.festival-christmas .cr-cwx-btn-primary,
+body.festival-christmas .cr-cwx-submit,
+body.festival-christmas .cr-track2-cta-btn,
+body.festival-christmas .cr-rdx-action-btn {
+    background: linear-gradient(135deg, #8B0000, #cc0000) !important;
+    border-color: #8B0000 !important;
+    color: #fff !important;
+}
+
+.festive-sidebar-strip.christmas {
+    background: linear-gradient(90deg, #8B0000, #1a4a1a, #8B0000, #1a4a1a);
+}
+
+/* ═══════════════════════════════════════════════════
+   BADGE — Small "Today is X!" label shown in header
+   ═══════════════════════════════════════════════════ */
+.festive-header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 20px;
+    vertical-align: middle;
+    margin-left: 10px;
+    animation: festive-badge-pulse 2s ease-in-out infinite;
+}
+
+@keyframes festive-badge-pulse {
+    0%,100% { transform: scale(1);   opacity: 1; }
+    50%      { transform: scale(1.05); opacity: 0.85; }
+}
+
+body.festival-holi         .festive-header-badge { background:#FF4E50; color:#fff; }
+body.festival-diwali       .festive-header-badge { background:#FF8C00; color:#fff; text-shadow:0 0 6px #FF4500; }
+body.festival-eid          .festive-header-badge { background:#2e7d54; color:#FFD700; }
+body.festival-independence .festive-header-badge { background:#FF9933; color:#fff; }
+body.festival-republic     .festive-header-badge { background:#138808; color:#fff; }
+body.festival-christmas    .festive-header-badge { background:#8B0000; color:#FFD700; }

@@ -1,4 +1,4 @@
-# SkillEdge Android App
+# SkillSync Android App
 
 Professional Kotlin Android application for Koenig Solutions trainer intelligence platform.
 
@@ -28,158 +28,82 @@ Professional Kotlin Android application for Koenig Solutions trainer intelligenc
 - ✅ Dark mode support
 - ✅ Offline support with sync
 
-## Project Structure
-
-```
-android/
-├── app/
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/koenig/skilledge/
-│   │   │   │   ├── core/
-│   │   │   │   │   ├── theme/
-│   │   │   │   │   ├── components/
-│   │   │   │   │   ├── di/
-│   │   │   │   │   └── navigation/
-│   │   │   │   ├── data/
-│   │   │   │   │   ├── api/
-│   │   │   │   │   ├── database/
-│   │   │   │   │   ├── repository/
-│   │   │   │   │   └── cache/
-│   │   │   │   ├── domain/
-│   │   │   │   │   ├── models/
-│   │   │   │   │   ├── usecases/
-│   │   │   │   │   └── repository/
-│   │   │   │   ├── presentation/
-│   │   │   │   │   ├── login/
-│   │   │   │   │   ├── dashboard/
-│   │   │   │   │   ├── team/
-│   │   │   │   │   ├── trainer_detail/
-│   │   │   │   │   ├── actions/
-│   │   │   │   │   ├── allocation/
-│   │   │   │   │   ├── copilot/
-│   │   │   │   │   ├── settings/
-│   │   │   │   │   └── common/
-│   │   │   │   └── MainActivity.kt
-│   │   │   ├── res/
-│   │   │   │   ├── drawable/
-│   │   │   │   ├── values/
-│   │   │   │   └── values-v31/
-│   │   │   └── AndroidManifest.xml
-│   │   └── test/
-│   ├── build.gradle.kts
-│   └── proguard-rules.pro
-├── build.gradle.kts
-├── settings.gradle.kts
-└── local.properties
-```
-
-## Design Principles
-
-### LinkedIn-Inspired Design
-- Clean, card-based layouts
-- Professional sans-serif typography (using Google Fonts)
-- Subtle shadows and borders for depth
-- Ample whitespace and breathing room
-- Accent colors: Primary teal (#0D8B8B), Secondary accent (#D97706)
-- Neutral ground: Light (#F8FAFC) / Dark (#0F172A)
-
-### Responsive Design
-- **Compact (< 600dp):** Single column, full-width cards, bottom navigation
-- **Medium (600-840dp):** Two columns where appropriate, top navigation
-- **Expanded (> 840dp):** Three columns, master-detail layout
-
-### Smooth Performance
-- Lazy loading of lists with pagination
-- Efficient image loading with Coil
-- Coroutines for non-blocking operations
-- Database-backed caching with Room
-- Smart refresh logic with stale-while-refresh pattern
-
-## Getting Started
+## Quick Start
 
 ### Prerequisites
 - Android Studio Arctic Fox or newer
 - JDK 11 or higher
 - Android SDK 21+ (targeting 34)
 
-### Setup
+### Build & Install
 ```bash
-cd android
-./gradlew build
-./gradlew installDebug
+./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### Environment Configuration
-Create `local.properties`:
-```properties
-sdk.dir=/path/to/Android/sdk
-SKILLEDGE_API_BASE=http://localhost:8765
-SKILLEDGE_API_TIMEOUT=30
+### Release Build
+```bash
+./gradlew assembleRelease
+# APK: app/build/outputs/apk/release/app-release.apk
 ```
 
-## Build Variants
+## CI/CD Pipeline
 
-- **Debug:** Local development, verbose logging
-- **Release:** Optimized, ProGuard enabled, crash reporting
+Every push to `main`:
+1. ✅ Builds debug & release APKs
+2. ✅ Creates GitHub Release
+3. ✅ Auto-versioned: `SkillSync-v{YYYY.MM.DD.HHMM}.apk`
+
+Download from: https://github.com/aishsynk/skillsync/releases
+
+## Project Structure
+
+```
+skillsync/
+├── app/src/main/java/com/koenig/skilledge/
+│   ├── presentation/      # Jetpack Compose UI screens
+│   ├── viewmodels/        # MVVM ViewModels
+│   ├── data/              # API & repository layer
+│   ├── domain/            # Data models
+│   ├── core/              # Theme, DI, navigation
+│   └── ...
+├── .github/workflows/     # CI/CD (GitHub Actions)
+├── build.gradle.kts       # App build config
+└── settings.gradle.kts
+```
 
 ## Key Screens
 
 1. **Login** — Email entry, session initialization
-2. **Dashboard** — KPIs, team table, charts, calendar, action queue, copilot
-3. **Team** — Trainer roster with filters and sorting
-4. **Trainer Detail** — Deep dive: profile, assignments, skills, feedback, readiness
-5. **Actions** — Manager decisions (close/escalate/reassign) with persistence
-6. **Allocation Desk** — Match trainers to unallocated demand
-7. **Capability Builder** — Skills roadmap and training recommendations
-8. **Copilot** — Chat interface + daily briefing
-9. **Settings** — Theme, notifications, data preferences
+2. **Dashboard** — KPIs, team view, action queue
+3. **Team** — Trainer roster with filters
+4. **Trainer Detail** — Detailed trainer profile
+5. **Actions** — Manager decisions & action management
+6. **Settings** — Theme, preferences
 
-## API Integration
+## Design
 
-All API calls go through `SkillEdgeApiService` (Retrofit):
-- `POST /auth/login` — Session initiation
-- `GET /data/unified-manager-intelligence` — Unified payload (cached)
-- `POST /rms/{api}` — RMS API proxy
-- `POST /api/actions/{id}/{verb}` — Action lifecycle
-- `POST /api/review-flags/{id}/{verb}` — Review flag lifecycle
-- `GET/POST /api/agent/*` — Agentic endpoints
-
-## Caching Strategy
-
-- **In-memory cache:** ViewModel + LiveData
-- **Disk cache:** Room database
-- **HTTP cache:** OkHttp interceptor (4-hour TTL)
-- **Smart refresh:** Background sync when cache is stale
+- LinkedIn-inspired UI with teal (#0D8B8B) primary color
+- Dark mode support (light/dark themes)
+- Responsive layouts for phone to tablet
+- Smooth animations & transitions
 
 ## Testing
 
 ```bash
-./gradlew test              # Unit tests
-./gradlew connectedAndroidTest  # Integration tests
-./gradlew testRelease       # Full build + test suite
+./gradlew test                    # Unit tests
+./gradlew connectedAndroidTest    # Integration tests
 ```
 
 ## Deployment
 
-1. Build release APK: `./gradlew bundleRelease`
-2. Upload to Google Play Console
-3. Configure app store listing with LinkedIn-inspired screenshots
-4. A/B test launch with 5% → 50% → 100% rollout
-
-## Version History
-
-- **1.0.0** — Initial release with complete web app feature parity
+APKs are built and released automatically via GitHub Actions on every push to `main`.
 
 ## Support
 
-For issues, refer to [SkillEdge main README](../README.md) or contact dev team.
-
-## License
-
-Proprietary — Koenig Solutions Ltd
+Refer to SETUP.md, ARCHITECTURE.md, or IMPLEMENTATION_GUIDE.md for detailed docs.
 
 ---
 
-**Last updated:** 2026-08-06  
-**Status:** In development
+**Status:** Phase 1 MVP  
+**Last updated:** 2026-08-06

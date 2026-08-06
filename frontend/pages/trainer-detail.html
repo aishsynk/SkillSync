@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SkillEdge | Redirecting to Trainer 360</title>
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
+  <meta name="robots" content="noindex" />
+</head>
+<body>
+  <!--
+    trainer-detail.html is deprecated. It has been superseded by the richer,
+    decision-object-aware trainer-intelligence.html cockpit. This file is kept
+    only as a redirect shim so old bookmarks/links (?email=...) keep working —
+    do not add new links to this page; link to trainer-intelligence.html directly.
+  -->
+  <p>Redirecting to <a id="fallbackLink">Trainer 360</a>&hellip;</p>
+  <script>
+    var target = 'trainer-intelligence.html' + (location.search || '');
+    var a = document.getElementById('fallbackLink');
+    if (a) a.href = target;
+    location.replace(target);
+  </script>
+</body>
+</html>

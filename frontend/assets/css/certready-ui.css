@@ -1,0 +1,378 @@
+/* ==========================================================================
+   CertReady UI Makeover — Color Admin / SeanTheme Custom Enhancements
+   ========================================================================== */
+
+:root {
+    --cr-primary: #0078d4;
+    --cr-primary-hover: #106ebe;
+    --cr-primary-light: #eff6fc;
+    --cr-secondary: #008272;
+    --cr-dark-bg: #0f172a;
+    --cr-card-border: #e2e8f0;
+    --cr-card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+    --cr-font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* Global improvements */
+body {
+    font-family: var(--cr-font-family) !important;
+    background-color: #f8fafc !important;
+}
+
+/* Primary Button Brand-Alignment */
+.btn-primary {
+    background-color: var(--cr-primary) !important;
+    border-color: var(--cr-primary) !important;
+    font-weight: 600 !important;
+    box-shadow: 0 2px 4px rgba(0, 120, 212, 0.15) !important;
+    transition: all 0.2s ease-in-out !important;
+}
+.btn-primary:hover, .btn-primary:focus, .btn-primary:active {
+    background-color: var(--cr-primary-hover) !important;
+    border-color: var(--cr-primary-hover) !important;
+    box-shadow: 0 4px 8px rgba(0, 120, 212, 0.25) !important;
+}
+
+/* Custom panels (panel-inverse override) */
+.panel.panel-inverse {
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    border: 1px solid var(--cr-card-border) !important;
+    box-shadow: var(--cr-card-shadow) !important;
+}
+.panel.panel-inverse > .panel-heading {
+    background: linear-gradient(135deg, var(--cr-dark-bg) 0%, #1e293b 100%) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    padding: 14px 20px !important;
+}
+.panel.panel-inverse > .panel-heading .panel-title {
+    font-size: 1.05rem !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+}
+
+/* Tables styling */
+.table {
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+}
+.table th {
+    background-color: #f1f5f9 !important;
+    color: #475569 !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    padding: 12px 16px !important;
+    border-bottom: 2px solid var(--cr-card-border) !important;
+}
+.table td {
+    padding: 12px 16px !important;
+    border-bottom: 1px solid var(--cr-card-border) !important;
+    vertical-align: middle !important;
+    font-size: 0.9rem !important;
+}
+.table-hover tbody tr:hover {
+    background-color: var(--cr-primary-light) !important;
+}
+
+/* Active states for sidebar */
+.app-sidebar .menu .menu-item.active > .menu-link {
+    background-color: var(--cr-primary) !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+}
+.app-sidebar .menu .menu-item > .menu-link:hover {
+    background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Header & Logo styling */
+.app-header {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(8px) !important;
+    border-bottom: 1px solid var(--cr-card-border) !important;
+}
+.navbar-brand {
+    font-weight: 700 !important;
+    color: var(--cr-dark-bg) !important;
+}
+
+/* Widget Card styles */
+.widget {
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    box-shadow: var(--cr-card-shadow) !important;
+    border: 1px solid var(--cr-card-border) !important;
+}
+.widget-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    border: 1px solid var(--cr-card-border);
+    box-shadow: var(--cr-card-shadow);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.widget-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 20px -3px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.08);
+}
+.widget-card-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+}
+.widget-card-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--cr-dark-bg);
+    margin-bottom: 8px;
+}
+.widget-card-desc {
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+/* Form refinement */
+.form-control {
+    border-radius: 8px !important;
+    border: 1px solid #cbd5e1 !important;
+    padding: 10px 14px !important;
+    font-size: 0.9rem !important;
+}
+.form-control:focus {
+    border-color: var(--cr-primary) !important;
+    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.15) !important;
+}
+.form-label {
+    font-weight: 600 !important;
+    color: #334155 !important;
+    margin-bottom: 6px !important;
+}
+
+/* Support ticket item overrides */
+.ticket-row {
+    border-radius: 8px;
+    background: #ffffff;
+    border: 1px solid var(--cr-card-border);
+    margin-bottom: 12px;
+    padding: 16px;
+    transition: all 0.15s ease-in-out;
+}
+.ticket-row:hover {
+    border-color: var(--cr-primary);
+    box-shadow: var(--cr-card-shadow);
+}
+
+/* Pagination Overrides */
+.btn-group-xs > .btn, .btn-xs {
+    padding: 6px 12px !important;
+    font-size: 0.78rem !important;
+    border-radius: 6px !important;
+}
+.btn-group .btn.active.page-link {
+    background-color: var(--cr-primary) !important;
+    color: #ffffff !important;
+    border-color: var(--cr-primary) !important;
+}
+
+/* Stats dashboard icon coloring */
+.widget-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background-color: var(--cr-primary-light);
+    color: var(--cr-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+}
+
+/* --- USER PORTAL MAKEOVER STYLES --- */
+
+/* Wizard Stepper */
+.cr-wizard-stepper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    margin-bottom: 2rem;
+}
+.cr-wizard-stepper::before {
+    content: '';
+    position: absolute;
+    top: 20px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background-color: #cbd5e1;
+    z-index: 1;
+}
+.cr-wizard-step {
+    position: relative;
+    z-index: 2;
+    background: #f8fafc;
+    padding: 0 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+}
+.cr-wizard-step-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #e2e8f0;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1rem;
+    border: 3px solid #f8fafc;
+    transition: all 0.2s ease-in-out;
+}
+.cr-wizard-step.active .cr-wizard-step-circle {
+    background-color: var(--cr-primary);
+    color: #ffffff;
+    box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.2);
+}
+.cr-wizard-step.completed .cr-wizard-step-circle {
+    background-color: var(--cr-secondary);
+    color: #ffffff;
+}
+.cr-wizard-step-label {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #64748b;
+    text-align: center;
+}
+.cr-wizard-step.active .cr-wizard-step-label {
+    color: var(--cr-dark-bg);
+    font-weight: 700;
+}
+
+/* Premium Hero */
+.cr-portal-hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%) !important;
+    border-radius: 16px !important;
+    border: none !important;
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04) !important;
+    color: #ffffff;
+    overflow: hidden;
+    position: relative;
+}
+.cr-portal-hero::after {
+    content: '';
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 120, 212, 0.15) 0%, transparent 70%);
+    top: -100px;
+    right: -100px;
+    pointer-events: none;
+}
+
+/* Paper Card Grid */
+.cr-paper-card {
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid var(--cr-card-border);
+    box-shadow: var(--cr-card-shadow);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.cr-paper-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 120, 212, 0.2);
+}
+.cr-paper-card-header {
+    padding: 20px;
+    border-bottom: 1px solid #f1f5f9;
+    position: relative;
+}
+.cr-paper-card-body {
+    padding: 20px;
+    flex-grow: 1;
+}
+.cr-paper-card-footer {
+    padding: 16px 20px;
+    background-color: #f8fafc;
+    border-top: 1px solid #f1f5f9;
+}
+
+/* Support Thread Bubble */
+.cr-chat-bubble {
+    max-width: 75%;
+    border-radius: 16px;
+    padding: 14px 18px;
+    margin-bottom: 4px;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    position: relative;
+}
+.cr-chat-bubble-staff {
+    background-color: #eff6fc;
+    color: #1e293b;
+    border-top-left-radius: 4px;
+    border: 1px solid #ddebf7;
+}
+.cr-chat-bubble-user {
+    background-color: #ffffff;
+    color: #1e293b;
+    border-top-right-radius: 4px;
+    border: 1px solid #e2e8f0;
+}
+
+/* Profile Card Styling */
+.cr-profile-header-card {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    color: #ffffff;
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 24px;
+    border: none;
+    box-shadow: var(--cr-card-shadow);
+}
+.cr-profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background-color: var(--cr-primary);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.2rem;
+    font-weight: 700;
+    box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.1);
+}
+.cr-stat-card {
+    border-radius: 8px !important;
+    margin-bottom: 0 !important;
+}
+.cr-stat-card .stats-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+    line-height: 50px;
+    border-radius: 6px;
+}
+.cr-stat-card .stats-info h4 {
+    font-size: 10px;
+    letter-spacing: .7px;
+}
+.cr-stat-card .stats-info p {
+    line-height: 1;
+    margin-bottom: 0;
+}

@@ -9,7 +9,6 @@ build/
 *.iml
 *.iws
 *.ipr
-.DS_Store
 local.properties
 
 # IDE
@@ -24,6 +23,10 @@ node_modules/
 # Logs
 *.log
 logs/
+
+# OS
+Thumbs.db
+.DS_Store
 
 # Build outputs
 app/build/
