@@ -1,0 +1,94 @@
+name: Build & Release APK
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '11'
+        cache: gradle
+
+    - name: Make Gradle executable
+      run: chmod +x ./gradlew
+
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug --warning-mode all
+
+    - name: Build Release APK
+      run: ./gradlew assembleRelease --warning-mode all
+      continue-on-error: true
+
+    - name: Upload APK Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: apk-build-${{ github.run_number }}
+        path: app/build/outputs/apk/
+        retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Generate Version
+      id: version
+      run: |
+        VERSION=$(date +%Y.%m.%d.%H%M)
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Generated version: $VERSION"
+
+    - name: Download APK
+      uses: actions/download-artifact@v3
+      with:
+        name: apk-build-${{ github.run_number }}
+        path: ./apk-artifacts
+
+    - name: Rename & Prepare APK
+      run: |
+        mkdir -p releases
+        if [ -f apk-artifacts/release/app-release.apk ]; then
+          cp apk-artifacts/release/app-release.apk releases/SkillSync-v${{ steps.version.outputs.version }}.apk
+        elif [ -f apk-artifacts/debug/app-debug.apk ]; then
+          cp apk-artifacts/debug/app-debug.apk releases/SkillSync-v${{ steps.version.outputs.version }}-debug.apk
+        fi
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        release_name: SkillSync v${{ steps.version.outputs.version }}
+        body: |
+          ## SkillSync v${{ steps.version.outputs.version }}
+
+          **Build Date:** ${{ github.event.head_commit.timestamp }}
+          **Commit:** ${{ github.sha }}
+
+          ### Installation
+          1. Download APK file below
+          2. Transfer to Android device: `adb install SkillSync-v${{ steps.version.outputs.version }}.apk`
+          3. Launch SkillSync from app drawer
+
+          ### Testing Checklist
+          - [ ] App launches without crashes
+          - [ ] Login works with valid email
+          - [ ] Dashboard loads with KPIs
+          - [ ] Dark mode toggle works
+          - [ ] API connectivity verified
+        files: releases/SkillSync-v${{ steps.version.outputs.version }}*.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
