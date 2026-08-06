@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SkillEdge | Review Flags</title>
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
+  <link href="/assets/css/vendor.min.css" rel="stylesheet" />
+  <link href="/assets/css/default/app.min.css" rel="stylesheet" />
+  <link href="/assets/plugins/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet" />
+  <style>
+    body{background:#f2f5f8}
+    .cmd-header{background:#fff;border:1px solid #dfe6ec;border-left:4px solid var(--bs-theme-color,#00acac);border-radius:4px;padding:9px 14px;margin-bottom:8px}
+    .cmd-header .cmd-title{font-size:15px;font-weight:800;color:#3a4552;white-space:nowrap}
+    .cmd-header .cmd-meta{font-size:11px;color:#8a97a0}
+    .hero-sub{font-size:12px;color:#6c757d;line-height:1.35}
+    .panel,.card{border-radius:4px}
+    .panel .panel-heading,.panel-heading{padding:8px 12px!important}
+    .panel .panel-body,.panel-body{padding:10px!important}
+    .panel .panel-heading .panel-title,.panel-title{font-size:12.5px!important;font-weight:700}
+    .soft-muted{color:#6c757d}
+    .mini-kpi{min-height:84px;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease;padding:0!important}
+    .mini-kpi:hover{transform:translateY(-2px);box-shadow:0 3px 10px rgba(0,0,0,.12)}
+    .mini-kpi .stats-icon{top:10px;right:10px;font-size:15px;opacity:.85}
+    .mini-kpi .stats-title{font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+    .mini-kpi .stats-number{font-size:19px;line-height:1.05;font-weight:700}
+    .mini-kpi .stats-desc{font-size:9.5px}
+    .mini-kpi .stats-content{padding:11px 12px}
+    .dense-scroll{max-height:400px;overflow-y:auto}
+    .ops-table{font-size:11.5px}
+    .ops-table thead th{position:sticky;top:0;background:#f8fafb;z-index:1;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#8a97a0;white-space:nowrap}
+    .table.table-panel.ops-table>thead>tr>th,
+    .table.table-panel.ops-table>tbody>tr>td{padding:6px 10px!important;border-left:0;border-right:0}
+    .ops-table td{vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+    .ops-table td.ops-wrap{white-space:normal}
+    .ops-table tbody tr{height:46px;cursor:pointer;transition:background-color .1s ease}
+    .ops-table .ops-name a{color:#3a4552;font-weight:600;text-decoration:none}
+    .ops-table .ops-name a:hover{color:var(--bs-theme-color,#00acac);text-decoration:underline}
+    .ops-table .badge{font-size:10px;font-weight:600;vertical-align:middle}
+    .ops-empty{padding:26px 12px;text-align:center;color:#8a97a0;font-size:12px}
+    .nav-tabs-v2.px-2 .nav-link{font-size:11.5px;padding:6px 10px!important;cursor:pointer;font-weight:500;color:#6c757d}
+    .nav-tabs-v2.px-2 .nav-link.active{font-weight:700;color:#3a4552}
+    .filter-strip .form-control,.filter-strip .form-select{font-size:12px}
+    .filter-strip label{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:#8a97a0;font-weight:700;margin-bottom:2px}
+    .render-fallback{padding:18px 14px;text-align:center;color:#6c757d;font-size:12px;background:#f8fafb;border-radius:4px}
+  </style>
+</head>
+<body class="pace-top">
+  <div id="loader" class="app-loader"><span class="spinner"></span></div>
+  <div id="app" class="app app-header-fixed app-sidebar-fixed">
+    <div id="content" class="app-content">
+      <ol class="breadcrumb float-xl-end">
+        <li class="breadcrumb-item"><a href="index.html">Home</a></li>
+        <li class="breadcrumb-item active">Review Flags</li>
+      </ol>
+      <h1 class="page-header mb-3">Review Flags <small>risk, blockers &amp; growth opportunity — trainer detail lives in Trainer Cockpit</small></h1>
+
+      <div id="loadError" class="alert alert-danger" style="display:none;">
+        <b><i class="bi bi-exclamation-octagon me-1"></i>Could not load</b><div id="loadErrorText" class="small mt-1"></div>
+      </div>
+
+      <div id="pageLoading" class="text-center py-5 text-muted">
+        <div class="spinner-border text-theme mb-3" style="width:3rem;height:3rem;"></div>
+        <div>Loading risk &amp; growth intelligence…</div>
+      </div>
+
+      <div id="page" style="display:none;">
+        <div class="cmd-header">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="cmd-title"><i class="bi bi-shield-exclamation me-1 text-theme"></i>Review Flags</span>
+            <a href="javascript:;" class="badge bg-teal fs-11px" id="confidenceBadge" onclick="openDataConfidenceModal()" title="Open source &amp; confidence evidence">- % confidence</a>
+            <span class="cmd-meta" id="sourceBadge">-</span>
+            <span id="freshnessBadge"></span>
+            <div class="ms-auto d-flex align-items-center gap-2">
+              <div class="input-group input-group-sm" style="width:230px">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input id="fSearch" class="form-control" placeholder="Search trainer / vendor / risk…" oninput="applyFilters()" />
+              </div>
+              <button class="btn btn-sm btn-theme" id="refreshBtn" onclick="reload(true)"><i class="bi bi-arrow-repeat me-1"></i>Refresh</button>
+            </div>
+          </div>
+          <div class="hero-sub mt-2" id="insight">Loading watchlist summary…</div>
+        </div>
+
+        <div id="freshnessBanner" class="mb-2" style="display:none;"></div>
+        <div class="row g-2 mb-2" id="kpiStrip"></div>
+
+        <div class="panel panel-inverse mb-2">
+          <div class="panel-heading d-flex justify-content-between align-items-center">
+            <h4 class="panel-title mb-0">Filter Watchlist <small class="soft-muted ms-1" id="filterCount"></small></h4>
+            <button class="btn btn-xs btn-default" onclick="resetFilters()"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
+          </div>
+          <div class="panel-body filter-strip">
+            <div class="row g-2">
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Severity</label><select id="fSeverity" class="form-select form-select-sm" onchange="applyFilters()"><option value="">All</option><option>High</option><option>Medium</option><option>Low</option></select></div>
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Risk Type</label><select id="fType" class="form-select form-select-sm" onchange="applyFilters()"></select></div>
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Hard Blocker</label><select id="fBlocker" class="form-select form-select-sm" onchange="applyFilters()"><option value="">All</option><option value="yes">Hard blocker</option><option value="no">Not blocked</option></select></div>
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Growth Bucket</label><select id="fGrowth" class="form-select form-select-sm" onchange="applyFilters()"></select></div>
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Vendor / OEM</label><select id="fVendor" class="form-select form-select-sm" onchange="applyFilters()"></select></div>
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Data Quality</label><select id="fDataQuality" class="form-select form-select-sm" onchange="applyFilters()"><option value="">All</option><option value="yes">Has issue</option><option value="no">Clean</option></select></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel panel-inverse mb-2">
+          <div class="panel-heading d-flex justify-content-between align-items-center">
+            <h4 class="panel-title mb-0">Risk Watchlist <small class="soft-muted ms-1" id="cardCount"></small></h4>
+            <a href="trainer-intelligence.html" class="btn btn-xs btn-default">Trainer Cockpit</a>
+          </div>
+          <ul class="nav nav-tabs-v2 px-2 pt-1 mb-0" id="watchTabs"></ul>
+          <div class="panel-body p-0">
+            <div class="table-responsive dense-scroll">
+              <table class="table table-panel table-striped table-hover ops-table mb-0">
+                <thead class="table-light"><tr>
+                  <th>Trainer</th><th>Risk Type</th><th>Severity</th><th>Hard Blocker</th><th>Impact</th><th>Suggested Action</th><th>Growth Potential</th><th>Confidence</th><th>Source</th><th></th>
+                </tr></thead>
+                <tbody id="watchBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-2 mb-2">
+          <div class="col-xl-3 col-md-6">
+            <div class="panel panel-inverse h-100 mb-0">
+              <div class="panel-heading"><h4 class="panel-title mb-0">Risk Severity Mix</h4></div>
+              <div class="panel-body"><div id="chSeverity" style="height:170px;"></div></div>
+            </div>
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <div class="panel panel-inverse h-100 mb-0">
+              <div class="panel-heading"><h4 class="panel-title mb-0">Risk Type Breakdown</h4></div>
+              <div class="panel-body"><div id="chType" style="height:170px;"></div></div>
+            </div>
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <div class="panel panel-inverse h-100 mb-0">
+              <div class="panel-heading"><h4 class="panel-title mb-0">Growth Bucket Distribution</h4></div>
+              <div class="panel-body"><div id="chGrowth" style="height:170px;"></div></div>
+            </div>
+          </div>
+          <div class="col-xl-3 col-md-6">
+            <div class="panel panel-inverse h-100 mb-0">
+              <div class="panel-heading"><h4 class="panel-title mb-0">Bench / OEM Risk by Vendor</h4></div>
+              <div class="panel-body"><div id="chBench" style="height:170px;"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel panel-inverse mb-2">
+          <div class="panel-heading d-flex justify-content-between align-items-center">
+            <h4 class="panel-title mb-0">Manager Action / Escalation</h4>
+            <a href="actions.html" class="btn btn-xs btn-default">Action Center</a>
+          </div>
+          <ul class="nav nav-tabs-v2 px-2 pt-1 mb-0" id="actionTabs"></ul>
+          <div class="panel-body p-0">
+            <div class="table-responsive dense-scroll">
+              <table class="table table-panel table-hover ops-table mb-0">
+                <thead class="table-light"><tr><th>Trainer / Vendor</th><th>Action</th><th>Category</th><th>Priority</th><th>Confidence</th><th>Source</th></tr></thead>
+                <tbody id="actionBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel panel-inverse mb-2">
+          <div class="panel-heading"><h4 class="panel-title mb-0">Growth Opportunity Board <small class="soft-muted ms-1">not only negative risk</small></h4></div>
+          <div class="panel-body p-0">
+            <div class="table-responsive dense-scroll">
+              <table class="table table-panel table-hover ops-table mb-0">
+                <thead class="table-light"><tr><th>Trainer</th><th>Current Risk</th><th>Growth Path</th><th>Required Action</th><th>Priority</th><th>Confidence</th></tr></thead>
+                <tbody id="growthBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="riskDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="riskDetailTitle">Risk detail</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="riskDetailBody"></div>
+        <div class="modal-footer" id="riskDetailFooter">
+          <button type="button" class="btn btn-sm btn-default" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="chartDrilldownModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="chartDrilldownTitle"><i class="bi bi-people-fill me-1"></i>Detail</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="chartDrilldownBody"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-default" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="dataConfidenceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-shield-check me-1"></i>Source &amp; Confidence Evidence</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="dataConfidenceBody"></div>
+        <div class="modal-footer">
+          <a href="data-health.html" class="btn btn-sm btn-theme">Open Data Health</a>
+          <button type="button" class="btn btn-sm btn-default" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/js/vendor.min.js"></script>
+  <script src="/assets/js/app.min.js"></script>
+  <script src="/assets/plugins/apexcharts/dist/apexcharts.min.js"></script>
+  <script src="/assets/plugins/sweetalert/dist/sweetalert.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+  injectLayout('risk-takers.html');
+  let DATA=null, TRAINERS=[], AE={}, BYEMAIL={}, CH={};
+  let WATCH_TAB='all', WATCH_ROWS=[];
+  let ACTION_TAB='all', ACTION_ROWS=[];
+
+  const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const clean=n=>String(n||'').replace(/\s+/g,' ').trim();
+  const r1=n=>n==null?'—':(Math.round(n*10)/10);
+  const pct=n=>n==null||n===''?'-':Math.round(n)+'%';
+  const badge=(label,tone='gray-500')=>`<span class="badge bg-${tone}${tone==='warning'?' text-dark':''}">${esc(label)}</span>`;
+  const profile=e=>`trainer-intelligence.html?email=${encodeURIComponent(e||'')}`;
+  const trainerLink=(name,email)=>email?`<a href="${profile(email)}" onclick="event.stopPropagation()">${esc(clean(name)||'Trainer')}</a>`:esc(clean(name)||'Trainer');
+  const severityTone=s=>s==='High'?'danger':s==='Medium'?'warning':'success';
+  const priorityTone=p=>p==='High'||p==='Critical'?'danger':p==='Medium'?'warning':'success';
+  const GB=t=>{const g=t.growth_bucket||'Data Incomplete';return g==='Risk Taker'?'Risk-Taker':g;};
+  const GROUPS=['Safe Expert','Growth Candidate','Risk-Taker','Do Not Risk','Data Incomplete'];
+  const GTONE={'Safe Expert':'success','Growth Candidate':'blue','Risk-Taker':'purple','Do Not Risk':'danger','Data Incomplete':'gray-500'};
+
+  const TD=()=>Array.isArray(DATA?.trainer_decision_objects)&&DATA.trainer_decision_objects.length?DATA.trainer_decision_objects:[];
+  const MD=()=>Array.isArray(DATA?.manager_action_objects)&&DATA.manager_action_objects.length?DATA.manager_action_objects:[];
+  const MA=()=>MD().length?MD():(Array.isArray(DATA?.manager_action_df)?DATA.manager_action_df:[]);
+  function firstRow(key){ return Array.isArray(DATA?.[key])&&DATA[key].length&&typeof DATA[key][0]==='object'?DATA[key][0]:null; }
+  function decisionForTrainer(email){ return TD().find(d=>(d.trainer_email||'').toLowerCase()===(email||'').toLowerCase())||null; }
+  function ae(t){return AE[(t.official_email||'').toLowerCase()]||{};}
+  function deliveryFor(t){ const e=(t.official_email||'').toLowerCase(); return (DATA.delivery_intelligence_df||[]).find(d=>(d.trainer_email||'').toLowerCase()===e)||{}; }
+
+  function chartTooltipNames(names){
+    const sorted=names.filter(Boolean).sort((a,b)=>a.localeCompare(b));
+    const shown=sorted.slice(0,8);
+    const more=sorted.length-shown.length;
+    return shown.map(n=>`<div>${esc(n)}</div>`).join('')+(more>0?`<div class="text-muted">+${more} more</div>`:'');
+  }
+  function chartTooltipCard(title,countLabel,names){
+    return `<div class="p-2 fs-11px" style="max-width:230px;">
+      <div class="fw-bold mb-1">${esc(title)}</div>
+      <div class="text-muted mb-2">${esc(countLabel)}</div>
+      ${chartTooltipNames(names)}
+    </div>`;
+  }
+  function openChartDrilldown(title,items){
+    chartDrilldownTitle.innerHTML=`<i class="bi bi-shield-exclamation me-1"></i>${esc(title)}`;
+    const sorted=(items||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    chartDrilldownBody.innerHTML=sorted.length?`<div class="list-group list-group-flush">${sorted.map(t=>`
+      <a href="${t.email?profile(t.email):'javascript:;'}" class="list-group-item list-group-item-action">${esc(t.name||'Item')}</a>`).join('')}</div>`
+      : `<div class="p-3 text-center text-muted">No items in this segment.</div>`;
+    new bootstrap.Modal(chartDrilldownModal).show();
+  }
+  function dedupeTrainers(rows){
+    const seen=new Set(), out=[];
+    rows.forEach(r=>{ const k=(r.email||r.name||'').toLowerCase(); if(k && !seen.has(k)){ seen.add(k); out.push(r); } });
+    return out;
+  }
+
+  async function reload(force){
+    document.getElementById('page').style.display='none';
+    document.getElementById('pageLoading').style.display='';
+    document.getElementById('loadError').style.display='none';
+    const b=document.getElementById('refreshBtn'); if(b) b.disabled=true;
+    try{
+      DATA=await API.getUnifiedManagerIntelligence({refresh:!!force});
+      TRAINERS=DATA.trainer_operations_df||[];
+      AE={}; (DATA.trainer_availability_engine_df||[]).forEach(a=>{AE[(a.email||a.trainer_key||'').toLowerCase()]=a;});
+      BYEMAIL={}; TRAINERS.forEach(t=>{BYEMAIL[(t.official_email||'').toLowerCase()]=t;});
+      document.getElementById('pageLoading').style.display='none';
+      if(!TRAINERS.length){ document.getElementById('loadErrorText').textContent='No trainers in scope.'; document.getElementById('loadError').style.display=''; return; }
+      initFilters(); render();
+      document.getElementById('page').style.display='';
+    }catch(ex){
+      if (API.isAuthError(ex)) { API.handleAuthFailure(); return; }
+      document.getElementById('pageLoading').style.display='none';
+      document.getElementById('loadErrorText').textContent=ex.message||String(ex);
+      document.getElementById('loadError').style.display='';
+    }finally{ if(b) b.disabled=false; }
+  }
+
+  // Build one normalized risk row per trainer, combining decision-object risk
+  // register entries with legacy HR/feedback/delivery signals — decision
+  // object wins when present, consistent with team.html / allocation-desk.html.
+  function buildRiskRows(){
+    const H=DATA.data_health_df||[];
+    const issuesByTrainer={}; H.forEach(h=>{ const k=(h.trainer_name||'').toLowerCase(); (issuesByTrainer[k]=issuesByTrainer[k]||[]).push(h); });
+    return TRAINERS.map(t=>{
+      const d=decisionForTrainer(t.official_email);
+      const del=deliveryFor(t);
+      let riskType='Clean', severity='Low', hardBlocker=false, impact='No material risk detected.', source='trainer_operations_df';
+      if(d && Array.isArray(d.risk_register) && d.risk_register.length){
+        const top=d.risk_register[0];
+        riskType=clean(top.title||top.category||'Decision risk');
+        severity=String(top.severity||'Low').replace(/^./,c=>c.toUpperCase());
+        impact=clean(top.why||top.impact||'Risk flagged by decision object.');
+        hardBlocker=(Array.isArray(d.hard_blockers)&&d.hard_blockers.length)||d.assignment_status==='blocked';
+        source='trainer_decision_objects';
+      } else if(t.classification ? t.classification.has_compliance_flag : ((t.hr_negative_count||0)>0 || t.hr_risk==='High')){
+        riskType='Compliance Flag'; severity='High'; hardBlocker=true; impact='Compliance flag on record — hard gate before any stretch assignment.';
+      } else if(GB(t)==='Do Not Risk'){
+        riskType='Growth Hold'; severity='High'; hardBlocker=true; impact='Growth classification says Do Not Risk.';
+      } else if(String(del.delivery_risk_level||'').includes('High')){
+        riskType='Delivery Risk'; severity='High'; hardBlocker=false; impact=`Delivery risk is ${del.delivery_risk_level}.`;
+      } else if(t.classification ? t.classification.has_delivery_concern : ((t.negative_feedback_count||0)>0 || (t.feedback_risk && t.feedback_risk!=='Low'))){
+        riskType='Delivery Concern'; severity=t.feedback_risk==='High'?'High':'Medium'; hardBlocker=false; impact=`${t.negative_feedback_count||0} negative feedback item(s) on record.`;
+      } else if((t.missing_signals||[]).length){
+        riskType='Missing Data'; severity='Low'; hardBlocker=false; impact=`Confidence reduced — missing: ${(t.missing_signals||[]).join(', ')}.`; source='data_health_df';
+      }
+      const dqIssues=issuesByTrainer[(t.trainer_name||'').toLowerCase()]||[];
+      const growth=GB(t);
+      const suggestedAction=d?.next_manager_action || d?.recommended_action || (hardBlocker?'Do not promote until blocker is resolved.':riskType==='Delivery Concern'?'Review feedback themes and run a technical mock.':riskType==='Missing Data'?'Resolve missing data signals.':'Continue monitoring.');
+      const c=t.classification||{};
+      return {
+        trainer_name:t.trainer_name, trainer_email:t.official_email, riskType, severity, hardBlocker,
+        impact, suggestedAction, growth, confidence: d?.confidence ?? t.confidence, source, hasDataIssue: dqIssues.length>0,
+        vendor: (t.vendor_strengths||[])[0]?.vendor || t.primary_vendor || '',
+        // Phase 4: manager-resolved flag state overlay (server-persisted).
+        flagState: c.flag_state || 'none', flagIsOpen: c.flag_is_open !== undefined ? c.flag_is_open : (riskType!=='Clean'),
+        flagNote: c.flag_note || '', flagUpdatedAt: c.flag_updated_at || '',
+      };
+    });
+  }
+
+  function uniq(arr){return [...new Set(arr.filter(Boolean))].sort();}
+  function opt(v){return `<option value="${esc(v)}">${esc(v)}</option>`;}
+  let RISK_ROWS=[];
+  function initFilters(){
+    RISK_ROWS=buildRiskRows();
+    fType.innerHTML='<option value="">All types</option>'+uniq(RISK_ROWS.map(r=>r.riskType)).map(opt).join('');
+    fGrowth.innerHTML='<option value="">All buckets</option>'+GROUPS.map(opt).join('');
+    fVendor.innerHTML='<option value="">All vendors</option>'+uniq(RISK_ROWS.map(r=>r.vendor)).map(opt).join('');
+  }
+  function resetFilters(){ ['fSearch','fSeverity','fType','fBlocker','fGrowth','fVendor','fDataQuality'].forEach(id=>document.getElementById(id).value=''); applyFilters(); }
+
+  function currentFilter(){
+    RISK_ROWS=buildRiskRows();
+    const s=fSearch.value.toLowerCase();
+    const sev=fSeverity.value, ty=fType.value, bl=fBlocker.value, gr=fGrowth.value, ven=fVendor.value, dq=fDataQuality.value;
+    return RISK_ROWS.filter(r=>{
+      if(s && !(clean(r.trainer_name).toLowerCase().includes(s) || String(r.vendor||'').toLowerCase().includes(s) || r.riskType.toLowerCase().includes(s))) return false;
+      if(sev && r.severity!==sev) return false;
+      if(ty && r.riskType!==ty) return false;
+      if(bl==='yes' && !r.hardBlocker) return false;
+      if(bl==='no' && r.hardBlocker) return false;
+      if(gr && r.growth!==gr) return false;
+      if(ven && r.vendor!==ven) return false;
+      if(dq==='yes' && !r.hasDataIssue) return false;
+      if(dq==='no' && r.hasDataIssue) return false;
+      return true;
+    });
+  }
+
+  function render(){
+    const exec=firstRow('executive_summary_df')||{};
+    const trust=Math.round(parseFloat(exec.confidence)||0);
+    confidenceBadge.textContent=`${trust}% confidence`;
+    confidenceBadge.className=`badge fs-11px bg-${trust>=80?'teal':trust>=60?'warning text-dark':'red'}`;
+    sourceBadge.textContent=TD().length?`Trainer decisions · ${TD().length} row(s)`:'Legacy trainer dataframe';
+    SkillEdge.renderFreshnessBadge('freshnessBadge', DATA);
+    SkillEdge.renderFreshnessBanner('freshnessBanner', DATA);
+    applyFilters();
+  }
+
+  const WATCH_TABS=[['all','All Risks'],['blockers','Hard Blockers'],['review','Review Risks'],['weak','Weak Signals'],['missing','Missing Data'],['coaching','Coaching'],['growth','Growth Candidates']];
+  function setWatchTab(tab){ WATCH_TAB=tab; applyFilters(); }
+  function watchTabFilter(rows){
+    if(WATCH_TAB==='blockers') return rows.filter(r=>r.hardBlocker);
+    if(WATCH_TAB==='review') return rows.filter(r=>!r.hardBlocker && r.severity==='Medium');
+    if(WATCH_TAB==='weak') return rows.filter(r=>!r.hardBlocker && r.severity==='Low' && r.riskType!=='Clean' && r.riskType!=='Missing Data');
+    if(WATCH_TAB==='missing') return rows.filter(r=>r.riskType==='Missing Data' || r.hasDataIssue);
+    if(WATCH_TAB==='coaching') return rows.filter(r=>r.riskType==='Delivery Concern');
+    if(WATCH_TAB==='growth') return rows.filter(r=>['Growth Candidate','Risk-Taker','Safe Expert'].includes(r.growth));
+    return rows;
+  }
+
+  function applyFilters(){
+    const filtered=currentFilter();
+    const rows=watchTabFilter(filtered);
+    const counts={all:filtered.length};
+    WATCH_TABS.forEach(([k])=>{ if(k!=='all') counts[k]=watchTabFilter(filtered).length; });
+    // recompute per-tab counts against the full filtered set (not the active-tab-narrowed one)
+    WATCH_TABS.forEach(([k])=>{ if(k!=='all'){ const save=WATCH_TAB; WATCH_TAB=k; counts[k]=watchTabFilter(filtered).length; WATCH_TAB=save; } });
+    watchTabs.innerHTML=WATCH_TABS.map(([key,label])=>`<li class="nav-item"><a class="nav-link${WATCH_TAB===key?' active':''}" href="javascript:;" onclick="setWatchTab('${key}')">${esc(label)} <span class="badge bg-gray-500 ms-1">${counts[key]||0}</span></a></li>`).join('');
+
+    const highRisk=RISK_ROWS.filter(r=>r.severity==='High' && r.flagIsOpen!==false).length;
+    insight.innerHTML=`<b>${TRAINERS.length}</b> trainers in scope · <b>${highRisk}</b> high risk · <b>${RISK_ROWS.filter(r=>r.hardBlocker && r.flagIsOpen!==false).length}</b> hard blockers · <b>${RISK_ROWS.filter(r=>['Growth Candidate','Risk-Taker','Safe Expert'].includes(r.growth)).length}</b> growth candidates.`;
+    filterCount.textContent=`${rows.length} of ${RISK_ROWS.length}`;
+    cardCount.textContent=`${rows.length} shown`;
+
+    renderKpis(); renderWatchlist(rows); renderCharts(); renderActions(); renderGrowthBoard();
+  }
+
+  function renderKpis(){
+    // Resolved review flags (Phase 4 overlay) no longer count as open —
+    // the underlying signal (severity/hardBlocker/riskType) is preserved on
+    // the row for evidence, only the "is this still open" gate changes.
+    const highRisk=RISK_ROWS.filter(r=>r.severity==='High' && r.flagIsOpen!==false).length;
+    const hardBlockers=RISK_ROWS.filter(r=>r.hardBlocker && r.flagIsOpen!==false).length;
+    const reviewRisks=RISK_ROWS.filter(r=>!r.hardBlocker && r.severity==='Medium' && r.flagIsOpen!==false).length;
+    const coaching=RISK_ROWS.filter(r=>r.riskType==='Delivery Concern' && r.flagIsOpen!==false).length;
+    const spf=(DATA.single_point_failure_df||[]).filter(s=>s.single_point_failure).length;
+    const bench=(DATA.oem_bench_risk_df||[]).length;
+    const growth=RISK_ROWS.filter(r=>['Growth Candidate','Risk-Taker','Safe Expert'].includes(r.growth)).length;
+    const exec=firstRow('executive_summary_df')||{};
+    const trust=Math.round(parseFloat(exec.confidence)||0);
+
+    SkillEdge.renderKpiStrip(kpiStrip, [
+      {title:'Open Review Flags', value:highRisk, tone:'bg-red', icon:'bi-exclamation-triangle-fill', onClick:()=>{fSeverity.value='High';applyFilters();}},
+      {title:'Hard Blockers', value:hardBlockers, tone:'bg-gray-800', icon:'bi-slash-circle-fill', onClick:()=>{fBlocker.value='yes';applyFilters();}},
+      {title:'Review Risks', value:reviewRisks, tone:'bg-orange', icon:'bi-flag-fill', onClick:()=>{setWatchTab('review');}},
+      {title:'Coaching Needed', value:coaching, tone:'bg-purple', icon:'bi-person-gear', onClick:()=>{setWatchTab('coaching');}},
+      {title:'Single Point Risks', value:spf, tone:'bg-indigo', icon:'bi-diagram-2-fill'},
+      {title:'Bench / OEM Risk', value:bench, tone:'bg-teal', icon:'bi-building'},
+      {title:'Growth Candidates', value:growth, tone:'bg-green', icon:'bi-graph-up-arrow', onClick:()=>{setWatchTab('growth');}},
+      {title:'Data Confidence', value:`${trust}%`, tone:'bg-blue', icon:'bi-shield-check', onClick:()=>openDataConfidenceModal()},
+    ], {colClass:'col-xl-3 col-md-6'});
+  }
+
+  function renderWatchlist(rows){
+    WATCH_ROWS=rows;
+    if(!rows.length){ watchBody.innerHTML='<tr><td colspan="10" class="ops-empty">No risk items match these filters.</td></tr>'; return; }
+    watchBody.innerHTML=rows.slice(0,60).map((r,i)=>`<tr onclick="openWatchRow(${i})">
+      <td class="ops-name">${trainerLink(r.trainer_name,r.trainer_email)}</td>
+      <td title="${esc(r.riskType)}">${esc(r.riskType)}</td>
+      <td>${badge(r.severity,severityTone(r.severity))}</td>
+      <td>${r.hardBlocker?badge('Yes','danger'):badge('No','success')}</td>
+      <td title="${esc(r.impact)}">${esc(r.impact)}</td>
+      <td title="${esc(r.suggestedAction)}">${esc(r.suggestedAction)}</td>
+      <td>${badge(r.growth,GTONE[r.growth]||'gray-500')}</td>
+      <td>${r.confidence!=null?pct(r.confidence):'-'}</td>
+      <td>${badge(r.source==='trainer_decision_objects'?'Decision object':'Legacy',r.source==='trainer_decision_objects'?'teal':'gray-500')}</td>
+      <td><button class="btn btn-primary btn-xs" onclick="event.stopPropagation();openWatchRow(${i})">Open</button></td>
+    </tr>`).join('')+(rows.length>60?`<tr><td colspan="10" class="ops-empty">Showing top 60 of ${rows.length} — narrow the filters to see more.</td></tr>`:'');
+  }
+  function openWatchRow(i){
+    const r=WATCH_ROWS[i]; if(!r) return;
+    riskDetailTitle.textContent=clean(r.trainer_name);
+    const flagLine = r.flagState && r.flagState!=='none' && r.flagState!=='open'
+      ? `<div class="alert alert-secondary py-2 fs-12px mb-2"><b>${esc(r.flagState.charAt(0).toUpperCase()+r.flagState.slice(1))}</b>${r.flagNote?` · "${esc(r.flagNote)}"`:''}${r.flagUpdatedAt?` · ${esc(r.flagUpdatedAt)}`:''}</div>`
+      : '';
+    riskDetailBody.innerHTML=`
+      <div class="mb-2">${badge(r.severity,severityTone(r.severity))} ${r.hardBlocker?badge('Hard blocker','danger'):''} ${badge(r.growth,GTONE[r.growth]||'gray-500')}${r.flagState==='resolved'?badge('Resolved','success'):''}</div>
+      ${flagLine}
+      <p class="mb-1 fs-13px"><b>Risk type:</b> ${esc(r.riskType)}</p>
+      <p class="mb-1 fs-13px"><b>Impact:</b> ${esc(r.impact)}</p>
+      <p class="mb-2 fs-13px"><b>Suggested action:</b> ${esc(r.suggestedAction)}</p>
+      <div class="p-2 bg-light rounded fs-12px text-muted">Full risk history, growth trajectory, and delivery evidence are available in Trainer Cockpit.</div>
+      <div class="fs-11px text-muted mt-2"><b>Source:</b> ${esc(r.source)}${r.confidence!=null?` &middot; Confidence ${pct(r.confidence)}`:''}</div>
+    `;
+    const footer=riskDetailFooter;
+    const btns=[];
+    if(r.trainer_email && r.riskType!=='Clean'){
+      if(r.flagState!=='resolved') btns.push(`<button type="button" class="btn btn-sm btn-secondary" onclick="performFlagLifecycle('${esc(r.trainer_email)}','acknowledge')"><i class="bi bi-eye me-1"></i>Acknowledge</button>`);
+      if(r.flagState!=='resolved') btns.push(`<button type="button" class="btn btn-sm btn-success" onclick="performFlagLifecycle('${esc(r.trainer_email)}','resolve')"><i class="bi bi-check2-circle me-1"></i>Resolve</button>`);
+      btns.push(`<button type="button" class="btn btn-sm btn-warning" onclick="performFlagLifecycle('${esc(r.trainer_email)}','escalate')"><i class="bi bi-arrow-up-right-circle me-1"></i>Escalate</button>`);
+    }
+    footer.innerHTML=btns.join('')+`<button type="button" class="btn btn-sm btn-default" data-bs-dismiss="modal">Close window</button>`;
+    new bootstrap.Modal(riskDetailModal).show();
+  }
+
+  // ── Phase 4: review-flag lifecycle persistence ──────────────────────────
+  async function performFlagLifecycle(trainerEmail, verb){
+    const verbLabel = verb === 'resolve' ? 'Resolve' : verb === 'acknowledge' ? 'Acknowledge' : 'Escalate';
+    const result = await SkillEdge.promptLifecycleNote({
+      title: `${verbLabel} review flag`,
+      text: `Add an optional note for this ${verb}.`,
+      confirmText: verbLabel,
+      confirmColor: verb === 'resolve' ? '#00acac' : verb === 'acknowledge' ? '#727cb6' : '#f59c1a',
+    });
+    if (!result.confirmed) return;
+    const note = result.note;
+    try {
+      await API.updateReviewFlagState(trainerEmail, verb, { note });
+      const modal = bootstrap.Modal.getInstance(riskDetailModal);
+      if (modal) modal.hide();
+      if (typeof showToast === 'function') showToast(`Review flag ${verb === 'resolve' ? 'resolved' : verb === 'acknowledge' ? 'acknowledged' : 'escalated'}.`, 'success');
+      await reload(false);
+    } catch (ex) {
+      if (API.isAuthError(ex)) { API.handleAuthFailure(); return; }
+      if (typeof showToast === 'function') showToast(ex.message || String(ex), 'danger');
+      else alert(ex.message || String(ex));
+    }
+  }
+
+  function emptyChart(id,msg){ const el=document.getElementById(id); if(el) el.innerHTML=`<div class="text-center text-muted py-4 fs-12px">${esc(msg)}</div>`; }
+  function renderCharts(){
+    Object.values(CH).forEach(c=>{try{c.destroy();}catch(e){}}); CH={};
+
+    const sevGroups={}; RISK_ROWS.forEach(r=>{ (sevGroups[r.severity]=sevGroups[r.severity]||[]).push(r); });
+    const sevEntries=Object.entries(sevGroups);
+    if(sevEntries.length){
+      CH.severity=new ApexCharts(document.getElementById('chSeverity'),{
+        chart:{type:'donut',height:170,fontFamily:'inherit',events:{dataPointSelection:(e,ctx,cfg)=>openChartDrilldown(sevEntries[cfg.dataPointIndex][0],sevEntries[cfg.dataPointIndex][1].map(r=>({name:r.trainer_name,email:r.trainer_email})))}},
+        series:sevEntries.map(([,v])=>v.length), labels:sevEntries.map(([k])=>k),
+        colors:['#ff5b57','#f59c1a','#00acac'], legend:{position:'bottom',fontSize:'9px',markers:{width:8,height:8}}, dataLabels:{enabled:true,formatter:v=>`${Math.round(v)}%`},
+        tooltip:{custom:({seriesIndex})=>{const[label,items]=sevEntries[seriesIndex];const pctVal=Math.round((items.length/(RISK_ROWS.length||1))*100);return chartTooltipCard(label,`${items.length} trainers · ${pctVal}%`,items.map(r=>r.trainer_name));}}
+      }); CH.severity.render();
+    } else emptyChart('chSeverity','No risk data.');
+
+    const typeGroups={}; RISK_ROWS.forEach(r=>{ (typeGroups[r.riskType]=typeGroups[r.riskType]||[]).push(r); });
+    const typeEntries=Object.entries(typeGroups).sort((a,b)=>b[1].length-a[1].length).slice(0,6);
+    if(typeEntries.length){
+      CH.type=new ApexCharts(document.getElementById('chType'),{
+        chart:{type:'bar',height:170,toolbar:{show:false},fontFamily:'inherit',events:{dataPointSelection:(e,ctx,cfg)=>openChartDrilldown(typeEntries[cfg.dataPointIndex][0],typeEntries[cfg.dataPointIndex][1].map(r=>({name:r.trainer_name,email:r.trainer_email})))}},
+        series:[{name:'Trainers',data:typeEntries.map(([,v])=>v.length)}], xaxis:{categories:typeEntries.map(([k])=>k),labels:{style:{fontSize:'9px'}}},
+        colors:['#727cb6'], plotOptions:{bar:{borderRadius:3,columnWidth:'45%',horizontal:true}}, dataLabels:{enabled:false},
+        tooltip:{custom:({dataPointIndex})=>{const[label,items]=typeEntries[dataPointIndex];return chartTooltipCard(label,`${items.length} trainer(s)`,items.map(r=>r.trainer_name));}}
+      }); CH.type.render();
+    } else emptyChart('chType','No risk type data.');
+
+    const growthCounts=GROUPS.map(g=>TRAINERS.filter(t=>GB(t)===g).length);
+    CH.growth=new ApexCharts(document.getElementById('chGrowth'),{
+      chart:{type:'donut',height:170,fontFamily:'inherit',events:{dataPointSelection:(e,ctx,cfg)=>openChartDrilldown(GROUPS[cfg.dataPointIndex],TRAINERS.filter(t=>GB(t)===GROUPS[cfg.dataPointIndex]).map(t=>({name:t.trainer_name,email:t.official_email})))}},
+      series:growthCounts, labels:GROUPS,
+      colors:['#00acac','#348fe2','#727cb6','#ff5b57','#a8acb1'], legend:{position:'bottom',fontSize:'8px',markers:{width:8,height:8}}, dataLabels:{enabled:false},
+      tooltip:{custom:({seriesIndex})=>{const g=GROUPS[seriesIndex];const items=TRAINERS.filter(t=>GB(t)===g);return chartTooltipCard(g,`${items.length} trainer(s)`,items.map(t=>t.trainer_name));}}
+    }); CH.growth.render();
+
+    const bench=DATA.oem_bench_risk_df||[];
+    if(bench.length){
+      const benchEntries=bench.slice(0,6).map(b=>[b.vendor||'Vendor',b.bench_risk==='High'?3:b.bench_risk==='Medium'?2:1,b]);
+      CH.bench=new ApexCharts(document.getElementById('chBench'),{
+        chart:{type:'bar',height:170,toolbar:{show:false},fontFamily:'inherit',events:{dataPointSelection:(e,ctx,cfg)=>openChartDrilldown(`${benchEntries[cfg.dataPointIndex][0]} bench risk`,[])}},
+        series:[{name:'Risk level',data:benchEntries.map(e=>e[1])}], xaxis:{categories:benchEntries.map(e=>e[0]),labels:{style:{fontSize:'9px'}},max:3},
+        colors:['#f59c1a'], plotOptions:{bar:{borderRadius:3,columnWidth:'45%',horizontal:true}}, dataLabels:{enabled:false},
+        tooltip:{custom:({dataPointIndex})=>{const row=benchEntries[dataPointIndex][2];return chartTooltipCard(row.vendor||'Vendor',row.bench_risk||'Medium',[clean(row.reason||'')]);}}
+      }); CH.bench.render();
+    } else emptyChart('chBench','No OEM bench-risk rows in the current payload.');
+  }
+
+  const ACTION_TABS=[['all','All'],['critical','Critical'],['coaching','Coaching'],['escalation','Escalation'],['data','Data Quality'],['growth','Growth']];
+  function setActionTab(tab){ ACTION_TAB=tab; renderActions(); }
+  function actionCategory(a){
+    const t=String(a.action_type||a.action_reason||'').toLowerCase();
+    if(t.includes('critical')||t.includes('hr')||t.includes('compliance')) return 'critical';
+    if(t.includes('coach')||t.includes('mock')) return 'coaching';
+    if(t.includes('escalat')) return 'escalation';
+    if(t.includes('data')||t.includes('health')) return 'data';
+    if(t.includes('grow')||t.includes('upskill')||t.includes('certif')) return 'growth';
+    return 'coaching';
+  }
+  function openActionRow(i){
+    const a=ACTION_ROWS[i]; if(!a) return;
+    chartDrilldownTitle.innerHTML=`<i class="bi bi-inbox-fill me-1"></i>${esc(a.action_type||'Manager action')}`;
+    chartDrilldownBody.innerHTML=`<div class="mb-2">${badge(a.priority||'Low',priorityTone(a.priority))}</div><p class="mb-1"><b>Trainer:</b> ${trainerLink(a.trainer_name,a.trainer_key||a.trainer_email)}</p><p class="mb-0"><b>Reason:</b> ${esc(clean(a.action_reason||'Development action'))}</p>`;
+    new bootstrap.Modal(chartDrilldownModal).show();
+  }
+  function renderActions(){
+    const rows=MA();
+    const counts={all:rows.length};
+    ACTION_TABS.forEach(([k])=>{ if(k!=='all') counts[k]=rows.filter(a=>actionCategory(a)===k).length; });
+    actionTabs.innerHTML=ACTION_TABS.map(([key,label])=>`<li class="nav-item"><a class="nav-link${ACTION_TAB===key?' active':''}" href="javascript:;" onclick="setActionTab('${key}')">${esc(label)} <span class="badge bg-gray-500 ms-1">${counts[key]||0}</span></a></li>`).join('');
+    ACTION_ROWS=(ACTION_TAB==='all'?rows:rows.filter(a=>actionCategory(a)===ACTION_TAB)).slice(0,30);
+    actionBody.innerHTML=ACTION_ROWS.length?ACTION_ROWS.map((a,i)=>`<tr onclick="openActionRow(${i})">
+      <td class="ops-name">${trainerLink(a.trainer_name,a.trainer_key||a.trainer_email)}</td>
+      <td title="${esc(clean(a.action_type||'Review'))}">${esc(clean(a.action_type||'Review'))}</td>
+      <td>${badge(actionCategory(a),'gray-500')}</td>
+      <td>${badge(a.priority||'Low',priorityTone(a.priority))}</td>
+      <td>${a.confidence!=null?pct(a.confidence):'-'}</td>
+      <td>${a.decision_contract_version?badge('Decision object','teal'):badge('Legacy','gray-500')}</td>
+    </tr>`).join(''):'<tr><td colspan="6" class="ops-empty">No manager actions returned.</td></tr>';
+  }
+
+  function renderGrowthBoard(){
+    const growth=DATA.growth_intelligence_df||[], future=DATA.future_skill_roadmap_df||[], strategic=DATA.strategic_trainer_df||[];
+    const byEmail={};
+    growth.forEach(g=>{ if(g.trainer_email) byEmail[String(g.trainer_email).toLowerCase()]=g; });
+    strategic.forEach(s=>{ if(s.trainer_email) byEmail[String(s.trainer_email).toLowerCase()]={...(byEmail[String(s.trainer_email).toLowerCase()]||{}),...s}; });
+    const futureByEmail={};
+    future.forEach(f=>{ if(f.trainer_email) futureByEmail[String(f.trainer_email).toLowerCase()]=f; });
+
+    const rows=TRAINERS.filter(t=>['Safe Expert','Growth Candidate','Risk-Taker'].includes(GB(t))).map(t=>{
+      const email=(t.official_email||'').toLowerCase();
+      const g=byEmail[email]||{}; const f=futureByEmail[email]||{};
+      const risk=RISK_ROWS.find(r=>r.trainer_email===t.official_email);
+      return {
+        trainer_name:t.trainer_name, trainer_email:t.official_email,
+        currentRisk: risk?risk.severity:'Low',
+        growthPath: f.related_future_skill || g.future_skill || g.vendor || 'Next adjacent OEM/course',
+        action: g.recommended_action || g.manager_action || f.manager_action || 'Share outline, book review, validate with mock.',
+        priority: GB(t)==='Safe Expert'?'High':GB(t)==='Growth Candidate'?'Medium':'Low',
+        confidence: f.confidence ?? g.confidence ?? null,
+      };
+    }).sort((a,b)=>(a.priority==='High'?0:1)-(b.priority==='High'?0:1)).slice(0,20);
+    growthBody.innerHTML=rows.length?rows.map(r=>`<tr onclick="window.location.href='${profile(r.trainer_email)}'">
+      <td class="ops-name">${trainerLink(r.trainer_name,r.trainer_email)}</td>
+      <td>${badge(r.currentRisk,severityTone(r.currentRisk))}</td>
+      <td title="${esc(r.growthPath)}">${esc(r.growthPath)}</td>
+      <td title="${esc(r.action)}">${esc(r.action)}</td>
+      <td>${badge(r.priority,priorityTone(r.priority))}</td>
+      <td>${r.confidence!=null?pct(r.confidence):'-'}</td>
+    </tr>`).join(''):'<tr><td colspan="6" class="ops-empty">No growth-ready trainers visible in the current payload.</td></tr>';
+  }
+
+  function openDataConfidenceModal(){
+    const required=['trainer_decision_objects','manager_action_objects','allocation_decision_objects','executive_risk_register_df','executive_investment_recommendation_df','feedback_coaching_df','allocation_risk_df','oem_bench_risk_df','single_point_failure_df','succession_risk_df','growth_intelligence_df','future_skill_roadmap_df','future_certification_roadmap_df','manager_action_df','trainer_operations_df','data_health_df'];
+    const exec=firstRow('executive_summary_df')||{};
+    dataConfidenceBody.innerHTML=`
+      <div class="alert alert-secondary py-2 fs-12px"><b>Overall confidence:</b> ${exec.confidence!=null?Math.round(parseFloat(exec.confidence))+'%':'Not available'} &middot; <b>Health label:</b> ${esc(exec.overall_team_health_label||'Not available')}</div>
+      <h6 class="fs-12px fw-bold text-uppercase text-muted mb-2">Decision objects in use</h6>
+      <div class="ti-mini d-flex justify-content-between fs-12px py-1 border-bottom mb-3"><span>trainer_decision_objects</span><b>${TD().length?`${TD().length} row(s)`:'Empty — using legacy dataframe fallback'}</b></div>
+      ${SkillEdge.renderDatasetCoverage(required, DATA)}`;
+    new bootstrap.Modal(dataConfidenceModal).show();
+  }
+
+  reload(false);
+  </script>
+</body>
+</html>

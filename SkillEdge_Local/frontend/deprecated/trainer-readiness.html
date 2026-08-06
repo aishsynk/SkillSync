@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SkillEdge | Trainer Readiness Portal</title>
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
+  <meta http-equiv="refresh" content="0; url=index.html" />
+  <script>location.replace('index.html');</script>
+  <link href="/assets/css/vendor.min.css" rel="stylesheet" />
+  <link href="/assets/css/default/app.min.css" rel="stylesheet" />
+  <link href="/assets/plugins/datatables.net-bs5/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+  <link href="/assets/plugins/datatables.net-responsive-bs5/css/responsive.bootstrap5.min.css" rel="stylesheet" />
+  <link href="/assets/plugins/datatables.net-buttons-bs5/css/buttons.bootstrap5.min.css" rel="stylesheet" />
+  <style>
+    .readiness-card { border-radius: 12px; border: 1px solid #e5e7eb; padding: 1rem; transition: all .2s; }
+    .readiness-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.1); }
+    .score-ring { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; border: 3px solid; flex-shrink: 0; }
+    .score-ring.high  { border-color: #1bc185; color: #1bc185; background: #1bc18514; }
+    .score-ring.med   { border-color: #e9a437; color: #e9a437; background: #e9a43714; }
+    .score-ring.low   { border-color: #dc3545; color: #dc3545; background: #dc354514; }
+    .dim-bar { height: 7px; border-radius: 4px; background: #e9ecef; overflow: hidden; }
+    .dim-bar .fill { height: 100%; border-radius: 4px; transition: width .5s ease; }
+    .cat-badge { display: inline-block; padding: 2px 9px; border-radius: 12px; font-size: .7rem; font-weight: 600; }
+    .retiring-warn { background: #fff3cd; border-left: 3px solid #ffc107; padding: 4px 10px; border-radius: 0 4px 4px 0; font-size: .75rem; margin-top: 4px; }
+    .api-source { font-size: .65rem; color: #adb5bd; font-style: italic; }
+    .qubit-pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 10px; font-size: .72rem; font-weight: 600; }
+  </style>
+</head>
+<body class="pace-top">
+  <div id="loader" class="app-loader"><span class="spinner"></span></div>
+
+  <div id="app" class="app app-header-fixed app-sidebar-fixed">
+    <div id="content" class="app-content">
+      <ol class="breadcrumb float-xl-end">
+        <li class="breadcrumb-item"><a href="index.html">Home</a></li>
+        <li class="breadcrumb-item active">Trainer Readiness Portal</li>
+      </ol>
+      <h1 class="page-header">
+        Trainer Readiness Portal
+        <small>intelligence scoring across all 9 APIs · skill gaps · qubit scores · weekly action plans</small>
+        <a href="javascript:;" class="btn btn-sm btn-outline-theme ms-3" onclick="refreshAll()"><i class="fa fa-redo me-1"></i>Refresh All</a>
+      </h1>
+
+      <!-- KPI Row: 6 stats using all API data -->
+      <div class="row">
+        <div class="col-xl-2 col-md-4">
+          <div class="widget widget-stats bg-teal">
+            <div class="stats-icon stats-icon-lg"><i class="fa fa-shield-alt fa-fw"></i></div>
+            <div class="stats-content">
+              <div class="stats-title">TEAM AVG SCORE</div>
+              <div class="stats-number" id="kpAvgScore">—</div>
+              <div class="stats-desc">intelligence score</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-xl-2 col-md-4">
+          <div class="widget widget-stats bg-green">
+            <div class="stats-icon stats-icon-lg"><i class="fa fa-check-circle fa-fw"></i></div>
+            <div class="stats-content">
+              <div class="stats-title">READY (&gt;80)</div>
+              <div class="stats-number" id="kpReady">—</div>
+              <div class="stats-desc">high readiness</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-xl-2 col-md-4">
+          <div class="widget widget-stats bg-orange">
+            <div class="stats-icon stats-icon-lg"><i class="fa fa-exclamation-circle fa-fw"></i></div>
+            <div class="stats-content">
+              <div class="stats-title">AT RISK (&lt;60)</div>
+              <div class="stats-number" id="kpAtRisk">—</div>
+              <div class="stats-desc">need action</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-xl-2 col-md-4">
+          <div class="widget widget-stats bg-blue">
+            <div class="stats-icon stats-icon-lg"><i class="fa fa-bolt fa-fw"></i></div>
+            <div class="stats-content">
+              <div class="stats-title">AVG QUBIT SCORE</div>
+              <div class="stats-number" id="kpAvgQubit">—</div>
+              <div class="stats-desc">from Trainer Details API</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-xl-2 col-md-4">
+          <div class="widget widget-stats bg-purple">
+            <div class="stats-icon stats-icon-lg"><i class="fa fa-chart-bar fa-fw"></i></div>
+            <div class="stats-content">
+              <div class="stats-title">AVG UTILIZATION</div>
+              <div class="stats-number" id="kpAvgUtil">—</div>
+              <div class="stats-desc">from Utilization API</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-xl-2 col-md-4">
+          <div class="widget widget-stats bg-indigo">
+            <div class="stats-icon stats-icon-lg"><i class="fa fa-graduation-cap fa-fw"></i></div>
+            <div class="stats-content">
+              <div class="stats-title">COURSES COVERED</div>
+              <div class="stats-number" id="kpCoverage">—</div>
+              <div class="stats-desc">of demand catalog</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Course Demand Catalog -->
+      <div class="panel panel-inverse">
+        <div class="panel-heading">
+          <div class="panel-heading-btn">
+            <a href="javascript:;" class="btn btn-xs btn-icon btn-circle btn-default" data-toggle="panel-expand"><i class="fa fa-expand"></i></a>
+            <a href="javascript:;" class="btn btn-xs btn-icon btn-circle btn-warning" data-toggle="panel-collapse"><i class="fa fa-minus"></i></a>
+          </div>
+          <h4 class="panel-title"><i class="fa fa-chart-line me-2"></i>Course Demand Intelligence Catalog</h4>
+        </div>
+        <div class="panel-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover table-panel align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Course</th><th>Category</th><th>Demand Score</th>
+                  <th>Strategic</th><th>Required Certs</th>
+                  <th>Team Coverage</th><th>Avg Qubit</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="catalogBody">
+                <tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-theme"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trainer Intelligence Matrix -->
+      <div class="panel panel-inverse">
+        <div class="panel-heading">
+          <div class="panel-heading-btn">
+            <a href="javascript:;" class="btn btn-xs btn-icon btn-circle btn-default" data-toggle="panel-expand"><i class="fa fa-expand"></i></a>
+            <a href="javascript:;" class="btn btn-xs btn-icon btn-circle btn-warning" data-toggle="panel-collapse"><i class="fa fa-minus"></i></a>
+          </div>
+          <h4 class="panel-title"><i class="fa fa-users me-2"></i>Trainer Intelligence Scores <small class="text-white-50 ms-1">— 6 APIs · 6 dimensions</small></h4>
+        </div>
+        <div class="panel-toolbar">
+          <ul class="nav nav-tabs nav-tabs-v2 border-0 gap-1">
+            <li class="nav-item"><a href="javascript:;" class="nav-link px-2 active" onclick="filterMatrix('all',this)">All</a></li>
+            <li class="nav-item"><a href="javascript:;" class="nav-link px-2" onclick="filterMatrix('high',this)"><i class="fa fa-circle text-success fs-9px me-1"></i>High (&gt;80)</a></li>
+            <li class="nav-item"><a href="javascript:;" class="nav-link px-2" onclick="filterMatrix('medium',this)"><i class="fa fa-circle text-warning fs-9px me-1"></i>Medium (60–80)</a></li>
+            <li class="nav-item"><a href="javascript:;" class="nav-link px-2" onclick="filterMatrix('low',this)"><i class="fa fa-circle text-danger fs-9px me-1"></i>At Risk (&lt;60)</a></li>
+          </ul>
+        </div>
+        <div class="panel-body">
+          <div class="row g-3" id="trainerMatrix">
+            <div class="col-12 text-center py-5">
+              <div class="spinner-border text-theme mb-3" style="width:3rem;height:3rem;"></div>
+              <div class="text-muted">Running intelligence scoring across all APIs…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Certification Dashboard (like Python Cell 22) -->
+      <div class="panel panel-inverse">
+        <div class="panel-heading">
+          <div class="panel-heading-btn">
+            <a href="javascript:;" class="btn btn-xs btn-icon btn-circle btn-default" data-toggle="panel-expand"><i class="fa fa-expand"></i></a>
+            <a href="javascript:;" class="btn btn-xs btn-icon btn-circle btn-warning" data-toggle="panel-collapse"><i class="fa fa-minus"></i></a>
+          </div>
+          <h4 class="panel-title"><i class="fa fa-certificate me-2"></i>Certification Assignment Dashboard <small class="text-white-50 ms-1">— Vendor Cert API</small></h4>
+        </div>
+        <div class="panel-toolbar">
+          <div class="d-flex gap-2">
+            <select class="form-select form-select-sm" id="certVendorFilter" onchange="renderCertDashboard()" style="max-width:180px;">
+              <option value="">All Vendors</option>
+            </select>
+            <select class="form-select form-select-sm" id="certStatusFilter" onchange="renderCertDashboard()" style="max-width:160px;">
+              <option value="">All Status</option>
+              <option value="Cleared">Cleared</option>
+              <option value="Pending">Pending / Other</option>
+              <option value="Missing">Missing (Required)</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel-body p-0">
+          <div id="certDashboard">
+            <div class="text-center py-4"><div class="spinner-border text-theme"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Skill Gap Analysis -->
+      <div class="panel panel-inverse">
+        <div class="panel-heading">
+          <div class="panel-heading-btn">
+            <a href="javascript:;" class="btn btn-xs btn-icon btn-circle btn-default" data-toggle="panel-expand"><i class="fa fa-expand"></i></a>
+            <a href="javascript:;" class="btn btn-xs btn-icon btn-circle btn-warning" data-toggle="panel-collapse"><i class="fa fa-minus"></i></a>
+          </div>
+          <h4 class="panel-title"><i class="fa fa-exclamation-triangle me-2"></i>Team Skill Gap Analysis</h4>
+        </div>
+        <div class="panel-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover table-panel align-middle mb-0">
+              <thead>
+                <tr><th>Course (Demand Catalog)</th><th>Demand</th><th>Trainers Covering</th><th>Avg Qubit</th><th>Gap Level</th><th>Action</th></tr>
+              </thead>
+              <tbody id="gapBody">
+                <tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-theme"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Weekly Action Plans (mirrors Python generate_weekly_actions) -->
+      <div class="panel panel-inverse">
+        <div class="panel-heading">
+          <div class="panel-heading-btn">
+            <a href="javascript:;" class="btn btn-xs btn-icon btn-circle btn-default" data-toggle="panel-expand"><i class="fa fa-expand"></i></a>
+            <a href="javascript:;" class="btn btn-xs btn-icon btn-circle btn-warning" data-toggle="panel-collapse"><i class="fa fa-minus"></i></a>
+          </div>
+          <h4 class="panel-title"><i class="fa fa-tasks me-2"></i>Weekly Action Plans <small class="text-white-50 ms-1">— lowest-scored trainers first</small></h4>
+        </div>
+        <div class="panel-body">
+          <div class="row g-3" id="actionPlans">
+            <div class="col-12 text-center py-4"><div class="spinner-border text-theme"></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.app-content -->
+  </div><!-- /#app -->
+
+  <script src="/assets/js/vendor.min.js"></script>
+  <script src="/assets/js/app.min.js"></script>
+  <script src="/assets/plugins/datatables.net/js/dataTables.min.js"></script>
+  <script src="/assets/plugins/datatables.net-bs5/js/dataTables.bootstrap5.min.js"></script>
+  <script src="/assets/plugins/datatables.net-responsive/js/dataTables.responsive.min.js"></script>
+  <script src="/assets/plugins/datatables.net-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
+  <script src="/assets/plugins/datatables.net-buttons/js/dataTables.buttons.min.js"></script>
+  <script src="/assets/plugins/datatables.net-buttons-bs5/js/buttons.bootstrap5.min.js"></script>
+  <script src="/assets/plugins/datatables.net-buttons/js/buttons.html5.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+  injectLayout('trainer-readiness.html');
+
+  // ── Course Demand Catalog (Python TRAINER_INTELLIGENCE_CATALOG) ───────────
+  const CATALOG = [
+    { code:'AI-3025', name:'Work with AI agents',                    cat:'Agentic AI',            demand:0.95, strategic:0.99, certs:[],                skills:['AI Agents','Azure AI Foundry','Prompt Engineering','Tool Calling','RAG'] },
+    { code:'AI-3016', name:'Develop generative AI apps in Azure',    cat:'Generative AI',          demand:0.93, strategic:0.97, certs:[],                skills:['Azure OpenAI','Prompt Engineering','RAG','Vector Search','Python'] },
+    { code:'DP-700',  name:'Microsoft Fabric Data Engineer',         cat:'Data & Fabric',          demand:0.96, strategic:0.96, certs:['DP-700','DP-600'],skills:['Microsoft Fabric','Lakehouse','PySpark','SQL','KQL'] },
+    { code:'DP-600',  name:'Fabric Analytics Engineer Associate',    cat:'Data & Fabric',          demand:0.94, strategic:0.93, certs:['DP-600'],         skills:['Microsoft Fabric','Power BI','DAX','Data Modeling','KQL'] },
+    { code:'GH-300',  name:'GitHub Copilot for Developers',          cat:'Developer Productivity', demand:0.90, strategic:0.91, certs:[],                skills:['GitHub Copilot','Prompt Engineering','Code Review'] },
+    { code:'PL-300',  name:'Power BI Data Analyst',                  cat:'Data & Fabric',          demand:0.88, strategic:0.78, certs:['PL-300'],         skills:['Power BI','DAX','Visualization','Power Query'] },
+    { code:'AZ-104',  name:'Azure Administrator',                    cat:'Cloud',                  demand:0.87, strategic:0.76, certs:['AZ-104'],         skills:['Azure','Virtual Machines','Networking','Identity'] },
+    { code:'AI-900',  name:'Azure AI Fundamentals',                  cat:'AI',                     demand:0.84, strategic:0.55, certs:['AI-900'],         skills:['Azure AI','Generative AI','Responsible AI'], retiring:'2026-06-30', note:'AI-900 retires 2026-06-30. Near-term only; pivot to AI-3025/AI-3016.' },
+    { code:'AZ-305',  name:'Azure Solutions Architect',              cat:'Cloud',                  demand:0.84, strategic:0.76, certs:['AZ-305'],         skills:['Azure Architecture','Security','Networking'] },
+    { code:'DP-203',  name:'Azure Data Engineer',                    cat:'Data Engineering',       demand:0.82, strategic:0.70, certs:['DP-203'],         skills:['ADF','ETL','Azure Synapse','Data Lake','Databricks'] },
+    { code:'SC-200',  name:'Security Operations Analyst',            cat:'Security',               demand:0.82, strategic:0.80, certs:['SC-200'],         skills:['Microsoft Sentinel','Defender','KQL','Incident Response'] },
+    { code:'SC-900',  name:'Security Compliance Identity Fundamentals',cat:'Security',             demand:0.80, strategic:0.70, certs:['SC-900'],         skills:['Security','Compliance','Identity','Microsoft Entra'] },
+    { code:'AI-102',  name:'Azure AI Engineer',                      cat:'AI',                     demand:0.76, strategic:0.42, certs:['AI-102'],         skills:['Azure AI Services','Search','NLP','Computer Vision'], retiring:'2026-06-30', note:'AI-102 retires 2026-06-30. Move trainers to AI agents + generative AI.' },
+  ];
+
+  // Python TRAINER_INTELLIGENCE_WEIGHTS
+  const W = { skill:0.30, cert_cleared:0.25, cert_pending:0.08, demand:0.22, experience:0.10, strategic:0.05 };
+
+  // Category colours
+  const CAT_COLORS = { 'Agentic AI':'#7c3aed','Generative AI':'#4f46e5','Data & Fabric':'#0078d4','Developer Productivity':'#059669','Cloud':'#0ea5e9','Data Engineering':'#0891b2','Security':'#dc2626','AI':'#7c3aed' };
+
+  let teamData = [], scoredTrainers = [], matrixFilter = 'all', certDt = null;
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // calcIntelScore — uses ALL 6 APIs:
+  //   skills       → Trainer Skills API      (course match, strategic)
+  //   details      → Trainer Details API     (QubitsScore per course)
+  //   vendorCerts  → Vendor Cert API         (cert_cleared, cert_pending)
+  //   utilization  → Utilization API         (experience/availability)
+  //   negativeFeedback → Negative Feedback API (penalty)
+  //   hrIncidents  → HR Flag API         (penalty)
+  // ─────────────────────────────────────────────────────────────────────────
+  function calcIntelScore(trainer) {
+    // ── Build course name sets from both Skills API and Trainer Details API ──
+    const trainerCourseSet = new Set([
+      ...(trainer.skills || []).map(s => (s.CourseName || s['Course Name'] || '').toLowerCase().trim()),
+      ...(trainer.details || []).map(d => (d.CourseName || d.CName || d['Course Name'] || '').toLowerCase().trim()),
+    ]);
+
+    // ── Qubit scores from Trainer Details API ────────────────────────────────
+    const qubitArr = (trainer.details || [])
+      .map(d => parseFloat(d.QubitsScore || d.QubitScore || d.Qubit_Score || 0))
+      .filter(n => !isNaN(n) && n > 0);
+    const avgQubit    = qubitArr.length ? qubitArr.reduce((a, b) => a + b, 0) / qubitArr.length : 0;
+    const qubitNorm   = Math.min(1, avgQubit / 80);   // 80% qubit = full score
+    const detailCount = (trainer.details || []).length;
+
+    // ── Utilization from Utilization API ─────────────────────────────────────
+    const utilArr = trainer.utilization || [];
+    // Try common field names returned by the API
+    const utilPct = (() => {
+      if (!utilArr.length) return 0;
+      const u = utilArr[0];
+      return parseFloat(
+        u.UtilizationPercentage || u.Utilization || u.utilization_pct || u.TotalUtilization || 0
+      );
+    })();
+    const utilNorm = Math.min(1, utilPct / 80);    // 80% utilization = full score
+
+    // ── Vendor Cert API ───────────────────────────────────────────────────────
+    const clearedCodes = new Set(
+      (trainer.vendorCerts || [])
+        .filter(c => (c.Result || '').toLowerCase() === 'cleared')
+        .map(c => (c.ExamCode || '').toUpperCase().trim())
+        .filter(Boolean)
+    );
+    const pendingCodes = new Set(
+      (trainer.vendorCerts || [])
+        .filter(c => c.Result && (c.Result || '').toLowerCase() !== 'cleared')
+        .map(c => (c.ExamCode || '').toUpperCase().trim())
+        .filter(Boolean)
+    );
+
+    // ── Catalog subsets ───────────────────────────────────────────────────────
+    const highDemand   = CATALOG.filter(c => c.demand >= 0.80);
+    const strategic    = CATALOG.filter(c => c.strategic >= 0.90);
+    const allReqCerts  = [...new Set(highDemand.flatMap(c => c.certs))];
+
+    // ── skill dimension: course match (60%) + avg Qubit quality (40%) ────────
+    const skillMatches = highDemand.filter(c =>
+      trainerCourseSet.has(c.name.toLowerCase()) || trainerCourseSet.has(c.code.toLowerCase())
+    );
+    const courseMatchRatio = highDemand.length ? skillMatches.length / highDemand.length : 0;
+    const skillScore = courseMatchRatio * 0.60 + qubitNorm * 0.40;
+
+    // ── cert_cleared & cert_pending ───────────────────────────────────────────
+    const certClearedScore = allReqCerts.length
+      ? allReqCerts.filter(rc => clearedCodes.has(rc)).length / allReqCerts.length : 0.5;
+    const certPendingScore = allReqCerts.length
+      ? allReqCerts.filter(rc => pendingCodes.has(rc)).length / allReqCerts.length : 0;
+
+    // ── demand: avg demand of catalog courses the trainer can deliver ─────────
+    const demandScore = skillMatches.length
+      ? skillMatches.reduce((s, c) => s + c.demand, 0) / skillMatches.length : 0.3;
+
+    // ── experience: assignments count (50%) + utilization (50%) ──────────────
+    const assignNorm  = Math.min(1, Math.log10(detailCount + 1) / 2.5);
+    const expScore    = assignNorm * 0.50 + utilNorm * 0.50;
+
+    // ── strategic coverage ────────────────────────────────────────────────────
+    const strategicScore = strategic.length
+      ? strategic.filter(c =>
+          trainerCourseSet.has(c.name.toLowerCase()) || trainerCourseSet.has(c.code.toLowerCase())
+        ).length / strategic.length : 0;
+
+    // ── penalty from Negative Feedback API + HR Flag API ─────────────────
+    const negFbCount2 = negFbCount(trainer.negativeFeedback);
+    const hrNeg       = parseInt(((trainer.hrIncidents || [])[0] || {}).NegativeCount || 0);
+    const penalty     = Math.min(0.15, negFbCount2 * 0.015 + hrNeg * 0.04);
+
+    // ── Weighted total (Python TRAINER_INTELLIGENCE_WEIGHTS) ─────────────────
+    const raw = (
+      skillScore       * W.skill        +
+      certClearedScore * W.cert_cleared +
+      certPendingScore * W.cert_pending +
+      demandScore      * W.demand       +
+      expScore         * W.experience   +
+      strategicScore   * W.strategic
+    ) - penalty;
+
+    return {
+      total:  Math.round(Math.max(0, Math.min(1, raw)) * 100),
+      dims: {
+        skill:     Math.round(skillScore * 100),
+        qubit:     Math.round(avgQubit),
+        cert:      Math.round(certClearedScore * 100),
+        demand:    Math.round(demandScore * 100),
+        exp:       Math.round(expScore * 100),
+        util:      Math.round(utilPct),
+        strategic: Math.round(strategicScore * 100),
+      },
+      skillMatches,
+      skillGaps:   highDemand.filter(c =>
+        !trainerCourseSet.has(c.name.toLowerCase()) && !trainerCourseSet.has(c.code.toLowerCase())
+      ),
+      certGaps:    allReqCerts.filter(rc => !clearedCodes.has(rc)),
+      avgQubit,
+      detailCount,
+      utilPct,
+      negFb: negFbCount2,
+      hrNeg,
+    };
+  }
+
+  // ── Weekly Action Plans (mirrors Python generate_weekly_actions) ──────────
+  function generateActions(trainer, sc) {
+    const acts = [];
+
+    // Focus: top unmet course by demand
+    if (sc.skillGaps.length) {
+      const top = [...sc.skillGaps].sort((a, b) => b.demand - a.demand)[0];
+      acts.push({ icon:'fa-graduation-cap', col:'text-blue',    text:`Upskill for <b>${top.name}</b> (demand ${(top.demand*100).toFixed(0)}%)` });
+      const missingCerts = (top.certs || []).filter(rc => sc.certGaps.includes(rc));
+      if (missingCerts.length) acts.push({ icon:'fa-certificate', col:'text-orange', text:`Clear ${missingCerts.join(', ')} certification exam(s)` });
+    }
+
+    // Qubit score nudge
+    if (sc.avgQubit > 0 && sc.avgQubit < 70) {
+      acts.push({ icon:'fa-bolt', col:'text-warning', text:`Improve Qubit scores — current avg ${sc.avgQubit.toFixed(0)}% (target ≥70%)` });
+    }
+
+    // Utilization nudge
+    if (sc.utilPct > 0 && sc.utilPct < 50) {
+      acts.push({ icon:'fa-chart-bar', col:'text-orange', text:`Low utilization (${sc.utilPct.toFixed(0)}%) — increase batch assignments` });
+    }
+
+    // Negative feedback
+    if (sc.negFb > 2) {
+      acts.push({ icon:'fa-comment-slash', col:'text-danger', text:`Address ${sc.negFb} negative feedback incident(s) — review delivery approach` });
+    }
+
+    // HR flags
+    if (sc.hrNeg > 0) {
+      acts.push({ icon:'fa-exclamation-triangle', col:'text-warning', text:'Review HR flag record with delivery manager' });
+    }
+
+    // Retiring courses
+    if (sc.skillMatches.some(c => c.retiring)) {
+      acts.push({ icon:'fa-bolt', col:'text-warning', text:'Pivot from retiring exams (AI-900/AI-102) → AI agents & generative AI courses' });
+    }
+
+    acts.push({ icon:'fa-calendar-check', col:'text-muted',   text:'Update availability in RMS for the next 60 days' });
+    acts.push({ icon:'fa-star',           col:'text-teal',    text:'Target high-demand batch assignment to boost experience & utilization score' });
+
+    return acts;
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function rc(score) { return score >= 80 ? 'high' : score >= 60 ? 'med' : 'low'; }
+  function rcCol(score) { return score >= 80 ? '#1bc185' : score >= 60 ? '#e9a437' : '#dc3545'; }
+  function dBar(pct, color) {
+    const p = Math.min(100, Math.max(0, pct || 0));
+    return `<div class="dim-bar" style="width:100%;"><div class="fill" style="width:${p}%;background:${color};"></div></div>`;
+  }
+  function qubitColor(q) { return q >= 80 ? '#1bc185' : q >= 60 ? '#e9a437' : '#dc3545'; }
+
+  // ── KPI render ────────────────────────────────────────────────────────────
+  function renderKPIs() {
+    const scores  = scoredTrainers.map(t => t.sc.total);
+    const avg     = Math.round(scores.reduce((a, b) => a + b, 0) / (scores.length || 1));
+    const ready   = scores.filter(s => s >= 80).length;
+    const atRisk  = scores.filter(s => s < 60).length;
+
+    const qubits  = scoredTrainers.map(t => t.sc.avgQubit).filter(q => q > 0);
+    const avgQ    = qubits.length ? qubits.reduce((a, b) => a + b, 0) / qubits.length : 0;
+
+    const utils   = scoredTrainers.map(t => t.sc.utilPct).filter(u => u > 0);
+    const avgU    = utils.length ? utils.reduce((a, b) => a + b, 0) / utils.length : 0;
+
+    const allNames = new Set(scoredTrainers.flatMap(t =>
+      (t.trainer.skills || []).map(s => (s.CourseName || '').toLowerCase().trim())
+    ));
+    const covered = CATALOG.filter(c => allNames.has(c.name.toLowerCase())).length;
+
+    document.getElementById('kpAvgScore').textContent = avg + '%';
+    document.getElementById('kpReady').textContent    = ready;
+    document.getElementById('kpAtRisk').textContent   = atRisk;
+    document.getElementById('kpAvgQubit').textContent = avgQ ? avgQ.toFixed(0) + '%' : 'N/A';
+    document.getElementById('kpAvgUtil').textContent  = avgU ? avgU.toFixed(0) + '%' : 'N/A';
+    document.getElementById('kpCoverage').textContent = covered + ' / ' + CATALOG.length;
+  }
+
+  // ── Catalog panel ─────────────────────────────────────────────────────────
+  function renderCatalog() {
+    const allSkillNames = sc => new Set([
+      ...(sc.trainer.skills || []).map(s => (s.CourseName || '').toLowerCase().trim()),
+      ...(sc.trainer.details || []).map(d => (d.CourseName || d.CName || '').toLowerCase().trim()),
+    ]);
+
+    document.getElementById('catalogBody').innerHTML = CATALOG.map(c => {
+      const col = CAT_COLORS[c.cat] || '#6b7280';
+
+      // Trainers covering this course
+      const covering = scoredTrainers.filter(sc => {
+        const cs = allSkillNames(sc);
+        return cs.has(c.name.toLowerCase()) || cs.has(c.code.toLowerCase());
+      });
+
+      // Avg Qubit score for this course across trainers who teach it
+      const courseQubits = scoredTrainers.flatMap(sc =>
+        (sc.trainer.details || [])
+          .filter(d => (d.CourseName || d.CName || '').toLowerCase().includes(c.code.toLowerCase()))
+          .map(d => parseFloat(d.QubitsScore || d.QubitScore || 0))
+          .filter(n => n > 0)
+      );
+      const avgCourseQubit = courseQubits.length
+        ? courseQubits.reduce((a, b) => a + b, 0) / courseQubits.length : null;
+
+      const gap = covering.length === 0;
+      const demColor = c.demand >= 0.9 ? '#1bc185' : c.demand >= 0.8 ? '#e9a437' : '#6b7280';
+
+      return `<tr>
+        <td>
+          <div class="fw-bold">${c.name}</div>
+          <div class="fs-11px text-muted">${c.code}</div>
+          ${c.note ? `<div class="retiring-warn"><i class="fa fa-clock me-1 text-warning"></i>${c.note}</div>` : ''}
+        </td>
+        <td><span class="cat-badge" style="background:${col}18;color:${col};">${c.cat}</span></td>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <span class="fw-bold" style="color:${demColor};min-width:36px;">${(c.demand*100).toFixed(0)}%</span>
+            <div style="flex:1;">${dBar(c.demand*100, demColor)}</div>
+          </div>
+        </td>
+        <td>
+          <div class="d-flex align-items-center gap-2">
+            <span class="fw-bold text-muted" style="min-width:36px;">${(c.strategic*100).toFixed(0)}%</span>
+            <div style="flex:1;">${dBar(c.strategic*100, '#7c3aed')}</div>
+          </div>
+        </td>
+        <td>${c.certs.length
+          ? c.certs.map(rc => `<span class="badge border border-default text-body px-2 pt-5px pb-5px rounded fs-12px me-1">${rc}</span>`).join('')
+          : '<span class="text-muted small">None</span>'}
+        </td>
+        <td>
+          ${covering.length
+            ? `<span class="badge border border-success text-success px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center"><i class="fa fa-circle fs-9px fa-fw me-5px"></i>${covering.length} trainer${covering.length!==1?'s':''}</span>`
+            : `<span class="badge border border-danger text-danger px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center"><i class="fa fa-circle fs-9px fa-fw me-5px"></i>No coverage</span>`}
+        </td>
+        <td>
+          ${avgCourseQubit !== null
+            ? `<span class="qubit-pill" style="background:${qubitColor(avgCourseQubit)}18;color:${qubitColor(avgCourseQubit)};">${avgCourseQubit.toFixed(0)}%</span>`
+            : '<span class="text-muted small">—</span>'}
+        </td>
+        <td>
+          <span class="badge ${gap ? 'border border-danger text-danger' : 'border border-success text-success'} px-2 pt-5px pb-5px rounded fs-12px">
+            ${gap ? 'Gap' : 'OK'}
+          </span>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── Trainer Intelligence Matrix ───────────────────────────────────────────
+  function filterMatrix(f, el) {
+    document.querySelectorAll('.panel-toolbar .nav-link').forEach(l => l.classList.remove('active'));
+    if (el) el.classList.add('active');
+    matrixFilter = f;
+    renderMatrix();
+  }
+
+  function renderMatrix() {
+    let vis = scoredTrainers;
+    if (matrixFilter === 'high')   vis = vis.filter(t => t.sc.total >= 80);
+    if (matrixFilter === 'medium') vis = vis.filter(t => t.sc.total >= 60 && t.sc.total < 80);
+    if (matrixFilter === 'low')    vis = vis.filter(t => t.sc.total < 60);
+
+    if (!vis.length) {
+      document.getElementById('trainerMatrix').innerHTML = '<div class="col-12 text-center text-muted py-4">No trainers in this category.</div>';
+      return;
+    }
+
+    document.getElementById('trainerMatrix').innerHTML = vis.map(({ trainer, sc }) => {
+      const ring   = rc(sc.total);
+      const certCl = (trainer.vendorCerts || []).filter(c => (c.Result||'').toLowerCase()==='cleared').length;
+      const certTot= (trainer.vendorCerts || []).length;
+      const trainerEmail = trainer.OffEmail || trainer.EmailID || trainer.Email || '';
+      const trainerName  = trainer.TrainerName || trainer.EmployeeName || trainer.Name || '—';
+
+      return `<div class="col-12 col-lg-6">
+        <div class="readiness-card">
+          <div class="d-flex align-items-start gap-3">
+            <!-- Score ring -->
+            <div class="score-ring ${ring}">${sc.total}%</div>
+
+            <div class="flex-grow-1 min-w-0">
+              <!-- Header row -->
+              <div class="d-flex align-items-start justify-content-between gap-2 flex-wrap mb-1">
+                <div>
+                  <a href="trainer-detail.html?email=${encodeURIComponent(trainerEmail)}" class="fw-bold text-body text-decoration-none fs-14px">${trainerName}</a>
+                  <div class="text-muted small">${trainerEmail}</div>
+                </div>
+                <div class="d-flex gap-1 flex-wrap">
+                  <span class="badge ${ring==='high'?'bg-success':ring==='med'?'bg-warning':'bg-danger'} fs-10px">${ring==='high'?'High Readiness':ring==='med'?'Medium':'At Risk'}</span>
+                  ${sc.dims.qubit > 0 ? `<span class="qubit-pill" style="background:${qubitColor(sc.dims.qubit)}18;color:${qubitColor(sc.dims.qubit)};border:1px solid ${qubitColor(sc.dims.qubit)}40;">Q:${sc.dims.qubit}%</span>` : ''}
+                  ${sc.dims.util > 0 ? `<span class="badge border border-default text-muted px-2 pt-5px pb-5px rounded fs-11px">U:${sc.dims.util}%</span>` : ''}
+                </div>
+              </div>
+
+              <!-- 4-dimension bars -->
+              <div class="row g-1 mb-2">
+                <div class="col-6">
+                  <div class="d-flex justify-content-between small mb-1">
+                    <span class="text-muted">Skill+Qubit</span><span class="fw-bold">${sc.dims.skill}%</span>
+                  </div>
+                  ${dBar(sc.dims.skill, sc.dims.skill>=60?'#1bc185':sc.dims.skill>=30?'#e9a437':'#dc3545')}
+                  <div class="api-source">Skills API + Details API (Qubit)</div>
+                </div>
+                <div class="col-6">
+                  <div class="d-flex justify-content-between small mb-1">
+                    <span class="text-muted">Cert Cleared</span><span class="fw-bold">${sc.dims.cert}%</span>
+                  </div>
+                  ${dBar(sc.dims.cert, '#0078d4')}
+                  <div class="api-source">Vendor Cert API</div>
+                </div>
+                <div class="col-6">
+                  <div class="d-flex justify-content-between small mb-1">
+                    <span class="text-muted">Demand Coverage</span><span class="fw-bold">${sc.dims.demand}%</span>
+                  </div>
+                  ${dBar(sc.dims.demand, '#7c3aed')}
+                  <div class="api-source">Skills API + Catalog</div>
+                </div>
+                <div class="col-6">
+                  <div class="d-flex justify-content-between small mb-1">
+                    <span class="text-muted">Exp+Utilization</span><span class="fw-bold">${sc.dims.exp}%</span>
+                  </div>
+                  ${dBar(sc.dims.exp, '#0891b2')}
+                  <div class="api-source">Details API + Utilization API</div>
+                </div>
+              </div>
+
+              <!-- Quick stats -->
+              <div class="d-flex gap-3 flex-wrap small text-muted mb-2">
+                <span><i class="fa fa-book text-theme me-1"></i>${sc.detailCount} courses in profile</span>
+                <span><i class="fa fa-certificate text-blue me-1"></i>${certCl}/${certTot} certs cleared</span>
+                ${sc.utilPct > 0 ? `<span><i class="fa fa-chart-bar text-purple me-1"></i>${sc.utilPct.toFixed(0)}% utilized</span>` : ''}
+                ${sc.negFb > 0 ? `<span><i class="fa fa-comment-slash text-danger me-1"></i>${sc.negFb} neg. feedback</span>` : ''}
+                ${sc.hrNeg > 0 ? `<span><i class="fa fa-exclamation-triangle text-warning me-1"></i>${sc.hrNeg} HR flags</span>` : ''}
+              </div>
+
+              <!-- Skill gaps -->
+              ${sc.skillGaps.length
+                ? `<div class="d-flex flex-wrap gap-1 align-items-center">
+                    <span class="text-muted small me-1">Gaps:</span>
+                    ${sc.skillGaps.slice(0,5).map(g => `<span class="badge border border-danger text-danger px-2 pt-5px pb-5px rounded fs-11px">${g.code}</span>`).join('')}
+                    ${sc.skillGaps.length > 5 ? `<span class="text-muted small">+${sc.skillGaps.length-5} more</span>` : ''}
+                  </div>`
+                : `<div class="small text-success"><i class="fa fa-check-circle me-1"></i>All high-demand courses covered</div>`}
+            </div>
+
+            <a href="trainer-detail.html?email=${encodeURIComponent(trainerEmail)}" class="btn btn-xs btn-outline-theme flex-shrink-0"><i class="fa fa-user"></i></a>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Certification Dashboard (like Python Cell 22) ─────────────────────────
+  function buildCertRows() {
+    const vf = document.getElementById('certVendorFilter').value;
+    const sf = document.getElementById('certStatusFilter').value;
+
+    // All cert rows across all trainers
+    const rows = [];
+    scoredTrainers.forEach(({ trainer, sc }) => {
+      const trainerName  = trainer.TrainerName || trainer.EmployeeName || '—';
+      const trainerEmail = trainer.OffEmail || trainer.EmailID || '';
+
+      // Certs from vendorCerts API
+      (trainer.vendorCerts || []).forEach(c => {
+        const status = (c.Result || '').toLowerCase() === 'cleared' ? 'Cleared' : 'Pending';
+        rows.push({
+          trainerName, trainerEmail,
+          vendor:   c.VendorName || c.vendor_name || '—',
+          cert:     c.CertificationName || c.CourseName || c.ExamName || '—',
+          examCode: c.ExamCode || '',
+          result:   c.Result || '—',
+          status,
+          examURL:  c.ExamURL || '',
+          certGaps: sc.certGaps,
+        });
+      });
+
+      // Required certs that are MISSING
+      sc.certGaps.forEach(rc => {
+        rows.push({
+          trainerName, trainerEmail,
+          vendor: 'Required (Missing)', cert: rc, examCode: rc,
+          result: '—', status: 'Missing', examURL: '', certGaps: [],
+        });
+      });
+    });
+
+    // Populate vendor filter dropdown
+    const sel = document.getElementById('certVendorFilter');
+    const existing = new Set([...sel.options].map(o => o.value));
+    [...new Set(rows.map(r => r.vendor))].sort().forEach(v => {
+      if (!existing.has(v)) { const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o); }
+    });
+
+    // Apply filters
+    let filtered = rows;
+    if (vf) filtered = filtered.filter(r => r.vendor === vf);
+    if (sf) filtered = filtered.filter(r => r.status === sf);
+    return filtered;
+  }
+
+  function renderCertDashboard() {
+    const rows = buildCertRows();
+    const container = document.getElementById('certDashboard');
+    if (!rows.length) { container.innerHTML = '<div class="text-center py-4 text-muted">No certifications found for selected filters.</div>'; return; }
+
+    container.innerHTML = `
+    <div class="table-responsive">
+    <table id="certDT" class="table table-hover table-panel text-nowrap align-middle mb-0 w-100">
+      <thead>
+        <tr><th>Trainer</th><th>Vendor</th><th>Certification</th><th>Exam Code</th><th>Status</th><th>Link</th></tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => {
+          const cls = r.status === 'Cleared' ? 'border-success text-success' : r.status === 'Missing' ? 'border-danger text-danger' : 'border-warning text-warning';
+          return `<tr>
+            <td><a href="trainer-detail.html?email=${encodeURIComponent(r.trainerEmail)}" class="fw-bold text-body text-decoration-none">${r.trainerName}</a></td>
+            <td><span class="badge border border-default text-body px-2 pt-5px pb-5px rounded fs-12px">${r.vendor}</span></td>
+            <td class="fw-bold">${r.cert}</td>
+            <td>${r.examCode ? `<span class="badge border border-default text-body px-2 pt-5px pb-5px rounded fs-12px">${r.examCode}</span>` : '—'}</td>
+            <td><span class="badge border ${cls} px-2 pt-5px pb-5px rounded fs-12px d-inline-flex align-items-center"><i class="fa fa-circle fs-9px fa-fw me-5px"></i>${r.status}</span></td>
+            <td>${r.examURL ? `<a href="${r.examURL}" target="_blank" class="btn btn-xs btn-outline-theme"><i class="fa fa-external-link-alt"></i></a>` : '—'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>`;
+
+    if (certDt) { certDt.destroy(); certDt = null; }
+    certDt = $('#certDT').DataTable({
+      responsive: true, pageLength: 25,
+      dom: '<"d-flex justify-content-between align-items-center mb-3"<"d-flex gap-2"lB>f>rtip',
+      buttons: [
+        { extend:'csvHtml5',   text:'<i class="fa fa-file-csv me-1"></i>CSV',   className:'btn btn-sm btn-outline-default' },
+        { extend:'excelHtml5', text:'<i class="fa fa-file-excel me-1"></i>Excel',className:'btn btn-sm btn-outline-default' },
+      ],
+      language: { search:'', searchPlaceholder:'Search…', lengthMenu:'Show _MENU_ rows' },
+    });
+  }
+
+  // ── Skill Gap Analysis ────────────────────────────────────────────────────
+  function renderGaps() {
+    document.getElementById('gapBody').innerHTML = CATALOG
+      .filter(c => c.demand >= 0.80)
+      .sort((a, b) => b.demand - a.demand)
+      .map(c => {
+        const covering = scoredTrainers.filter(({ trainer }) => {
+          const cs = new Set([
+            ...(trainer.skills || []).map(s => (s.CourseName||'').toLowerCase().trim()),
+            ...(trainer.details||[]).map(d=>(d.CourseName||d.CName||'').toLowerCase().trim()),
+          ]);
+          return cs.has(c.name.toLowerCase()) || cs.has(c.code.toLowerCase());
+        });
+
+        // Avg qubit for this course
+        const qubits = scoredTrainers.flatMap(({ trainer }) =>
+          (trainer.details || [])
+            .filter(d => (d.CourseName||d.CName||'').toLowerCase().includes(c.code.toLowerCase()))
+            .map(d => parseFloat(d.QubitsScore || d.QubitScore || 0)).filter(n => n > 0)
+        );
+        const avgQ = qubits.length ? qubits.reduce((a,b)=>a+b,0)/qubits.length : null;
+
+        const gap = covering.length === 0;
+        const urgency = gap && c.demand >= 0.90 ? 'CRITICAL' : gap ? 'HIGH' : covering.length === 1 ? 'MEDIUM' : 'OK';
+        const uCls   = { CRITICAL:'bg-danger', HIGH:'bg-warning', MEDIUM:'bg-blue', OK:'bg-success' }[urgency];
+        const demCol = c.demand >= 0.9 ? '#1bc185' : c.demand >= 0.8 ? '#e9a437' : '#6b7280';
+
+        return `<tr>
+          <td>
+            <div class="fw-bold">${c.name}</div>
+            <div class="fs-11px text-muted">${c.code} · ${c.cat}</div>
+            ${c.note ? `<div class="retiring-warn">${c.note}</div>` : ''}
+          </td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <span class="fw-bold" style="color:${demCol};">${(c.demand*100).toFixed(0)}%</span>
+              <div style="width:80px;">${dBar(c.demand*100, demCol)}</div>
+            </div>
+          </td>
+          <td>
+            ${covering.length
+              ? covering.map(({ trainer }) => {
+                  const n = (trainer.TrainerName||trainer.EmployeeName||'').split(' ')[0];
+                  return `<span class="badge border border-default text-body px-2 pt-5px pb-5px rounded fs-12px me-1">${n}</span>`;
+                }).join('')
+              : '<span class="text-danger fw-bold small">None</span>'}
+          </td>
+          <td>
+            ${avgQ !== null
+              ? `<span class="qubit-pill" style="background:${qubitColor(avgQ)}18;color:${qubitColor(avgQ)};">${avgQ.toFixed(0)}%</span>`
+              : '<span class="text-muted small">N/A</span>'}
+          </td>
+          <td><span class="badge ${uCls}">${urgency}</span></td>
+          <td class="small text-muted">
+            ${urgency==='CRITICAL'?'Immediate upskilling or external hire needed'
+              :urgency==='HIGH'?'Plan training/certification for next quarter'
+              :urgency==='MEDIUM'?'Identify backup trainer or cross-train another'
+              :'Maintain current coverage — build depth'}
+          </td>
+        </tr>`;
+      }).join('');
+  }
+
+  // ── Weekly Action Plans ───────────────────────────────────────────────────
+  function renderActionPlans() {
+    const sorted = [...scoredTrainers].sort((a, b) => a.sc.total - b.sc.total);
+    document.getElementById('actionPlans').innerHTML = sorted.map(({ trainer, sc, actions }) => {
+      const ring = rc(sc.total);
+      const trainerName  = trainer.TrainerName || trainer.EmployeeName || '—';
+      const trainerEmail = trainer.OffEmail || trainer.EmailID || '';
+      const focusCourse = sc.skillGaps.length
+        ? [...sc.skillGaps].sort((a,b)=>b.demand-a.demand)[0].name
+        : sc.skillMatches.length ? [...sc.skillMatches].sort((a,b)=>b.demand-a.demand)[0].name : '—';
+
+      return `<div class="col-12 col-md-6 col-xl-4">
+        <div class="panel mb-0 h-100" style="border:1px solid ${rcCol(sc.total)}40;border-radius:10px;">
+          <div class="panel-heading" style="background:${rcCol(sc.total)}12;">
+            <div class="d-flex align-items-center gap-2">
+              <div class="score-ring ${ring}" style="width:42px;height:42px;font-size:11px;">${sc.total}%</div>
+              <div class="min-w-0">
+                <div class="fw-bold fs-14px text-truncate">${trainerName}</div>
+                <div class="text-muted fs-11px text-truncate">Focus: <b>${focusCourse.length>28?focusCourse.slice(0,28)+'…':focusCourse}</b></div>
+              </div>
+            </div>
+          </div>
+          <div class="panel-body p-2">
+            <ul class="list-unstyled mb-0">
+              ${actions.map((a, i) => `
+                <li class="d-flex align-items-start gap-2 py-1 ${i < actions.length-1 ? 'border-bottom' : ''}">
+                  <i class="fa ${a.icon} mt-1 flex-shrink-0 ${a.col}"></i>
+                  <span class="small">${a.text}</span>
+                </li>`).join('')}
+            </ul>
+          </div>
+          <div class="panel-footer py-2 d-flex justify-content-between small text-muted">
+            <span>
+              ${sc.dims.qubit > 0 ? `<i class="fa fa-bolt text-warning me-1"></i>Q:${sc.dims.qubit}%` : ''}
+              ${sc.dims.util > 0 ? ` · U:${sc.dims.util}%` : ''}
+            </span>
+            <a href="trainer-detail.html?email=${encodeURIComponent(trainerEmail)}" class="text-theme text-decoration-none">Full Profile <i class="fa fa-arrow-right ms-1"></i></a>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Main load ─────────────────────────────────────────────────────────────
+  async function loadReadiness() {
+    teamData = await API.getTeamData(API.getManagerEmail());
+
+    scoredTrainers = teamData.map(trainer => {
+      const sc      = calcIntelScore(trainer);
+      const actions = generateActions(trainer, sc);
+      return { trainer, sc, actions };
+    }).sort((a, b) => b.sc.total - a.sc.total);
+
+    renderKPIs();
+    renderCatalog();
+    renderMatrix();
+    renderCertDashboard();
+    renderGaps();
+    renderActionPlans();
+  }
+
+  function refreshAll() {
+    API.clearTeamCache();
+    teamData = []; scoredTrainers = [];
+    document.getElementById('trainerMatrix').innerHTML  = '<div class="col-12 text-center py-5"><div class="spinner-border text-theme mb-3"></div><div class="text-muted">Re-fetching all API data…</div></div>';
+    document.getElementById('actionPlans').innerHTML    = '<div class="col-12 text-center py-4"><div class="spinner-border text-theme"></div></div>';
+    document.getElementById('certDashboard').innerHTML  = '<div class="text-center py-4"><div class="spinner-border text-theme"></div></div>';
+    loadReadiness();
+  }
+
+  loadReadiness();
+  </script>
+</body>
+</html>

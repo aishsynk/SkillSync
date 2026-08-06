@@ -1,0 +1,15 @@
+{
+  "status": "Success",
+  "last_success_ts": "2026-08-05T08:56:59.314093+00:00",
+  "last_start_ts": "2026-08-05T08:56:34.689102+00:00",
+  "last_end_ts": "2026-08-05T08:56:59.314102+00:00",
+  "duration_seconds": 24.623,
+  "records_updated": 2,
+  "records_skipped": 0,
+  "errors": [],
+  "next_run_ts": "2026-08-06T08:56:59.314093+00:00",
+  "running": false,
+  "refresh_count": 6,
+  "last_snapshot_path": "C:\\Users\\Aishw\\OneDrive - Koenig Solutions Ltd\\SkillEdge\\runtime\\knowledge_base\\snapshots\\snapshot_1785920219.json",
+  "last_refresh_email": "aishwar.c@koenig-solutions.com"
+}

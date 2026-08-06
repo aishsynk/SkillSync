@@ -1,0 +1,82 @@
+{
+  "actions": {
+    "manager_action:8c034017dfbb": {
+      "history": [
+        {
+          "action": "closed",
+          "note": "Verified with trainer directly",
+          "assignee": null,
+          "reason": null,
+          "updated_by": "aishwar.c@koenig-solutions.com",
+          "updated_at": "2026-07-06T16:57:21Z"
+        },
+        {
+          "action": "escalated",
+          "note": "Phase 6 QA check",
+          "assignee": null,
+          "reason": null,
+          "updated_by": "aishwar.c@koenig-solutions.com",
+          "updated_at": "2026-07-06T17:20:59Z"
+        },
+        {
+          "action": "closed",
+          "note": "Closed via automated test",
+          "assignee": null,
+          "reason": null,
+          "updated_by": "aishwar.c@koenig-solutions.com",
+          "updated_at": "2026-07-06T18:24:14Z"
+        }
+      ],
+      "state": "closed",
+      "note": "Closed via automated test",
+      "assignee": null,
+      "reason": null,
+      "updated_at": "2026-07-06T18:24:14Z",
+      "updated_by": "aishwar.c@koenig-solutions.com"
+    },
+    "manager_action:6662673213ee": {
+      "history": [
+        {
+          "action": "escalated",
+          "note": "Needs practice-head visibility",
+          "assignee": null,
+          "reason": "repeated slippage",
+          "updated_by": "aishwar.c@koenig-solutions.com",
+          "updated_at": "2026-07-06T16:57:21Z"
+        },
+        {
+          "action": "closed",
+          "note": "Escalated via automated browser test",
+          "assignee": null,
+          "reason": null,
+          "updated_by": "aishwar.c@koenig-solutions.com",
+          "updated_at": "2026-07-06T17:00:41Z"
+        }
+      ],
+      "state": "closed",
+      "note": "Escalated via automated browser test",
+      "assignee": null,
+      "reason": null,
+      "updated_at": "2026-07-06T17:00:41Z",
+      "updated_by": "aishwar.c@koenig-solutions.com"
+    },
+    "manager_action:doesnotexist": {
+      "history": [
+        {
+          "action": "reassigned",
+          "note": "He owns this OEM now",
+          "assignee": "Gaurav Joshi",
+          "reason": null,
+          "updated_by": "aishwar.c@koenig-solutions.com",
+          "updated_at": "2026-07-06T16:57:42Z"
+        }
+      ],
+      "state": "reassigned",
+      "note": "He owns this OEM now",
+      "assignee": "Gaurav Joshi",
+      "reason": null,
+      "updated_at": "2026-07-06T16:57:42Z",
+      "updated_by": "aishwar.c@koenig-solutions.com"
+    }
+  }
+}

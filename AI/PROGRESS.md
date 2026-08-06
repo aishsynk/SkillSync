@@ -196,3 +196,12 @@ Keep entries concise, AI-agnostic, chronological (newest last).
   - (7) Then move to Phase 2 development
 
 - **Status:** Phase 1 Deployment Infrastructure Complete. Awaiting secrets configuration for live deployments.
+
+## 2026-08-06 — Session: confirmed Android-only repo state
+
+- **Agent/tool:** Claude (claude-haiku-4-5-20251001)
+- **Files modified:** None on remote. Local-only work (Android-focused `README.md`, Android-tuned `.gitignore`, slimmed workflow, 715-file cleanup commit) was prepared but discarded before pushing.
+- **Outcome:** On attempting to push the Android-only cleanup, discovered the remote (`github.com/aishsynk/SkillSync`) had already been restructured to Android-only via parallel work in commits `fc27e3f` → `c0bcc6b`, including `e8780de Clean repository: remove all non-Android files`, `23c9a25 Add Gradle wrapper`, `3c29d57 Add Python Flask backend for Vercel deployment`. Goal already met. Ran `git reset --hard origin/main` to discard the local redundant commit and sync local to remote.
+- **Current remote state:** `app/` (Kotlin sources at repo root, not under `android/`), Gradle wrapper (`gradlew`, `gradle/wrapper/`), `.github/workflows/` CI/CD for APK build + GitHub Release, Android-focused `README.md`, `.gitignore`. Retained from earlier work: `AI/` (this directory), `backend.py` (single-file Flask), `requirements.txt`, `vercel.json`, 9 setup/deployment `.md` files. Working tree clean; nothing to commit or push.
+- **Status:** Repo is the live Android app. Awaiting next task.
+- **Next steps:** (1) Android Phase 2 screens (Team, Trainer Detail, Actions, Allocation, Copilot, Charts, Offline) — work directly under `app/`. (2) Configure keystore secrets in GitHub for signed release APKs. (3) Wire a live backend URL into the Android app's `NetworkModule` and verify end-to-end against `backend.py`. (4) Optionally prune the 9 setup/deployment `.md` files and `backend.py`/`requirements.txt`/`vercel.json`/`AI/` for a truly minimal Android-only repo.

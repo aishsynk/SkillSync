@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SkillEdge | Settings</title>
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
+  <!-- ================== BEGIN core-css ================== -->
+  <link href="/assets/css/vendor.min.css" rel="stylesheet" />
+  <link href="/assets/css/default/app.min.css" rel="stylesheet" />
+  <link href="/assets/plugins/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet" />
+  <!-- ================== END core-css ================== -->
+</head>
+<body class="pace-top">
+  <!-- BEGIN #loader -->
+  <div id="loader" class="app-loader"><span class="spinner"></span></div>
+  <!-- END #loader -->
+
+  <!-- BEGIN #app -->
+  <div id="app" class="app app-header-fixed app-sidebar-fixed">
+    <!-- BEGIN #content -->
+    <div id="content" class="app-content">
+      <!-- BEGIN breadcrumb -->
+      <ol class="breadcrumb float-xl-end">
+        <li class="breadcrumb-item"><a href="index.html">Home</a></li>
+        <li class="breadcrumb-item"><a href="javascript:;">Trust &amp; Admin</a></li>
+        <li class="breadcrumb-item active">Settings</li>
+      </ol>
+      <!-- END breadcrumb -->
+      <!-- BEGIN page-header -->
+      <h1 class="page-header">Settings <small>session, cache, preferences, and environment status</small></h1>
+      <!-- END page-header -->
+      <hr class="mb-4" />
+      <!-- BEGIN row -->
+      <div class="row">
+        <!-- BEGIN col-3 -->
+        <div style="width: 230px">
+          <!-- BEGIN #sidebar-bootstrap -->
+          <nav class="navbar navbar-sticky d-none d-xl-block my-n4 py-4 h-100 text-end">
+            <nav class="nav" id="bsSpyTarget">
+              <a class="nav-link active" href="#account" data-toggle="scroll-to">Account &amp; Session</a>
+              <a class="nav-link" href="#cache" data-toggle="scroll-to">Cache &amp; Refresh</a>
+              <a class="nav-link" href="#apiHealth" data-toggle="scroll-to">API Connectivity</a>
+              <a class="nav-link" href="#display" data-toggle="scroll-to">Display Preferences</a>
+              <a class="nav-link" href="#weights" data-toggle="scroll-to">Intelligence Weights</a>
+              <a class="nav-link" href="#exports" data-toggle="scroll-to">Exports</a>
+              <a class="nav-link" href="#environment" data-toggle="scroll-to">Environment</a>
+            </nav>
+          </nav>
+          <!-- END #sidebar-bootstrap -->
+        </div>
+        <!-- END col-3 -->
+        <!-- BEGIN col-9 -->
+        <div class="col-xl-8" id="bsSpyContent">
+
+          <!-- BEGIN #account -->
+          <div id="account" class="mb-4 pb-3">
+            <h4 class="d-flex align-items-center mb-2"><i class="bi bi-person-circle fs-20px me-2 text-body text-opacity-75"></i> Account &amp; Session</h4>
+            <p>Your manager identity and the session used for every API query.</p>
+            <div class="card">
+              <div class="list-group list-group-flush fw-bold">
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">
+                    <div>Manager Email</div>
+                    <div class="text-body text-opacity-60" id="currentEmail">—</div>
+                  </div>
+                  <div>
+                    <a href="javascript:;" class="btn btn-secondary w-100px" onclick="confirmLogout()">Switch</a>
+                  </div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">
+                    <div>Session scope</div>
+                    <div class="text-body text-opacity-60">Reportee-scoped · server-side credentials only · no secrets in the browser</div>
+                  </div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">
+                    <div>Log out</div>
+                    <div class="text-body text-opacity-60">End this session and return to login</div>
+                  </div>
+                  <div>
+                    <a href="javascript:;" class="btn btn-secondary w-100px" onclick="confirmLogout()">Log Out</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- END #account -->
+
+          <!-- BEGIN #cache -->
+          <div id="cache" class="mb-4 pb-3">
+            <h4 class="d-flex align-items-center mb-2 mt-3"><i class="bi bi-database-fill-gear fs-20px me-2 text-body text-opacity-75"></i> Cache &amp; Refresh</h4>
+            <p>Team data is cached in the browser session for performance; the unified intelligence payload is cached on the server.</p>
+            <div class="card">
+              <div class="list-group list-group-flush fw-bold">
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">
+                    <div>Session cache</div>
+                    <div class="text-body text-opacity-60" id="cacheStatus">—</div>
+                  </div>
+                  <div>
+                    <a href="javascript:;" class="btn btn-secondary w-100px" onclick="clearCache()">Clear</a>
+                  </div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">
+                    <div>Unified intelligence</div>
+                    <div class="text-body text-opacity-60">Force a fresh rebuild of the manager intelligence payload</div>
+                  </div>
+                  <div>
+                    <a href="javascript:;" class="btn btn-secondary w-100px" onclick="refreshIntel(this)">Refresh</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- END #cache -->
+
+          <!-- BEGIN #apiHealth -->
+          <div id="apiHealth" class="mb-4 pb-3">
+            <h4 class="d-flex align-items-center mb-2 mt-3"><i class="bi bi-heart-pulse-fill fs-20px me-2 text-body text-opacity-75"></i> API Connectivity</h4>
+            <p>Verify that the server-side RMS endpoints respond for your account.</p>
+            <div class="card">
+              <div class="list-group list-group-flush fw-bold">
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">
+                    <div>Health check</div>
+                    <div class="text-body text-opacity-60">Runs a live probe of each API through the server</div>
+                  </div>
+                  <div>
+                    <a href="javascript:;" class="btn btn-success w-100px" onclick="runHealthCheck()" id="healthBtn">Run</a>
+                  </div>
+                </div>
+                <div class="list-group-item">
+                  <div id="apiHealthList" class="text-body text-opacity-60 fw-normal fs-13px">Click "Run" to verify all API endpoints.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- END #apiHealth -->
+
+          <!-- BEGIN #display -->
+          <div id="display" class="mb-4 pb-3">
+            <h4 class="d-flex align-items-center mb-2 mt-3"><i class="bi bi-sliders fs-20px me-2 text-body text-opacity-75"></i> Display Preferences</h4>
+            <p>Thresholds used for at-risk flags and list sizes. Theme colors and dark mode live in the theme panel (gear button, right edge).</p>
+            <div class="card">
+              <div class="list-group list-group-flush fw-bold">
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">
+                    <div>Score warning threshold</div>
+                    <div class="text-body text-opacity-60">Trainers below this score are flagged as "at risk"</div>
+                  </div>
+                  <div class="d-flex align-items-center gap-2">
+                    <input type="range" class="form-range w-120px" id="warnThreshold" min="40" max="90" value="65"
+                           oninput="document.getElementById('warnVal').textContent=this.value+'%';savePref('warnThreshold',this.value)">
+                    <span id="warnVal" class="w-40px text-end">65%</span>
+                  </div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">
+                    <div>Negative feedback alert threshold</div>
+                    <div class="text-body text-opacity-60">Show alert when feedback count exceeds this</div>
+                  </div>
+                  <div class="d-flex align-items-center gap-2">
+                    <input type="range" class="form-range w-120px" id="negFbThreshold" min="1" max="10" value="3"
+                           oninput="document.getElementById('negFbVal').textContent=this.value;savePref('negFbThreshold',this.value)">
+                    <span id="negFbVal" class="w-40px text-end">3</span>
+                  </div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">
+                    <div>Default page size</div>
+                    <div class="text-body text-opacity-60">Assignments fetched per trainer per page</div>
+                  </div>
+                  <div>
+                    <select class="form-select form-select-sm w-100px" id="pageSize" onchange="savePref('pageSize',this.value)">
+                      <option value="25">25</option>
+                      <option value="50" selected>50</option>
+                      <option value="100">100</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- END #display -->
+
+          <!-- BEGIN #weights -->
+          <div id="weights" class="mb-4 pb-3">
+            <h4 class="d-flex align-items-center mb-2 mt-3"><i class="bi bi-lightbulb-fill fs-20px me-2 text-body text-opacity-75"></i> Intelligence Score Weights</h4>
+            <p>Adjust how the trainer intelligence score is calculated (must total 100%).</p>
+            <div class="card">
+              <div class="list-group list-group-flush fw-bold" id="weightsForm">
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">Qubit Score</div>
+                  <div class="d-flex align-items-center gap-2"><input type="range" class="form-range w-120px" id="w_qubitScore" min="0" max="60" value="30" oninput="updateWeights()"><span id="wv_qubitScore" class="w-40px text-end">30%</span></div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">Certifications</div>
+                  <div class="d-flex align-items-center gap-2"><input type="range" class="form-range w-120px" id="w_certScore" min="0" max="60" value="20" oninput="updateWeights()"><span id="wv_certScore" class="w-40px text-end">20%</span></div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">Feedback</div>
+                  <div class="d-flex align-items-center gap-2"><input type="range" class="form-range w-120px" id="w_feedbackScore" min="0" max="60" value="20" oninput="updateWeights()"><span id="wv_feedbackScore" class="w-40px text-end">20%</span></div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">Future Skills</div>
+                  <div class="d-flex align-items-center gap-2"><input type="range" class="form-range w-120px" id="w_futureSkills" min="0" max="60" value="15" oninput="updateWeights()"><span id="wv_futureSkills" class="w-40px text-end">15%</span></div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">Compliance Record</div>
+                  <div class="d-flex align-items-center gap-2"><input type="range" class="form-range w-120px" id="w_hrScore" min="0" max="60" value="15" oninput="updateWeights()"><span id="wv_hrScore" class="w-40px text-end">15%</span></div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill">Total: <span id="weightsTotal">100%</span></div>
+                  <div>
+                    <a href="javascript:;" class="btn btn-secondary w-100px" onclick="resetWeights()">Reset</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- END #weights -->
+
+          <!-- BEGIN #exports -->
+          <div id="exports" class="mb-4 pb-3">
+            <h4 class="d-flex align-items-center mb-2 mt-3"><i class="bi bi-file-earmark-arrow-down-fill fs-20px me-2 text-body text-opacity-75"></i> Exports</h4>
+            <p>Export the normalized data model as CSV snapshots.</p>
+            <div class="card">
+              <div class="list-group list-group-flush fw-bold">
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill"><div>Team snapshot</div><div class="text-body text-opacity-60">Trainer aggregates for your scoped team</div></div>
+                  <div><a href="javascript:;" class="btn btn-secondary w-100px" onclick="exportSnapshot('team')">CSV</a></div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill"><div>Course catalog</div><div class="text-body text-opacity-60">Cached course list</div></div>
+                  <div><a href="javascript:;" class="btn btn-secondary w-100px" onclick="exportSnapshot('courses')">CSV</a></div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill"><div>Certifications</div><div class="text-body text-opacity-60">Vendor certifications per trainer</div></div>
+                  <div><a href="javascript:;" class="btn btn-secondary w-100px" onclick="exportSnapshot('certs')">CSV</a></div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill"><div>Assignments</div><div class="text-body text-opacity-60">Assignment history per trainer</div></div>
+                  <div><a href="javascript:;" class="btn btn-secondary w-100px" onclick="exportSnapshot('assignments')">CSV</a></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- END #exports -->
+
+          <!-- BEGIN #environment -->
+          <div id="environment" class="mb-4 pb-3">
+            <h4 class="d-flex align-items-center mb-2 mt-3"><i class="bi bi-hdd-network-fill fs-20px me-2 text-body text-opacity-75"></i> Environment</h4>
+            <p>Runtime and stack information for this SkillEdge deployment.</p>
+            <div class="card">
+              <div class="list-group list-group-flush fw-bold">
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill"><div>Version</div></div>
+                  <div><span class="badge border border-theme text-theme fs-12px">v2.0.0</span></div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill"><div>API access</div><div class="text-body text-opacity-60">Server-proxied RMS (<code>/rms/*</code>) + unified intelligence endpoint</div></div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill"><div>Theme</div><div class="text-body text-opacity-60">SeanTheme Color Admin · Bootstrap 5</div></div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill"><div>Charts</div><div class="text-body text-opacity-60">ApexCharts (local plugin)</div></div>
+                </div>
+                <div class="list-group-item d-flex align-items-center">
+                  <div class="flex-fill"><div>Quick navigation</div>
+                    <div class="text-body text-opacity-60 fw-normal mt-1">
+                      <a href="index.html" class="btn btn-default btn-xs me-1 mb-1">Command Center</a>
+                      <a href="team.html" class="btn btn-default btn-xs me-1 mb-1">My Team</a>
+                      <a href="allocation-desk.html" class="btn btn-default btn-xs me-1 mb-1">Allocation Desk</a>
+                      <a href="actions.html" class="btn btn-default btn-xs me-1 mb-1">Action Center</a>
+                      <a href="certifications.html" class="btn btn-default btn-xs me-1 mb-1">Certifications</a>
+                      <a href="data-health.html" class="btn btn-default btn-xs me-1 mb-1">Data Health</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- END #environment -->
+
+        </div>
+        <!-- END col-9 -->
+      </div>
+      <!-- END row -->
+    </div>
+    <!-- END #content -->
+  </div>
+  <!-- END #app -->
+
+  <!-- ================== BEGIN core-js ================== -->
+  <script src="/assets/js/vendor.min.js"></script>
+  <script src="/assets/js/app.min.js"></script>
+  <!-- ================== END core-js ================== -->
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+  injectLayout('settings.html');
+
+  const API_DEFS = [
+    {name:'Get Direct & Indirect Reportees', key:'reportees'},
+    {name:'Get Trainer Details',             key:'trainerDetails'},
+    {name:'Get Trainer Skills',              key:'trainerSkills'},
+    {name:'Get Utilization',                 key:'utilization'},
+    {name:'Get Vendor Cert Count',           key:'vendorCerts'},
+    {name:'Get Negative Feedback',           key:'negativeFeedback'},
+    {name:'Get Compliance Flags',        key:'hrIncidents'},
+    {name:'Course List',                     key:'courseList'},
+    {name:'Assignment API',                  key:'assignments'},
+  ];
+
+  function initPage() {
+    document.getElementById('currentEmail').textContent = API.getManagerEmail() || '—';
+    const teamJson = sessionStorage.getItem('skilledge_team');
+    if (teamJson) {
+      try { const count=JSON.parse(teamJson).length; document.getElementById('cacheStatus').textContent=`${count} trainers cached in this session`; }
+      catch { document.getElementById('cacheStatus').textContent='Cached'; }
+    } else { document.getElementById('cacheStatus').textContent='No session cache'; }
+
+    ['warnThreshold','negFbThreshold','pageSize'].forEach(k=>{
+      const saved=localStorage.getItem('se_pref_'+k);
+      if(saved){ const el=document.getElementById(k); if(el){ el.value=saved; const disp=document.getElementById(k+'Val')||document.getElementById(k.replace('Threshold','Val')); if(disp) disp.textContent=saved+(['pageSize'].includes(k)?'':'%'); } }
+    });
+    updateWeights();
+  }
+
+  function savePref(k,v){ localStorage.setItem('se_pref_'+k,v); }
+
+  function clearCache(){
+    sessionStorage.removeItem('skilledge_team');
+    sessionStorage.removeItem('skilledge_courses');
+    API.clearTokenCache();
+    document.getElementById('cacheStatus').textContent='No session cache';
+    showToast('Cache cleared. Data will reload on next visit.','success');
+  }
+
+  async function refreshIntel(btn){
+    const old=btn.textContent;
+    btn.textContent='…'; btn.classList.add('disabled');
+    try{
+      await API.getUnifiedManagerIntelligence({refresh:true});
+      showToast('Unified intelligence rebuilt fresh from RMS.','success');
+    }catch(ex){
+      if (API.isAuthError(ex)) { API.handleAuthFailure(); return; }
+      showToast('Refresh failed: '+(ex.message||ex),'danger');
+    }finally{
+      btn.textContent=old; btn.classList.remove('disabled');
+    }
+  }
+
+  function downloadText(filename, text) {
+    const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function csvEscape(v) {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
+  function toCSV(rows, cols) {
+    return [cols.join(','), ...rows.map(r => cols.map(c => csvEscape(r[c])).join(','))].join('\n');
+  }
+
+  async function exportSnapshot(kind) {
+    const team = await API.getTeamData(API.getManagerEmail());
+    if (kind === 'team') {
+      const rows = team.map(t => ({
+        TrainerName: t.TrainerName, Email: t.OffEmail, Designation: t.Designation,
+        IsDirect: t.isDirectReportee, AvgQubitsScore: t.avgQubitsScore, CourseCount: t.courseCount,
+        SkillCount: t.skillCount, CertCount: t.certCount, NegFeedback: t.negFeedbackTotal,
+        HrPositive: t.hrPositiveCount, HrNegative: t.hrNegativeCount, UtilizationPct: t.utilizationPct
+      }));
+      downloadText('skilledge_team.csv', toCSV(rows, Object.keys(rows[0] || { TrainerName:'' })));
+    } else if (kind === 'courses') {
+      const rows = await API.getCourseListCached();
+      downloadText('skilledge_courses.csv', toCSV(rows, ['Course','Courseid','vendor_name','vendor_id','course_url']));
+    } else if (kind === 'certs') {
+      const rows = [];
+      team.forEach(t => (t.vendorCerts || []).forEach(c => rows.push({
+        TrainerName: t.TrainerName, Email: t.OffEmail, VendorName: c.VendorName || c.vendor_name || '',
+        CertificationName: c.CertificationName || c.CourseName || '', ExamCode: c.ExamCode || '',
+        Result: c.Result || '', ExamURL: c.ExamURL || ''
+      })));
+      downloadText('skilledge_certifications.csv', toCSV(rows, Object.keys(rows[0] || { TrainerName:'' })));
+    } else if (kind === 'assignments') {
+      const rows = [];
+      for (const t of team) {
+        const items = await API.getAssignments(t.OffEmail || '', 1, parseInt(localStorage.getItem('se_pref_pageSize') || '50'));
+        (items || []).forEach(a => rows.push({ TrainerName: t.TrainerName, Email: t.OffEmail, AssignmentID: a.AssignmentID, CourseID: a.CourseID, Course: a.Course }));
+      }
+      downloadText('skilledge_assignments.csv', toCSV(rows, Object.keys(rows[0] || { TrainerName:'' })));
+    }
+  }
+
+  function confirmLogout(){ if(confirm('Switch account? You will be redirected to the login page.')) logout(); }
+
+  async function runHealthCheck(){
+    const btn=document.getElementById('healthBtn');
+    btn.textContent='…'; btn.classList.add('disabled');
+    const listEl=document.getElementById('apiHealthList');
+    listEl.innerHTML=API_DEFS.map(a=>`
+      <div class="d-flex align-items-center justify-content-between py-2 border-bottom" id="hc_${a.key}">
+        <span>${a.name}</span>
+        <span class="badge bg-gray-500 api-status"><span class="spinner-border spinner-border-sm me-1" style="width:10px;height:10px;"></span>Checking…</span>
+      </div>`).join('');
+    let ok=0,fail=0;
+    await Promise.allSettled(API_DEFS.map(async a=>{
+      const el=document.getElementById('hc_'+a.key);
+      try{
+        if(a.key==='courseList') await API.getCourseList();
+        else await API.getReportees(API.getManagerEmail());
+        el.querySelector('.api-status').className='badge bg-success api-status';
+        el.querySelector('.api-status').innerHTML='<i class="bi bi-check-circle me-1"></i>OK';
+        ok++;
+      }catch(e){
+        el.querySelector('.api-status').className='badge bg-danger api-status';
+        el.querySelector('.api-status').innerHTML=`<i class="bi bi-x-circle me-1"></i>${(e.message||'').slice(0,40)}`;
+        fail++;
+      }
+    }));
+    btn.textContent='Run'; btn.classList.remove('disabled');
+    showToast(`Health check done: ${ok} OK, ${fail} failed.`,fail>0?'warning':'success');
+  }
+
+  function updateWeights(){
+    const keys=['qubitScore','certScore','feedbackScore','futureSkills','hrScore'];
+    let total=0;
+    keys.forEach(k=>{ const v=parseInt(document.getElementById('w_'+k).value)||0; document.getElementById('wv_'+k).textContent=v+'%'; total+=v; });
+    const el=document.getElementById('weightsTotal');
+    el.textContent=total+'%';
+    el.className=total===100?'text-success':'text-danger';
+    if(total===100){ const w={}; keys.forEach(k=>w[k]=parseInt(document.getElementById('w_'+k).value)/100); localStorage.setItem('se_intel_weights',JSON.stringify(w)); }
+  }
+
+  function resetWeights(){
+    const defaults={qubitScore:30,certScore:20,feedbackScore:20,futureSkills:15,hrScore:15};
+    Object.entries(defaults).forEach(([k,v])=>{ document.getElementById('w_'+k).value=v; });
+    updateWeights();
+    showToast('Weights reset to defaults.','success');
+  }
+
+  initPage();
+  </script>
+</body>
+</html>

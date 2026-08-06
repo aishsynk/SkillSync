@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SkillEdge | Certification Readiness</title>
+  <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport" />
+  <link href="/assets/css/vendor.min.css" rel="stylesheet" />
+  <link href="/assets/css/default/app.min.css" rel="stylesheet" />
+  <link href="/assets/plugins/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet" />
+  <style>
+    body{background:#f2f5f8}
+    .cmd-header{background:#fff;border:1px solid #dfe6ec;border-left:4px solid var(--bs-theme-color,#00acac);border-radius:4px;padding:9px 14px;margin-bottom:8px}
+    .cmd-header .cmd-title{font-size:15px;font-weight:800;color:#3a4552;white-space:nowrap}
+    .cmd-header .cmd-meta{font-size:11px;color:#8a97a0}
+    .hero-sub{font-size:12px;color:#6c757d;line-height:1.35}
+    .panel,.card{border-radius:4px}
+    .panel .panel-heading,.panel-heading{padding:8px 12px!important}
+    .panel .panel-body,.panel-body{padding:10px!important}
+    .panel .panel-heading .panel-title,.panel-title{font-size:12.5px!important;font-weight:700}
+    .soft-muted{color:#6c757d}
+    .mini-kpi{min-height:84px;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease;padding:0!important}
+    .mini-kpi:hover{transform:translateY(-2px);box-shadow:0 3px 10px rgba(0,0,0,.12)}
+    .mini-kpi .stats-icon{top:10px;right:10px;font-size:15px;opacity:.85}
+    .mini-kpi .stats-title{font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;font-weight:600}
+    .mini-kpi .stats-number{font-size:19px;line-height:1.05;font-weight:700}
+    .mini-kpi .stats-desc{font-size:9.5px}
+    .mini-kpi .stats-content{padding:11px 12px}
+    .dense-scroll{max-height:400px;overflow-y:auto}
+    .ops-table{font-size:11.5px}
+    .ops-table thead th{position:sticky;top:0;background:#f8fafb;z-index:1;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:#8a97a0;white-space:nowrap}
+    .table.table-panel.ops-table>thead>tr>th,
+    .table.table-panel.ops-table>tbody>tr>td{padding:6px 10px!important;border-left:0;border-right:0}
+    .ops-table td{vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+    .ops-table td.ops-wrap{white-space:normal}
+    .ops-table tbody tr{height:46px;cursor:pointer;transition:background-color .1s ease}
+    .ops-table .ops-name a{color:#3a4552;font-weight:600;text-decoration:none}
+    .ops-table .ops-name a:hover{color:var(--bs-theme-color,#00acac);text-decoration:underline}
+    .ops-table .badge{font-size:10px;font-weight:600;vertical-align:middle}
+    .ops-empty{padding:26px 12px;text-align:center;color:#8a97a0;font-size:12px}
+    .nav-tabs-v2.px-2 .nav-link{font-size:11.5px;padding:6px 10px!important;cursor:pointer;font-weight:500;color:#6c757d}
+    .nav-tabs-v2.px-2 .nav-link.active{font-weight:700;color:#3a4552}
+    .filter-strip .form-control,.filter-strip .form-select{font-size:12px}
+    .filter-strip label{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:#8a97a0;font-weight:700;margin-bottom:2px}
+    .render-fallback{padding:18px 14px;text-align:center;color:#6c757d;font-size:12px;background:#f8fafb;border-radius:4px}
+  </style>
+</head>
+<body class="pace-top">
+  <div id="loader" class="app-loader"><span class="spinner"></span></div>
+  <div id="app" class="app app-header-fixed app-sidebar-fixed">
+    <div id="content" class="app-content">
+      <ol class="breadcrumb float-xl-end">
+        <li class="breadcrumb-item"><a href="index.html">Home</a></li>
+        <li class="breadcrumb-item"><a href="javascript:;">Capability</a></li>
+        <li class="breadcrumb-item active">Certification Readiness</li>
+      </ol>
+      <h1 class="page-header mb-3">Certification Readiness <small>OEM accreditation health — trainer detail lives in Trainer Cockpit</small></h1>
+
+      <div id="loadError" class="alert alert-danger" style="display:none;">
+        <b><i class="bi bi-exclamation-octagon me-1"></i>Could not load</b><div id="loadErrorText" class="small mt-1"></div>
+      </div>
+
+      <div id="certLoading" class="text-center py-5 text-muted">
+        <div class="spinner-border text-theme mb-3" style="width:3rem;height:3rem;"></div>
+        <div>Loading certification intelligence…</div>
+      </div>
+
+      <div id="cert" style="display:none;">
+        <div class="cmd-header">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="cmd-title"><i class="bi bi-patch-check-fill me-1 text-theme"></i>Certification Readiness</span>
+            <a href="javascript:;" class="badge bg-teal fs-11px" id="confidenceBadge" onclick="openDataConfidenceModal()" title="Open source &amp; confidence evidence">- % confidence</a>
+            <span class="cmd-meta" id="sourceBadge">-</span>
+            <span id="freshnessBadge"></span>
+            <div class="ms-auto d-flex align-items-center gap-2">
+              <div class="input-group input-group-sm" style="width:230px">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input id="fSearch" class="form-control" placeholder="Search trainer / vendor / cert…" oninput="applyFilters()" />
+              </div>
+              <button class="btn btn-sm btn-theme" id="refreshBtn" onclick="reload(true)"><i class="bi bi-arrow-repeat me-1"></i>Refresh</button>
+            </div>
+          </div>
+          <div class="hero-sub mt-2" id="insight">Loading certification summary…</div>
+          <div class="alert alert-secondary py-1 px-2 fs-10px mb-0 mt-2 d-inline-block"><i class="bi bi-info-circle me-1"></i>Exam pass/fail status is not available from the RMS API — this page shows OEM trainer-accreditation status, not graded exam results.</div>
+        </div>
+
+        <div id="freshnessBanner" class="mb-2" style="display:none;"></div>
+        <div class="row g-2 mb-2" id="kpiStrip"></div>
+
+        <div class="panel panel-inverse mb-2">
+          <div class="panel-heading d-flex justify-content-between align-items-center">
+            <h4 class="panel-title mb-0">Filter Certification Matrix <small class="soft-muted ms-1" id="filterCount"></small></h4>
+            <button class="btn btn-xs btn-default" onclick="resetFilters()"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
+          </div>
+          <div class="panel-body filter-strip">
+            <div class="row g-2">
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Vendor / OEM</label><select id="fVendor" class="form-select form-select-sm" onchange="applyFilters()"></select></div>
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Status</label><select id="fStatus" class="form-select form-select-sm" onchange="applyFilters()"><option value="">All</option><option value="accredited">Accredited</option><option value="gap">Not accredited</option></select></div>
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Gap Severity</label><select id="fSeverity" class="form-select form-select-sm" onchange="applyFilters()"><option value="">All</option><option>High</option><option>Medium</option><option>None</option></select></div>
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Exam Required</label><select id="fExam" class="form-select form-select-sm" onchange="applyFilters()"><option value="">All</option><option value="yes">Yes</option><option value="no">No</option></select></div>
+              <div class="col-lg-2 col-md-4 col-6"><label class="d-block">Roadmap Priority</label><select id="fPriority" class="form-select form-select-sm" onchange="applyFilters()"><option value="">All</option><option>High</option><option>Medium</option><option>Low</option></select></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel panel-inverse mb-2">
+          <div class="panel-heading d-flex justify-content-between align-items-center">
+            <h4 class="panel-title mb-0">Certification Matrix <small class="soft-muted ms-1" id="cardCount"></small></h4>
+            <a href="trainer-intelligence.html" class="btn btn-xs btn-default">Trainer Cockpit</a>
+          </div>
+          <div class="panel-body p-0">
+            <div class="table-responsive dense-scroll">
+              <table class="table table-panel table-striped table-hover ops-table mb-0">
+                <thead class="table-light"><tr>
+                  <th>Trainer</th><th>Vendor / OEM</th><th>Certification</th><th>Status</th><th>Gap Severity</th><th>Exam/Result Status</th><th>Business Impact</th><th>Confidence</th><th></th>
+                </tr></thead>
+                <tbody id="matrixBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-2 mb-2">
+          <div class="col-xl-5">
+            <div class="panel panel-inverse h-100 mb-0">
+              <div class="panel-heading"><h4 class="panel-title mb-0">Vendor Accreditation Coverage</h4></div>
+              <div class="panel-body"><div id="chCoverage" style="height:190px;"></div></div>
+            </div>
+          </div>
+          <div class="col-xl-7">
+            <div class="panel panel-inverse h-100 mb-0">
+              <div class="panel-heading"><h4 class="panel-title mb-0">Vendor Coverage Table</h4></div>
+              <div class="panel-body p-0">
+                <div class="table-responsive dense-scroll">
+                  <table class="table table-panel table-hover ops-table mb-0">
+                    <thead class="table-light"><tr><th>Vendor</th><th>Trainers</th><th>Accredited</th><th>Coverage</th><th>Gaps</th><th>Risk</th><th>Action</th></tr></thead>
+                    <tbody id="vendorBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel panel-inverse mb-2">
+          <div class="panel-heading"><h4 class="panel-title mb-0">Certification Gap Board</h4></div>
+          <ul class="nav nav-tabs-v2 px-2 pt-1 mb-0" id="gapTabs"></ul>
+          <div class="panel-body p-0">
+            <div class="table-responsive dense-scroll">
+              <table class="table table-panel table-hover ops-table mb-0">
+                <thead class="table-light"><tr><th>Trainer</th><th>Vendor</th><th>Missing Certification</th><th>Severity</th><th>Impact</th><th>Recommended Action</th><th>Confidence</th></tr></thead>
+                <tbody id="gapBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel panel-inverse mb-2">
+          <div class="panel-heading"><h4 class="panel-title mb-0">Certification Roadmap</h4></div>
+          <div class="panel-body p-0">
+            <div class="table-responsive dense-scroll">
+              <table class="table table-panel table-hover ops-table mb-0">
+                <thead class="table-light"><tr><th>Certification</th><th>Vendor / OEM</th><th>Trainer</th><th>Priority</th><th>Business Benefit</th><th>Confidence</th></tr></thead>
+                <tbody id="roadmapBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel panel-inverse mb-2">
+          <div class="panel-heading d-flex justify-content-between align-items-center">
+            <h4 class="panel-title mb-0">Certification Actions</h4>
+            <a href="actions.html" class="btn btn-xs btn-default">Action Center</a>
+          </div>
+          <ul class="nav nav-tabs-v2 px-2 pt-1 mb-0" id="actionTabs"></ul>
+          <div class="panel-body p-0">
+            <div class="table-responsive dense-scroll">
+              <table class="table table-panel table-hover ops-table mb-0">
+                <thead class="table-light"><tr><th>Trainer / Vendor</th><th>Action</th><th>Category</th><th>Priority</th><th>Confidence</th><th>Source</th></tr></thead>
+                <tbody id="actionBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="certDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="certDetailTitle">Certification detail</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="certDetailBody"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-default" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="chartDrilldownModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="chartDrilldownTitle"><i class="bi bi-people-fill me-1"></i>Detail</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="chartDrilldownBody"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-default" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="dataConfidenceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-shield-check me-1"></i>Source &amp; Confidence Evidence</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="dataConfidenceBody"></div>
+        <div class="modal-footer">
+          <a href="data-health.html" class="btn btn-sm btn-theme">Open Data Health</a>
+          <button type="button" class="btn btn-sm btn-default" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/js/vendor.min.js"></script>
+  <script src="/assets/js/app.min.js"></script>
+  <script src="/assets/plugins/apexcharts/dist/apexcharts.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+  injectLayout('certifications.html');
+  let DATA=null, CERT=[], GAPS=[], SUMMARY=[], FUTURE=[], CH={};
+  let MATRIX_ROWS=[];
+  let GAP_TAB='all', GAP_ROWS=[];
+  let ACTION_TAB='all', ACTION_ROWS=[];
+
+  const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const clean=n=>String(n||'').replace(/\s+/g,' ').trim();
+  const badge=(label,tone='gray-500')=>`<span class="badge bg-${tone}${tone==='warning'?' text-dark':''}">${esc(label)}</span>`;
+  const profile=e=>`trainer-intelligence.html?email=${encodeURIComponent(e||'')}`;
+  const trainerLink=(name,email)=>email?`<a href="${profile(email)}" onclick="event.stopPropagation()">${esc(clean(name)||'Trainer')}</a>`:esc(clean(name)||'Trainer');
+  const priorityTone=p=>p==='High'||p==='Critical'?'danger':p==='Medium'?'warning':'success';
+  const pct=n=>n==null||n===''?'-':Math.round(n)+'%';
+
+  const TD=()=>Array.isArray(DATA?.trainer_decision_objects)&&DATA.trainer_decision_objects.length?DATA.trainer_decision_objects:[];
+  const MD=()=>Array.isArray(DATA?.manager_action_objects)&&DATA.manager_action_objects.length?DATA.manager_action_objects:[];
+  const MA=()=>MD().length?MD():(Array.isArray(DATA?.manager_action_df)?DATA.manager_action_df:[]);
+  function firstRow(key){ return Array.isArray(DATA?.[key])&&DATA[key].length&&typeof DATA[key][0]==='object'?DATA[key][0]:null; }
+
+  function chartTooltipNames(names){
+    const sorted=names.filter(Boolean).sort((a,b)=>a.localeCompare(b));
+    const shown=sorted.slice(0,8);
+    const more=sorted.length-shown.length;
+    return shown.map(n=>`<div>${esc(n)}</div>`).join('')+(more>0?`<div class="text-muted">+${more} more</div>`:'');
+  }
+  function chartTooltipCard(title,countLabel,names){
+    return `<div class="p-2 fs-11px" style="max-width:230px;">
+      <div class="fw-bold mb-1">${esc(title)}</div>
+      <div class="text-muted mb-2">${esc(countLabel)}</div>
+      ${chartTooltipNames(names)}
+    </div>`;
+  }
+  function openChartDrilldown(title,items){
+    chartDrilldownTitle.innerHTML=`<i class="bi bi-patch-check-fill me-1"></i>${esc(title)}`;
+    const sorted=(items||[]).slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    chartDrilldownBody.innerHTML=sorted.length?`<div class="list-group list-group-flush">${sorted.map(t=>`
+      <a href="${t.email?profile(t.email):'javascript:;'}" class="list-group-item list-group-item-action">${esc(t.name||'Item')}</a>`).join('')}</div>`
+      : `<div class="p-3 text-center text-muted">No items in this segment.</div>`;
+    new bootstrap.Modal(chartDrilldownModal).show();
+  }
+
+  async function reload(force){
+    document.getElementById('cert').style.display='none';
+    document.getElementById('certLoading').style.display='';
+    document.getElementById('loadError').style.display='none';
+    const b=document.getElementById('refreshBtn'); if(b) b.disabled=true;
+    try{
+      DATA=await API.getUnifiedManagerIntelligence({refresh:!!force});
+      CERT=Array.isArray(DATA?.certification_intelligence_df)?DATA.certification_intelligence_df:[];
+      GAPS=Array.isArray(DATA?.certification_gap_df)?DATA.certification_gap_df:[];
+      SUMMARY=Array.isArray(DATA?.certification_summary_df)?DATA.certification_summary_df:[];
+      FUTURE=Array.isArray(DATA?.future_certification_roadmap_df)?DATA.future_certification_roadmap_df:[];
+      document.getElementById('certLoading').style.display='none';
+      if(!CERT.length){ document.getElementById('loadErrorText').textContent='No certification intelligence available for your team.'; document.getElementById('loadError').style.display=''; return; }
+      initFilters(); render();
+      document.getElementById('cert').style.display='';
+    }catch(ex){
+      if (API.isAuthError(ex)) { API.handleAuthFailure(); return; }
+      document.getElementById('certLoading').style.display='none';
+      document.getElementById('loadErrorText').textContent=ex.message||String(ex);
+      document.getElementById('loadError').style.display='';
+    }finally{ if(b) b.disabled=false; }
+  }
+
+  function uniq(arr){return [...new Set(arr.filter(Boolean))].sort();}
+  function opt(v){return `<option value="${esc(v)}">${esc(v)}</option>`;}
+  function buildMatrixRows(){
+    const rows=[];
+    CERT.forEach(c=>{
+      (c.certifiable_courses||[]).forEach(cc=>{
+        const recs=(c.certification_recommendations||[]).filter(r=>r.vendor===cc.vendor && (r.course===cc.course || !r.course));
+        const rec=recs[0];
+        const severity=cc.accredited_for_vendor?'None':(cc.exam_required?'High':'Medium');
+        rows.push({
+          trainer_name:c.trainer_name, trainer_key:c.trainer_key, trainer_email:c.trainer_email||c.trainer_key,
+          vendor:cc.vendor, course:cc.course, accredited:!!cc.accredited_for_vendor, examRequired:!!cc.exam_required,
+          severity, examResultStatus:c.exam_result_status||'unavailable_via_api',
+          impact: cc.exam_required ? 'Exam-required delivery blocked' : 'Bench-depth impact only',
+          impactFull: cc.exam_required ? 'Exam-required delivery blocked without accreditation' : 'Standard delivery — accreditation improves bench depth',
+          confidence: rec?rec.confidence:null, priority: rec?rec.priority:null, action: rec?rec.manager_action:null,
+        });
+      });
+    });
+    return rows;
+  }
+  function initFilters(){
+    MATRIX_ROWS=buildMatrixRows();
+    fVendor.innerHTML='<option value="">All vendors</option>'+uniq(MATRIX_ROWS.map(r=>r.vendor)).map(opt).join('');
+  }
+  function resetFilters(){ ['fSearch','fVendor','fStatus','fSeverity','fExam','fPriority'].forEach(id=>document.getElementById(id).value=''); applyFilters(); }
+
+  function currentFilter(){
+    const s=fSearch.value.toLowerCase();
+    const ven=fVendor.value, st=fStatus.value, sev=fSeverity.value, ex=fExam.value, pr=fPriority.value;
+    return MATRIX_ROWS.filter(r=>{
+      if(s && !(clean(r.trainer_name).toLowerCase().includes(s) || String(r.vendor||'').toLowerCase().includes(s) || String(r.course||'').toLowerCase().includes(s))) return false;
+      if(ven && r.vendor!==ven) return false;
+      if(st==='accredited' && !r.accredited) return false;
+      if(st==='gap' && r.accredited) return false;
+      if(sev && r.severity!==sev) return false;
+      if(ex==='yes' && !r.examRequired) return false;
+      if(ex==='no' && r.examRequired) return false;
+      if(pr && r.priority!==pr) return false;
+      return true;
+    });
+  }
+
+  function render(){
+    const exec=firstRow('executive_summary_df')||{};
+    const trust=Math.round(parseFloat(exec.confidence)||0);
+    confidenceBadge.textContent=`${trust}% confidence`;
+    confidenceBadge.className=`badge fs-11px bg-${trust>=80?'teal':trust>=60?'warning text-dark':'red'}`;
+    sourceBadge.textContent=`certification_intelligence_df · ${CERT.length} trainer row(s)`;
+    SkillEdge.renderFreshnessBadge('freshnessBadge', DATA);
+    SkillEdge.renderFreshnessBanner('freshnessBanner', DATA);
+    applyFilters();
+  }
+
+  function applyFilters(){
+    const rows=currentFilter();
+    const accreditedTrainers=CERT.filter(c=>(c.oem_accreditations||[]).length).length;
+    const vendorsAffected=new Set(GAPS.map(g=>g.vendor)).size;
+    insight.innerHTML=`<b>${accreditedTrainers}</b> accredited trainers · <b>${GAPS.length}</b> certification gaps · <b>${vendorsAffected}</b> vendors affected.`;
+    filterCount.textContent=`${rows.length} of ${MATRIX_ROWS.length}`;
+    cardCount.textContent=`${rows.length} shown`;
+
+    renderKpis(); renderMatrix(rows); renderVendorCoverage(); renderGapBoard(); renderRoadmap(); renderActions();
+  }
+
+  function renderKpis(){
+    const accreditedTrainers=CERT.filter(c=>(c.oem_accreditations||[]).length).length;
+    const vendorsAffected=new Set(GAPS.map(g=>g.vendor)).size;
+    const missingCritical=MATRIX_ROWS.filter(r=>!r.accredited && r.examRequired).length;
+    const totalPairs=MATRIX_ROWS.length||1;
+    const accreditedPairs=MATRIX_ROWS.filter(r=>r.accredited).length;
+    const coveragePct=Math.round((accreditedPairs/totalPairs)*100);
+    const atRisk=MATRIX_ROWS.filter(r=>!r.accredited && r.examRequired).length;
+    const exec=firstRow('executive_summary_df')||{};
+    const trust=Math.round(parseFloat(exec.confidence)||0);
+
+    SkillEdge.renderKpiStrip(kpiStrip, [
+      {title:'Certified Trainers', value:accreditedTrainers, tone:'bg-teal', icon:'bi-patch-check-fill'},
+      {title:'Certification Gaps', value:GAPS.length, tone:'bg-red', icon:'bi-exclamation-triangle-fill', onClick:()=>{fStatus.value='gap';applyFilters();}},
+      {title:'Missing Critical Certs', value:missingCritical, tone:'bg-orange', icon:'bi-shield-exclamation', onClick:()=>{fStatus.value='gap';fExam.value='yes';applyFilters();}},
+      {title:'Vendors Affected', value:vendorsAffected, tone:'bg-purple', icon:'bi-building'},
+      {title:'Accreditation Coverage', value:`${coveragePct}%`, tone:'bg-green', icon:'bi-graph-up-arrow'},
+      {title:'Roadmap Items', value:FUTURE.length, tone:'bg-indigo', icon:'bi-signpost-2-fill'},
+      {title:'At-Risk / Expired', value:atRisk, tone:'bg-gray-800', icon:'bi-hourglass-split', onClick:()=>{fExam.value='yes';fStatus.value='gap';applyFilters();}},
+      {title:'Data Confidence', value:`${trust}%`, tone:'bg-blue', icon:'bi-shield-check', onClick:()=>openDataConfidenceModal()},
+    ], {colClass:'col-xl-3 col-md-6'});
+  }
+
+  function renderMatrix(rows){
+    if(!rows.length){ matrixBody.innerHTML='<tr><td colspan="9" class="ops-empty">No certification rows match these filters.</td></tr>'; return; }
+    matrixBody.innerHTML=rows.slice(0,80).map((r,i)=>`<tr onclick="openMatrixRow(${i})">
+      <td class="ops-name">${trainerLink(r.trainer_name,r.trainer_email)}</td>
+      <td>${esc(r.vendor||'-')}</td>
+      <td title="${esc(r.course||'-')}">${esc(r.course||'-')}</td>
+      <td>${r.accredited?badge('Accredited','success'):badge('Not Accredited','warning')}</td>
+      <td>${badge(r.severity,r.severity==='High'?'danger':r.severity==='Medium'?'warning':'success')}</td>
+      <td>${badge(r.examResultStatus,'gray-500')}</td>
+      <td title="${esc(r.impactFull)}">${esc(r.impact)}</td>
+      <td>${r.confidence!=null?pct(r.confidence):'-'}</td>
+      <td><button class="btn btn-primary btn-xs" onclick="event.stopPropagation();openMatrixRow(${i})">Review</button></td>
+    </tr>`).join('')+(rows.length>80?`<tr><td colspan="9" class="ops-empty">Showing top 80 of ${rows.length} — narrow the filters to see more.</td></tr>`:'');
+    window.__CURRENT_MATRIX=rows;
+  }
+  function openMatrixRow(i){
+    const r=(window.__CURRENT_MATRIX||[])[i]; if(!r) return;
+    certDetailTitle.textContent=`${clean(r.trainer_name)} — ${r.vendor||'Vendor'}`;
+    certDetailBody.innerHTML=`
+      <div class="mb-2">${r.accredited?badge('Accredited','success'):badge('Not Accredited','warning')} ${badge(r.severity+' severity',r.severity==='High'?'danger':r.severity==='Medium'?'warning':'success')} ${r.examRequired?badge('Exam required','gray-800'):''}</div>
+      <p class="mb-1 fs-13px"><b>Certification / course:</b> ${esc(r.course||'Not available')}</p>
+      <p class="mb-1 fs-13px"><b>Vendor / OEM:</b> ${esc(r.vendor||'Not available')}</p>
+      <p class="mb-1 fs-13px"><b>Exam/result status:</b> ${esc(r.examResultStatus)}</p>
+      <p class="mb-1 fs-13px"><b>Business impact:</b> ${esc(r.impactFull)}</p>
+      ${r.action?`<div class="p-2 bg-light rounded mt-2"><b>Manager action:</b> ${esc(r.action)}</div>`:''}
+      <div class="fs-11px text-muted mt-2"><b>Source:</b> certification_intelligence_df</div>
+    `;
+    new bootstrap.Modal(certDetailModal).show();
+  }
+
+  function renderVendorCoverage(){
+    const rows=SUMMARY.length?SUMMARY:deriveVendorCoverage();
+    Object.values(CH).forEach(c=>{try{c.destroy();}catch(e){}}); CH={};
+    if(!rows.length){ document.getElementById('chCoverage').innerHTML='<div class="text-center text-muted py-4 fs-12px">No vendor coverage data.</div>'; vendorBody.innerHTML='<tr><td colspan="7" class="ops-empty">No vendor coverage data.</td></tr>'; return; }
+    const entries=rows.map(v=>[v.vendor||'Vendor',v]);
+    CH.coverage=new ApexCharts(document.getElementById('chCoverage'),{
+      chart:{type:'donut',height:190,fontFamily:'inherit',events:{dataPointSelection:(e,ctx,cfg)=>{
+        const v=entries[cfg.dataPointIndex][1];
+        openChartDrilldown(v.vendor||'Vendor',dedupeTrainers(MATRIX_ROWS.filter(r=>r.vendor===v.vendor).map(r=>({name:r.trainer_name,email:r.trainer_email}))));
+      }}},
+      series:entries.map(([,v])=>v.trainer_count||0), labels:entries.map(([k])=>k),
+      colors:['#00acac','#348fe2','#727cb6','#90ca4b','#f59c1a','#ff5b57','#49b6d6','#2d353c'],
+      legend:{position:'bottom',fontSize:'9px',markers:{width:8,height:8}}, dataLabels:{enabled:false},
+      tooltip:{custom:({seriesIndex})=>{const v=entries[seriesIndex][1];const names=dedupeTrainers(MATRIX_ROWS.filter(r=>r.vendor===v.vendor).map(r=>({name:r.trainer_name}))).map(r=>r.name);return chartTooltipCard(v.vendor||'Vendor',`${v.trainer_count||0} trainer(s) · ${v.accredited_trainer_count||0} accredited`,names);}}
+    }); CH.coverage.render();
+    window.__VENDOR_ROWS=rows;
+    vendorBody.innerHTML=rows.map((v,i)=>{
+      const total=v.trainer_count||0, accredited=v.accredited_trainer_count||0;
+      const coveragePct=total?Math.round((accredited/total)*100):0;
+      return `<tr onclick="openVendorRow(${i})">
+        <td class="ops-name">${esc(v.vendor||'Vendor')}</td>
+        <td>${total}</td>
+        <td>${accredited}</td>
+        <td>${badge(`${coveragePct}%`,coveragePct>=70?'success':coveragePct>=40?'warning':'danger')}</td>
+        <td>${(v.certification_gap_count||0)>0?badge(v.certification_gap_count,'warning'):badge('0','success')}</td>
+        <td>${badge(v.risk_level||'Low',v.risk_level==='High'?'danger':v.risk_level==='Medium'?'warning':'success')}</td>
+        <td title="${esc(v.manager_action||'Monitor coverage.')}">${esc(v.manager_action||'Monitor coverage.')}</td>
+      </tr>`;
+    }).join('');
+  }
+  function dedupeTrainers(rows){
+    const seen=new Set(), out=[];
+    rows.forEach(r=>{ const k=(r.email||r.name||'').toLowerCase(); if(k && !seen.has(k)){ seen.add(k); out.push(r); } });
+    return out;
+  }
+  function openVendorRow(i){
+    const v=(window.__VENDOR_ROWS||[])[i]; if(!v) return;
+    openChartDrilldown(v.vendor||'Vendor', dedupeTrainers(MATRIX_ROWS.filter(r=>r.vendor===v.vendor).map(r=>({name:r.trainer_name,email:r.trainer_email}))));
+  }
+  function deriveVendorCoverage(){
+    const v={};
+    MATRIX_ROWS.forEach(r=>{
+      const g=v[r.vendor]=v[r.vendor]||{vendor:r.vendor,trainers:new Set(),accredited:new Set(),certification_gap_count:0};
+      g.trainers.add(r.trainer_key); if(r.accredited) g.accredited.add(r.trainer_key); else g.certification_gap_count++;
+    });
+    return Object.values(v).map(g=>({vendor:g.vendor,trainer_count:g.trainers.size,accredited_trainer_count:g.accredited.size,certification_gap_count:g.certification_gap_count})).sort((a,b)=>b.trainer_count-a.trainer_count);
+  }
+
+  const GAP_TABS=[['all','All Gaps'],['critical','Critical'],['missing','Missing'],['atrisk','Expired / At Risk'],['oem','OEM Required'],['lowconf','Low Confidence']];
+  function setGapTab(tab){ GAP_TAB=tab; renderGapBoard(); }
+  function gapCategory(g){
+    const examRequired=(CERT.find(c=>c.trainer_key===g.trainer_key)?.certifiable_courses||[]).find(cc=>cc.vendor===g.vendor && cc.course===g.course)?.exam_required;
+    if(examRequired) return 'critical';
+    return 'missing';
+  }
+  function openGapRow(i){
+    const g=GAP_ROWS[i]; if(!g) return;
+    chartDrilldownTitle.innerHTML=`<i class="bi bi-exclamation-triangle-fill me-1"></i>${esc(g.course||'Certification gap')}`;
+    chartDrilldownBody.innerHTML=`<p class="mb-1"><b>Trainer:</b> ${trainerLink(g.trainer_name,g.trainer_key)}</p><p class="mb-1"><b>Vendor:</b> ${esc(g.vendor||'-')}</p><p class="mb-0"><b>Reason:</b> ${esc(clean(g.reason||'No reason provided.'))}</p>`;
+    new bootstrap.Modal(chartDrilldownModal).show();
+  }
+  function renderGapBoard(){
+    const withMeta=GAPS.map(g=>{
+      const c=CERT.find(c=>c.trainer_key===g.trainer_key);
+      const rec=(c?.certification_recommendations||[]).find(r=>r.vendor===g.vendor && (r.course===g.course || !r.course));
+      const cc=(c?.certifiable_courses||[]).find(x=>x.vendor===g.vendor && x.course===g.course);
+      return {...g, examRequired:!!cc?.exam_required, confidence:rec?rec.confidence:null, action:rec?rec.manager_action:null, priority:rec?rec.priority:(cc?.exam_required?'High':'Medium')};
+    });
+    const counts={all:withMeta.length,
+      critical:withMeta.filter(g=>g.examRequired).length,
+      missing:withMeta.filter(g=>!g.examRequired).length,
+      atrisk:withMeta.filter(g=>g.examRequired).length,
+      oem:withMeta.length,
+      lowconf:withMeta.filter(g=>(g.confidence||0)<60).length,
+    };
+    gapTabs.innerHTML=GAP_TABS.map(([key,label])=>`<li class="nav-item"><a class="nav-link${GAP_TAB===key?' active':''}" href="javascript:;" onclick="setGapTab('${key}')">${esc(label)} <span class="badge bg-gray-500 ms-1">${counts[key]||0}</span></a></li>`).join('');
+    let filtered=withMeta;
+    if(GAP_TAB==='critical'||GAP_TAB==='atrisk') filtered=withMeta.filter(g=>g.examRequired);
+    if(GAP_TAB==='missing') filtered=withMeta.filter(g=>!g.examRequired);
+    if(GAP_TAB==='lowconf') filtered=withMeta.filter(g=>(g.confidence||0)<60);
+    GAP_ROWS=filtered.slice(0,30);
+    gapBody.innerHTML=GAP_ROWS.length?GAP_ROWS.map((g,i)=>`<tr onclick="openGapRow(${i})">
+      <td class="ops-name">${trainerLink(g.trainer_name,g.trainer_key)}</td>
+      <td>${esc(g.vendor||'-')}</td>
+      <td title="${esc(g.course||'-')}">${esc(g.course||'-')}</td>
+      <td>${badge(g.examRequired?'High':'Medium',g.examRequired?'danger':'warning')}</td>
+      <td>${esc(g.examRequired?'Exam-required delivery blocked':'Bench-depth impact')}</td>
+      <td title="${esc(g.action||'Nominate for accreditation.')}">${esc(g.action||'Nominate for accreditation.')}</td>
+      <td>${g.confidence!=null?pct(g.confidence):'-'}</td>
+    </tr>`).join(''):'<tr><td colspan="7" class="ops-empty">No certification gaps in this queue — coverage looks healthy.</td></tr>';
+  }
+
+  function openRoadmapRow(i){
+    const r=(window.__ROADMAP_ROWS||[])[i]; if(!r) return;
+    chartDrilldownTitle.innerHTML=`<i class="bi bi-signpost-2-fill me-1"></i>${esc(r.vendor||'Certification roadmap')}`;
+    chartDrilldownBody.innerHTML=`<p class="mb-1"><b>Trainer:</b> ${trainerLink(r.trainer_name,r.trainer_key||r.official_email)}</p><p class="mb-1"><b>Reason:</b> ${esc(clean(r.reason||'Certification roadmap item derived from RMS data.'))}</p><p class="mb-0"><b>Business benefit:</b> ${esc(clean(r.business_benefit||'Reduces delivery and bench risk.'))}</p>`;
+    new bootstrap.Modal(chartDrilldownModal).show();
+  }
+  function renderRoadmap(){
+    window.__ROADMAP_ROWS=FUTURE.slice(0,20);
+    roadmapBody.innerHTML=window.__ROADMAP_ROWS.length?window.__ROADMAP_ROWS.map((r,i)=>`<tr onclick="openRoadmapRow(${i})">
+      <td class="ops-name" title="${esc(r.vendor||'Certification')}">${esc(r.vendor||'Certification')}</td>
+      <td>${esc(r.vendor||'-')}</td>
+      <td>${trainerLink(r.trainer_name,r.trainer_key||r.official_email)}</td>
+      <td>${badge(r.priority||'Medium',priorityTone(r.priority))}</td>
+      <td title="${esc(r.business_benefit||'-')}">${esc(clean(r.business_benefit||'-'))}</td>
+      <td>${r.confidence!=null?pct(r.confidence):'-'}</td>
+    </tr>`).join(''):'<tr><td colspan="6" class="ops-empty">No future certification roadmap items from current RMS data.</td></tr>';
+  }
+
+  const ACTION_TABS=[['all','All'],['critical','Critical'],['vendor','Vendor Required'],['roadmap','Roadmap'],['data','Data Quality']];
+  function setActionTab(tab){ ACTION_TAB=tab; renderActions(); }
+  function actionCategory(a){
+    const t=String(a.action_type||a.action_reason||a.title||'').toLowerCase();
+    if(t.includes('critical')||t.includes('exam')) return 'critical';
+    if(t.includes('data')||t.includes('health')) return 'data';
+    if(t.includes('roadmap')||t.includes('future')) return 'roadmap';
+    return 'vendor';
+  }
+  function openActionRow(i){
+    const a=ACTION_ROWS[i]; if(!a) return;
+    chartDrilldownTitle.innerHTML=`<i class="bi bi-inbox-fill me-1"></i>${esc(a.action_type||a.title||'Certification action')}`;
+    chartDrilldownBody.innerHTML=`<div class="mb-2">${badge(a.priority||'Low',priorityTone(a.priority))}</div><p class="mb-1"><b>Trainer/Vendor:</b> ${trainerLink(a.trainer_name,a.trainer_key||a.trainer_email)||esc(a.vendor||'-')}</p><p class="mb-0"><b>Reason:</b> ${esc(clean(a.action_reason||a.reason||'Certification action.'))}</p>`;
+    new bootstrap.Modal(chartDrilldownModal).show();
+  }
+  function renderActions(){
+    const fromActions=MA().filter(a=>/cert|accredit|exam|oem/i.test(String(a.action_type||a.action_reason||'')));
+    const fromRecs=[]; CERT.forEach(c=>(c.certification_recommendations||[]).forEach(r=>fromRecs.push({trainer_name:c.trainer_name,trainer_key:c.trainer_key,trainer_email:c.trainer_email,action_type:r.title,action_reason:r.reason,priority:r.priority,confidence:r.confidence,vendor:r.vendor,decision_contract_version:null})));
+    const rows=[...fromActions,...fromRecs];
+    const counts={all:rows.length};
+    ACTION_TABS.forEach(([k])=>{ if(k!=='all') counts[k]=rows.filter(a=>actionCategory(a)===k).length; });
+    actionTabs.innerHTML=ACTION_TABS.map(([key,label])=>`<li class="nav-item"><a class="nav-link${ACTION_TAB===key?' active':''}" href="javascript:;" onclick="setActionTab('${key}')">${esc(label)} <span class="badge bg-gray-500 ms-1">${counts[key]||0}</span></a></li>`).join('');
+    ACTION_ROWS=(ACTION_TAB==='all'?rows:rows.filter(a=>actionCategory(a)===ACTION_TAB)).slice(0,30);
+    actionBody.innerHTML=ACTION_ROWS.length?ACTION_ROWS.map((a,i)=>`<tr onclick="openActionRow(${i})">
+      <td class="ops-name">${a.trainer_name?trainerLink(a.trainer_name,a.trainer_key||a.trainer_email):esc(a.vendor||'Team-wide')}</td>
+      <td title="${esc(clean(a.action_type||'Review'))}">${esc(clean(a.action_type||'Review'))}</td>
+      <td>${badge(actionCategory(a),'gray-500')}</td>
+      <td>${badge(a.priority||'Low',priorityTone(a.priority))}</td>
+      <td>${a.confidence!=null?pct(a.confidence):'-'}</td>
+      <td>${a.decision_contract_version?badge('Decision object','teal'):badge('Legacy','gray-500')}</td>
+    </tr>`).join(''):'<tr><td colspan="6" class="ops-empty">No certification actions returned.</td></tr>';
+  }
+
+  function openDataConfidenceModal(){
+    const required=['certification_intelligence_df','certification_gap_df','certification_summary_df','future_certification_roadmap_df','vendor_strength_df','oem_bench_risk_df','manager_action_objects','trainer_decision_objects','manager_action_df','data_health_df'];
+    const exec=firstRow('executive_summary_df')||{};
+    dataConfidenceBody.innerHTML=`
+      <div class="alert alert-secondary py-2 fs-12px"><b>Overall confidence:</b> ${exec.confidence!=null?Math.round(parseFloat(exec.confidence))+'%':'Not available'} &middot; <b>Health label:</b> ${esc(exec.overall_team_health_label||'Not available')}</div>
+      ${SkillEdge.renderDatasetCoverage(required, DATA)}
+      <div class="alert alert-warning py-2 fs-11px mt-3 mb-0">Exam pass/fail status is not available from the RMS API — <code>exam_result_status</code> reflects OEM trainer accreditation only, not graded results.</div>`;
+    new bootstrap.Modal(dataConfidenceModal).show();
+  }
+
+  reload(false);
+  </script>
+</body>
+</html>

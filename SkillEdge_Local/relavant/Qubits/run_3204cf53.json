@@ -1,0 +1,16 @@
+{
+  "run_id": "3204cf53",
+  "started_at": "2026-02-28T01:57:51.084214",
+  "ended_at": "2026-02-28T01:59:44.740252",
+  "target": 1,
+  "attempted": 1,
+  "success_count": 1,
+  "failure_count": 0,
+  "successes": [
+    {
+      "course": "Implementing a Tabular Data Model by Using SQL Server Analysis Services",
+      "solved_at": "2026-02-28T01:59:25.777315"
+    }
+  ],
+  "failures": []
+}

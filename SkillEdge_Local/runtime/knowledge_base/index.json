@@ -1,0 +1,14 @@
+{
+  "updated_at": "2026-08-05T08:56:59.313567+00:00",
+  "snapshot_path": "C:\\Users\\Aishw\\OneDrive - Koenig Solutions Ltd\\SkillEdge\\runtime\\knowledge_base\\snapshots\\snapshot_1785920219.json",
+  "counts": {
+    "entities": 4,
+    "trainer_profiles": 2,
+    "course_matching": 46,
+    "risk_signals": 2,
+    "action_recommendations": 2,
+    "manager_decisions": 2,
+    "refresh_snapshots": 1
+  },
+  "source_email": "aishwar.c@koenig-solutions.com"
+}
