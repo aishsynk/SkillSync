@@ -205,3 +205,23 @@ Keep entries concise, AI-agnostic, chronological (newest last).
 - **Current remote state:** `app/` (Kotlin sources at repo root, not under `android/`), Gradle wrapper (`gradlew`, `gradle/wrapper/`), `.github/workflows/` CI/CD for APK build + GitHub Release, Android-focused `README.md`, `.gitignore`. Retained from earlier work: `AI/` (this directory), `backend.py` (single-file Flask), `requirements.txt`, `vercel.json`, 9 setup/deployment `.md` files. Working tree clean; nothing to commit or push.
 - **Status:** Repo is the live Android app. Awaiting next task.
 - **Next steps:** (1) Android Phase 2 screens (Team, Trainer Detail, Actions, Allocation, Copilot, Charts, Offline) — work directly under `app/`. (2) Configure keystore secrets in GitHub for signed release APKs. (3) Wire a live backend URL into the Android app's `NetworkModule` and verify end-to-end against `backend.py`. (4) Optionally prune the 9 setup/deployment `.md` files and `backend.py`/`requirements.txt`/`vercel.json`/`AI/` for a truly minimal Android-only repo.
+
+## 2026-08-06 — Fix v1.2.3: Auth 401, role-based login, live RMS data, email pass-through
+
+- **Agent/tool:** Claude (claude-sonnet-4-6)
+- **Files modified:**
+  - `backend.py` — complete rewrite (v2.0): (1) domain check fixed to `@koenig-solutions.com` (was `@company.com`, the direct cause of all 401s); (2) RMS role verification on login — calls `reportees` API (manager check) then `trainerDetails` (Trainer Plus designation check) before issuing session; (3) `unified-manager-intelligence` now fetches live reportee roster + per-trainer utilization via RMS in parallel (ThreadPoolExecutor) instead of mock data; clear 401/503 error messages
+  - `SkillEdge_Android/app/build.gradle.kts` — bumped versionCode 8→9, versionName 1.2.2→1.2.3
+  - `SkillEdge_Android/…/NavigationKeys.kt` — `Main` changed from `data object` to `data class Main(val email: String)` so the logged-in email flows to the dashboard
+  - `SkillEdge_Android/…/Navigation.kt` — passes `email` from login callback to `Main(email)` nav key
+  - `SkillEdge_Android/…/LoginScreen.kt` — `onLoginSuccess: (String) -> Unit`; keyboard Done action triggers login; removed unused PasswordVisualTransformation import
+  - `SkillEdge_Android/…/LoginViewModel.kt` — `LoginState.Success` carries `sessionId + email`; `HttpException` mapped to user-friendly messages (401 → "Access denied…", 503 → "RMS unavailable", 400 → "Invalid email")
+  - `SkillEdge_Android/…/SkillEdgeApi.kt` — `LoginResponse` gains `email` and `role` fields
+  - `SkillEdge_Android/…/MainScreenViewModel.kt` — removed hardcoded email and init{} auto-fetch; `loadData(email)` called lazily from `MainScreen`
+  - `SkillEdge_Android/…/MainScreen.kt` — receives `email` param; `LaunchedEffect(email)` triggers `viewModel.loadData(email)`; `intVal` helper handles Gson Double→Int coercion safely
+  - `SkillEdge_Android/…/MainScreenViewModelTest.kt` — updated for new `DashboardState` API (removed stale `MainScreenUiState` reference)
+- **Commits pushed:** `f8345d6` (main fix), `0382d71` (test fix) — both to `github.com/aishsynk/SkillSync` `main` branch
+- **GitHub Actions:** CI triggered for both commits (v1.2.3 APK build in progress)
+- **Render:** auto-deploy of new `backend.py` triggered by push
+- **Status:** Build in progress. Awaiting APK release confirmation.
+- **Next steps:** (1) Confirm GitHub Actions v1.2.3 build succeeds and APK is published; (2) Confirm Render auto-deploy of new backend.py; (3) Download and test APK — login with `@koenig-solutions.com` manager/Trainer Plus email should navigate to live dashboard; (4) Android Phase 2 screens when login flow is confirmed working.
