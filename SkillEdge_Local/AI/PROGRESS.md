@@ -20,7 +20,7 @@
 - **Agent/Tool**: Antigravity (Gemini 3.1 Pro) / `replace_file_content`
 - **Files Modified**: `MainScreen.kt`, `build.gradle.kts`
 - **Work Completed**: Overhauled `MainScreen.kt` UI to cleanly parse the complex JSON schema emitted by the Render Flask backend (mapping `manager`, `kpis`, `trainers`, and `actions` accurately without crash-causing type assumptions). Verified UI syntax locally by compiling `assembleDebug`. Bumping to `v1.2.0` in `build.gradle.kts` and pushed to remote to trigger Action.
-- **Current Status**: v1.2.0 building on remote CI/CD. UI is deeply integrated with the true shape of the data.
+- **Current Status**: v1.2.1 deployed successfully. The GitHub Action `Android CI/CD` successfully completed the build and officially published `SkillEdge-v1.2.1.7.apk` to the GitHub Releases page. Local build artifacts have been removed to enforce strict Git-only release management.
 - **Next Actions**:
-  1. Wait for GitHub Action to finish.
-  2. Have user verify the beautiful layout.
+  1. User must download the official `SkillEdge-v1.2.1.7.apk` strictly from the GitHub Releases page.
+  2. Verify that the login works and accurately routes to the Dashboard screen using the new Compose state navigation.
