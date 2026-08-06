@@ -7,11 +7,12 @@ import com.example.skillsync.data.api.RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 sealed class LoginState {
     object Idle : LoginState()
     object Loading : LoginState()
-    data class Success(val token: String) : LoginState()
+    data class Success(val sessionId: String, val email: String) : LoginState()
     data class Error(val message: String) : LoginState()
 }
 
@@ -23,15 +24,27 @@ class LoginViewModel : ViewModel() {
         viewModelScope.launch {
             _loginState.value = LoginState.Loading
             try {
-                val request = LoginRequest(email = email)
-                val response = RetrofitClient.instance.login(request)
+                val response = RetrofitClient.instance.login(LoginRequest(email = email.trim().lowercase()))
                 if (response.success == true) {
-                    _loginState.value = LoginState.Success(response.session_id ?: "dummy-token")
+                    _loginState.value = LoginState.Success(
+                        sessionId = response.session_id ?: "",
+                        email     = response.email ?: email.trim().lowercase(),
+                    )
                 } else {
-                    _loginState.value = LoginState.Error(response.error ?: response.message ?: "Login failed")
+                    _loginState.value = LoginState.Error(
+                        response.error ?: response.message ?: "Login failed"
+                    )
                 }
+            } catch (e: HttpException) {
+                val msg = when (e.code()) {
+                    401  -> "Access denied — must be a @koenig-solutions.com manager or Trainer Plus"
+                    503  -> "RMS service unavailable — please retry in a moment"
+                    400  -> "Invalid email address"
+                    else -> "Login failed (${e.code()})"
+                }
+                _loginState.value = LoginState.Error(msg)
             } catch (e: Exception) {
-                _loginState.value = LoginState.Error(e.localizedMessage ?: "Unknown network error")
+                _loginState.value = LoginState.Error(e.localizedMessage ?: "Network error — check your connection")
             }
         }
     }

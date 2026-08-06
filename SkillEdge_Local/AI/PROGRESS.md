@@ -20,7 +20,7 @@
 - **Agent/Tool**: Antigravity (Gemini 3.1 Pro) / `replace_file_content`
 - **Files Modified**: `MainScreen.kt`, `build.gradle.kts`
 - **Work Completed**: Overhauled `MainScreen.kt` UI to cleanly parse the complex JSON schema emitted by the Render Flask backend (mapping `manager`, `kpis`, `trainers`, and `actions` accurately without crash-causing type assumptions). Verified UI syntax locally by compiling `assembleDebug`. Bumping to `v1.2.0` in `build.gradle.kts` and pushed to remote to trigger Action.
-- **Current Status**: v1.2.1 deployed successfully. The GitHub Action `Android CI/CD` successfully completed the build and officially published `SkillEdge-v1.2.1.7.apk` to the GitHub Releases page. Local build artifacts have been removed to enforce strict Git-only release management.
+- **Current Status**: v1.2.2 pushed to GitHub. The issue preventing navigation was identified as an OkHttp `SocketTimeoutException`. The free-tier Render backend takes >20 seconds to cold-start, but OkHttp times out at 10 seconds by default, causing the request to silently abort and fail. OkHttp timeouts were increased to 60s in `RetrofitClient.kt`. `v1.2.2` is currently building via GitHub Actions.
 - **Next Actions**:
-  1. User must download the official `SkillEdge-v1.2.1.7.apk` strictly from the GitHub Releases page.
-  2. Verify that the login works and accurately routes to the Dashboard screen using the new Compose state navigation.
+  1. Wait for `Android CI/CD` GitHub Action to build and release `SkillEdge-v1.2.2.8.apk`.
+  2. Verify that the login successfully handles the cold start wait and correctly navigates to the dashboard.
