@@ -25,10 +25,10 @@ class LoginViewModel : ViewModel() {
             try {
                 val request = LoginRequest(username = username, password = password)
                 val response = RetrofitClient.instance.login(request)
-                if (response.success && response.token != null) {
-                    _loginState.value = LoginState.Success(response.token)
+                if (response.email != null) {
+                    _loginState.value = LoginState.Success(response.email)
                 } else {
-                    _loginState.value = LoginState.Error(response.message ?: "Login failed")
+                    _loginState.value = LoginState.Error(response.error ?: "Login failed")
                 }
             } catch (e: Exception) {
                 _loginState.value = LoginState.Error(e.localizedMessage ?: "Unknown network error")
