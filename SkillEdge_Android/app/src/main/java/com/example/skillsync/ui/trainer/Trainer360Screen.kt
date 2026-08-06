@@ -88,7 +88,7 @@ fun Trainer360Screen(
 }
 
 @Composable
-private fun Trainer360Content(data: Map<String, Any>) {
+internal fun Trainer360Content(data: Map<String, Any>) {
     val sk = MaterialTheme.skill
     val identity = data.obj("identity")
     val util     = data.obj("utilization")

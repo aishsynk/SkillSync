@@ -37,6 +37,14 @@ android {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
     }
+
+    testOptions {
+      unitTests {
+        // Robolectric renders real Compose UI in JVM tests, which needs resources.
+        isIncludeAndroidResources = true
+        isReturnDefaultValues = true
+      }
+    }
 }
 
 kotlin {
@@ -70,6 +78,14 @@ dependencies {
   // Local tests: jUnit, coroutines, Android runner
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
+
+  // Render Compose screens on the JVM so layout/runtime faults are caught
+  // without a device — this project has no emulator available.
+  testImplementation(composeBom)
+  testImplementation("org.robolectric:robolectric:4.16")
+  testImplementation(libs.androidx.compose.ui.test.junit4)
+  testImplementation(libs.androidx.test.ext.junit)
+  debugImplementation(libs.androidx.compose.ui.test.manifest)
 
   // Instrumented tests: jUnit rules and runners
   androidTestImplementation(libs.androidx.test.core)

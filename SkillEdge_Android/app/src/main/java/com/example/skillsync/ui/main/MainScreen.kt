@@ -105,7 +105,7 @@ private fun tabTitle(tab: String) = when (tab) {
 }
 
 @Composable
-private fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
+internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
     val items = listOf(
         Triple(HomeTab.DASHBOARD, R.drawable.ic_home, "Home"),
         Triple(HomeTab.TEAM, R.drawable.ic_people, "Team"),
@@ -167,7 +167,7 @@ private fun DrillSheet(drill: Drill, onDismiss: () -> Unit) {
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun DashboardTab(
+internal fun DashboardTab(
     data: Map<String, Any>,
     onTrainerClick: (String, String) -> Unit,
     onDrill: (Drill) -> Unit,
@@ -324,7 +324,7 @@ private fun TeamTab(data: Map<String, Any>, onTrainerClick: (String, String) -> 
 }
 
 @Composable
-private fun DemandTab(data: Map<String, Any>) {
+internal fun DemandTab(data: Map<String, Any>) {
     val demands = data.rows("unallocated_demand_df")
     LazyColumn(
         Modifier.fillMaxSize().background(MaterialTheme.skill.pageBg),
@@ -415,7 +415,7 @@ private fun HeroCard(
 }
 
 @Composable
-private fun TrainerCard(trainer: Map<*, *>, state: Map<*, *>?, onClick: () -> Unit) {
+internal fun TrainerCard(trainer: Map<*, *>, state: Map<*, *>?, onClick: () -> Unit) {
     val sk = MaterialTheme.skill
     val name = trainer.str("trainer_name")
     val desig = trainer.str("designation").ifBlank { trainer.str("direct_or_indirect") }
