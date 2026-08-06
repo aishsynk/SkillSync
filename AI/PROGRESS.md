@@ -225,3 +225,35 @@ Keep entries concise, AI-agnostic, chronological (newest last).
 - **Render:** auto-deploy of new `backend.py` triggered by push
 - **Status:** Build in progress. Awaiting APK release confirmation.
 - **Next steps:** (1) Confirm GitHub Actions v1.2.3 build succeeds and APK is published; (2) Confirm Render auto-deploy of new backend.py; (3) Download and test APK — login with `@koenig-solutions.com` manager/Trainer Plus email should navigate to live dashboard; (4) Android Phase 2 screens when login flow is confirmed working.
+
+---
+
+## v1.3.0 — Dashboard redesign on the full RMS data model — 2026-08-06
+- **Agent/Tool:** Claude Code (claude-sonnet-4-6)
+- **Files:**
+  - `backend.py` → v3.0.0. Registered 11 further RMS APIs (prevUpcoming 16, unallocated 190, negFeedbackCount 58, trainerFeedback 244, hrIncident 59, trainerSkills 217, vendorCertCount 57, trainerAvailability 90, scid 173, assignmentPax 209, last3MonthsUtil 39). `unified-manager-intelligence` now returns the web frontend's data model (`trainer_operations_df`, `trainer_current_state_df`, `batch_engagement_df`, `unallocated_demand_df`, `trainer_feedback_summary_df`, `manager_action_objects`, `trainer_decision_objects`) alongside the v1.2.x compat fields.
+  - Per trainer: utilisation + negative-feedback count + assignments fetched in parallel (ThreadPoolExecutor, 8 workers) to derive live status (teaching_now / preparing / free / unknown), readiness and risk.
+  - `SkillEdge_Android/…/MainScreen.kt` — rebuilt to mirror the web Manager Command Dashboard: hero KPI cards, per-trainer cards with status/utilisation/next-batch/risk, attention queue, demand queue.
+- **Field-name discovery:** the unallocated-demand API (key 190) does not match its docs — real keys are `Coursename`, `CourseSDate`/`CourseEDate`, `"Delivery Mode"` (with a space), `vendor`, `"Assignment City"`, `NoOfParticipants`, `AssignmentID`. Found by inspecting a live response; first mapping attempt rendered every row as "Course".
+- **Verified live:** 2 reportees, 11 unallocated demands with real course names/vendors/pax, 8 batch engagements. Render serving v3.0.0.
+- **Released:** `SkillEdge-v1.3.0.10.apk` (GitHub Release `v1.3.0.10`).
+
+## v1.4.0 — Brand identity + premium UI/UX — 2026-08-06
+- **Agent/Tool:** Claude Code (claude-opus-5)
+- **Files:** `theme/Color.kt`, `theme/Theme.kt`, `theme/Type.kt`, `ui/components/Motion.kt` (new), `ui/components/Branding.kt` (new), `ui/auth/LoginScreen.kt`, `ui/main/MainScreen.kt`, `ui/main/MainScreenViewModel.kt`, `Navigation.kt`, `res/drawable/ic_logo.xml` + `ic_launcher_foreground/background.xml` + `ic_mail/ic_check/ic_alert.xml`, `res/values/themes.xml` + `colors.xml`, `tools/gen_logo.py` + `tools/preview_logo.py` (new), `build.gradle.kts`.
+- **Work completed:**
+  - Brand mark generated as a Delaunay-triangulated VectorDrawable (transparent, resolution-independent) in two variants — full detail in-app, simplified/bolder for the launcher adaptive icon. Generator committed under `SkillEdge_Android/tools/`.
+  - Removed Material You dynamic colour, which was overriding the brand with wallpaper hues on Android 12+. Brand-locked light/dark schemes plus a `SkillColors` CompositionLocal for colours Material has no slot for; `MainScreen`'s previously hard-coded constants now theme-aware.
+  - Shared motion system: staggered entrance, counting KPIs, progress growing from zero, error shake, shimmer skeletons.
+  - Login: aurora background, floating logo, focus-reactive field, button morphing Sign in → spinner → check, shake error banner. Dashboard rises over a fading login.
+  - Dashboard: skeleton loading mirroring the real layout, animated counters/bars, pull-to-refresh, and a **Try again** action on the error state (previously a dead end).
+- **Defects found in review:** `animateFloatAsState` does not animate on first composition (bars snapped instead of growing); `Arrangement.Center` is a no-op inside `verticalScroll` (login would have sat top-aligned); dashboard error state had no retry; a failed refresh could wipe on-screen data.
+- **Status:** `assembleDebug` + `testDebugUnitTest` green. No emulator/AVD on this machine, so on-device visual confirmation is still outstanding.
+
+## CI hardening — GitHub runner starvation — 2026-08-06
+- **Agent/Tool:** Claude Code (claude-opus-5)
+- **File:** `.github/workflows/android-release.yml`
+- **Problem:** four of six runs failed GitHub-side, not on project code — `"The job was not acquired by Runner of type hosted even after multiple attempts"` and `"Failed to resolve action download info"`. Repo is public (unlimited minutes), so this is not a quota issue. Push-triggered runs also briefly stopped being created at all; `workflow_dispatch` still worked.
+- **Changes:** bumped `actions/checkout` and `actions/setup-java` v3→v4 and `softprops/action-gh-release` v1→v2 (the v3/v1 actions run on the retired Node 16 runtime and are what hit the resolution failures); added a `concurrency` group with `cancel-in-progress`; added `paths-ignore` for docs/`AI/**`/`backend.py`/`SkillEdge_Local/**` so doc-only commits stop consuming runners; added `timeout-minutes: 30`.
+- **Process correction:** a locally-built debug APK was sent to the user directly — this violates the release policy. APKs ship **only** as GitHub Releases from the pipeline; local builds are for compile verification. Rule recorded to persistent memory.
+- **Next actions:** (1) confirm the dispatched run publishes `SkillEdge-v1.4.0.11.apk`; (2) install from the GitHub Release and confirm login → dashboard visuals on device; (3) Android Phase 2 screens (team roster, trainer detail, actions, allocation desk).
