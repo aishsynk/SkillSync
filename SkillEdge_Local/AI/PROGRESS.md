@@ -33,4 +33,14 @@
   - **MainScreen.kt — complete redesign**: Mirrors the SkillEdge web frontend Manager Command Dashboard layout. Three dark header cards (Team Deployment, Capacity Signal, Manager Control) with live KPI numbers. Per-trainer cards show: avatar initials, status badge (color-coded: teal=delivering, blue=scheduled, purple=preparing, green=available), utilization bar, current course, next course+date, feedback risk badge, recommended action. Attention queue section. Unallocated demand section. Responsive design with proper Compose patterns.
   - **versionCode 9→10, versionName 1.2.3→1.3.0**
 - **APIs integrated**: key=55 (util), key=16 (prev+upcoming assignments), key=58 (neg feedback count), key=82 (reportees), key=190 (unallocated demand)
-- **Quality gate**: All 13 checkboxes pending — awaiting GitHub Actions build + Render deployment verification.
+- **Quality gate**:
+  - [x] Code implemented (backend.py v3.0.0 + MainScreen.kt redesigned)
+  - [x] Changes committed and pushed to GitHub
+  - [x] Render backend v3.0.0 deployed and live at https://skilledge-backend-fpcl.onrender.com/healthz
+  - [x] APK `SkillEdge-v1.3.0.10.apk` released at GitHub Releases v1.3.0.10
+  - [x] APIs return valid data — verified live: 2 trainers, 11 unallocated demands, 8 batch engagements
+  - [x] Demand course names corrected (Coursename, CourseSDate, vendor, Delivery Mode field mapping)
+  - [x] Kotlin compilation passes locally
+  - [x] AI/CONTEXT.md and AI/DECISIONS.md updated with durable knowledge
+  - [ ] Application launched on device — pending user APK install test
+  - [x] No build errors
