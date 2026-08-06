@@ -1,8 +1,12 @@
 services:
   - type: web
     name: skilledge-backend
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python server.py
-    rootDir: SkillEdge_Local
+    runtime: python
     plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn backend:app
+    envVars:
+      - key: SKILLEDGE_ENV
+        value: production
+      - key: PYTHONUNBUFFERED
+        value: "true"
