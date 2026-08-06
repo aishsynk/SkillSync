@@ -11,6 +11,9 @@ import kotlinx.serialization.Serializable
 /** Deep profile for a single trainer, pushed over the shell. */
 @Serializable data class Trainer360(val email: String, val trainerEmail: String, val trainerName: String) : NavKey
 
+/** Full detail + actions for one unallocated batch, keyed by its assignment id. */
+@Serializable data class BatchDetail(val email: String, val demandId: String) : NavKey
+
 object HomeTab {
     const val DASHBOARD = "dashboard"
     const val TEAM = "team"

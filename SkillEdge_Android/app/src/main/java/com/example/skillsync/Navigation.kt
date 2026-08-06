@@ -11,13 +11,22 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavKey
 import com.example.skillsync.ui.auth.LoginScreen
+import com.example.skillsync.ui.batch.AllocationState
+import com.example.skillsync.ui.batch.AllocationViewModel
+import com.example.skillsync.ui.batch.BatchDetailScreen
+import com.example.skillsync.ui.components.list
+import com.example.skillsync.ui.components.rows
+import com.example.skillsync.ui.components.str
 import com.example.skillsync.ui.components.Motion
 import com.example.skillsync.ui.main.MainScreen
 import com.example.skillsync.ui.trainer.Trainer360Screen
@@ -26,9 +35,16 @@ import com.example.skillsync.ui.trainer.Trainer360Screen
 fun MainNavigation() {
     var current by remember { mutableStateOf<NavKey>(Login) }
 
-    // Hardware/gesture back returns from a trainer profile to the shell.
-    BackHandler(enabled = current is Trainer360) {
-        (current as? Trainer360)?.let { current = Main(it.email, HomeTab.TEAM) }
+    // Shared so a batch opened from the desk keeps its data and mark-skill state.
+    val allocationViewModel: AllocationViewModel = viewModel()
+
+    // Hardware/gesture back returns from a pushed detail screen to the shell.
+    BackHandler(enabled = current is Trainer360 || current is BatchDetail) {
+        current = when (val c = current) {
+            is Trainer360 -> Main(c.email, HomeTab.TEAM)
+            is BatchDetail -> Main(c.email, HomeTab.DEMAND)
+            else -> c
+        }
     }
 
     AnimatedContent(
@@ -76,7 +92,9 @@ fun MainNavigation() {
                 onTrainerClick = { trainerEmail, trainerName ->
                     current = Trainer360(screen.email, trainerEmail, trainerName)
                 },
+                onBatchClick = { demandId -> current = BatchDetail(screen.email, demandId) },
                 modifier = Modifier,
+                allocationViewModel = allocationViewModel,
             )
 
             is Trainer360 -> Trainer360Screen(
@@ -84,6 +102,41 @@ fun MainNavigation() {
                 trainerName = screen.trainerName,
                 onBack = { current = Main(screen.email, HomeTab.TEAM) },
             )
+
+            is BatchDetail -> {
+                val allocState by allocationViewModel.state.collectAsState()
+                val markState by allocationViewModel.mark.collectAsState()
+                val data = (allocState as? AllocationState.Success)?.data
+                val batch = data?.rows("batches")
+                    ?.firstOrNull { it.str("demand_id") == screen.demandId }
+
+                if (batch == null) {
+                    // Reached without the desk loaded (e.g. process death); go back
+                    // rather than render a detail screen with nothing in it.
+                    LaunchedEffect(Unit) { current = Main(screen.email, HomeTab.DEMAND) }
+                } else {
+                    // Candidates are this manager's reportees, which is exactly the
+                    // set they may mark a skill for.
+                    val reportees = data.rows("batches")
+                        .flatMap { it.list("candidates") }
+                        .map { it.str("trainer_name") to it.str("trainer_email") }
+                        .filter { it.second.isNotBlank() }
+                        .distinctBy { it.second }
+                        .sortedBy { it.first }
+
+                    BatchDetailScreen(
+                        batch = batch,
+                        managerEmail = screen.email,
+                        reportees = reportees,
+                        markState = markState,
+                        onMarkSkill = { courseId, trainerEmail, level, date, who ->
+                            allocationViewModel.markSkill(courseId, trainerEmail, level, date, who)
+                        },
+                        onClearMark = { allocationViewModel.clearMark() },
+                        onBack = { current = Main(screen.email, HomeTab.DEMAND) },
+                    )
+                }
+            }
         }
     }
 }

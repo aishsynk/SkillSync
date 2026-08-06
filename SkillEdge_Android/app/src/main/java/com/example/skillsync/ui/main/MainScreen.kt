@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -28,6 +29,9 @@ import com.example.skillsync.HomeTab
 import com.example.skillsync.R
 import com.example.skillsync.theme.StatusBarIcons
 import com.example.skillsync.theme.skill
+import com.example.skillsync.ui.batch.AllocationDeskContent
+import com.example.skillsync.ui.batch.AllocationState
+import com.example.skillsync.ui.batch.AllocationViewModel
 import com.example.skillsync.ui.components.*
 
 // ── Screen shell ──────────────────────────────────────────────────────────────
@@ -39,12 +43,21 @@ fun MainScreen(
     tab: String,
     onTabChange: (String) -> Unit,
     onTrainerClick: (email: String, name: String) -> Unit,
+    onBatchClick: (demandId: String) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: MainScreenViewModel = viewModel(),
+    allocationViewModel: AllocationViewModel = viewModel(),
 ) {
+    val context = LocalContext.current
     LaunchedEffect(email) { viewModel.loadData(email) }
+    // The allocation desk is a separate, heavier query; only load it when opened.
+    LaunchedEffect(email, tab) {
+        if (tab == HomeTab.DEMAND) allocationViewModel.load(email, context)
+    }
     val state by viewModel.uiState.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
+    val allocState by allocationViewModel.state.collectAsState()
+    val newIds by allocationViewModel.newIds.collectAsState()
     StatusBarIcons(lightIcons = true)
 
     // Which KPI the manager tapped; drives the drill-down sheet.
@@ -75,7 +88,21 @@ fun MainScreen(
         bottomBar = { SkillSyncNavBar(tab, onTabChange) },
     ) { pv ->
         Box(modifier.fillMaxSize().padding(pv)) {
-            when (val s = state) {
+            if (tab == HomeTab.DEMAND) {
+                // Allocation desk has its own query, state and refresh.
+                when (val a = allocState) {
+                    is AllocationState.Loading -> DashboardSkeleton()
+                    is AllocationState.Error -> DashErrorView(a.message) {
+                        allocationViewModel.refresh(email, context)
+                    }
+                    is AllocationState.Success -> PullToRefreshBox(
+                        isRefreshing = refreshing,
+                        onRefresh = { allocationViewModel.refresh(email, context) },
+                    ) {
+                        AllocationDeskContent(a.data, newIds) { b -> onBatchClick(b.str("demand_id")) }
+                    }
+                }
+            } else when (val s = state) {
                 is DashboardState.Loading -> DashboardSkeleton()
                 is DashboardState.Error -> DashErrorView(s.message) { viewModel.refresh(email) }
                 is DashboardState.Success -> PullToRefreshBox(
@@ -85,7 +112,6 @@ fun MainScreen(
                     val d = s.intelligenceData
                     when (tab) {
                         HomeTab.TEAM -> TeamTab(d, onTrainerClick)
-                        HomeTab.DEMAND -> DemandTab(d)
                         HomeTab.ACTIONS -> ActionsTab(d)
                         else -> DashboardTab(d, onTrainerClick) { drill = it }
                     }
@@ -284,7 +310,9 @@ internal fun DashboardTab(
             }
         }
 
-        item { Appear(2) { SectionHeader("Team — right now", ops.size) } }
+        item { Appear(2) { TopPerformers(ops, onTrainerClick) } }
+
+        item { Appear(3) { SectionHeader("Team — right now", ops.size) } }
 
         if (ops.isEmpty()) {
             item { EmptyCard("No reportees returned. Check your account permissions.") }
@@ -302,17 +330,96 @@ internal fun DashboardTab(
     }
 }
 
+private enum class TeamSort(val label: String) {
+    UTIL_DESC("Utilisation"), NAME("Name"), STATUS("Status")
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TeamTab(data: Map<String, Any>, onTrainerClick: (String, String) -> Unit) {
+internal fun TeamTab(data: Map<String, Any>, onTrainerClick: (String, String) -> Unit) {
+    val sk = MaterialTheme.skill
     val ops = data.rows("trainer_operations_df")
     val stateMap = data.rows("trainer_current_state_df").associateBy { it.str("trainer_email").lowercase() }
+
+    var query by remember { mutableStateOf("") }
+    var sort by remember { mutableStateOf(TeamSort.UTIL_DESC) }
+    var statusFilter by remember { mutableStateOf<String?>(null) }
+
+    val shown = remember(ops, query, sort, statusFilter, stateMap) {
+        val q = query.trim().lowercase()
+        ops.filter { t ->
+            val st = stateMap[t.str("official_email").lowercase()]
+            val matchesQuery = q.isBlank() ||
+                t.str("trainer_name").lowercase().contains(q) ||
+                t.str("designation").lowercase().contains(q) ||
+                t.str("official_email").lowercase().contains(q) ||
+                st?.obj("current_batch")?.str("course_name")?.lowercase()?.contains(q) == true ||
+                st?.obj("next_batch")?.str("course_name")?.lowercase()?.contains(q) == true
+            val matchesStatus = statusFilter == null ||
+                st?.str("current_status") == statusFilter
+            matchesQuery && matchesStatus
+        }.let { list ->
+            when (sort) {
+                TeamSort.UTIL_DESC -> list.sortedByDescending { it.int("current_utilization") }
+                TeamSort.NAME -> list.sortedBy { it.str("trainer_name") }
+                TeamSort.STATUS -> list.sortedBy {
+                    stateMap[it.str("official_email").lowercase()]?.str("status_label") ?: "zz"
+                }
+            }
+        }
+    }
+
     LazyColumn(
-        Modifier.fillMaxSize().background(MaterialTheme.skill.pageBg),
+        Modifier.fillMaxSize().background(sk.pageBg),
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (ops.isEmpty()) item { EmptyCard("No reportees returned.") }
-        itemsIndexed(ops) { i, t ->
+        item {
+            Column {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("Search name, designation, course", fontSize = 12.sp) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TeamSort.entries.forEach { s ->
+                        FilterChip(
+                            selected = sort == s,
+                            onClick = { sort = s },
+                            label = { Text(s.label, fontSize = 10.sp) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(
+                        "teaching_now" to "Delivering",
+                        "preparing" to "Preparing",
+                        "free" to "Available",
+                    ).forEach { (key, label) ->
+                        FilterChip(
+                            selected = statusFilter == key,
+                            onClick = { statusFilter = if (statusFilter == key) null else key },
+                            label = { Text(label, fontSize = 10.sp) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${shown.size} of ${ops.size} trainers",
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                )
+            }
+        }
+
+        if (shown.isEmpty()) {
+            item { EmptyCard(if (ops.isEmpty()) "No reportees returned." else "No trainer matches this filter.") }
+        }
+        itemsIndexed(shown) { i, t ->
             Appear(i) {
                 TrainerCard(t, stateMap[t.str("official_email").lowercase()]) {
                     onTrainerClick(t.str("official_email"), t.str("trainer_name"))
@@ -334,6 +441,71 @@ internal fun DemandTab(data: Map<String, Any>) {
         if (demands.isEmpty()) item { EmptyCard("No unallocated demand right now.") }
         itemsIndexed(demands) { i, d -> Appear(i) { DemandCard(d) } }
         item { Spacer(Modifier.height(16.dp)) }
+    }
+}
+
+/** Top of the roster by utilisation — a quick read on who is carrying delivery. */
+@Composable
+private fun TopPerformers(ops: List<Map<*, *>>, onTrainerClick: (String, String) -> Unit) {
+    val sk = MaterialTheme.skill
+    val top = remember(ops) {
+        ops.filter { (it.intOrNull("current_utilization") ?: 0) > 0 }
+            .sortedByDescending { it.int("current_utilization") }
+            .take(5)
+    }
+    if (top.isEmpty()) return
+
+    Card(
+        Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
+        elevation = CardDefaults.cardElevation(1.dp),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(painterResource(R.drawable.ic_award), null, tint = sk.amber, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Top performing", style = MaterialTheme.typography.titleLarge, color = sk.bodyText)
+            }
+            Text(
+                "Ranked by utilisation over the last three months",
+                style = MaterialTheme.typography.labelSmall, color = sk.subText,
+            )
+            Spacer(Modifier.height(10.dp))
+            top.forEachIndexed { i, t ->
+                val util = t.int("current_utilization")
+                val tint = when {
+                    util > 85 -> sk.red
+                    util >= 60 -> sk.teal
+                    else -> sk.amber
+                }
+                Row(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { onTrainerClick(t.str("official_email"), t.str("trainer_name")) }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "${i + 1}", style = MaterialTheme.typography.labelMedium,
+                        color = sk.subText, modifier = Modifier.width(18.dp),
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            t.str("trainer_name"), style = MaterialTheme.typography.titleSmall,
+                            color = sk.bodyText, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            t.str("capacity_bucket").ifBlank { t.str("designation") },
+                            style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                        )
+                    }
+                    Text(
+                        "$util%", style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold, color = tint,
+                    )
+                }
+            }
+        }
     }
 }
 
