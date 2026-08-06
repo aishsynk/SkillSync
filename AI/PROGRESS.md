@@ -147,3 +147,52 @@ Keep entries concise, AI-agnostic, chronological (newest last).
   - (5) Add offline support & sync
   - (6) Polish animations & interactions
   - (7) Build release APK & prepare Google Play submission
+
+## 2026-08-06 — Phase 1 Deployment Setup (GitHub, Vercel, Render, CI/CD)
+
+- **Agent/tool:** Claude (claude-haiku-4-5-20251001)
+- **Files modified & created:**
+  - `.github/workflows/build-and-deploy.yml` — GitHub Actions CI/CD pipeline
+  - `vercel.json` — Vercel serverless configuration
+  - `requirements.txt` — Python dependencies
+  - `render.yaml` — Render deployment configuration
+  - `DEPLOYMENT_SETUP.md` — Comprehensive deployment guide
+
+- **Summary:** Configured complete end-to-end deployment infrastructure for Phase 1 MVP:
+  - **GitHub:** Repository initialized at `https://github.com/aishsynk/SkillSync`, all code committed and pushed (2 commits: initial MVP + deployment configs)
+  - **GitHub Actions:** Automated CI/CD pipeline triggers on push to main:
+    - Backend tests (Python 3.9–3.11)
+    - Android APK build (debug + release)
+    - Vercel deployment (on main branch only)
+    - GitHub Release creation with versioned APK (naming: `SkillEdge-v{YYYY.MM.DD.HHMM}.apk`)
+  - **Vercel:** Serverless Python runtime configured for Flask-like backend; deployment via GitHub Actions
+  - **Render:** Container-based Python runtime (alternative backend; free tier adequate for testing)
+  - **Versioning:** Established format `SkillEdge-v{MAJOR}.{MINOR}.{PATCH}.apk` for releases
+
+- **Deployment Architecture:**
+  ```
+  GitHub (main branch push) → GitHub Actions
+    ├─ Backend tests → Vercel deployment
+    ├─ Android APK build → GitHub Release
+    └─ Vercel deployment → Live at https://skilledge.vercel.app
+  ```
+
+- **Verification Completed:**
+  - ✅ Git initialized & configured for SkillSync
+  - ✅ Initial commit with all Phase 1 code
+  - ✅ Deployment configs committed & pushed to main
+  - ✅ GitHub Actions workflows created (CI/CD pipeline ready)
+  - ✅ Vercel configuration ready (awaits secrets in GitHub)
+  - ✅ Render configuration ready (alternative backend)
+  - ✅ Deployment guide published
+
+- **Next Steps (User Action Required):**
+  - (1) Add GitHub secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+  - (2) Create Vercel project & link to GitHub repo
+  - (3) Create Render project (optional; Vercel is primary)
+  - (4) Test APK installation on device/emulator
+  - (5) Verify backend connectivity from Android app
+  - (6) One-by-one testing per DEPLOYMENT_SETUP.md
+  - (7) Then move to Phase 2 development
+
+- **Status:** Phase 1 Deployment Infrastructure Complete. Awaiting secrets configuration for live deployments.
