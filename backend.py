@@ -1716,6 +1716,36 @@ def unified_intelligence():
     else:
         deployable_pct = 90
 
+    notifications = [
+        {
+            "id": "NOTIF-101",
+            "severity": "CRITICAL",
+            "category": "CERTIFICATION",
+            "title": "Vendor Certification Expiration Alert",
+            "message": "Subhash Verma's CKA certification expires in 14 days. Re-certification required before London UK batch.",
+            "timestamp": "10m ago",
+            "read": False
+        },
+        {
+            "id": "NOTIF-102",
+            "severity": "WARNING",
+            "category": "CAPACITY",
+            "title": "Utilization Anomaly Detected",
+            "message": "Priya Sharma utilization reached 95% (Stretched Capacity). Re-allocation lock recommended.",
+            "timestamp": "1h ago",
+            "read": False
+        },
+        {
+            "id": "NOTIF-103",
+            "severity": "INFO",
+            "category": "SKILL_APPROVAL",
+            "title": "New IDP Skill Approval Request",
+            "message": "IDP skill addition request for 'AZ-400 Azure DevOps' from Rajesh Mishra awaits manager sign-off.",
+            "timestamp": "3h ago",
+            "read": False
+        }
+    ]
+
     manager_kpis = {
         "total_team_members":   len(trainer_ops),
         "active_trainers":      active_trainers,
@@ -1726,6 +1756,8 @@ def unified_intelligence():
         "training_days_window_label": "last 30 days",
         "avg_team_utilization": avg_util if util_vals else 76,
         "utilization_sample":   len(util_vals) or len(trainer_ops),
+        "utilization_trend":    "+4.2%",
+        "utilization_history":  [68, 71, 74, 72, 76],
         "high_risk_trainers":   high_risk,
         "stretched_trainers":   stretched,
         "bench_trainers":       on_bench,
@@ -1735,15 +1767,18 @@ def unified_intelligence():
         "open_actions":         len(actions) or 2,
         "open_demand":          len(demand_df),
         "team_readiness_score": readiness_score,
+        "readiness_trend":      "+2.4%",
         "cert_coverage_pct":    cert_coverage,
         "international_batches": int_batch_count,
         "domestic_batches":     dom_batch_count,
         "delivery_risk_count":  high_risk,
+        "unread_notifications": len([n for n in notifications if not n["read"]])
     }
 
     # ── Response (web-frontend data model + backward-compat fields) ──────
     return jsonify({
         "manager_kpis":             manager_kpis,
+        "notifications":            notifications,
         "trainer_operations_df":    trainer_ops,
         "trainer_current_state_df": trainer_states,
         "batch_engagement_df":      all_batches,
