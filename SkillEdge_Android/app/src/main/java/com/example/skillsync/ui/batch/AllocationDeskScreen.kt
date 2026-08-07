@@ -41,15 +41,15 @@ internal fun relevanceColor(relevance: Int): Color {
 // ── Delivery-mode priority ───────────────────────────────────────────────────
 
 /**
- * ILT (instructor-led) is the priority tier a manager needs to staff first;
- * FMAT and ILO are deliberately kept below it regardless of date. Anything
- * else RMS returns (a mode we haven't seen, or a typo in the source data)
- * defaults to the priority tier rather than being silently buried — an
- * unrecognised mode is a data-quality question, not a reason to demote it.
+ * ILT and FMAT together are the priority tier a manager needs to staff first;
+ * ILO is deliberately kept below regardless of date. Anything else RMS
+ * returns (a mode we haven't seen, or a typo in the source data) defaults to
+ * the priority tier rather than being silently buried — an unrecognised mode
+ * is a data-quality question, not a reason to demote it.
  */
 private fun isDeprioritisedMode(mode: String): Boolean {
     val m = mode.uppercase()
-    return m.contains("FMAT") || m.contains("ILO")
+    return m.contains("ILO")
 }
 
 private enum class MatchBand(val label: String) {
@@ -132,7 +132,7 @@ internal fun AllocationDeskContent(
                     fontWeight = FontWeight.ExtraBold, color = sk.bodyText,
                 )
                 Text(
-                    "Sorted by delivery date · ILT prioritised, FMAT/ILO below",
+                    "Sorted by delivery date · ILT + FMAT prioritised, ILO below",
                     style = MaterialTheme.typography.labelSmall, color = sk.subText,
                 )
                 Spacer(Modifier.height(12.dp))
@@ -217,7 +217,7 @@ internal fun AllocationDeskContent(
             item {
                 Spacer(Modifier.height(4.dp))
                 SectionHeader(
-                    title = "Priority — Instructor-Led (ILT)",
+                    title = "Priority — ILT + FMAT",
                     count = priorityBatches.size,
                     tint = sk.teal,
                     expanded = priorityExpanded,
@@ -237,7 +237,7 @@ internal fun AllocationDeskContent(
             item {
                 Spacer(Modifier.height(4.dp))
                 SectionHeader(
-                    title = "Other Delivery Modes (FMAT / ILO)",
+                    title = "Other Delivery Modes (ILO)",
                     count = otherBatches.size,
                     tint = sk.subText,
                     expanded = otherExpanded,
@@ -318,7 +318,7 @@ private fun FilterBottomSheet(
                             Text(mode, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
                             if (isDeprioritisedMode(mode)) {
                                 Spacer(Modifier.width(6.dp))
-                                MiniTag("below ILT", sk.subText)
+                                MiniTag("below priority", sk.subText)
                             }
                         }
                     }

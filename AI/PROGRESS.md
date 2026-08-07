@@ -1,5 +1,18 @@
 # SkillEdge Project Progress
 
+## Allocation Desk: priority grouping correction
+### Release v1.20.1
+- **Timestamp**: 2026-08-07T20:15:00+05:30
+- **Files Modified**: `ui/batch/AllocationDeskScreen.kt`, `app/build.gradle.kts` (versionCode 29, versionName 1.20.1)
+- **Fix**: v1.20.0 grouped FMAT together with ILO as both demoted. Corrected
+  per clarification: **ILT + FMAT are the priority tier together**; **ILO
+  alone is the demoted tier**. `isDeprioritisedMode()` now only matches
+  "ILO"; section titles updated to "Priority — ILT + FMAT" / "Other Delivery
+  Modes (ILO)". Sort-by-date-descending within each tier is unchanged.
+- **Build Status**: ✓ `assembleDebug` + `assembleRelease` both BUILD SUCCESSFUL.
+- **Still unverified on-device** — same caveat as v1.20.0, no Android SDK/emulator in this environment.
+
+
 ## Allocation Desk: full redesign — priority segregation, filters, UI/UX overhaul
 ### Release v1.20.0
 - **Timestamp**: 2026-08-07T20:00:00+05:30
