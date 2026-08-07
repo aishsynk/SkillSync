@@ -1,11 +1,14 @@
 package com.koenig.skilledge.presentation.dashboard
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
@@ -188,158 +191,92 @@ private fun DashboardContent(
             .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(16.dp)
     ) {
-        // KPI Cards Section
         if (kpis != null) {
+            // Enterprise Intelligence Platform Header
             item {
                 Text(
-                    text = "Team Deployment",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    text = "Delivery Manager Intelligence",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
             }
 
+            // Suite 1: Composite Team Readiness & Certification Coverage
             item {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    KpiCard(
-                        title = "Reportees",
-                        value = kpis.reporteeCount.toString(),
-                        color = TealPrimary,
-                        modifier = Modifier.width(120.dp)
-                    )
-
-                    KpiCard(
-                        title = "Delivering Now",
-                        value = kpis.liveCourses.toString(),
+                    EnterpriseKpiTile(
+                        title = "Team Readiness Score",
+                        value = "${kpis.teamReadinessScore}%",
+                        subtitle = "Cert Coverage: ${kpis.certCoveragePct}%",
                         color = SuccessGreen,
-                        modifier = Modifier.width(120.dp)
-                    )
-
-                    KpiCard(
-                        title = "Upcoming",
-                        value = kpis.upcomingBatches.toString(),
-                        color = AmberSecondary,
-                        modifier = Modifier.width(120.dp)
-                    )
-
-                    KpiCard(
-                        title = "Avg Utilization",
-                        value = "${kpis.avgUtilization}%",
-                        color = TealPrimary,
-                        modifier = Modifier.width(120.dp)
-                    )
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(24.dp)) }
-
-            // Capacity Section
-            item {
-                Text(
-                    text = "Capacity & Utilization",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-            }
-
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            color = MaterialTheme.colorScheme.surface,
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Available Capacity",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = kpis.capacityHeadroom.toString(),
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SuccessGreen
-                        )
-                        Text(
-                            text = "trainers < 60% utilized",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = "Overloaded",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = kpis.overloaded.toString(),
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = ErrorRed
-                        )
-                        Text(
-                            text = "trainers > 85% utilized",
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            item { Spacer(modifier = Modifier.height(24.dp)) }
-
-            // Manager Control Section
-            item {
-                Text(
-                    text = "Manager Control",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-            }
-
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            color = MaterialTheme.colorScheme.surface,
-                            shape = RoundedCornerShape(8.dp)
-                        )
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    ControlMetric(
-                        title = "Open Actions",
-                        value = kpis.openActions.toString(),
-                        color = AmberSecondary,
                         modifier = Modifier.weight(1f)
                     )
 
-                    ControlMetric(
-                        title = "Blocked",
-                        value = kpis.blockedAllocations.toString(),
+                    EnterpriseKpiTile(
+                        title = "Utilization & Trend",
+                        value = "${kpis.avgUtilization}%",
+                        subtitle = kpis.utilizationTrend,
+                        color = TealPrimary,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(12.dp)) }
+
+            // Suite 2: Capacity & Allocation Breakdown
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Capacity & Load Distribution",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            CapacityMetric("Bench (<60%)", "${kpis.benchTrainers} Trainers", SuccessGreen)
+                            CapacityMetric("Optimal (60-85%)", "${kpis.optimalTrainers} Trainers", TealPrimary)
+                            CapacityMetric("Overloaded (>85%)", "${kpis.overloadedTrainers} Trainers", ErrorRed)
+                        }
+                    }
+                }
+            }
+
+            item { Spacer(modifier = Modifier.height(12.dp)) }
+
+            // Suite 3: Delivery Risk & Regional Distribution Matrix
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    EnterpriseKpiTile(
+                        title = "Delivery Risk Matrix",
+                        value = "${kpis.deliveryRiskCount} Risk Cases",
+                        subtitle = "Feedback/MTI Incidents",
                         color = ErrorRed,
                         modifier = Modifier.weight(1f)
                     )
 
-                    ControlMetric(
-                        title = "Feedback",
-                        value = kpis.feedbackCases.toString(),
+                    EnterpriseKpiTile(
+                        title = "International Deliveries",
+                        value = "${kpis.internationalBatches} Global",
+                        subtitle = "Domestic: ${kpis.domesticBatches}",
                         color = AmberSecondary,
                         modifier = Modifier.weight(1f)
                     )
@@ -348,11 +285,11 @@ private fun DashboardContent(
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
 
-            // Action Queue Section
+            // Attention Queue Section
             if (actions.isNotEmpty()) {
                 item {
                     Text(
-                        text = "Attention Queue",
+                        text = "Attention Queue & Skill Workflows",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(bottom = 12.dp)
@@ -370,16 +307,28 @@ private fun DashboardContent(
                 }
             }
 
-            // Unallocated Demand Section
+            // Primary Unallocated Opportunities Preview
             if (intelligence.unallocatedDemandDf.isNotEmpty()) {
                 item {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Text(
-                        text = "Unallocated Demand",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Primary Allocation Opportunities",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "${intelligence.unallocatedDemandDf.size} Available",
+                            fontSize = 12.sp,
+                            color = TealPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
                 items(intelligence.unallocatedDemandDf.take(5)) { demand ->
@@ -398,57 +347,63 @@ private fun DashboardContent(
 }
 
 @Composable
-private fun KpiCard(
+private fun EnterpriseKpiTile(
     title: String,
     value: String,
+    subtitle: String,
     color: Color,
     modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = modifier
-            .height(100.dp),
-        shape = RoundedCornerShape(8.dp),
+        modifier = modifier.height(105.dp),
+        shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.material3.BorderStroke(1.dp, color.copy(alpha = 0.2f))
+        border = BorderStroke(1.dp, color.copy(alpha = 0.3f))
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp),
+                .padding(14.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
                 text = title,
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.SemiBold
             )
             Text(
                 text = value,
-                fontSize = 28.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = color
+            )
+            Text(
+                text = subtitle,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
 }
 
 @Composable
-private fun ControlMetric(
+private fun CapacityMetric(
     title: String,
     value: String,
-    color: Color,
-    modifier: Modifier = Modifier
+    color: Color
 ) {
-    Column(modifier = modifier) {
+    Column {
         Text(
             text = title,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = value,
-            fontSize = 22.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             color = color
         )
@@ -466,7 +421,7 @@ private fun ActionQueueCard(
             .clip(RoundedCornerShape(8.dp))
             .clickable { onClick() },
         color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.material3.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
         Column(
             modifier = Modifier.padding(12.dp)
@@ -519,35 +474,66 @@ private fun DemandCard(
     demand: com.koenig.skilledge.domain.models.UnallocatedDemand,
     modifier: Modifier = Modifier
 ) {
+    val isInt = demand.isInternational
+    val borderColor = if (isInt) AmberSecondary else MaterialTheme.colorScheme.outlineVariant
+
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.material3.BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        shape = RoundedCornerShape(8.dp)
+        border = BorderStroke(if (isInt) 1.5.dp else 1.dp, borderColor),
+        shape = RoundedCornerShape(10.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isInt) {
+                        Text(text = "🌐 ${demand.flagEmoji}", fontSize = 14.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    Text(
+                        text = demand.courseName,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                }
+
+                Surface(
+                    color = if (isInt) AmberSecondary.copy(alpha = 0.15f) else TealPrimary.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = if (isInt) "INT'L OPPORTUNITY" else demand.deliveryMode,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isInt) AmberSecondary else TealPrimary,
+                        modifier = Modifier.padding(6.dp, 2.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
             Text(
-                text = demand.courseName,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "${demand.startDate} · ${demand.deliveryMode}",
+                text = "${demand.startDate} · ${demand.location ?: "Global"} · ${demand.customer ?: "Koenig Partner"}",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            if (demand.mismatchConstraints.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "⚠️ ${demand.mismatchConstraints.first()}",
+                    fontSize = 10.sp,
+                    color = ErrorRed,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }
-
-private fun Modifier.clickable(onClick: () -> Unit) = this
-    .clickable(onClick = onClick, enabled = true)
-
-@Composable
-private fun androidx.compose.material3.BorderStroke(width: androidx.compose.ui.unit.Dp, color: Color) =
-    androidx.compose.material3.BorderStroke(width, color)
-
-@Composable
-private fun rememberScrollState() = androidx.compose.foundation.rememberScrollState()

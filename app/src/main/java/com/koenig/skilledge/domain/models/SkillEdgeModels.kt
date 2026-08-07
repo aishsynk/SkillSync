@@ -42,7 +42,7 @@ data class UnifiedManagerIntelligence(
     val feedbackCoachingDf: List<FeedbackCoaching> = emptyList(),
     val futureCertificationRoadmapDf: List<FutureCertification> = emptyList(),
     val vendorStrengthDf: List<VendorStrength> = emptyList()
-)
+) : Parcelable
 
 // ============= Core Datasets =============
 
@@ -145,7 +145,14 @@ data class UnallocatedDemand(
     val location: String? = null,
     val customer: String? = null,
     val requiredSkills: List<String> = emptyList(),
-    val priority: String = "Medium"
+    val priority: String = "Medium",
+    val isInternational: Boolean = false,
+    val countryCode: String = "IN",
+    val flagEmoji: String = "🇮🇳",
+    val mismatchConstraints: List<String> = emptyList(),
+    val isException: Boolean = false,
+    val suitabilityScore: Int = 90,
+    val priorityScore: Int = 70
 ) : Parcelable
 
 @Parcelize
@@ -291,3 +298,32 @@ sealed class UiState<out T> {
     data class Error(val error: String) : UiState<Nothing>()
     object Empty : UiState<Nothing>()
 }
+
+// ============= Batch Details Accordion Models =============
+
+@Parcelize
+data class PaxItem(
+    val studentName: String,
+    val studentEmail: String
+) : Parcelable
+
+@Parcelize
+data class BatchDetailsData(
+    val assignmentId: String,
+    val courseName: String = "AZ-104: Microsoft Azure Administrator",
+    val deliveryMode: String = "ILT",
+    val region: String = "London, UK",
+    val startDate: String = "10 Aug 2026",
+    val endDate: String = "14 Aug 2026",
+    val paxCount: Int = 12,
+    val paxRoster: List<PaxItem> = emptyList(),
+    val recordingLink: String? = null,
+    val totalFee: String = "£ 4,500",
+    val currency: String = "GBP",
+    val csmName: String = "Operations UK",
+    val scid: String = "SC-99823",
+    val location: String = "London, UK (Virtual / Onsite)",
+    val startTime: String = "09:00 AM",
+    val endTime: String = "05:00 PM",
+    val tocUrl: String = "https://www.koenig-solutions.com/course-toc"
+) : Parcelable

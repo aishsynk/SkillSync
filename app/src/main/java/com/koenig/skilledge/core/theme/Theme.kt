@@ -10,6 +10,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
@@ -121,17 +122,4 @@ fun SkillEdgeTheme(
         shapes = SkillEdgeShapes,
         content = content
     )
-}
-
-// Convenience extension for accessing theme colors
-@Composable
-fun SkillEdgeColors.getStatusColor(status: String): androidx.compose.ui.graphics.Color {
-    return when (status) {
-        "teaching_now" -> StatusTeachingNow
-        "preparing" -> StatusPreparing
-        "scheduled_today" -> StatusScheduledToday
-        "free" -> StatusFree
-        "blocked" -> StatusBlocked
-        else -> StatusUnknown
-    }
 }

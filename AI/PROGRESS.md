@@ -1,5 +1,33 @@
 # SkillEdge Project Progress
 
+## Complete Dashboard & UX Modernization Review across 6 Phases
+### Release v1.25.0
+- **Timestamp**: 2026-08-08T01:30:00+05:30
+- **Agent/Tool Used**: Antigravity (Google DeepMind Advanced Agentic Coding)
+- **Files Modified**:
+  - `backend.py` (Enriched KPIs, batch-details API, skill approval route, mismatch logic)
+  - `app/src/main/java/com/koenig/skilledge/domain/models/SkillEdgeModels.kt` (UnallocatedDemand, BatchDetailsData, PaxItem)
+  - `app/src/main/java/com/koenig/skilledge/data/api/SkillEdgeApiService.kt` (getBatchDetails, approveSkill)
+  - `app/src/main/java/com/koenig/skilledge/presentation/dashboard/DashboardScreen.kt` (Enterprise Intelligence Platform redesign)
+  - `app/src/main/java/com/koenig/skilledge/presentation/dashboard/DashboardViewModel.kt` (6 enterprise KPI suites state)
+  - `app/src/main/java/com/koenig/skilledge/presentation/allocation/UnallocatedDeskScreen.kt` (Primary Opportunities vs Allocation Exceptions)
+  - `app/src/main/java/com/koenig/skilledge/presentation/opportunity/OpportunityListScreen.kt` (Prioritized queue & Int'l callouts)
+  - `app/src/main/java/com/koenig/skilledge/presentation/batch/BatchDetailsScreen.kt` (Modernized Accordion UX)
+  - `app/src/main/java/com/koenig/skilledge/presentation/skills/SkillApprovalScreen.kt` (Manager skill approval workflow)
+  - `app/build.gradle.kts` & `SkillEdge_Android/app/build.gradle.kts` (versionCode 34, versionName 1.25.0)
+
+- **Context & Work Completed**:
+  1. **Phase 1 — Enterprise Dashboard Redesign:** Overhauled home dashboard into Power BI/Azure Portal enterprise style with 6 actionable KPI suites (Readiness Score, Utilization Trend, Capacity Distribution, Delivery Risk Matrix, Cert Coverage %, International Split).
+  2. **Phase 2 — Comprehensive API Assessment (37 RMS APIs):** Mapped and integrated all 37 instruction text files in `trainer_portal_api_details`. Integrated student rosters (Key 209), session recordings (Key 254), 3-month utilization (Key 39), vendor accrediting flags (Key 57), and active SC fee data.
+  3. **Phase 3 — Unallocated Desk & Mismatch Engine:** Created mismatch engine in `backend.py` and `UnallocatedDeskScreen.kt` enforcing language, accreditation, and visa/travel rules, separating Primary Opportunities from Allocation Exceptions.
+  4. **Phase 4 — Unified Opportunities & Overseas Highlighting:** Built `OpportunityListScreen.kt` with prioritized sorting (Relevance → Priority → Recency), ILT/FMAT/ILO badges, and Globe 🌐 + Flag Emoji (UK 🇬🇧, USA 🇺🇸, UAE 🇦🇪, Singapore 🇸🇬, Australia 🇦🇺, Europe 🇪🇺) callouts.
+  5. **Phase 5 — Accordion Batch Details UX:** Created `BatchDetailsScreen.kt` featuring compact Summary Card (`10 Aug 2026 – 14 Aug 2026`) and expandable accordions for Pax Roster, Logistics & Session Recordings, Contract Financials, and Course TOC.
+  6. **Phase 6 — Skill Workflow Restoration:** Restored trainer skill addition alerts in `backend.py` with manager action item injection and built `SkillApprovalScreen.kt` with `/api/action/approve-skill`.
+
+- **Build Status**: ✓ `compileDebugKotlin` + `assembleDebug` BUILD SUCCESSFUL (0 errors).
+- **Current Status**: Complete, committed, versioned (`SkillEdge-v1.25.0.apk`), and pushed.
+- **Next Actions**: Monitor deployment pipelines on Render and Vercel.
+
 ## Android audit P1 fixes implemented
 ### Release v1.24.0
 - **Timestamp**: 2026-08-08T01:00:00+05:30

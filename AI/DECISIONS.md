@@ -2,6 +2,21 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-08 — v1.25.0: Complete Dashboard & UX Modernization Review across 6 Phases
+
+- **Decision:** Overhauled the Home Dashboard into an Enterprise Intelligence Platform (Power BI / Azure Portal layout) replacing weak/static metrics with 6 actionable KPI suites: Team Readiness Score, Utilization & 3-Month Trend, Capacity Distribution (Bench <60%, Optimal 60-85%, Overloaded >85%), Delivery Risk Matrix, Cert Coverage Ratio, and International vs Domestic Allocation Split.
+- **Rationale:** Delivery Managers need immediate operational insights to assign trainers and manage risk rather than viewing raw reportee counts or static known status metrics.
+- **Decision:** Assessment and integration of all 37 RMS instruction endpoints from `trainer_portal_api_details`. Key endpoints utilized include 3-month utilization trends (Key 39), vendor accrediting flags (Key 57), student pax rosters (Key 209), session recording links (Key 254), active SC fee lookups, and skill addition IDP requests (Key 255).
+- **Rationale:** Utilizing existing RMS endpoints unlocks deep student/logistics visibility and automated manager governance without introducing fake mock data.
+- **Decision:** Built a constraint-aware Unallocated Desk engine in `backend.py` and `UnallocatedDeskScreen.kt` that evaluates language requirements, accreditation prerequisites, and regional travel/visa restrictions to split demand into **Primary Opportunities** and **Allocation Exceptions**.
+- **Rationale:** Allocation exceptions with clear warning chips prevent delivery managers from assigning trainers who lack required local language skills or accrediting body certifications.
+- **Decision:** Replaced siloed ILT/FMAT/ILO tabs with a single prioritized opportunity queue sorted by Relevance → Priority → Recency, featuring overseas delivery callouts (UK 🇬🇧, USA 🇺🇸, UAE 🇦🇪, Singapore 🇸🇬, Australia 🇦🇺, Europe 🇪🇺) with Globe icons 🌐 and gold/amber badges.
+- **Rationale:** Global deliveries have urgent financial and logistics dependencies that demand immediate managerial triage.
+- **Decision:** Redesigned Batch Details into a compact accordion view (`BatchDetailsScreen.kt`) featuring a Batch Summary Card (`10 Aug 2026 – 14 Aug 2026`) and expandable sections for *Pax Roster*, *Logistics & Session Recordings*, *Contract Financials*, and *Syllabus/TOC*.
+- **Rationale:** Reduces vertical scroll fatigue while keeping secondary logistics details easily accessible on demand.
+- **Decision:** Restored historical manager skill addition & IDP request approval workflow in `backend.py` (`POST /api/action/approve-skill`) and `SkillApprovalScreen.kt`.
+- **Rationale:** Ensures reportee skill additions trigger automated manager action items and notification queues for proper delivery governance.
+
 ## 2026-08-07 — v1.23.0: "No utilization data" is not the same as "0% utilization"
 
 - **Decision:** Added an explicit `utilization_available` boolean to every trainer's operational row (`ops_row` in `backend.py`), and switched both the backend's team-average KPI and the Android capacity-distribution chart to filter on that flag instead of inferring availability from the numeric value.

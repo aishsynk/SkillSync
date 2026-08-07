@@ -3,16 +3,21 @@ package com.koenig.skilledge
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.koenig.skilledge.core.theme.SkillEdgeTheme
-import com.koenig.skilledge.presentation.login.LoginScreen
 import com.koenig.skilledge.presentation.dashboard.DashboardScreen
+import com.koenig.skilledge.presentation.login.LoginScreen
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 
@@ -21,7 +26,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize Timber logging
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
         }
@@ -117,86 +121,80 @@ fun SkillEdgeNavigation() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsPlaceholder(onBackClick: () -> Unit) {
-    androidx.compose.material3.Scaffold(
+    Scaffold(
         topBar = {
-            androidx.compose.material3.TopAppBar(
-                title = { androidx.compose.material3.Text("Settings") },
+            TopAppBar(
+                title = { Text("Settings") },
                 navigationIcon = {
-                    androidx.compose.material3.IconButton(onClick = onBackClick) {
-                        androidx.compose.material.icons.Icon(
-                            androidx.compose.material.icons.filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
         }
-    ) {
-        androidx.compose.foundation.layout.Box(
+    ) { innerPadding ->
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(it),
-            contentAlignment = androidx.compose.ui.Alignment.Center
+                .padding(innerPadding),
+            contentAlignment = Alignment.Center
         ) {
-            androidx.compose.material3.Text("Settings Coming Soon")
+            Text("Settings Coming Soon")
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ActionDetailPlaceholder(onBackClick: () -> Unit) {
-    androidx.compose.material3.Scaffold(
+    Scaffold(
         topBar = {
-            androidx.compose.material3.TopAppBar(
-                title = { androidx.compose.material3.Text("Action Details") },
+            TopAppBar(
+                title = { Text("Action Details") },
                 navigationIcon = {
-                    androidx.compose.material3.IconButton(onClick = onBackClick) {
-                        androidx.compose.material.icons.Icon(
-                            androidx.compose.material.icons.filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
         }
-    ) {
-        androidx.compose.foundation.layout.Box(
+    ) { innerPadding ->
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(it),
-            contentAlignment = androidx.compose.ui.Alignment.Center
+                .padding(innerPadding),
+            contentAlignment = Alignment.Center
         ) {
-            androidx.compose.material3.Text("Action Details Coming Soon")
+            Text("Action Details Coming Soon")
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TrainerDetailPlaceholder(onBackClick: () -> Unit) {
-    androidx.compose.material3.Scaffold(
+    Scaffold(
         topBar = {
-            androidx.compose.material3.TopAppBar(
-                title = { androidx.compose.material3.Text("Trainer Profile") },
+            TopAppBar(
+                title = { Text("Trainer Profile") },
                 navigationIcon = {
-                    androidx.compose.material3.IconButton(onClick = onBackClick) {
-                        androidx.compose.material.icons.Icon(
-                            androidx.compose.material.icons.filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
         }
-    ) {
-        androidx.compose.foundation.layout.Box(
+    ) { innerPadding ->
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(it),
-            contentAlignment = androidx.compose.ui.Alignment.Center
+                .padding(innerPadding),
+            contentAlignment = Alignment.Center
         ) {
-            androidx.compose.material3.Text("Trainer Profile Coming Soon")
+            Text("Trainer Profile Coming Soon")
         }
     }
 }

@@ -39,6 +39,16 @@ interface SkillEdgeApiService {
         @Query("delivery_type") deliveryType: String? = null
     ): Response<UnifiedManagerIntelligence>
 
+    @GET("data/batch-details")
+    suspend fun getBatchDetails(
+        @Query("assignment_id") assignmentId: String
+    ): Response<com.koenig.skilledge.domain.models.BatchDetailsData>
+
+    @POST("api/action/approve-skill")
+    suspend fun approveSkill(
+        @Body request: SkillApprovalRequest
+    ): Response<SkillApprovalResponse>
+
     @GET("api/refresh/status")
     suspend fun getRefreshStatus(): Response<RefreshStatusResponse>
 
@@ -228,4 +238,17 @@ data class HealthResponse(
     val sessionCount: Int = 0,
     val uptime: Long = 0,
     val version: String? = null
+)
+
+data class SkillApprovalRequest(
+    val actionId: String,
+    val status: String = "Approved",
+    val managerEmail: String
+)
+
+data class SkillApprovalResponse(
+    val success: Boolean,
+    val actionId: String,
+    val status: String,
+    val message: String
 )
