@@ -1,5 +1,65 @@
 # SkillEdge Project Progress
 
+## Full Android Product Audit (no code changes — deliberately)
+### 2026-08-08
+- **Timestamp**: 2026-08-08T00:30:00+05:30
+- **Agent/Tool Used**: Claude Code
+- **Files Modified**: `AI/ANDROID_AUDIT.md` (new), `AI/PROGRESS.md`
+
+- **Context**: User explicitly redirected scope — Android app only, no web/
+  SkillEdge_Local/Render/backend-portability investigation unless it directly
+  breaks Android behavior. Requested a structured 10-section audit
+  (Dashboard, Team, Trainer 360, Courses, Allocation Desk, Skill Management,
+  Session/Auth, Notifications, API utilization, Priority/Roadmap) from a
+  Senior Android Architect / Product Designer / UX / Delivery Manager lens,
+  with an explicit instruction not to assume a feature is done because a
+  backend field exists — verify what's actually rendered.
+
+- **Method**: Read every screen composable + ViewModel directly (Dashboard,
+  Team, Trainer 360, Courses, Allocation Desk, BatchDetail, MarkSkillDialog,
+  Login, Actions tab) plus the Android-facing `backend.py` routes each one
+  calls, and traced specific claims to line numbers rather than inferring
+  from field names alone (e.g., confirmed `_sessions` dict is written on
+  login but never read anywhere, confirmed `future_skill_roadmap_df` is
+  unconditionally `[]`, confirmed the Allocation Desk Phase 3 checklist item
+  by item against the actual Compose code).
+
+- **Full findings**: `AI/ANDROID_AUDIT.md` — Current State / Gaps / UX
+  Issues / Functional Issues / Data Utilization Issues per screen, plus a
+  consolidated P0-P3 priority list and a v1.24.0→v1.27.0+ release sequence.
+
+- **Headline findings**:
+  - No P0s — the one real bug this session (utilization phantom-zero
+    averaging) was already found and fixed in v1.23.0; Skill Management's
+    full save→RMS-write→verify→refresh pipeline was traced end-to-end and
+    found solid; Allocation Desk's Phase 3 checklist (Best/Alternate/Risky
+    Match, Primary/Secondary/Emergency Backup, Priority, Revenue, Match %)
+    is fully implemented, verified item-by-item, not assumed.
+  - Single biggest gap: the **Team screen has no risk-based filter or sort**
+    despite feedback-risk being a first-class signal everywhere else in the
+    app — the filter/sort infrastructure already exists (`TeamFilters`/
+    `TeamSort`), so this is a small, contained addition, not new plumbing.
+  - Dashboard's "Needs Attention" list (the one genuinely actionable section)
+    sits below five descriptive analytics charts — reorder recommended.
+  - Two backend-computed fields (`deployable_pct`, `unknown_status`) and one
+    per-trainer field (`recommended_action`) are already in every response
+    Android already fetches, and are never displayed anywhere — zero new API
+    cost to surface them.
+  - Session/auth: login-once-and-use already works via persisted
+    `SessionManager` state; the only gap is no 401/session-expiry handling,
+    which is currently moot since the backend never actually validates or
+    expires the session token server-side (confirmed by grep — `_sessions`
+    is write-only).
+
+- **Current Status**: Audit delivered, no implementation changes made this
+  turn (deliberately — this was a research/analysis deliverable per the
+  user's request). `AI/ANDROID_AUDIT.md` is the reference for what to build
+  next.
+- **Next Actions**: Awaiting direction on which P1 items to implement first;
+  recommended starting point per the audit's own roadmap is the Team screen
+  risk filter/sort (contained, highest-value, lowest-risk).
+
+
 ## Dashboard accuracy fix + clarity redesign
 ### Release v1.23.0
 - **Timestamp**: 2026-08-07T23:00:00+05:30
