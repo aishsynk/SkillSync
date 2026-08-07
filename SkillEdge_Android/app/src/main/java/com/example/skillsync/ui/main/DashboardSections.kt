@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -20,8 +21,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
+import com.example.skillsync.theme.IconSlot
+import com.example.skillsync.theme.Radii
+import com.example.skillsync.theme.Space
+import com.example.skillsync.theme.Surface0
+import com.example.skillsync.theme.accentGlass
+import com.example.skillsync.theme.glassSurface
+import com.example.skillsync.theme.heroSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
 import java.util.Calendar
@@ -48,87 +57,154 @@ fun ProfileHeader(
     val sk = MaterialTheme.skill
     val name = profile?.str("name").orEmpty()
         .ifBlank { email.substringBefore("@").replace(".", " ").replaceFirstChar { it.uppercase() } }
-    val role = profile?.str("role").orEmpty().ifBlank { "Delivery Manager" }
     val photo = profile?.str("photo_url").orEmpty()
+    val unread = kpis?.intOrNull("unread_notifications") ?: 0
 
-    Card(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onOpenProfile),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
-        elevation = CardDefaults.cardElevation(4.dp),
+    // Identity sits directly on the aurora — no bar, no fill. The old teal
+    // header spent a full band of screen on chrome that carried no information.
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            Modifier
-                .background(Brush.linearGradient(listOf(Color(0xFF0A1128), Color(0xFF1E293B))))
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        Box(
+            Modifier.clip(RoundedCornerShape(Radii.chip)).clickable(onClick = onOpenProfile),
+            contentAlignment = Alignment.BottomEnd,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Box(contentAlignment = Alignment.BottomEnd) {
-                    Avatar(name = name, photoUrl = photo, size = 42.dp)
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(androidx.compose.foundation.shape.CircleShape)
-                            .background(Color(0xFF10B981))
-                            .border(1.dp, Color(0xFF1E293B), androidx.compose.foundation.shape.CircleShape)
-                    )
-                }
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        RoleBadge("MANAGER")
-                    }
-                    Text(
-                        "Delivery Manager Cockpit",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF94A3B8),
-                        fontSize = 11.sp,
-                    )
-                }
-            }
-
-            // Notification Bell with Badge
+            Avatar(name = name, photoUrl = photo, size = 38.dp)
             Box(
-                modifier = Modifier
-                    .clip(androidx.compose.foundation.shape.CircleShape)
-                    .clickable(onClick = onOpenNotifications)
-                    .padding(6.dp)
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_alert),
-                    contentDescription = "Notifications",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
+                Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(sk.aqua)
+                    .border(2.dp, Surface0, CircleShape)
+            )
+        }
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                name,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = sk.frost,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "Delivery Manager · Live",
+                style = MaterialTheme.typography.labelSmall,
+                color = sk.labelText,
+                fontSize = 9.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.09.em,
+            )
+        }
+        Box(
+            Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(Radii.icon))
+                .background(sk.glass)
+                .border(1.dp, sk.glassBorder, RoundedCornerShape(Radii.icon))
+                .clickable(onClick = onOpenNotifications),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_alert),
+                contentDescription = "Alerts",
+                tint = sk.ice,
+                modifier = Modifier.size(17.dp),
+            )
+            if (unread > 0) {
                 Box(
-                    modifier = Modifier
-                        .size(14.dp)
-                        .clip(androidx.compose.foundation.shape.CircleShape)
-                        .background(Color(0xFFEF4444))
-                        .align(Alignment.TopEnd),
-                    contentAlignment = Alignment.Center
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 3.dp, y = (-3).dp)
+                        .defaultMinSize(minWidth = 15.dp, minHeight = 15.dp)
+                        .clip(CircleShape)
+                        .background(sk.crit)
+                        .border(2.dp, Surface0, CircleShape),
+                    contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "3",
-                        fontSize = 9.sp,
+                        "$unread",
+                        fontSize = 8.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 3.dp),
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * The hero: one readiness score, its trend, and the three numbers that frame
+ * the manager's day. Everything below this card exists to explain this card.
+ */
+@Composable
+fun CommandHero(kpis: Map<*, *>?, capKpis: Map<*, *>?) {
+    val sk = MaterialTheme.skill
+    // Readiness prefers the capability figure (computed from real Qubits and
+    // catalogue depth) and falls back to the dashboard's own score, so the hero
+    // still reads before team-capability has been fetched.
+    val readiness = capKpis?.intOrNull("team_readiness_score")
+        ?: kpis?.intOrNull("team_readiness_score")
+    val deployable = kpis?.intOrNull("deployable_pct")
+    val trend = kpis?.str("readiness_trend").orEmpty()
+    val strength = kpis?.intOrNull("total_team_members")
+    val active = kpis?.intOrNull("active_trainers")
+    val util = kpis?.intOrNull("avg_team_utilization")
+
+    Box(Modifier.fillMaxWidth().heroSurface()) {
+        Column(Modifier.padding(Space.lg)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "READINESS SCORE",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.ice,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.13.em,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        readiness?.toString() ?: "—",
+                        fontSize = 40.sp,
+                        fontWeight = FontWeight.Light,
+                        color = Color.White,
+                        letterSpacing = (-0.04).em,
+                    )
+                    if (trend.isNotBlank()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "${if (trend.startsWith("-")) "▼" else "▲"} $trend vs last month",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (trend.startsWith("-")) sk.crit else sk.aqua,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp,
+                        )
+                    }
+                }
+                ReadinessRing(score = readiness, innerValue = deployable, size = 74.dp)
+            }
+
+            // Deliberately no sub-figures here: strength, active trainers and
+            // utilisation each own a tile in the grid immediately below, and
+            // repeating them in the hero made the same number appear twice on
+            // one screen. The hero states the score and what it is derived from.
+            Spacer(Modifier.height(Space.md))
+            Text(
+                buildString {
+                    append(strength?.let { "$it reportees" } ?: "Team")
+                    active?.let { append(" · $it deployed") }
+                    util?.let { append(" · $it% utilised") }
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = sk.ice,
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Medium,
+            )
         }
     }
 }
@@ -230,6 +306,16 @@ data class Kpi(
     val pending: Boolean = false,
     /** Needs team-capability, which is not fetched until something asks for it. */
     val needsCapability: Boolean = false,
+    /** Icon drawn in the tile's slot. */
+    val icon: Int = R.drawable.ic_trend,
+    /** Signed delta shown under the value, e.g. "+4.2%". Blank hides the row. */
+    val trend: String = "",
+    /** Direction of [trend]: +1 good, -1 bad, 0 neutral. */
+    val trendDir: Int = 0,
+    /** Inline history; drawn as a sparkline when it has two or more points. */
+    val spark: List<Int> = emptyList(),
+    /** Critical tiles take a rose fill instead of the neutral glass. */
+    val critical: Boolean = false,
 )
 
 /**
@@ -270,55 +356,103 @@ fun ManagerKpiGrid(
         stateBy[it.str("official_email").lowercase()]?.str("current_status") in status
     }
 
+    val utilHistory = (kpis?.get("utilization_history") as? List<*>)
+        ?.mapNotNull { (it as? Number)?.toInt() }.orEmpty()
+    val atRisk = n("high_risk_trainers") ?: 0
+    val openActions = (n("open_actions") ?: 0) + (n("open_demand") ?: 0)
+    val bench = n("bench_trainers") ?: 0
+
     val items = listOf(
-        Kpi("Active trainers", figure(n("active_trainers")), "delivering or scheduled", sk.teal,
+        Kpi("Team strength", figure(n("total_team_members")), "direct reportees", sk.brand,
+            Drill("Team strength", "Everyone reporting to you", namesOf(ops)),
+            icon = R.drawable.ic_people,
+            trend = if (bench > 0) "$bench on bench" else "fully engaged",
+            trendDir = if (bench > 0) 0 else 1),
+
+        Kpi("Active trainers", figure(n("active_trainers")), "delivering or scheduled", sk.aqua,
             Drill("Active trainers", "Delivering, scheduled or preparing",
-                namesOf(opsWithStatus("teaching_now", "scheduled_today", "preparing")))),
-        Kpi("Active batches", figure(n("active_batches")), "running today", sk.blue,
-            Drill("Active batches", "Currently being delivered",
+                namesOf(opsWithStatus("teaching_now", "scheduled_today", "preparing"))),
+            icon = R.drawable.ic_award,
+            trend = "${n("unallocated_trainers") ?: 0} free now",
+            trendDir = 0),
+
+        Kpi("Active deliveries", figure(n("active_batches")), "running today", sk.royal,
+            Drill("Active deliveries", "Currently being delivered",
                 batches.filter { it.str("engagement_state") == "current" }.map {
                     it.str("course_name") to "${it.str("trainer_name")} · ${it.str("delivery_mode")}"
-                })),
-        Kpi("Avg utilisation", n("avg_team_utilization")?.let { "$it%" } ?: "—",
+                }),
+            icon = R.drawable.ic_inbox,
+            trend = "${n("upcoming_batches") ?: 0} upcoming",
+            trendDir = 1),
+
+        Kpi("Utilisation", n("avg_team_utilization")?.let { "$it%" } ?: "—",
             "3-mo avg · ${n("utilization_sample") ?: 0}/${n("total_team_members") ?: 0} tracked",
             utilTint(n("avg_team_utilization"), sk),
             Drill("Utilisation", "Three-month average per trainer",
                 ops.sortedByDescending { it.int("current_utilization") }.map {
                     it.str("trainer_name") to
                         (if (it.bool("utilization_available")) "${it.int("current_utilization")}%" else "no data")
-                })),
-        Kpi("Readiness", c("team_readiness_score")?.let { "$it%" } ?: "—",
-            "${c("ready_trainers") ?: 0} rated Ready", sk.teal,
+                }),
+            icon = R.drawable.ic_trend,
+            trend = kpis?.str("utilization_trend").orEmpty(),
+            trendDir = if (kpis?.str("utilization_trend").orEmpty().startsWith("-")) -1 else 1,
+            spark = utilHistory),
+
+        Kpi("Team readiness", (c("team_readiness_score") ?: n("team_readiness_score"))?.let { "$it" } ?: "—",
+            "${c("ready_trainers") ?: 0} rated Ready", sk.cyan,
             Drill("Readiness", "Qubits, approved catalogue depth and spare capacity",
                 capTrainers.sortedByDescending { it.int("readiness_score") }.map {
                     it.str("trainer_name") to
                         "${it.intOrNull("readiness_score") ?: "—"} · ${it.str("readiness_bucket")}"
                 }),
-            pending = capabilityLoading, needsCapability = capKpis == null),
-        Kpi("Certified", figure(c("certified_trainers")), "hold at least one exam", sk.green,
-            Drill("Certified trainers", "Exams passed, from the RMS resume record",
-                capTrainers.map { t ->
-                    val held = t.obj("certification")?.list("held").orEmpty()
-                    t.str("trainer_name") to "${held.size} certification${if (held.size == 1) "" else "s"}"
+            icon = R.drawable.ic_check,
+            trend = kpis?.str("readiness_trend").orEmpty(),
+            trendDir = if (kpis?.str("readiness_trend").orEmpty().startsWith("-")) -1 else 1,
+            // Falls back to the dashboard's own score, so this tile shows a real
+            // number on open rather than "Tap to load".
+            pending = capabilityLoading && n("team_readiness_score") == null,
+            needsCapability = false),
+
+        Kpi("Cert coverage", n("cert_coverage_pct")?.let { "$it%" } ?: "—",
+            "of the team holds a vendor cert", sk.sky,
+            Drill("Certification coverage", "Vendor certifications held per trainer",
+                ops.sortedByDescending { it.int("vendor_cert_count") }.map {
+                    it.str("trainer_name") to "${it.int("vendor_cert_count")} certification(s)"
                 }),
-            pending = capabilityLoading, needsCapability = capKpis == null),
-        Kpi("Cert gaps", figure(c("certification_gap_count")), "teach it, not certified", sk.red,
-            Drill("Certification gaps", "Courses on the roster with no matching certification",
-                capTrainers.flatMap { t ->
-                    t.obj("certification")?.list("missing").orEmpty().map { m ->
-                        "${m.str("code")} — ${m.str("name")}" to
-                            "${t.str("trainer_name")} · via ${m.str("because")}"
-                    }
+            icon = R.drawable.ic_certificate,
+            trend = c("certification_gap_count")?.let { "$it gaps open" } ?: "",
+            trendDir = if ((c("certification_gap_count") ?: 0) > 0) -1 else 1),
+
+        Kpi("At risk", "$atRisk", "resources flagged", sk.crit,
+            Drill("At-risk resources", "Feedback risk flagged on the operations record",
+                ops.filter { it.str("feedback_risk") == "High" }.map {
+                    it.str("trainer_name") to
+                        "${it.str("designation")} · ${it.str("recommended_action")}"
                 }),
-            pending = capabilityLoading, needsCapability = capKpis == null),
+            icon = R.drawable.ic_alert,
+            trend = if (atRisk == 0) "team clear" else "needs review",
+            trendDir = if (atRisk == 0) 1 else -1,
+            critical = atRisk > 0),
+
+        Kpi("Needs action", "$openActions", "decisions waiting on you", sk.warn,
+            Drill("Actions requiring attention", "Open manager actions and unallocated demand",
+                ops.filter { it.str("recommended_action").isNotBlank() }.map {
+                    it.str("trainer_name") to it.str("recommended_action")
+                }),
+            icon = R.drawable.ic_flag,
+            trend = "${n("open_demand") ?: 0} unallocated demands",
+            trendDir = if (openActions == 0) 1 else 0,
+            critical = false),
     )
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        items.chunked(3).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Two per row: a KPI carrying an icon, a value, a trend and a sparkline
+    // cannot breathe in a third of a phone's width — the previous 3-up grid is
+    // what forced 8sp captions and clipped labels.
+    Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+        items.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 row.forEach { k -> KpiCard(k, Modifier.weight(1f), onDrill, onLoadCapability) }
-                // Keep the last row's cards the same width as every other row.
-                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                repeat(2 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
@@ -346,52 +480,105 @@ private fun KpiCard(
         kpi.drill != null -> ({ onDrill(kpi.drill) })
         else -> null
     }
-    Card(
+    val shape = RoundedCornerShape(Radii.kpi)
+    Box(
         modifier
-            .heightIn(min = 78.dp)
-            .then(if (action != null) Modifier.clickable(onClick = action) else Modifier),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
+            .heightIn(min = 118.dp)
+            .then(
+                if (kpi.critical) Modifier.accentGlass(sk.crit, shape, strong = true)
+                else Modifier.glassSurface(shape)
+            )
+            .then(if (action != null) Modifier.clickable(onClick = action) else Modifier)
     ) {
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 9.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(5.dp).clip(RoundedCornerShape(3.dp)).background(kpi.tint))
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    kpi.label.uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.subText, fontSize = 8.sp, fontWeight = FontWeight.Bold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+        // Gradient stripe keyed to the metric family — the tile's identity is
+        // readable before any text is.
+        Box(
+            Modifier
+                .width(3.dp)
+                .fillMaxHeight()
+                .background(
+                    Brush.verticalGradient(listOf(kpi.tint, kpi.tint.copy(alpha = 0.15f)))
+                )
+        )
+        Column(Modifier.padding(start = 14.dp, top = 12.dp, end = 12.dp, bottom = 12.dp)) {
+            IconSlot(tint = kpi.tint, size = 26.dp) {
+                Icon(
+                    painterResource(kpi.icon), null,
+                    tint = kpi.tint, modifier = Modifier.size(14.dp),
                 )
             }
-            Spacer(Modifier.height(3.dp))
+            Spacer(Modifier.height(10.dp))
+
             if (kpi.pending) {
-                ShimmerBox(width = 42.dp, height = 21.dp)
+                ShimmerBox(width = 52.dp, height = 24.dp)
             } else if (kpi.needsCapability) {
                 Text(
                     "Tap to load",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = sk.sky,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
-                    modifier = Modifier.padding(vertical = 3.dp),
                 )
             } else {
                 Text(
                     kpi.value,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = if (kpi.value == "—") sk.subText else sk.bodyText,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = (-0.03).em,
+                    color = when {
+                        kpi.value == "—" -> sk.subText
+                        kpi.critical -> Color(0xFFFF8A9B)
+                        else -> sk.frost
+                    },
                     maxLines = 1,
                 )
             }
+
+            Spacer(Modifier.height(5.dp))
             Text(
-                kpi.caption,
+                kpi.label.uppercase(),
                 style = MaterialTheme.typography.labelSmall,
-                color = sk.subText, fontSize = 8.sp, maxLines = 2,
+                color = sk.labelText,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.09.em,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+
+            if (kpi.spark.size >= 2) {
+                Spacer(Modifier.height(7.dp))
+                Sparkline(
+                    values = kpi.spark,
+                    tint = kpi.tint,
+                    endpointTint = sk.cyan,
+                    height = 20.dp,
+                )
+            } else if (kpi.trend.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    buildString {
+                        append(
+                            when (kpi.trendDir) {
+                                1 -> "▲ "
+                                -1 -> "▼ "
+                                else -> "· "
+                            }
+                        )
+                        append(kpi.trend)
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = when (kpi.trendDir) {
+                        1 -> sk.good
+                        -1 -> sk.crit
+                        else -> sk.subText
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -419,28 +606,23 @@ fun TeamReadinessSummaryCard(deliveryRows: List<Map<*, *>>) {
 
     data class Band(val label: String, val count: Int, val color: Color, val emoji: String)
     val bands = listOf(
-        Band("Ready",            ready,       sk.green,  "🟢"),
-        Band("Ready with Prep",  readyPrep,   sk.teal,   "🟡"),
-        Band("Needs Mentoring",  needsMentor, sk.amber,  "🟠"),
-        Band("Hold",             hold,        sk.red,    "🔴"),
+        Band("Ready",            ready,       sk.aqua,  ""),
+        Band("Ready with Prep",  readyPrep,   sk.cyan,  ""),
+        Band("Needs Mentoring",  needsMentor, sk.warn,  ""),
+        Band("Hold",             hold,        sk.crit,  ""),
     )
 
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
-    ) {
-        Column(Modifier.padding(10.dp)) {
+    Box(Modifier.fillMaxWidth().glassSurface()) {
+        Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     painterResource(R.drawable.ic_trend), null,
-                    tint = sk.teal, modifier = Modifier.size(15.dp),
+                    tint = sk.cyan, modifier = Modifier.size(15.dp),
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    "Delivery Readiness",
-                    style = MaterialTheme.typography.titleMedium,
+                    "Delivery readiness",
+                    style = MaterialTheme.typography.titleSmall,
                     color = sk.bodyText,
                     fontWeight = FontWeight.Bold,
                 )
@@ -477,7 +659,12 @@ fun TeamReadinessSummaryCard(deliveryRows: List<Map<*, *>>) {
                         Modifier.width(120.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(band.emoji, fontSize = 9.sp)
+                        Box(
+                            Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(band.color)
+                        )
                         Spacer(Modifier.width(4.dp))
                         Text(
                             band.label,
@@ -585,27 +772,22 @@ fun TeamRiskSummaryCard(opsRows: List<Map<*, *>>) {
 
     data class RiskBand(val label: String, val count: Int, val color: Color, val emoji: String)
     val bands = listOf(
-        RiskBand("High",   high,   sk.red,    "🔴"),
-        RiskBand("Medium", medium, sk.amber,  "🟡"),
-        RiskBand("Low",    low,    sk.green,  "🟢"),
+        RiskBand("High",   high,   sk.crit,  ""),
+        RiskBand("Medium", medium, sk.warn,  ""),
+        RiskBand("Low",    low,    sk.aqua,  ""),
     )
 
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
-    ) {
-        Column(Modifier.padding(10.dp)) {
+    Box(Modifier.fillMaxWidth().glassSurface()) {
+        Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     painterResource(R.drawable.ic_alert), null,
-                    tint = sk.red, modifier = Modifier.size(15.dp),
+                    tint = sk.crit, modifier = Modifier.size(15.dp),
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    "Feedback Risk",
-                    style = MaterialTheme.typography.titleMedium,
+                    "Feedback risk",
+                    style = MaterialTheme.typography.titleSmall,
                     color = sk.bodyText,
                     fontWeight = FontWeight.Bold,
                 )
@@ -641,7 +823,12 @@ fun TeamRiskSummaryCard(opsRows: List<Map<*, *>>) {
                         Modifier.width(120.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(band.emoji, fontSize = 9.sp)
+                        Box(
+                            Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(band.color)
+                        )
                         Spacer(Modifier.width(4.dp))
                         Text(
                             band.label,
@@ -703,48 +890,44 @@ fun TeamCapacityAlertCard(opsRows: List<Map<*, *>>) {
 
     if (bench == 0 && light == 0) return
 
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
-    ) {
-        Column(Modifier.padding(10.dp)) {
+    Box(Modifier.fillMaxWidth().glassSurface()) {
+        Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painterResource(R.drawable.ic_people), null,
-                    tint = sk.amber, modifier = Modifier.size(15.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    "Capacity Optimization",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = sk.bodyText,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.weight(1f))
-                if (bench > 0) {
-                    Surface(
-                        color = sk.amber.copy(alpha = 0.14f),
-                        shape = RoundedCornerShape(6.dp),
-                    ) {
-                        Text(
-                            "$bench on bench",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = sk.amber,
-                            fontWeight = FontWeight.Bold, fontSize = 9.sp,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        )
-                    }
+                IconSlot(tint = sk.warn, size = 26.dp) {
+                    Icon(
+                        painterResource(R.drawable.ic_people), null,
+                        tint = sk.warn, modifier = Modifier.size(14.dp),
+                    )
                 }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Capacity balance",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = sk.frost,
+                    )
+                    Text(
+                        "Where the team sits against demand",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.labelText,
+                        fontSize = 10.sp,
+                    )
+                }
+                if (bench > 0) Chip("$bench on bench", sk.warn)
             }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                CapacityStat("Stretched",  stretched, sk.red,   Modifier.weight(1f))
-                CapacityStat("Balanced",   balanced,  sk.teal,  Modifier.weight(1f))
-                CapacityStat("Light",      light,     sk.amber, Modifier.weight(1f))
-                CapacityStat("On Bench",   bench,     sk.green, Modifier.weight(1f))
-            }
+            Spacer(Modifier.height(16.dp))
+            // A single segmented bar: at phone width, comparing segment lengths
+            // is far easier than comparing four separate stat blocks, and the
+            // whole/part relationship is the actual question being asked.
+            DistributionBar(
+                slices = listOf(
+                    Slice("Stretched", stretched, sk.crit),
+                    Slice("Balanced", balanced, sk.sky),
+                    Slice("Light", light, sk.warn),
+                    Slice("Bench", bench, sk.aqua),
+                )
+            )
         }
     }
 }
@@ -799,15 +982,26 @@ fun TeamAnalytics(
 
         AnalyticsCard("Capacity distribution", "3-month avg utilisation per trainer, bucketed") {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                DonutChart(
-                    slices = capacitySlices,
-                    centerValue = if (utils.isEmpty()) "—" else "${utils.average().toInt()}%",
-                    centerLabel = "avg",
-                    size = 108.dp,
-                )
-                Spacer(Modifier.width(14.dp))
-                ChartLegend(capacitySlices, Modifier.weight(1f))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (utils.isEmpty()) "—" else "${utils.average().toInt()}%",
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Light,
+                        letterSpacing = (-0.03).em,
+                        color = sk.frost,
+                    )
+                    Text(
+                        "TEAM AVERAGE",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.labelText,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.11.em,
+                    )
+                }
             }
+            Spacer(Modifier.height(14.dp))
+            DistributionBar(slices = capacitySlices.filter { it.value > 0 }.ifEmpty { capacitySlices })
             if (noData > 0) {
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -819,9 +1013,7 @@ fun TeamAnalytics(
         }
 
         AnalyticsCard("Deployment right now", "What each trainer is doing today") {
-            StackedBar(deployment)
-            Spacer(Modifier.height(10.dp))
-            ChartLegend(deployment.filter { it.value > 0 }.ifEmpty { deployment })
+            DistributionBar(slices = deployment.filter { it.value > 0 }.ifEmpty { deployment })
         }
 
         if (capTrainers.isNotEmpty()) {
@@ -890,8 +1082,17 @@ fun TeamAnalytics(
         // Team utilisation trend, averaged across everyone who has a series.
         val trend = remember(ops) { teamUtilisationTrend(ops) }
         if (trend.size >= 2) {
-            AnalyticsCard("Utilisation trend", "Team average over the last ${trend.size} months") {
-                TrendChart(points = trend, tint = sk.teal, height = 96.dp)
+            AnalyticsCard(
+                "Utilisation trend",
+                "Team average over the last ${trend.size} months · healthy corridor 70–85%",
+            ) {
+                // The corridor is the point: a manager needs to know whether the
+                // team is inside the healthy band, not the exact percentage.
+                CorridorBars(
+                    values = trend.map { it.value },
+                    labels = trend.map { it.label },
+                    height = 88.dp,
+                )
             }
         }
     }
@@ -995,13 +1196,8 @@ fun TeamCapacityForecastCard(opsRows: List<Map<*, *>>) {
 
     if (towardOverload.isEmpty() && towardBench.isEmpty()) return
 
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(2.dp),
-    ) {
-        Column(Modifier.padding(14.dp)) {
+    Box(Modifier.fillMaxWidth().glassSurface()) {
+        Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     painterResource(R.drawable.ic_trend), null,
@@ -1035,7 +1231,7 @@ fun TeamCapacityForecastCard(opsRows: List<Map<*, *>>) {
 
             if (towardOverload.isNotEmpty()) {
                 Text(
-                    "⚠️ Trending toward overload".uppercase(),
+                    "Trending toward overload".uppercase(),
                     style = MaterialTheme.typography.labelSmall,
                     color = sk.red, fontWeight = FontWeight.Bold, fontSize = 9.sp,
                 )
@@ -1080,20 +1276,23 @@ private fun ForecastRow(f: UtilForecast, tint: Color) {
 
 @Composable
 private fun AnalyticsCard(title: String, subtitle: String, body: @Composable ColumnScope.() -> Unit) {
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.skill.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
-    ) {
-        Column(Modifier.padding(14.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.skill.bodyText)
+    val sk = MaterialTheme.skill
+    Box(Modifier.fillMaxWidth().glassSurface()) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = sk.frost,
+            )
+            Spacer(Modifier.height(2.dp))
             Text(
                 subtitle,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.skill.subText,
+                color = sk.labelText,
+                fontSize = 10.sp,
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(14.dp))
             body()
         }
     }

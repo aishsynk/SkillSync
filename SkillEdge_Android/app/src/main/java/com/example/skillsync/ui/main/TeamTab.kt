@@ -22,6 +22,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
+import com.example.skillsync.theme.IconSlot
+import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
 
@@ -175,7 +177,7 @@ internal fun TeamTab(
     }
 
     LazyColumn(
-        Modifier.fillMaxSize().background(sk.pageBg),
+        Modifier.fillMaxSize(),
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -612,18 +614,32 @@ internal fun Dropdown(
     }
 }
 
+/**
+ * Empty state with a glyph and a cause, not a bare grey sentence. An empty
+ * screen is the one moment a manager cannot tell "nothing to report" apart from
+ * "this is broken", so the state has to say which it is.
+ */
 @Composable
 internal fun EmptyStateCard(message: String) {
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.skill.cardBg),
-    ) {
-        Box(Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) {
+    val sk = MaterialTheme.skill
+    Box(Modifier.fillMaxWidth().glassSurface()) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 30.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            IconSlot(tint = sk.sky, size = 46.dp) {
+                Icon(
+                    painterResource(R.drawable.ic_check), null,
+                    tint = sk.sky, modifier = Modifier.size(22.dp),
+                )
+            }
+            Spacer(Modifier.height(14.dp))
             Text(
                 message,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.skill.subText,
+                color = sk.subText,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                lineHeight = 18.sp,
             )
         }
     }

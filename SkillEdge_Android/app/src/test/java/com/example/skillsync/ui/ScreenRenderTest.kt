@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onLast
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.example.skillsync.HomeTab
@@ -249,43 +250,58 @@ class ScreenRenderTest {
     }
 
     @Test
-    fun dashboard_greetsTheSignedInManagerByName() {
+    fun dashboard_identifiesTheSignedInManager() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
         compose.onNodeWithText("Aishwar Nigam").assertExists()
-        compose.onNodeWithText("DELIVERY MANAGER").assertExists()
-        compose.onNodeWithText("Senior Corporate Trainer (Global)").assertExists()
+        compose.onNodeWithText("Delivery Manager · Live").assertExists()
+    }
+
+    /**
+     * The home screen is a command centre, not the roster: it shows who is
+     * carrying delivery and who needs attention. The full trainer card, with the
+     * batch and live badge, is the Team tab's job — asserted separately below.
+     */
+    @Test
+    fun dashboard_showsWhoIsCarryingDelivery() {
+        compose.setContent { SkillSyncTheme { Dashboard() } }
+        compose.onNodeWithText("Carrying delivery").assertExists()
+        compose.onAllNodesWithText("Abhinav Samant").onFirst().assertExists()
+        compose.onAllNodesWithText("39%").onFirst().assertExists()
     }
 
     @Test
-    fun dashboard_showsTrainerAndTheBatchTheyAreIn() {
-        compose.setContent { SkillSyncTheme { Dashboard() } }
-        // Several of these legitimately appear in more than one place (KPI tile,
-        // Top performers row, roster card), so assert presence not global counts.
-        compose.onAllNodesWithText("Abhinav Samant").onFirst().assertExists()
-        compose.onAllNodesWithText("Delivering").onFirst().assertExists()
-        compose.onAllNodesWithText("39%").onFirst().assertExists()
-        compose.onAllNodesWithText("Light").onFirst().assertExists()
-        compose.onNodeWithText("Top performing").assertExists()
+    fun trainerCard_showsTheBatchTheyAreIn() {
+        compose.setContent {
+            SkillSyncTheme {
+                TrainerCard(
+                    trainer = trainerOps(),
+                    state = stateDelivering(),
+                    onClick = {},
+                )
+            }
+        }
+        compose.onAllNodesWithText("DELIVERING").onFirst().assertExists()
+        compose.onAllNodesWithText("LIGHT").onFirst().assertExists()
         compose.onNodeWithText("AI-102T00: Develop AI Solutions in Azure").assertExists()
         compose.onNodeWithText("ILO · Microsoft · 1 pax · ends in 2 d").assertExists()
         compose.onNodeWithText("LIVE").assertExists()
     }
 
-    /** The twelve manager KPIs the dashboard is required to surface. */
+    /** The eight command-centre KPIs the dashboard is required to surface. */
     @Test
     fun dashboard_rendersEveryManagerKpi() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
         listOf(
-            "TEAM MEMBERS", "ACTIVE TRAINERS", "UNALLOCATED", "ACTIVE BATCHES",
-            "UPCOMING BATCHES", "TRAINING DAYS", "AVG UTILISATION", "CERTIFIED",
-            "CERT GAPS", "HIGH RISK", "READINESS", "SKILL COVERAGE",
+            "TEAM STRENGTH", "ACTIVE TRAINERS", "ACTIVE DELIVERIES", "UTILISATION",
+            "TEAM READINESS", "CERT COVERAGE", "AT RISK", "NEEDS ACTION",
         ).forEach { compose.onNodeWithText(it).assertExists() }
     }
 
     /**
-     * Certification KPIs come from a slower second call. Until it lands they must
-     * show a placeholder — rendering 0 would state, falsely, that the team holds
-     * no certifications.
+     * Certification coverage and readiness now come from the main payload rather
+     * than the slower capability call, so they must show a real figure on open —
+     * the old "Tap to load" placeholder left the two headline health numbers
+     * blank on the screen a manager looks at first.
      */
     @Test
     fun dashboard_certKpisAreNotZeroBeforeCapabilityLoads() {
@@ -303,9 +319,10 @@ class ScreenRenderTest {
                 )
             }
         }
-        compose.onNodeWithText("SKILL COVERAGE").assertExists()
-        // Unloaded capability KPIs offer to fetch; they never render a false 0.
-        compose.onAllNodesWithText("Tap to load").onFirst().assertExists()
+        compose.onNodeWithText("CERT COVERAGE").assertExists()
+        compose.onNodeWithText("TEAM READINESS").assertExists()
+        // Never a placeholder where the payload already carries the number.
+        compose.onAllNodesWithText("Tap to load").assertCountEquals(0)
     }
 
     @Test
@@ -341,7 +358,7 @@ class ScreenRenderTest {
             }
         }
         compose.onNodeWithText("—").assertExists()
-        compose.onAllNodesWithText("Unknown").onFirst().assertExists()
+        compose.onAllNodesWithText("UNKNOWN").onFirst().assertExists()
         compose.onNodeWithText("Assignment data unavailable from RMS").assertExists()
     }
 
@@ -379,9 +396,9 @@ class ScreenRenderTest {
         compose.onNodeWithText("1 of 1 trainers").assertExists()
         compose.onAllNodesWithText("Abhinav Samant").onFirst().assertExists()
         // Certification signal from the capability payload reaches the roster card.
-        compose.onNodeWithText("Developing").assertExists()
-        compose.onNodeWithText("2 cert").assertExists()
-        compose.onNodeWithText("3 gap").assertExists()
+        compose.onNodeWithText("DEVELOPING").assertExists()
+        compose.onNodeWithText("2 CERT").assertExists()
+        compose.onNodeWithText("3 GAP").assertExists()
     }
 
     @Test

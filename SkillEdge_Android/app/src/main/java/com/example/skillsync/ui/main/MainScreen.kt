@@ -3,6 +3,7 @@ package com.example.skillsync.ui.main
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,11 +26,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.HomeTab
 import com.example.skillsync.R
+import com.example.skillsync.theme.AuroraBackground
+import com.example.skillsync.theme.IconSlot
+import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.StatusBarIcons
+import com.example.skillsync.theme.accentGlass
+import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.batch.AllocationDeskContent
 import com.example.skillsync.ui.batch.AllocationState
@@ -102,19 +109,33 @@ fun MainScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // The aurora ground is drawn once, behind everything, and every surface
+        // above it is translucent — that is what makes the glass cards read as
+        // glass rather than as flat grey panels.
+        AuroraBackground()
         Scaffold(
-            containerColor = MaterialTheme.skill.pageBg,
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.skill.frost,
             topBar = {
                 TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        SkillSyncLogo(size = 28.dp)
+                        SkillSyncLogo(size = 26.dp)
                         Spacer(Modifier.width(10.dp))
                         Column {
-                            Text("SkillSync", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = Color.White)
                             Text(
-                                tabTitle(tab),
-                                fontSize = 9.5.sp, color = Color.White.copy(alpha = 0.78f),
+                                "SkillEdge",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp,
+                                color = MaterialTheme.skill.frost,
+                                letterSpacing = (-0.01).em,
+                            )
+                            Text(
+                                tabTitle(tab).uppercase(),
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.13.em,
+                                color = MaterialTheme.skill.labelText,
                             )
                         }
                     }
@@ -129,7 +150,7 @@ fun MainScreen(
                         Icon(
                             painterResource(R.drawable.ic_trend),
                             contentDescription = "Refresh",
-                            tint = Color.White.copy(alpha = 0.9f),
+                            tint = MaterialTheme.skill.ice,
                             modifier = Modifier.size(18.dp),
                         )
                     }
@@ -139,14 +160,16 @@ fun MainScreen(
                     }) {
                         Text(
                             "Logout",
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.skill.ice,
+                            fontWeight = FontWeight.SemiBold,
                             fontSize = 12.sp
                         )
                     }
                 },
+                // Transparent over the aurora — the teal band is gone entirely.
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent,
                 ),
             )
         },
@@ -162,9 +185,13 @@ fun MainScreen(
             val lastSync = com.example.skillsync.data.SessionManager.getLastSyncTime()
             val showBanner = dashSuccess?.fromCache == true || !hasNetwork || lastSync > 0
             if (showBanner) {
+                val stale = dashSuccess?.fromCache == true || !hasNetwork
                 Row(
                     modifier = Modifier.fillMaxWidth()
-                        .background(if (dashSuccess?.fromCache == true || !hasNetwork) MaterialTheme.colorScheme.errorContainer else MaterialTheme.skill.cardBg)
+                        .background(
+                            if (stale) MaterialTheme.skill.warn.copy(alpha = 0.16f)
+                            else Color.Transparent
+                        )
                         .padding(vertical = 4.dp, horizontal = 16.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
@@ -181,7 +208,7 @@ fun MainScreen(
                     Text(
                         syncMsg,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (dashSuccess?.fromCache == true || !hasNetwork) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.skill.subText,
+                        color = if (stale) MaterialTheme.skill.warn else MaterialTheme.skill.labelText,
                     )
                 }
             }
@@ -293,54 +320,75 @@ internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
         Triple(HomeTab.DEMAND, R.drawable.ic_inbox, "Demand"),
         Triple(HomeTab.ACTIONS, R.drawable.ic_flag, "Actions"),
     )
-    Surface(color = sk.cardBg, tonalElevation = 3.dp, shadowElevation = 8.dp) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .height(56.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            items.forEach { (key, icon, label) ->
-                val selected = current == key
-                val tint by animateColorAsState(
-                    if (selected) MaterialTheme.colorScheme.primary else sk.subText,
-                    tween(Motion.FAST), label = "navTint",
+    // Frosted over the aurora. Material's indicator pill is gone — the active
+    // tab is marked by a cyan glow bar and a lit icon instead, which costs no
+    // vertical space on a bar that already has to stay under 60dp.
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0x000D1117), Color(0xDB0D1117), Color(0xF20D1117))
                 )
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .selectable(
-                            selected = selected,
-                            onClick = { onSelect(key) },
-                            role = Role.Tab,
-                        ),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Box(
+            )
+    ) {
+        Column {
+            Box(Modifier.fillMaxWidth().height(1.dp).background(sk.glassBorder))
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .height(58.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                items.forEach { (key, icon, label) ->
+                    val selected = current == key
+                    val tint by animateColorAsState(
+                        if (selected) sk.sky else sk.labelText,
+                        tween(Motion.FAST), label = "navTint",
+                    )
+                    Column(
                         Modifier
-                            .width(20.dp)
-                            .height(2.dp)
-                            .clip(RoundedCornerShape(1.dp))
-                            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-                    )
-                    Spacer(Modifier.height(5.dp))
-                    Icon(
-                        painterResource(icon),
-                        contentDescription = label,
-                        tint = tint,
-                        modifier = Modifier.size(19.dp),
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        label,
-                        fontSize = 9.sp,
-                        color = tint,
-                        maxLines = 1,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                    )
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .selectable(
+                                selected = selected,
+                                onClick = { onSelect(key) },
+                                role = Role.Tab,
+                            ),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Box(
+                            Modifier
+                                .width(if (selected) 22.dp else 0.dp)
+                                .height(2.5.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(
+                                    if (selected) Brush.horizontalGradient(
+                                        listOf(com.example.skillsync.theme.Cyan, com.example.skillsync.theme.SkyBlue)
+                                    ) else Brush.horizontalGradient(
+                                        listOf(Color.Transparent, Color.Transparent)
+                                    )
+                                )
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Icon(
+                            painterResource(icon),
+                            contentDescription = label,
+                            tint = tint,
+                            modifier = Modifier.size(19.dp),
+                        )
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            label,
+                            fontSize = 9.sp,
+                            color = tint,
+                            maxLines = 1,
+                            letterSpacing = 0.03.em,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        )
+                    }
                 }
             }
         }
@@ -391,7 +439,7 @@ internal fun DashboardTab(
     email: String,
     onTrainerClick: (String, String) -> Unit,
     onOpenProfile: () -> Unit,
-    onLogout: () -> Unit,
+    onLogout: () -> Unit = {},
     onDrill: (Drill) -> Unit,
     onLoadCapability: () -> Unit = {},
     onOpenTeam: () -> Unit = {},
@@ -431,23 +479,23 @@ internal fun DashboardTab(
     }
 
     LazyColumn(
-        Modifier.fillMaxSize().background(sk.pageBg),
-        contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ProfileHeader(
-                    email = email,
-                    profile = profile,
-                    kpis = kpis,
-                    capKpis = capKpis,
-                    onOpenProfile = onOpenProfile,
-                )
-            }
+            ProfileHeader(
+                email = email,
+                profile = profile,
+                kpis = kpis,
+                capKpis = capKpis,
+                onOpenProfile = onOpenProfile,
+            )
         }
 
-        item { Appear(1) { DashSectionHeader("Your numbers", "Every figure is counted live from RMS") } }
+        item { Appear(1) { CommandHero(kpis = kpis, capKpis = capKpis) } }
+
+        item { Appear(2) { DashSectionHeader("Critical pulse", "Counted live from RMS") } }
 
         item {
             Appear(2) {
@@ -477,14 +525,7 @@ internal fun DashboardTab(
         // an extremely long scroll for zero extra information.
         item {
             Appear(3) {
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Needs attention", style = MaterialTheme.typography.titleLarge, color = sk.bodyText)
-                    Spacer(Modifier.width(8.dp))
-                    Chip("${ops.size} total", sk.subText)
-                }
+                DashSectionHeader("Needs you today", "Ranked by urgency across the roster")
             }
         }
 
@@ -598,42 +639,93 @@ private fun AttentionRow(
     val sk = MaterialTheme.skill
     val name = trainer.str("trainer_name")
     val tint = when {
-        reason.contains("risk", ignoreCase = true) -> sk.red
-        reason.contains("Stretched") -> sk.amber
-        else -> sk.green
+        reason.contains("risk", ignoreCase = true) -> sk.crit
+        reason.contains("Stretched") -> sk.warn
+        else -> sk.aqua
     }
-    Card(
-        Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
+    val shape = RoundedCornerShape(Radii.card)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .accentGlass(tint, shape, strong = tint == sk.crit)
+            .clickable(onClick = onClick),
     ) {
+        // Severity is carried by the stripe first and the colour second, so the
+        // triage still reads for a colour-blind manager.
+        Box(
+            Modifier
+                .width(3.dp)
+                .fillMaxHeight()
+                .background(Brush.verticalGradient(listOf(tint, tint.copy(alpha = 0.2f))))
+        )
         Row(
-            Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            Modifier.padding(start = 14.dp, top = 11.dp, end = 12.dp, bottom = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Avatar(name, capability?.str("photo_url"), 32.dp)
-            Spacer(Modifier.width(10.dp))
+            Avatar(name, capability?.str("photo_url"), 34.dp)
+            Spacer(Modifier.width(11.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    name, style = MaterialTheme.typography.titleSmall, color = sk.bodyText,
+                    name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = sk.frost,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
-                Text(reason, style = MaterialTheme.typography.labelSmall, color = tint)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    reason,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = tint,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 10.sp,
+                )
             }
             Icon(
                 painterResource(R.drawable.ic_chevron), null,
-                tint = sk.subText, modifier = Modifier.size(15.dp),
+                tint = sk.labelText, modifier = Modifier.size(15.dp),
             )
         }
     }
 }
 
+/**
+ * Section header. The uppercase eyebrow plus a hairline rule that runs to the
+ * edge gives the scroll a rhythm the previous title/subtitle pair did not — on
+ * a long dashboard the manager needs to feel where one band of information ends.
+ */
 @Composable
 private fun DashSectionHeader(title: String, subtitle: String) {
-    Column(Modifier.padding(top = 4.dp)) {
-        Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.skill.bodyText)
-        Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText)
+    val sk = MaterialTheme.skill
+    Column(Modifier.padding(top = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                title.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = sk.ice,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.15.em,
+            )
+            Spacer(Modifier.width(10.dp))
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(1.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(sk.ice.copy(alpha = 0.4f), Color.Transparent)
+                        )
+                    )
+            )
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(
+            subtitle,
+            style = MaterialTheme.typography.labelSmall,
+            color = sk.labelText,
+            fontSize = 10.5.sp,
+        )
     }
 }
 
@@ -652,29 +744,36 @@ private fun TopPerformers(
     }
     if (top.isEmpty()) return
 
-    Card(
-        Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
-    ) {
-        Column(Modifier.padding(14.dp)) {
+    Box(Modifier.fillMaxWidth().glassSurface()) {
+        Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(R.drawable.ic_award), null, tint = sk.amber, modifier = Modifier.size(17.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Top performing", style = MaterialTheme.typography.titleLarge, color = sk.bodyText)
+                IconSlot(tint = sk.sky, size = 26.dp) {
+                    Icon(
+                        painterResource(R.drawable.ic_award), null,
+                        tint = sk.sky, modifier = Modifier.size(14.dp),
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "Carrying delivery",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = sk.frost,
+                )
             }
+            Spacer(Modifier.height(2.dp))
             Text(
                 "Ranked by utilisation over the last three months",
-                style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                style = MaterialTheme.typography.labelSmall, color = sk.labelText,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             top.forEachIndexed { i, t ->
                 val util = t.int("current_utilization")
                 val cap = capMap[t.str("official_email").lowercase()]
                 val tint = when {
-                    util > 85 -> sk.red
-                    util >= 60 -> sk.teal
-                    else -> sk.amber
+                    util > 85 -> sk.crit
+                    util >= 60 -> sk.aqua
+                    else -> sk.warn
                 }
                 Row(
                     Modifier.fillMaxWidth()
@@ -728,22 +827,20 @@ internal fun ActionsTab(
         .filter { (it.obj("certification")?.int("gap_count") ?: 0) > 0 }
 
     LazyColumn(
-        Modifier.fillMaxSize().background(sk.pageBg),
-        contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (actions.isEmpty() && gapTrainers.isEmpty()) {
-            item { EmptyStateCard("No open manager actions.") }
+            item { EmptyStateCard("No open manager actions. Everything on the roster is signed off.") }
         }
         itemsIndexed(actions) { i, a -> Appear(i) { AttentionCard(a) } }
 
         if (gapTrainers.isNotEmpty()) {
             item {
-                Text(
+                DashSectionHeader(
                     "Certification gaps",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = sk.bodyText,
-                    modifier = Modifier.padding(top = 8.dp),
+                    "Courses being taught without the matching certification",
                 )
             }
             itemsIndexed(gapTrainers) { i, t ->
@@ -763,15 +860,18 @@ private fun CertGapActionCard(trainer: Map<*, *>, onClick: () -> Unit) {
     val sk = MaterialTheme.skill
     val cert = trainer.obj("certification")
     val missing = cert?.list("missing").orEmpty()
-    Card(
-        Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .accentGlass(sk.warn, RoundedCornerShape(Radii.card))
+            .clickable(onClick = onClick),
     ) {
         Row {
-            Box(Modifier.width(3.dp).fillMaxHeight().background(sk.amber))
-            Column(Modifier.padding(start = 12.dp, top = 10.dp, end = 12.dp, bottom = 10.dp)) {
+            Box(
+                Modifier.width(3.dp).fillMaxHeight()
+                    .background(Brush.verticalGradient(listOf(sk.warn, sk.warn.copy(alpha = 0.2f))))
+            )
+            Column(Modifier.padding(start = 13.dp, top = 12.dp, end = 13.dp, bottom = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Avatar(trainer.str("trainer_name"), trainer.str("photo_url"), 28.dp)
                     Spacer(Modifier.width(9.dp))
@@ -832,42 +932,65 @@ private fun CertGapActionCard(trainer: Map<*, *>, onClick: () -> Unit) {
 
 // ── Loading & error ───────────────────────────────────────────────────────────
 
+/** Shimmer in the real card geometry, so the load reads as the page arriving. */
 @Composable
 private fun DashboardSkeleton() {
     Column(
-        Modifier.fillMaxSize().background(MaterialTheme.skill.pageBg).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        ShimmerBox(height = 168.dp, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth())
-        repeat(2) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                repeat(3) {
-                    ShimmerBox(height = 78.dp, shape = RoundedCornerShape(10.dp), modifier = Modifier.weight(1f))
+        ShimmerBox(height = 172.dp, shape = RoundedCornerShape(Radii.hero), modifier = Modifier.fillMaxWidth())
+        repeat(3) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                repeat(2) {
+                    ShimmerBox(height = 118.dp, shape = RoundedCornerShape(Radii.kpi), modifier = Modifier.weight(1f))
                 }
             }
         }
-        Spacer(Modifier.height(4.dp))
-        ShimmerBox(width = 170.dp, height = 14.dp)
-        repeat(3) {
-            ShimmerBox(height = 128.dp, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth())
+        ShimmerBox(width = 170.dp, height = 12.dp)
+        repeat(2) {
+            ShimmerBox(height = 120.dp, shape = RoundedCornerShape(Radii.card), modifier = Modifier.fillMaxWidth())
         }
     }
 }
 
 @Composable
 private fun DashErrorView(message: String, onRetry: () -> Unit) {
+    val sk = MaterialTheme.skill
     Column(
         Modifier.fillMaxSize().padding(28.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(painterResource(R.drawable.ic_alert), null, tint = MaterialTheme.skill.amber, modifier = Modifier.size(44.dp))
-        Spacer(Modifier.height(14.dp))
-        Text("Couldn't load your dashboard", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.skill.bodyText)
+        IconSlot(tint = sk.warn, size = 56.dp) {
+            Icon(
+                painterResource(R.drawable.ic_alert), null,
+                tint = sk.warn, modifier = Modifier.size(26.dp),
+            )
+        }
+        Spacer(Modifier.height(18.dp))
+        Text(
+            "Couldn't load your dashboard",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = sk.frost,
+        )
         Spacer(Modifier.height(6.dp))
-        Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.skill.subText, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(20.dp))
-        Button(onClick = onRetry, shape = RoundedCornerShape(10.dp)) {
+        Text(
+            message,
+            style = MaterialTheme.typography.bodySmall,
+            color = sk.subText,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(22.dp))
+        Button(
+            onClick = onRetry,
+            shape = RoundedCornerShape(Radii.chip),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+            ),
+        ) {
             Text("Try again", style = MaterialTheme.typography.labelLarge)
         }
     }
@@ -914,30 +1037,44 @@ internal fun TrainerCard(
     val feedbackCount = trainer.int("negative_count")
 
     val statusColor = when (status) {
-        "teaching_now" -> sk.teal
-        "scheduled_today" -> sk.blue
-        "preparing" -> sk.indigo
-        "free" -> sk.green
-        "blocked" -> sk.red
-        else -> sk.subText
+        "teaching_now" -> sk.cyan
+        "scheduled_today" -> sk.sky
+        "preparing" -> sk.ice
+        "free" -> sk.aqua
+        "blocked" -> sk.crit
+        else -> sk.labelText
     }
     val utilColor = when {
         utilRaw == null || utilRaw == 0 -> sk.subText
-        utilRaw > 85 -> sk.red
-        utilRaw >= 60 -> sk.teal
-        utilRaw >= 30 -> sk.amber
+        utilRaw > 85 -> sk.crit
+        utilRaw >= 60 -> sk.aqua
+        utilRaw >= 30 -> sk.warn
         else -> sk.subText
     }
     val utilProgress by animateProgressFromZero((utilRaw ?: 0) / 100f)
     val barColor by animateColorAsState(utilColor, tween(Motion.NORMAL), label = "bar")
 
-    Card(
-        Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
+    // Severity edge: the card's left border carries the reading that decides
+    // whether the manager needs to stop on this row at all.
+    val edge = when {
+        feedbackRisk == "High" || deliveryRisk == "High" -> sk.crit
+        utilRaw != null && utilRaw > 85 -> sk.warn
+        else -> statusColor
+    }
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .accentGlass(edge, RoundedCornerShape(Radii.card), strong = edge == sk.crit)
+            .clickable(onClick = onClick),
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Box(
+            Modifier
+                .width(3.dp)
+                .fillMaxHeight()
+                .background(Brush.verticalGradient(listOf(edge, edge.copy(alpha = 0.2f))))
+        )
+        Column(Modifier.padding(start = 15.dp, top = 13.dp, end = 13.dp, bottom = 13.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Avatar(name, capability?.str("photo_url"), 38.dp)
                 Spacer(Modifier.width(10.dp))
@@ -984,11 +1121,14 @@ internal fun TrainerCard(
                 // —— Delivery Readiness Badge (from delivery_intelligence_df) ——
                 // Always shown when available; no extra API call required.
                 if (deliveryLabel.isNotBlank()) {
+                    // Status is carried by the chip's own colour and border, so
+                    // the emoji that used to prefix these labels is gone — it
+                    // duplicated the colour and broke the typographic scale.
                     val (rdLabel, rdColor) = when (deliveryLabel) {
-                        "Ready"            -> "🟢 Ready"          to sk.green
-                        "Ready with Prep"  -> "🟡 Ready w/ Prep"  to sk.teal
-                        "Needs Mentoring" -> "🟠 Needs Mentoring" to sk.amber
-                        else               -> "🔴 Hold"            to sk.red
+                        "Ready"            -> "Ready"          to sk.aqua
+                        "Ready with Prep"  -> "Ready w/ prep"  to sk.cyan
+                        "Needs Mentoring"  -> "Needs mentoring" to sk.warn
+                        else               -> "Hold"           to sk.crit
                     }
                     Chip(rdLabel, rdColor)
                     Spacer(Modifier.width(5.dp))
@@ -1022,15 +1162,15 @@ internal fun TrainerCard(
 
                 // —— Delivery Risk Indicator ——
                 if (deliveryRisk == "High") {
-                    Chip("⚠️ Delivery Risk", sk.red)
+                    Chip("Delivery risk", sk.crit)
                     Spacer(Modifier.width(5.dp))
                 }
 
                 // —— Feedback Risk Indicator ——
                 if (feedbackRisk.isNotBlank() && feedbackRisk != "Low") {
                     val (riskLabel, riskColor) = when (feedbackRisk) {
-                        "High"   -> "🔴 Feedback Issues" to sk.red
-                        "Medium" -> "🟡 Feedback Alert" to sk.amber
+                        "High"   -> "Feedback issues" to sk.crit
+                        "Medium" -> "Feedback alert" to sk.warn
                         else     -> null to null
                     }
                     if (riskColor != null) {
@@ -1151,19 +1291,19 @@ private fun AttentionCard(action: Map<*, *>) {
     val sk = MaterialTheme.skill
     val category = action.str("category").ifBlank { "Action" }
     val catColor = when (category.lowercase()) {
-        "feedback" -> sk.red
-        "allocation" -> sk.blue
-        else -> sk.amber
+        "feedback" -> sk.crit
+        "allocation" -> sk.sky
+        else -> sk.warn
     }
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
+    Box(
+        Modifier.fillMaxWidth().accentGlass(catColor, RoundedCornerShape(Radii.card)),
     ) {
         Row {
-            Box(Modifier.width(3.dp).fillMaxHeight().background(catColor))
-            Column(Modifier.padding(start = 12.dp, top = 10.dp, end = 12.dp, bottom = 10.dp)) {
+            Box(
+                Modifier.width(3.dp).fillMaxHeight()
+                    .background(Brush.verticalGradient(listOf(catColor, catColor.copy(alpha = 0.2f))))
+            )
+            Column(Modifier.padding(start = 13.dp, top = 12.dp, end = 13.dp, bottom = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Chip(category, catColor)
                     if (action.str("priority").equals("high", true)) {
@@ -1186,11 +1326,23 @@ private fun AttentionCard(action: Map<*, *>) {
 
 // ── Small pieces ──────────────────────────────────────────────────────────────
 
+/** Status pill: tinted fill, matching hairline, uppercase micro-label. */
 @Composable
 internal fun Chip(text: String, tint: Color) {
-    Surface(color = tint.copy(alpha = 0.14f), shape = RoundedCornerShape(12.dp)) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(tint.copy(alpha = 0.16f))
+            .border(1.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(20.dp)),
+    ) {
         Text(
-            text, style = MaterialTheme.typography.labelSmall, color = tint,
+            text.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = tint,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.05.em,
+            maxLines = 1,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
         )
     }

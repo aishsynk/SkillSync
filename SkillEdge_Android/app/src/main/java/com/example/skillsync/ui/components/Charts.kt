@@ -328,6 +328,304 @@ fun StackedBar(
     }
 }
 
+// ── Command-centre figures ───────────────────────────────────────────────────
+
+/**
+ * Inline trend for a KPI tile. Bezier-smoothed, gradient area fill, and an
+ * emphasised endpoint — the endpoint is the reading being acted on, so it gets
+ * the only solid mark on the figure.
+ *
+ * Baseline floats between the series min and max rather than anchoring at zero:
+ * on a 20dp-tall figure a zero baseline flattens every real movement into a
+ * straight line, which is worse than no chart at all.
+ */
+@Composable
+fun Sparkline(
+    values: List<Int>,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    height: Dp = 22.dp,
+    endpointTint: Color = tint,
+) {
+    if (values.size < 2) return
+    val grow by animateProgressFromZero(1f)
+    val lo = values.min()
+    val hi = values.max()
+    val span = (hi - lo).coerceAtLeast(1)
+
+    Canvas(modifier.fillMaxWidth().height(height)) {
+        val w = size.width
+        val h = size.height
+        val pad = 3.dp.toPx()
+        val step = w / (values.size - 1)
+        fun px(i: Int) = i * step
+        fun py(v: Int) = h - pad - ((v - lo).toFloat() / span) * (h - pad * 2)
+
+        val line = Path()
+        values.forEachIndexed { i, v ->
+            val x = px(i)
+            val y = py(v)
+            if (i == 0) {
+                line.moveTo(x, y)
+            } else {
+                // Horizontal control points give a smooth curve without the
+                // overshoot a naive cubic through raw points produces.
+                val prevX = px(i - 1)
+                val prevY = py(values[i - 1])
+                val cx = (prevX + x) / 2f
+                line.cubicTo(cx, prevY, cx, y, x, y)
+            }
+        }
+        val area = Path().apply {
+            addPath(line)
+            lineTo(px(values.lastIndex), h)
+            lineTo(0f, h)
+            close()
+        }
+        drawPath(
+            area,
+            brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                listOf(tint.copy(alpha = 0.34f), tint.copy(alpha = 0f))
+            ),
+        )
+        drawPath(
+            line,
+            color = tint,
+            style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round),
+            alpha = grow,
+        )
+        drawCircle(
+            endpointTint,
+            radius = 2.4.dp.toPx(),
+            center = Offset(px(values.lastIndex), py(values.last())),
+        )
+    }
+}
+
+/**
+ * Twin-arc readiness gauge. The outer arc is the headline score, the inner arc
+ * a second related measure (deployable share), so the hero carries two readings
+ * without two separate figures competing for the same glance.
+ */
+@Composable
+fun ReadinessRing(
+    score: Int?,
+    innerValue: Int?,
+    modifier: Modifier = Modifier,
+    size: Dp = 76.dp,
+) {
+    val sk = MaterialTheme.skill
+    val grow by animateProgressFromZero(1f)
+
+    Box(modifier.size(size), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val outer = 7.dp.toPx()
+            val inner = 3.5.dp.toPx()
+
+            fun ring(strokeW: Float, inset: Float, sweepFrac: Float, brush: androidx.compose.ui.graphics.Brush?, track: Boolean) {
+                val off = inset + strokeW / 2f
+                val arcSize = Size(this.size.width - off * 2, this.size.height - off * 2)
+                val topLeft = Offset(off, off)
+                if (track) {
+                    drawArc(
+                        color = sk.track, startAngle = 0f, sweepAngle = 360f, useCenter = false,
+                        topLeft = topLeft, size = arcSize, style = Stroke(strokeW, cap = StrokeCap.Round),
+                    )
+                } else if (brush != null) {
+                    drawArc(
+                        brush = brush, startAngle = -90f, sweepAngle = 360f * sweepFrac * grow,
+                        useCenter = false, topLeft = topLeft, size = arcSize,
+                        style = Stroke(strokeW, cap = StrokeCap.Round),
+                    )
+                }
+            }
+
+            ring(outer, 0f, 0f, null, track = true)
+            if (score != null) {
+                ring(
+                    outer, 0f, (score / 100f).coerceIn(0f, 1f),
+                    androidx.compose.ui.graphics.Brush.sweepGradient(
+                        listOf(com.example.skillsync.theme.AzureBlue, com.example.skillsync.theme.Cyan, com.example.skillsync.theme.Aqua)
+                    ),
+                    track = false,
+                )
+            }
+            if (innerValue != null) {
+                ring(inner, outer + 3.dp.toPx(), 0f, null, track = true)
+                ring(
+                    inner, outer + 3.dp.toPx(), (innerValue / 100f).coerceIn(0f, 1f),
+                    androidx.compose.ui.graphics.Brush.sweepGradient(
+                        listOf(com.example.skillsync.theme.SkyBlue, com.example.skillsync.theme.IceBlue)
+                    ),
+                    track = false,
+                )
+            }
+        }
+        Text(
+            if (score == null) "—" else "$score",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = sk.frost,
+        )
+    }
+}
+
+/**
+ * Utilisation trend with the healthy corridor drawn behind the bars.
+ *
+ * The corridor is the point of the chart: a manager does not need the exact
+ * percentage, they need to know whether the team is inside 70–85%. Bars in the
+ * band read blue, bars outside it take the status colour, and the current
+ * period is always cyan.
+ */
+@Composable
+fun CorridorBars(
+    values: List<Int>,
+    labels: List<String>,
+    modifier: Modifier = Modifier,
+    height: Dp = 82.dp,
+    bandLow: Int = 70,
+    bandHigh: Int = 85,
+) {
+    val sk = MaterialTheme.skill
+    if (values.isEmpty()) return
+    val peak = (values.max().coerceAtLeast(bandHigh) * 1.12f)
+
+    Column(modifier) {
+        Box(Modifier.fillMaxWidth().height(height)) {
+            // Target corridor, drawn first so bars sit over it.
+            Canvas(Modifier.fillMaxSize()) {
+                val top = size.height * (1f - bandHigh / peak)
+                val bottom = size.height * (1f - bandLow / peak)
+                drawRect(
+                    color = com.example.skillsync.theme.IceBlue.copy(alpha = 0.07f),
+                    topLeft = Offset(0f, top),
+                    size = Size(size.width, (bottom - top).coerceAtLeast(1f)),
+                )
+                drawLine(
+                    sk.track,
+                    Offset(0f, top), Offset(size.width, top),
+                    strokeWidth = 1f,
+                )
+                drawLine(
+                    sk.track,
+                    Offset(0f, bottom), Offset(size.width, bottom),
+                    strokeWidth = 1f,
+                )
+            }
+            Row(
+                Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                values.forEachIndexed { i, v ->
+                    val isCurrent = i == values.lastIndex
+                    val tint = when {
+                        isCurrent -> com.example.skillsync.theme.Cyan
+                        v > bandHigh -> sk.crit
+                        v < bandLow -> sk.warn
+                        else -> com.example.skillsync.theme.SkyBlue
+                    }
+                    val frac by animateProgressFromZero((v / peak).coerceIn(0f, 1f))
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .fillMaxHeight(frac.coerceAtLeast(0.04f))
+                            .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp, bottomStart = 2.dp, bottomEnd = 2.dp))
+                            .background(
+                                androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    listOf(tint, tint.copy(alpha = 0.25f))
+                                )
+                            )
+                    )
+                }
+            }
+        }
+        if (labels.isNotEmpty()) {
+            Spacer(Modifier.height(5.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                labels.forEach {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.skill.labelText,
+                        fontSize = 8.5.sp,
+                        modifier = Modifier.weight(1f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Segmented distribution bar with an inline key.
+ *
+ * Replaces the donut for capacity and readiness splits: at phone width, segment
+ * lengths on a single bar are far easier to compare than arc angles, and the
+ * bar leaves room for the counts to sit beside it rather than inside a ring.
+ */
+@Composable
+fun DistributionBar(
+    slices: List<Slice>,
+    modifier: Modifier = Modifier,
+    height: Dp = 13.dp,
+) {
+    val total = slices.sumOf { it.value }
+    val grow by animateProgressFromZero(1f)
+    val sk = MaterialTheme.skill
+
+    Column(modifier.fillMaxWidth()) {
+        Canvas(Modifier.fillMaxWidth().height(height)) {
+            val r = androidx.compose.ui.geometry.CornerRadius(size.height / 2f, size.height / 2f)
+            drawRoundRect(color = sk.track, cornerRadius = r)
+            if (total <= 0) return@Canvas
+            var x = 0f
+            slices.forEach { s ->
+                if (s.value <= 0) return@forEach
+                val w = size.width * s.value / total * grow
+                drawRoundRect(
+                    brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                        listOf(s.color, s.color.copy(alpha = 0.55f)),
+                        startX = x, endX = x + w,
+                    ),
+                    topLeft = Offset(x, 0f),
+                    size = Size(w, size.height),
+                    cornerRadius = r,
+                )
+                x += w
+            }
+        }
+        Spacer(Modifier.height(9.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            slices.forEach { s ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(8.dp).clip(RoundedCornerShape(3.dp)).background(s.color))
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        s.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText,
+                        fontSize = 9.5.sp,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "${s.value}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = sk.frost,
+                        fontSize = 9.5.sp,
+                    )
+                }
+            }
+        }
+    }
+}
+
 /** Label + value + proportional track. The workhorse row for distributions. */
 @Composable
 fun MeterRow(

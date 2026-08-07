@@ -2,6 +2,26 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-07 — v1.28.0: Redesign starts at the token layer, and the app commits to one dark identity
+
+- **Decision:** Rewrote `theme/Color.kt` and `theme/Theme.kt` rather than restyling cards again.
+- **Rationale:** v1.25–v1.27 each rearranged `DashboardSections.kt` and each shipped looking identical, because `primary = Teal`, `pageBg = #F2F5F8` and `cardBg = #FFFFFF` were never changed. Visual identity is decided by the tokens; no amount of card work can override them.
+
+- **Decision:** The app ships a single dark command-centre theme; the light scheme now resolves to the same tokens.
+- **Rationale:** On the aurora mesh ground a light theme halves the contrast of every status colour, and an operations console that reads like a spreadsheet loses the at-a-glance triage the layout is built around. Committing to one identity also removes an entire class of two-theme drift.
+
+- **Decision:** "Glass" is a translucent gradient fill + ice hairline, not a real backdrop blur.
+- **Rationale:** Backdrop blur is unavailable below API 31 and expensive behind a scrolling `LazyColumn` on the mid-range devices this ships to. The translucent fill plus top-edge sheen is what actually reads as frosted on a phone; the blur was cost without the perceptual payoff.
+
+- **Decision:** Replaced donut charts with single stacked distribution bars.
+- **Rationale:** At phone width, comparing segment lengths on one bar is materially easier than comparing arc angles, and the bar leaves room for counts to sit beside it instead of crowding a ring.
+
+- **Decision:** Status is encoded as shape *and* colour (left stripe, pip, pill), and emoji status glyphs were removed.
+- **Rationale:** Colour-only status fails for colour-blind users and breaks the typographic scale. The stripe carries severity; colour reinforces it.
+
+- **Decision:** Readiness and certification coverage now read from `manager_kpis` in the main payload instead of showing "Tap to load" pending `team-capability`.
+- **Rationale:** Those are two of the eight headline health numbers. Leaving the first screen's key figures blank behind a second, slower RMS call defeats the purpose of a command centre. Capability still enriches the value when it arrives.
+
 ## 2026-08-08 — v1.25.0 Patch 5: Executive Cockpit & Notification Architecture
 - **Decision:** Transformed Dashboard into a Power BI / Azure Portal style Executive Cockpit with custom Canvas micro-charts (`SparklineChart`, `CapacityDonutChart`, `ReadinessRingGauge`), Header Notification Center with severity levels (Critical 🔴, Warning 🟡, Info 🔵), and SkillEdge Deep Navy & Cyan design system (`#0A1128` / `#0D8B8B`).
 - **Rationale:** Delivery Managers require immediate situational awareness within 3 seconds of logging in. High-density cards, trend sparklines, and active alert counters provide immediate operational governance without whitespace clutter.

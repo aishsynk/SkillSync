@@ -73,6 +73,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.R
 import com.example.skillsync.theme.BrandCyan
 import com.example.skillsync.theme.StatusBarIcons
+import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.Appear
 import com.example.skillsync.ui.components.Motion
@@ -133,14 +134,12 @@ fun LoginScreen(
                 Spacer(Modifier.height(34.dp))
 
                 Appear(index = 2) {
-                    Card(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .widthIn(max = 460.dp)
-                            .graphicsLayer { translationX = shake },
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.skill.cardBg),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+                            .graphicsLayer { translationX = shake }
+                            .glassSurface(RoundedCornerShape(com.example.skillsync.theme.Radii.hero)),
                     ) {
                         Column(Modifier.padding(22.dp)) {
                             Text(

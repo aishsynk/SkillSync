@@ -1,5 +1,37 @@
 # SkillEdge Project Progress
 
+## Release v1.28.0 — Command Centre Visual Redesign (token-layer rebuild)
+- **Timestamp**: 2026-08-07T21:00:00+05:30
+- **Agent/Tool Used**: Claude Code (Opus 5)
+- **Files Modified**: `theme/Color.kt`, `theme/Theme.kt`, `theme/Surfaces.kt` (new), `ui/components/Charts.kt`, `ui/main/DashboardSections.kt`, `ui/main/MainScreen.kt`, `ui/main/TeamTab.kt`, `ui/main/CoursesTab.kt`, `ui/batch/AllocationDeskScreen.kt`, `ui/auth/LoginScreen.kt`, `ui/trainer/Trainer360Screen.kt`, `app/src/test/.../ScreenRenderTest.kt`, both `build.gradle.kts`
+- **Root Cause Analysis**:
+  - Every prior "redesign" (v1.25–v1.27) edited only `DashboardSections.kt`. `Theme.kt` and `Color.kt` were never touched, so `primary = Teal #00ACAC`, `pageBg = #F2F5F8` and `cardBg = #FFFFFF` survived intact. That is why the app kept looking identical no matter how the cards were rearranged — the visual identity lives in the token layer, not the card layer.
+- **Work Completed**:
+  - Rewrote the token layer to the mandated palette: full blue ramp (Deep Navy → Frost White), four dark elevations (#0D1117/#121826/#172030/#1E293B), semantic status hues held separate from the brand accent, and the five required gradients.
+  - Removed the teal top bar entirely; `TopAppBar` is now transparent over a new `AuroraBackground` (#0F2027 → #203A43 → #2C5364 mesh with royal and cyan radial blooms).
+  - Added `theme/Surfaces.kt`: `glassSurface`, `accentGlass`, `heroSurface`, `glowRing`, `IconSlot`, plus the radius ladder (24/20/18/14/11dp) and 4–32dp spacing scale.
+  - Rebuilt the home screen as a command centre: identity bar → readiness hero (twin-arc gauge) → 8 glass KPI tiles (2-up, icon slot, gradient stripe, trend delta, sparkline) → triaged "Needs you today" → capacity balance.
+  - New Canvas charts: `Sparkline` (Bezier, gradient fill, emphasised endpoint), `ReadinessRing` (twin arc), `CorridorBars` (70–85% target band), `DistributionBar` (replaces donuts — segment lengths beat arc angles at phone width).
+  - Added coverage-by-fit distribution to the Demand tab from `allocation-desk` relevance bands (data already returned, never shown).
+  - Converted status chips to uppercase pills with hairline borders; removed all emoji status glyphs in favour of coloured pips so state reads as shape, not colour alone.
+  - Professional empty state with glyph + cause; skeleton now shimmers in the real card geometry.
+- **Backend Impact**: **None.** No endpoint, repository, model, RMS call, cache or calculation was modified. `backend.py` untouched.
+- **Build & Test Status**: `BUILD SUCCESSFUL` (assembleDebug + assembleRelease); **30/30 unit tests pass**.
+  - Fixed a pre-existing break: `DashboardTab.onLogout` had no default, so `ScreenRenderTest` did not compile at HEAD (7 tests failing before this work started).
+  - Updated `ScreenRenderTest` assertions to the new copy, and split trainer-card assertions out of the dashboard test — the home screen is a command centre, not the roster.
+- **Next Actions**: Sign and publish `SkillEdge-v1.28.0.apk` via GitHub Releases; verify on device.
+
+## Strategic UX Redesign Execution
+- **Timestamp**: 2026-08-07T20:25:00+05:30
+- **Agent/Tool Used**: Antigravity
+- **Files Modified**: implementation_plan.md
+- **Work Completed**:
+  - Analyzed existing APIs (unified-manager-intelligence, 	eam-capability) for strategic business value.
+  - Drafted an Enterprise SaaS Command Centre architecture plan (implementation_plan.md) treating the v1.27.0 dashboard as a functional proof-of-concept.
+  - Plan approved by user. Preparing for Android Compose execution of Phase 1 & 2 (Design System & Command Centre Overview).
+- **Current Status**: Moving to execution.
+- **Next Actions**: Scaffold new UI structure in SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/ based on the approved architecture.
+
 ## Release v1.27.0 — Executive Management Command Centre Redesign
 - **Timestamp**: 2026-08-07T19:59:00+05:30
 - **Agent/Tool Used**: Antigravity
@@ -777,5 +809,6 @@
      -   R e p l a c e d   t h e   i n t e r n a l   S k i l l S y n c L o g o   c o m p o s a b l e   t o   n a t i v e l y   r e n d e r   t h e   t r a n s p a r e n t   l o g o   a s s e t . 
      -   B u i l t   A P K ,   b u m p e d   v e r s i o n   t o   1 . 1 0 . 1 ,   p u s h e d   t o   G i t H u b ,   a n d   c r e a t e d   r e l e a s e . 
  -   * * C u r r e n t   S t a t u s * * :   A p p   v i s u a l   b r a n d i n g   i s   f i n a l i z e d   w i t h   t h e   n e w   t r a n s p a r e n t   l o g o . 
- -   * * N e x t   A c t i o n s * * :   P r o c e e d   t o   P h a s e   4   ( R e a d i n e s s / R i s k   E n g i n e ) .  
+ -   * * N e x t   A c t i o n s * * :   P r o c e e d   t o   P h a s e   4   ( R e a d i n e s s / R i s k   E n g i n e ) . 
+ 
  

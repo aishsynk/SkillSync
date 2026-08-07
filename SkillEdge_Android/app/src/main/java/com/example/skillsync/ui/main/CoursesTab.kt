@@ -20,6 +20,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
+import com.example.skillsync.theme.Radii
+import com.example.skillsync.theme.accentGlass
+import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
 
@@ -46,7 +49,7 @@ internal fun CoursesTab(
     if (capability == null) {
         if (loading) {
             Column(
-                Modifier.fillMaxSize().background(sk.pageBg).padding(12.dp),
+                Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 ShimmerBox(height = 50.dp, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth())
@@ -55,7 +58,7 @@ internal fun CoursesTab(
                 }
             }
         } else {
-            Box(Modifier.fillMaxSize().background(sk.pageBg), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 EmptyStateCard("Course capability could not be loaded from RMS.")
             }
         }
@@ -106,7 +109,7 @@ internal fun CoursesTab(
     }
 
     LazyColumn(
-        Modifier.fillMaxSize().background(sk.pageBg),
+        Modifier.fillMaxSize(),
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -174,13 +177,8 @@ private fun CatalogueSummary(kpis: Map<*, *>?, courses: List<Map<*, *>>) {
     val certifiable = courses.count { it.str("exam_code").isNotBlank() }
     val uncovered = courses.count { it.str("exam_code").isNotBlank() && it.int("certified_count") == 0 }
 
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
-    ) {
-        Column(Modifier.padding(14.dp)) {
+    Box(Modifier.fillMaxWidth().glassSurface()) {
+        Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(painterResource(R.drawable.ic_book), null, tint = sk.indigo, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.width(8.dp))
@@ -240,17 +238,18 @@ private fun CourseCard(course: Map<*, *>, onTrainerClick: (String, String) -> Un
         else -> sk.subText
     }
 
-    Card(
-        Modifier.fillMaxWidth().clickable { expanded = !expanded },
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .accentGlass(if (single) sk.warn else sk.sky, RoundedCornerShape(Radii.card))
+            .clickable { expanded = !expanded },
     ) {
         Row {
-            // Left rail encodes delivery risk at a glance.
+            // Left rail encodes delivery risk at a glance: a course only one
+            // person can teach is a single point of failure for that course.
             Box(
                 Modifier.width(3.dp).fillMaxHeight()
-                    .background(if (single) sk.amber else sk.teal)
+                    .background(if (single) sk.warn else sk.sky)
             )
             Column(Modifier.padding(start = 11.dp, top = 11.dp, end = 12.dp, bottom = 11.dp)) {
                 Row(verticalAlignment = Alignment.Top) {

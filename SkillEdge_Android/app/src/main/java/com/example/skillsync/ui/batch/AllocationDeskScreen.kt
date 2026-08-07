@@ -23,6 +23,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
+import com.example.skillsync.theme.Radii
+import com.example.skillsync.theme.accentGlass
+import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
 
@@ -120,38 +123,52 @@ internal fun AllocationDeskContent(
     }
 
     LazyColumn(
-        Modifier.fillMaxSize().background(sk.pageBg),
+        Modifier.fillMaxSize(),
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
             Column {
-                Text(
-                    "Unallocated Batches",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.ExtraBold, color = sk.bodyText,
-                )
-                Text(
-                    "Sorted by delivery date · ILT + FMAT prioritised, ILO below",
-                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                )
-                Spacer(Modifier.height(12.dp))
+                // Coverage first: the manager's real question is not "how many
+                // batches are open" but "how much of this can my team actually
+                // cover" — which the relevance bands already answer.
+                val high = summary?.int("high") ?: 0
+                val medium = summary?.int("medium") ?: 0
+                val unmatched = summary?.int("unmatched") ?: 0
+                val total = summary?.int("total") ?: batches.size
+                val partial = (total - high - medium - unmatched).coerceAtLeast(0)
+
+                Box(Modifier.fillMaxWidth().glassSurface()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(
+                            "Coverage by fit",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = sk.frost,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "$total unallocated · ranked against your team's capability",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.labelText,
+                            fontSize = 10.sp,
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        DistributionBar(
+                            slices = listOf(
+                                Slice("Strong fit", high, sk.aqua),
+                                Slice("Partial", medium + partial, sk.sky),
+                                Slice("No cover", unmatched, sk.crit),
+                            )
+                        )
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
 
                 if (newIds.isNotEmpty()) {
                     NewBatchBanner(newIds.size)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
                 }
-
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    SummaryPill(R.drawable.ic_inbox, "Total", summary?.int("total") ?: batches.size, sk.subText)
-                    SummaryPill(R.drawable.ic_check, "75%+", summary?.int("high") ?: 0, sk.green)
-                    SummaryPill(R.drawable.ic_gap, "Partial", summary?.int("medium") ?: 0, sk.amber)
-                    SummaryPill(R.drawable.ic_alert, "No match", summary?.int("unmatched") ?: 0, sk.red)
-                }
-                Spacer(Modifier.height(12.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
@@ -453,16 +470,24 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, isPriority: Boolean = true,
     val candidates = b.list("candidates")
     val mode = b.str("delivery_mode")
 
-    Card(
-        Modifier.fillMaxWidth().animateContentSize().clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(if (isPriority) 2.dp else 1.dp),
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .accentGlass(tint, RoundedCornerShape(Radii.card), strong = isPriority)
+            .clickable(onClick = onClick),
     ) {
         Row {
             // Relevance is the primary scan signal, so it owns the leading edge.
-            Box(Modifier.width(4.dp).fillMaxHeight().background(tint))
-            Column(Modifier.padding(12.dp).fillMaxWidth()) {
+            Box(
+                Modifier.width(3.dp).fillMaxHeight()
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            listOf(tint, tint.copy(alpha = 0.2f))
+                        )
+                    )
+            )
+            Column(Modifier.padding(start = 14.dp, top = 13.dp, end = 13.dp, bottom = 13.dp).fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {

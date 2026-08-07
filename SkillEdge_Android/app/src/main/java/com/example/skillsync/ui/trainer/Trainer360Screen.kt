@@ -148,7 +148,7 @@ internal fun Trainer360Content(data: Map<String, Any>) {
     val assignments = delivery?.list("assignments").orEmpty()
 
     LazyColumn(
-        Modifier.fillMaxSize().background(sk.pageBg),
+        Modifier.fillMaxSize(),
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
