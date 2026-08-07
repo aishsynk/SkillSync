@@ -48,12 +48,26 @@ fun Map<*, *>.intOrNull(key: String): Int? = when (val v = this[key]) {
     else -> null
 }
 
+private val MONTHS = listOf(
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+)
+
 /** "2026-08-09" -> "09 Aug". Returns the input unchanged if it isn't ISO. */
 fun String.shortDate(): String {
     val p = split("-")
     if (p.size != 3) return this
     val m = p[1].toIntOrNull() ?: return this
-    val months = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-    return "${p[2]} ${months.getOrNull(m - 1) ?: p[1]}"
+    return "${p[2]} ${MONTHS.getOrNull(m - 1) ?: p[1]}"
+}
+
+/**
+ * "2026-08-09" -> "09 Aug 2026". Used where the text leaves the app — a message
+ * a trainer reads next month must not be ambiguous about the year.
+ */
+fun String.longDate(): String {
+    val p = split("-")
+    if (p.size != 3) return this
+    val m = p[1].toIntOrNull() ?: return this
+    return "${p[2]} ${MONTHS.getOrNull(m - 1) ?: p[1]} ${p[0]}"
 }

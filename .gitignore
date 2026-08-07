@@ -33,3 +33,7 @@ app/build/
 
 # Backend (Keep out of GitHub)
 SkillEdge_Local.zip
+
+# Python bytecode
+__pycache__/
+*.pyc

@@ -17,18 +17,40 @@ class Trainer360ViewModel : ViewModel() {
     private val _state = MutableStateFlow<Trainer360State>(Trainer360State.Loading)
     val state: StateFlow<Trainer360State> = _state
 
+    private val _refreshing = MutableStateFlow(false)
+    val refreshing: StateFlow<Boolean> = _refreshing
+
     private var loadedFor: String? = null
 
-    fun load(trainerEmail: String) {
+    fun load(trainerEmail: String, managerEmail: String = "") {
         if (loadedFor == trainerEmail && _state.value is Trainer360State.Success) return
         loadedFor = trainerEmail
         viewModelScope.launch {
             _state.value = Trainer360State.Loading
-            try {
-                _state.value = Trainer360State.Success(
-                    RetrofitClient.instance.getTrainer360(trainerEmail)
+            fetch(trainerEmail, managerEmail)
+        }
+    }
+
+    /** Pull-to-refresh and screen-resume; keeps the profile on screen while re-reading. */
+    fun refresh(trainerEmail: String, managerEmail: String = "") {
+        viewModelScope.launch {
+            _refreshing.value = true
+            fetch(trainerEmail, managerEmail)
+            _refreshing.value = false
+        }
+    }
+
+    private suspend fun fetch(trainerEmail: String, managerEmail: String) {
+        try {
+            _state.value = Trainer360State.Success(
+                RetrofitClient.instance.getTrainer360(
+                    email = trainerEmail,
+                    manager = managerEmail.takeIf { it.isNotBlank() },
                 )
-            } catch (e: Exception) {
+            )
+        } catch (e: Exception) {
+            // A failed refresh must not blank a profile the manager is reading.
+            if (_state.value !is Trainer360State.Success) {
                 _state.value = Trainer360State.Error(
                     e.localizedMessage ?: "Could not load this trainer's profile"
                 )

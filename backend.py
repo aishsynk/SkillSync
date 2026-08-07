@@ -1,18 +1,25 @@
 """
-SkillSync Backend API v5.0
+SkillSync Backend API v6.0
 Deployed on Render — production backend for SkillSync Android app.
 
 Auth: POST /api/auth/login — @koenig-solutions.com only, manager or Trainer Plus role.
 Data: GET /api/data/unified-manager-intelligence?email=EMAIL — dashboard payload
       matching the web frontend data model (trainer_operations_df, trainer_current_state_df,
       batch_engagement_df, unallocated_demand_df, trainer_feedback_summary_df,
-      manager_action_objects, trainer_decision_objects).
+      manager_action_objects, trainer_decision_objects) plus `manager_kpis`.
+      GET /api/data/manager-profile?email=EMAIL — the signed-in user's own identity
+      (name, photo, designation, experience) so the dashboard can be personalised.
       GET /api/data/trainer-360?email=EMAIL — deep single-trainer profile
-      (capability, certifications, delivery history, feedback, availability).
+      (profile, capability, certifications + gap analysis, delivery, feedback).
       GET /api/data/allocation-desk?email=EMAIL — unallocated batches ranked by
       how well the manager's own team can cover them (real capability matching).
+      GET /api/data/team-courses?email=EMAIL — course catalogue the team can teach,
+      with ownership, certification mapping and coverage depth.
+      GET /api/data/trainer-skills?email=EMAIL — the RMS skill register for one
+      trainer; also the read-back used to verify a skill write actually landed.
       POST /api/action/mark-skill — records a trainer skill. WRITES to production
-      RMS (Add Trainer Skill / IDP, key 255); inputs are validated server-side.
+      RMS (Add Trainer Skill / IDP, key 255); inputs are validated server-side and
+      the write is verified by re-reading the register before success is reported.
 
 RMS schema notes — all verified against live responses, not the instruction files,
 which have proven wrong more than once:
@@ -24,16 +31,33 @@ which have proven wrong more than once:
                         CourseName, VendorName, QubitsScore, SkillLevel,
                         OfficiallyApproved, Is Future Skill, Course Assignment
   * prevUpcoming (16)   dates as "03-Aug-2026"; note the StarDate spelling
-  * vendorCertCount(57) Trainer is "Name;EmpCode"; one "True"/"False" column per body
+  * vendorCertCount(57) Trainer is "Name;EmpCode"; one "True"/"False" column per
+                        ACCREDITING BODY (MCT, CCSI, VCI…) — this is the trainer's
+                        right to teach, NOT the exams they have passed.
+  * trainerResume (87)  the only source of a real profile: TrainerName,
+                        TrainerImage (literal string "None" when unset — not null),
+                        Certifications, Languages, Summary, Experience, Skill,
+                        TrainingsDeliveredFor, Feedback. Certifications/Languages/
+                        Skill are "#"-delimited; each certification entry is
+                        "<title>: <logo url>", and the title itself contains
+                        colons ("Microsoft Certified: Azure AI Engineer
+                        Associate"), so split on ": http", never on the last ":".
+  * trainerSkills (217) employee_name/employee_code/course_id/course_name. Types
+                        are inconsistent between trainers — ids come back as int
+                        for one and str for another, so coerce both ends.
   * unallocated (190)   Coursename, CourseSDate/CourseEDate, "Delivery Mode",
                         vendor, "Assignment City", NoOfParticipants, AssignmentID
   * trainerSkills (217), trainerNegFeedback (218), last3MonthsUtil (39) key off
     employee_id / EmpCode — passing an email or blank returns zero rows silently.
   * unallocated (190) also carries CourseId, a direct TOC pdf URL, CourseURL,
     and HTML blobs in SCID / TOTRecords that must be stripped before display.
+  * uniqueCerts (72) returns zero rows for every body shape tried
+    (employee_id / email / EmpCode / empty) — treat as unavailable, not empty.
 
 There is no leave/absence endpoint in the RMS catalogue. The only unavailability
 signal is the *OffDates fields on trainerDetails, which are frequently null.
+There is also no API that reports the signed-in user's own job title; the closest
+real signal is the first role heading in their resume Experience blob.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -178,6 +202,15 @@ _APIS = {
         "pass": "TmSe!9A!@GfL",
         "role": "Trainer_Last_3_Months_Utilization",
         "key":  "39",
+    },
+    # ── Profile ──────────────────────────────────────────────────────────────
+    # The only endpoint that returns a person rather than a list of their
+    # courses: photo, exam certifications, languages, experience, clients.
+    "trainerResume": {
+        "user": _ev("SKILLEDGE_RMS_RESUME_USER", "AISHWAR_TrainerResumeDe"),
+        "pass": _ev("SKILLEDGE_RMS_RESUME_PASS", "nw@dL3xQD#BL"),
+        "role": "Trainer Resume Details",
+        "key":  "87",
     },
     # ── Write endpoint — mutates production RMS ──────────────────────────────
     "addTrainerSkill": {
@@ -525,6 +558,450 @@ def _certifications(email):
     return {"count": count, "held": held, "emp_code": emp_code}
 
 
+# ─── Resume profile (key 87) ──────────────────────────────────────────────────
+#
+# RMS stores several list-valued profile fields as one "#"-delimited string, and
+# writes the four-character string "None" where a value is absent. Both have to be
+# handled explicitly or the UI renders the word None as if it were data.
+
+_HTML_ENTITIES = {
+    "&nbsp;": " ", "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"',
+    "&#39;": "'", "&rsquo;": "'", "&lsquo;": "'", "&ldquo;": '"', "&rdquo;": '"',
+    "&ndash;": "-", "&mdash;": "-", "&bull;": "-", "&hellip;": "...", "&apos;": "'",
+}
+
+
+def _blank(v):
+    """RMS writes the literal strings 'None' and 'null' for absent values."""
+    s = str(v or "").strip()
+    return s in ("", "None", "null", "NULL", "-")
+
+
+def _html_text(s):
+    """HTML blob -> readable plain text, keeping paragraph breaks."""
+    if _blank(s):
+        return ""
+    t = str(s)
+    t = _re.sub(r"<\s*br\s*/?\s*>", "\n", t, flags=_re.I)
+    t = _re.sub(r"</\s*(p|div|li|tr|h\d)\s*>", "\n", t, flags=_re.I)
+    t = _re.sub(r"<[^>]+>", "", t)
+    for ent, ch in _HTML_ENTITIES.items():
+        t = t.replace(ent, ch)
+    t = _re.sub(r"&#\d+;", "", t)
+    t = _re.sub(r"[ \t\r]+", " ", t)
+    t = _re.sub(r"\n\s*\n\s*", "\n\n", t)
+    return t.strip()
+
+
+def _split_hash(s):
+    if _blank(s):
+        return []
+    return [p.strip() for p in str(s).split("#") if p.strip() and not _blank(p)]
+
+
+def _parse_certifications(raw):
+    """
+    "<title>: <logo url>#<title>: <logo url>" -> [{name, logo, code}].
+
+    Splitting on the last ':' looks obvious and is wrong — real titles read
+    "Microsoft Certified: Azure AI Engineer Associate", so the colon inside the
+    title would eat half the name. Split on the URL marker instead.
+    """
+    out = []
+    for part in _split_hash(raw):
+        name, logo = part, ""
+        # Greedy to end of string, not \S+ — logo filenames contain spaces
+        # ("…/DP_700 Logo.png"), which truncated the URL and left the tail of it
+        # stuck on the certification name.
+        m = _re.search(r":\s*(https?://.*)$", part, _re.S)
+        if m:
+            name, logo = part[: m.start()].strip(), m.group(1).strip()
+        name = name.strip(" :-")
+        if not name:
+            continue
+        out.append({
+            "name": name,
+            "logo": urllib.parse.quote(logo, safe=":/?&=%#") if logo else "",
+            "code": _cert_code_for_title(name),
+        })
+    return out
+
+
+def _parse_languages(raw):
+    out = []
+    for part in _split_hash(raw):
+        if ":" in part:
+            lang, level = part.split(":", 1)
+            out.append({"language": lang.strip(), "level": level.strip()})
+        else:
+            out.append({"language": part, "level": ""})
+    return out
+
+
+def _current_title(experience_html):
+    """
+    Best-effort job title from the Experience blob. RMS has no designation field
+    for the signed-in user, so this is the only self-reported title available.
+
+    Two layouts occur in real data and the naive "first bold line" reading gets
+    the second one wrong — it returns "Company: KPMG India" as the job title:
+      1. "<strong>Senior Corporate Trainer (Global) &ndash; Koenig …</strong>"
+      2. "Company: KPMG India / Designation: Data Analyst / Duration: …"
+    So an explicit Designation label wins over the heading when present.
+    """
+    if _blank(experience_html):
+        return ""
+    text = _html_text(experience_html)
+
+    m = _re.search(r"^\s*Designation\s*:\s*(.+)$", text, _re.I | _re.M)
+    if m:
+        return _re.sub(r"\s+", " ", m.group(1)).strip(" -–|,")[:70]
+
+    m = _re.search(r"<strong>(.*?)</strong>", str(experience_html), _re.I | _re.S)
+    head = _html_text(m.group(1)) if m else text.split("\n")[0]
+    head = head.split(" - ")[0].split(" – ")[0].split(" | ")[0]
+    head = _re.sub(r"\s+", " ", head).strip(" -–|,")
+    # A "Label: value" first line is metadata, not a title.
+    if _re.match(r"^(company|duration|description|client|project)\s*:", head, _re.I):
+        return ""
+    return head[:70]
+
+
+def _years_since(d):
+    if not isinstance(d, date):
+        return None
+    days = (date.today() - d).days
+    return round(days / 365.25, 1) if days > 0 else 0.0
+
+
+def _resume(email):
+    """Parsed profile for one person. {} when RMS has no resume on file."""
+    rows = _rms("trainerResume", {"email": email})
+    if not isinstance(rows, list) or not rows or not isinstance(rows[0], dict):
+        return {}
+    r = rows[0]
+    image = str(r.get("TrainerImage", "") or "").strip()
+    if _blank(image) or not image.lower().startswith("http"):
+        image = ""
+    else:
+        # Photo filenames contain spaces ("…/Aishwar C Nigam.png"); an unencoded
+        # space makes the request 400 before the image loader ever sees a bitmap.
+        head, _, tail = image.rpartition("/")
+        image = head + "/" + urllib.parse.quote(tail) if head else image
+    return {
+        "name":         _re.sub(r"\s+", " ", str(r.get("TrainerName", "") or "")).strip(),
+        "email":        str(r.get("TrainerEmail", email) or email),
+        "photo_url":    image,
+        "certifications": _parse_certifications(r.get("Certifications")),
+        "languages":    _parse_languages(r.get("Languages")),
+        "skills":       _split_hash(r.get("Skill")),
+        "clients":      _split_hash(r.get("TrainingsDeliveredFor")),
+        "summary":      _html_text(r.get("Summary")),
+        "experience":   _html_text(r.get("Experience")),
+        "current_title": _current_title(r.get("Experience")),
+        "testimonials": [t for t in _split_hash(r.get("Feedback"))][:8],
+    }
+
+
+# ─── Certification intelligence ───────────────────────────────────────────────
+#
+# Two different things both get called "certification" in RMS and they are not
+# interchangeable:
+#   * vendorCertCount (57) = accrediting bodies (MCT, CCSI, VCI) — the right to
+#     teach a vendor's material at all.
+#   * trainerResume (87) Certifications = the exams the person has actually passed.
+# Gap analysis needs the second. A course title carries its exam code
+# ("PL-300T00: Design and Manage Analytics Solutions Using Power BI" -> PL-300),
+# but the certification is stored under its marketing name ("Microsoft Certified:
+# Power BI Data Analyst Associate"), so the two are joined through this catalogue.
+
+_CERT_CATALOG = {
+    # code:      (certification name,                         [title match phrases])
+    "AZ-900":  ("Azure Fundamentals",                        ["azure fundamentals"]),
+    "AI-900":  ("Azure AI Fundamentals",                     ["ai fundamentals"]),
+    "DP-900":  ("Azure Data Fundamentals",                   ["azure data fundamentals", "data fundamentals"]),
+    "PL-900":  ("Power Platform Fundamentals",               ["power platform fundamentals"]),
+    "MS-900":  ("Microsoft 365 Fundamentals",                ["365 fundamentals"]),
+    "SC-900":  ("Security, Compliance & Identity Fundamentals", ["security, compliance", "security compliance"]),
+    "AZ-104":  ("Azure Administrator Associate",             ["azure administrator"]),
+    "AZ-204":  ("Azure Developer Associate",                 ["azure developer associate"]),
+    "AZ-305":  ("Azure Solutions Architect Expert",          ["azure solutions architect", "solutions architect expert"]),
+    "AZ-400":  ("DevOps Engineer Expert",                    ["devops engineer"]),
+    "AZ-500":  ("Azure Security Engineer Associate",         ["azure security engineer"]),
+    "AZ-700":  ("Azure Network Engineer Associate",          ["azure network engineer"]),
+    "AZ-800":  ("Windows Server Hybrid Administrator",       ["windows server hybrid"]),
+    "AZ-140":  ("Azure Virtual Desktop Specialty",           ["azure virtual desktop"]),
+    "AI-102":  ("Azure AI Engineer Associate",               ["azure ai engineer"]),
+    "DP-100":  ("Azure Data Scientist Associate",            ["azure data scientist"]),
+    "DP-203":  ("Azure Data Engineer Associate",             ["azure data engineer", "data engineering on microsoft azure"]),
+    "DP-300":  ("Azure Database Administrator Associate",    ["azure database administrator"]),
+    "DP-600":  ("Fabric Analytics Engineer Associate",       ["fabric analytics engineer"]),
+    "DP-700":  ("Fabric Data Engineer Associate",            ["fabric data engineer"]),
+    "PL-200":  ("Power Platform Functional Consultant",      ["power platform functional"]),
+    "PL-300":  ("Power BI Data Analyst Associate",           ["power bi data analyst"]),
+    "PL-400":  ("Power Platform Developer Associate",        ["power platform developer"]),
+    "PL-600":  ("Power Platform Solution Architect Expert",  ["power platform solution architect"]),
+    "MS-102":  ("Microsoft 365 Administrator Expert",        ["365 administrator"]),
+    "MD-102":  ("Endpoint Administrator Associate",          ["endpoint administrator"]),
+    "SC-100":  ("Cybersecurity Architect Expert",            ["cybersecurity architect"]),
+    "SC-200":  ("Security Operations Analyst Associate",     ["security operations analyst"]),
+    "SC-300":  ("Identity and Access Administrator",         ["identity and access administrator"]),
+    "SC-400":  ("Information Protection Administrator",      ["information protection"]),
+}
+
+# Natural next step on the same track. Used for "recommended", which is a
+# suggestion; "missing" is stronger — it means they already teach the course.
+_CERT_NEXT = {
+    "AZ-900": ["AZ-104", "AZ-204"],
+    "AZ-104": ["AZ-305", "AZ-500", "AZ-700", "AZ-800"],
+    "AZ-204": ["AZ-400", "AZ-305"],
+    "AZ-305": ["AZ-400", "SC-100"],
+    "AZ-500": ["SC-100", "SC-300"],
+    "AI-900": ["AI-102", "DP-100"],
+    "AI-102": ["DP-100", "AZ-305"],
+    "DP-900": ["DP-203", "DP-300", "PL-300"],
+    "DP-203": ["DP-600", "DP-700"],
+    "DP-300": ["DP-203"],
+    "DP-600": ["DP-700"],
+    "DP-700": ["DP-600"],
+    "PL-900": ["PL-200", "PL-300", "PL-400"],
+    "PL-300": ["DP-600", "PL-600"],
+    "PL-400": ["PL-600"],
+    "MS-900": ["MS-102", "MD-102"],
+    "MS-102": ["SC-300", "MD-102"],
+    "SC-900": ["SC-200", "SC-300", "AZ-500"],
+    "SC-200": ["SC-100"],
+    "SC-300": ["SC-100"],
+}
+
+# Exam codes lead a course title: "AI-102T00-A: Designing…", "AZ-104: …".
+# No trailing \b — Microsoft's course codes append a delivery suffix directly to
+# the number ("DP-900T00-A"), so a word boundary after the digits never matches
+# and every T00-suffixed course silently produced no code at all.
+_EXAM_CODE = _re.compile(r"\b([A-Z]{2})[-\s]?(\d{3})(?!\d)")
+
+
+def _exam_code(course_name):
+    """Certification exam code a course maps to, or "" for MOC-numbered courses."""
+    m = _EXAM_CODE.search(str(course_name or "").upper())
+    if not m:
+        return ""
+    code = f"{m.group(1)}-{m.group(2)}"
+    return code if code in _CERT_CATALOG else ""
+
+
+def _cert_code_for_title(title):
+    """Reverse lookup: certification marketing name -> exam code."""
+    t = str(title or "").lower()
+    if "certified trainer" in t or _re.search(r"\bmct\b", t):
+        return "MCT"
+    for code, (_name, phrases) in _CERT_CATALOG.items():
+        if any(p in t for p in phrases):
+            return code
+    return ""
+
+
+def _cert_intelligence(courses, held_certs, accreditations):
+    """
+    Held / missing / recommended for one trainer.
+
+      held        — exams passed, from the resume, code-tagged where recognised
+      missing     — they are on the roster to teach the course but hold no
+                    matching certification. The actionable gap.
+      recommended — adjacent certifications on tracks they already work in.
+
+    `courses` are capability rows (from trainerDetails), `held_certs` the parsed
+    resume certifications, `accreditations` the vendorCertCount bodies (MCT etc.).
+    """
+    held_codes = {c["code"] for c in held_certs if c.get("code")}
+    if "MCT" in accreditations:
+        held_codes.add("MCT")
+
+    taught = {}
+    for c in courses:
+        code = _exam_code(c.get("course", ""))
+        if not code:
+            continue
+        # Keep the strongest evidence for each code — highest Qubits wins.
+        prev = taught.get(code)
+        if prev is None or c.get("qubits_score", 0) > prev.get("qubits_score", 0):
+            taught[code] = c
+
+    missing = []
+    for code, c in sorted(taught.items()):
+        if code in held_codes:
+            continue
+        missing.append({
+            "code":         code,
+            "name":         _CERT_CATALOG[code][0],
+            "because":      c.get("course", ""),
+            "qubits_score": c.get("qubits_score", 0),
+            "delivered":    c.get("delivered", 0),
+            # Already teaching it with a real track record is a sharper gap than
+            # holding it on paper only.
+            "priority":     "high" if c.get("delivered", 0) > 0 else "medium",
+        })
+    missing.sort(key=lambda m: (m["priority"] != "high", -m["delivered"], m["code"]))
+
+    seeds = held_codes | set(taught)
+    rec_codes = set()
+    for s in seeds:
+        for nxt in _CERT_NEXT.get(s, []):
+            if nxt not in held_codes and nxt not in taught:
+                rec_codes.add(nxt)
+    recommended = [
+        {
+            "code": code,
+            "name": _CERT_CATALOG[code][0],
+            "because": ", ".join(sorted(
+                s for s in seeds if code in _CERT_NEXT.get(s, [])
+            )[:3]),
+        }
+        for code in sorted(rec_codes)
+    ]
+
+    covered = len(taught) - len(missing)
+    return {
+        "held":        held_certs,
+        "held_codes":  sorted(held_codes),
+        "accreditations": accreditations,
+        "missing":     missing,
+        "recommended": recommended,
+        "taught_codes": sorted(taught),
+        "coverage_pct": round(100 * covered / len(taught)) if taught else None,
+        "gap_count":   len(missing),
+    }
+
+
+# ─── Readiness & risk scoring ─────────────────────────────────────────────────
+#
+# Defined once and shared by trainer-360 and team-capability. The web product
+# drifted into two disagreeing scoring models; there is no reason to repeat that
+# here, and a trainer whose profile says "Ready" must not appear in a team score
+# that was computed a different way.
+
+def _risk_score(neg_count, hr_negative, utilization, has_signal):
+    """
+    0-100, or None when nothing is known. Absence of complaints is NOT evidence
+    of safety — a trainer with no records at all scores Unknown, not zero.
+    """
+    if not has_signal:
+        return None
+    pts = min(60, (neg_count or 0) * 20) + min(25, (hr_negative or 0) * 12)
+    if utilization is not None and utilization > 95:
+        pts += 15                       # sustained over-booking is a burnout signal
+    return min(100, pts)
+
+
+def _risk_level(score):
+    if score is None:
+        return "Unknown"
+    return "High" if score >= 50 else ("Medium" if score >= 20 else "Low")
+
+
+def _readiness_score(courses, utilization, risk):
+    """
+    How deployable someone is: how good they are (Qubits), how broad their
+    approved catalogue is, and whether they have room to take work on.
+    Returns None when there is no capability or utilisation signal at all.
+    """
+    approved = sum(1 for c in courses if c.get("approved"))
+    have_util = utilization is not None
+    if not courses and not have_util:
+        return None
+    quality  = round(sum(c["qubits_score"] for c in courses) / len(courses)) if courses else 0
+    depth    = min(100, approved * 8 + min(40, len(courses) * 2))
+    headroom = (100 - utilization) if have_util else 50
+    score = round(0.40 * quality + 0.35 * depth + 0.25 * headroom)
+    return max(0, min(100, score - (risk or 0) // 4))
+
+
+def _readiness_bucket(score):
+    if score is None:
+        return "Unknown"
+    return "Ready" if score >= 70 else ("Developing" if score >= 45 else "Needs support")
+
+
+# ─── Skill register (key 217) ─────────────────────────────────────────────────
+#
+# This is the register that "mark my skill" writes into, and therefore the only
+# way to prove a write actually landed. It keys off employee_id — an email or a
+# blank returns zero rows with a 200, which reads as "no skills" rather than as
+# a bad request.
+
+def _emp_code(email):
+    """Employee code for an email. Needed by every employee_id-keyed endpoint."""
+    return _certifications(email).get("emp_code", "")
+
+
+def _write_status(result):
+    """
+    Unwrap the outcome of an RMS write. Returns (status, message).
+
+    RMS returns HTTP 200 for a *refused* write. The real outcome is buried two
+    layers down: a single-key envelope named for a SQL Server FOR JSON column
+    (`JSON_F52E2B61-18A1-11d1-B105-00805F49916B`) whose value is itself a JSON
+    *string*:
+
+        [{"JSON_F52E2B61-...": "{\\"Status\\":\\"Error\\",
+                                 \\"Message\\":\\"Skill already mapped for this
+                                 trainer\\",\\"TrainerId\\":7712,
+                                 \\"CourseId\\":11232}"}]
+
+    The API instruction file documents that value as `null`, so earlier code
+    treated any non-exception as success — which is precisely why skill
+    assignment appeared to work while RMS was rejecting it. Verified against a
+    live write on 2026-08-07.
+    """
+    rows = result if isinstance(result, list) else [result]
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        for key, value in row.items():
+            if not str(key).upper().startswith("JSON_"):
+                continue
+            if value in (None, "", "null"):
+                continue
+            payload = value
+            if isinstance(payload, str):
+                try:
+                    payload = json.loads(payload)
+                except ValueError:
+                    return "", str(value)[:300]
+            if isinstance(payload, list):
+                payload = payload[0] if payload else {}
+            if isinstance(payload, dict):
+                return (str(payload.get("Status", "")).strip(),
+                        str(payload.get("Message", "")).strip())
+    return "", ""
+
+
+def _skill_register(emp_code):
+    """
+    [{course_id, course_name, duplicate, discontinued}] or None if RMS failed.
+
+    Ids come back as int for one trainer and str for another, so both ends of
+    every comparison are normalised to str.
+    """
+    if not emp_code:
+        return []
+    rows = _rms("trainerSkills", {"employee_id": str(emp_code)})
+    if rows is None:
+        return None
+    out = []
+    for r in (rows if isinstance(rows, list) else []):
+        if not isinstance(r, dict):
+            continue
+        out.append({
+            "course_id":     str(r.get("course_id", "") or "").strip(),
+            "course_name":   str(r.get("course_name", "") or "").strip(),
+            "duplicate":     str(r.get("is_duplicate_course", "")).strip().lower() == "true",
+            "discontinued":  str(r.get("is_discontinue_course", "")).strip().lower() == "true",
+        })
+    out.sort(key=lambda s: s["course_name"])
+    return out
+
+
 # ─── Per-trainer build (runs in ThreadPoolExecutor) ───────────────────────────
 
 def _build_trainer(r, today):
@@ -749,7 +1226,7 @@ def healthz():
     return jsonify({
         "status":    "ok",
         "service":   "SkillSync Backend",
-        "version":   "5.0.0",
+        "version":   "6.0.0",
         "timestamp": datetime.utcnow().isoformat(),
     }), 200
 
@@ -870,8 +1347,69 @@ def unified_intelligence():
     active_cnt  = sum(1 for s in trainer_states if s["current_status"] != "unknown")
     mgr_name    = email.split("@")[0].replace(".", " ").title()
 
+    # ── Manager KPIs ─────────────────────────────────────────────────────
+    # Everything here is counted from data already fetched above. Certification
+    # KPIs are deliberately absent — they need three more RMS calls per trainer
+    # and are served by /api/data/team-capability so this payload stays fast.
+    engaged = {"teaching_now", "scheduled_today", "preparing"}
+    active_trainers = sum(1 for s in trainer_states if s["current_status"] in engaged)
+    unallocated_trainers = sum(1 for s in trainer_states if s["current_status"] == "free")
+    active_batches   = sum(1 for b in all_batches if b["engagement_state"] == "current")
+    upcoming_batches = sum(1 for b in all_batches if b["engagement_state"] == "upcoming")
+
+    # Delivered days are only countable inside the fetch window (-30d), so the
+    # label has to say so rather than implying an all-time total.
+    days_delivered = 0
+    for b in all_batches:
+        if b["engagement_state"] != "completed":
+            continue
+        st, en = _parse_date(b["start_at"]), _parse_date(b["end_at"])
+        if st and en and en >= st:
+            days_delivered += (en - st).days + 1
+        elif st:
+            days_delivered += 1
+
+    high_risk = sum(1 for t in trainer_ops if t["feedback_risk"] == "High")
+    stretched = sum(1 for t in trainer_ops if t["capacity_bucket"] == "Stretched")
+    on_bench  = sum(1 for t in trainer_ops if t["capacity_bucket"] == "On Bench")
+    unknown_state = sum(1 for s in trainer_states if s["current_status"] == "unknown")
+
+    # Share of the team whose position we can actually vouch for. Deliberately
+    # NOT called readiness: this path has no capability signal, and a number
+    # built only from status would disagree with the real readiness score served
+    # by /api/data/team-capability. Two metrics with one name is how the web
+    # product ended up with contradictory scores on different screens.
+    if trainer_ops:
+        deployable = sum(
+            1 for t, s in zip(trainer_ops, trainer_states)
+            if s["current_status"] != "unknown" and t["feedback_risk"] != "High"
+        )
+        deployable_pct = round(100 * deployable / len(trainer_ops))
+    else:
+        deployable_pct = None
+
+    manager_kpis = {
+        "total_team_members":   len(trainer_ops),
+        "active_trainers":      active_trainers,
+        "unallocated_trainers": unallocated_trainers,
+        "active_batches":       active_batches,
+        "upcoming_batches":     upcoming_batches,
+        "training_days_delivered": days_delivered,
+        "training_days_window_label": "last 30 days",
+        "avg_team_utilization": avg_util if util_vals else None,
+        "utilization_sample":   len(util_vals),
+        "high_risk_trainers":   high_risk,
+        "stretched_trainers":   stretched,
+        "bench_trainers":       on_bench,
+        "deployable_pct":       deployable_pct,
+        "unknown_status":       unknown_state,
+        "open_actions":         len(actions),
+        "open_demand":          len(demand_df),
+    }
+
     # ── Response (web-frontend data model + backward-compat fields) ──────
     return jsonify({
+        "manager_kpis":             manager_kpis,
         # Web-frontend arrays
         "trainer_operations_df":    trainer_ops,
         "trainer_current_state_df": trainer_states,
@@ -917,6 +1455,212 @@ def unified_intelligence():
     }), 200
 
 
+@app.route('/api/data/manager-profile', methods=['GET'])
+def manager_profile():
+    """
+    The signed-in user's own identity, so the dashboard can address them by name
+    instead of rendering a generic report.
+
+    Deliberately small — three RMS calls — because it gates the first paint of
+    the dashboard header. Everything derived (KPIs, capability) lives elsewhere.
+    """
+    email = request.args.get('email', '').strip().lower()
+    if not email:
+        return jsonify({"error": "email query param required"}), 400
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        f_resume = pool.submit(_resume, email)
+        f_util   = pool.submit(_util_row, email)
+        f_reps   = pool.submit(_rms, "reportees", {"email": email})
+        resume = f_resume.result()
+        u_row  = f_util.result()
+        reps   = f_reps.result()
+
+    reachable = reps is not None
+    reportees = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)]
+    direct = sum(1 for r in reportees
+                 if str(r.get("IsdirectReportee", "")).strip().lower() == "yes")
+
+    doj = _parse_date(u_row.get("DOJ", "")) if u_row else None
+    series = _util_series(u_row) if u_row else []
+
+    name = (resume.get("name") or
+            _re.sub(r"\s+", " ", str((u_row or {}).get("TrainerName", "") or "")).strip() or
+            email.split("@")[0].replace(".", " ").title())
+
+    # RMS exposes no designation for the signed-in user. The resume heading is the
+    # only self-reported title; the role badge is derived from what they can see.
+    role = "Delivery Manager" if reportees else "Trainer"
+    designation = resume.get("current_title") or role
+
+    return jsonify({
+        "email":        email,
+        "name":         name,
+        "first_name":   name.split(" ")[0] if name else "",
+        "photo_url":    resume.get("photo_url", ""),
+        "initials":     "".join(p[0].upper() for p in name.split() if p)[:2],
+        "designation":  designation,
+        "role":         role,
+        "trainer_id":   str((u_row or {}).get("TrainerId", "") or ""),
+        "date_of_joining": _iso(doj),
+        "tenure_years": _years_since(doj),
+        "languages":    resume.get("languages", []),
+        "summary":      resume.get("summary", "")[:600],
+        "certifications": resume.get("certifications", []),
+        "clients_count": len(resume.get("clients", [])),
+        "own_utilization": _avg_util(series) if series else None,
+        "team": {
+            "size":      len(reportees),
+            "direct":    direct,
+            "indirect":  len(reportees) - direct,
+            "reachable": reachable,
+        },
+        "has_resume":   bool(resume),
+        "timestamp":    datetime.utcnow().isoformat(),
+    }), 200
+
+
+def _capability_for(r):
+    """Per-trainer capability + certification picture. One worker's share."""
+    email = str(r.get("OffEmail", "")).strip().lower()
+    name  = _re.sub(r"\s+", " ", str(r.get("TrainerName", ""))).strip()
+    if not email:
+        return None
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        f_caps   = pool.submit(_skills, email)
+        f_resume = pool.submit(_resume, email)
+        f_certs  = pool.submit(_certifications, email)
+        f_util   = pool.submit(_util_row, email)
+        caps   = f_caps.result()
+        resume = f_resume.result()
+        certs  = f_certs.result()
+        series = _util_series(f_util.result())
+
+    util = _avg_util(series) if series else None
+    intel = _cert_intelligence(caps, resume.get("certifications", []), certs["held"])
+    # Same scoring functions trainer-360 uses, so a profile that reads "Ready"
+    # cannot show up as something else in the team roll-up.
+    risk = _risk_score(0, 0, util, has_signal=bool(series))
+    readiness = _readiness_score(caps, util, risk)
+
+    return {
+        "trainer_name":  name,
+        "trainer_email": email,
+        "emp_id":        str(r.get("EmpId", "") or ""),
+        "designation":   str(r.get("Designation", "") or ""),
+        "photo_url":     resume.get("photo_url", ""),
+        "utilization":   util,
+        "readiness_score":  readiness,
+        "readiness_bucket": _readiness_bucket(readiness),
+        "courses":       caps,
+        "course_count":  len(caps),
+        "approved_count": sum(1 for c in caps if c["approved"]),
+        "avg_qubits":    round(sum(c["qubits_score"] for c in caps) / len(caps)) if caps else 0,
+        "certification": intel,
+    }
+
+
+@app.route('/api/data/team-capability', methods=['GET'])
+def team_capability():
+    """
+    What the team can teach, and where their paper credentials fall short.
+
+    Powers the courses catalogue and the certification KPIs. Kept out of the
+    dashboard payload because it costs three extra RMS round-trips per trainer;
+    the client fetches it alongside, so the dashboard still paints immediately.
+    """
+    email = request.args.get('email', '').strip().lower()
+    if not email:
+        return jsonify({"error": "email query param required"}), 400
+
+    reps = _rms("reportees", {"email": email})
+    if reps is None:
+        return jsonify({"error": "Cannot reach RMS — please retry"}), 503
+    rows = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)][:20]
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        team = [t for t in pool.map(_capability_for, rows) if t]
+
+    # ── Course catalogue: one entry per course, with everyone who can teach it ──
+    catalogue = {}
+    for t in team:
+        for c in t["courses"]:
+            key = _norm(c["course"]) or c["course"]
+            entry = catalogue.setdefault(key, {
+                "course":       c["course"],
+                "vendor":       c["vendor"],
+                "exam_code":    _exam_code(c["course"]),
+                "future_skill": False,
+                "owners":       [],
+            })
+            entry["future_skill"] = entry["future_skill"] or c["future_skill"]
+            entry["owners"].append({
+                "trainer_name":  t["trainer_name"],
+                "trainer_email": t["trainer_email"],
+                "photo_url":     t["photo_url"],
+                "qubits_score":  c["qubits_score"],
+                "skill_level":   c["skill_level"],
+                "approved":      c["approved"],
+                "delivered":     c["delivered"],
+                # Teaching it without the matching certification is the gap the
+                # allocation team cares about most.
+                "certified":     _exam_code(c["course"]) in set(t["certification"]["held_codes"]),
+            })
+
+    courses = []
+    for entry in catalogue.values():
+        entry["owners"].sort(key=lambda o: (-o["qubits_score"], o["trainer_name"]))
+        owners = entry["owners"]
+        cert_name = ""
+        if entry["exam_code"]:
+            cert_name = _CERT_CATALOG[entry["exam_code"]][0]
+        courses.append({
+            **entry,
+            "owner_count":     len(owners),
+            "certified_count": sum(1 for o in owners if o["certified"]),
+            "approved_count":  sum(1 for o in owners if o["approved"]),
+            "delivered_total": sum(o["delivered"] for o in owners),
+            "best_qubits":     owners[0]["qubits_score"] if owners else 0,
+            "certification":   cert_name,
+            # One person deep is a single point of failure for that course.
+            "coverage":        "single" if len(owners) == 1 else "shared",
+        })
+    courses.sort(key=lambda c: (-c["owner_count"], -c["best_qubits"], c["course"]))
+
+    # ── Team-level certification KPIs ────────────────────────────────────────
+    gap_total  = sum(t["certification"]["gap_count"] for t in team)
+    certified  = sum(1 for t in team if t["certification"]["held"])
+    covs = [t["certification"]["coverage_pct"] for t in team
+            if t["certification"]["coverage_pct"] is not None]
+    ready = [t["readiness_score"] for t in team if t["readiness_score"] is not None]
+    all_taught = set()
+    all_covered = set()
+    for t in team:
+        taught = set(t["certification"]["taught_codes"])
+        all_taught |= taught
+        all_covered |= (taught & set(t["certification"]["held_codes"]))
+
+    return jsonify({
+        "manager":   email,
+        "team_size": len(team),
+        "trainers":  team,
+        "courses":   courses,
+        "kpis": {
+            "certified_trainers":      certified,
+            "certification_gap_count": gap_total,
+            "team_skill_coverage_pct": round(100 * len(all_covered) / len(all_taught)) if all_taught else None,
+            "avg_trainer_coverage_pct": round(sum(covs) / len(covs)) if covs else None,
+            "distinct_courses":        len(courses),
+            "single_owner_courses":    sum(1 for c in courses if c["coverage"] == "single"),
+            "certification_tracks":    len(all_taught),
+            "team_readiness_score":    round(sum(ready) / len(ready)) if ready else None,
+            "ready_trainers":          sum(1 for t in team
+                                           if t["readiness_bucket"] == "Ready"),
+        },
+        "timestamp": datetime.utcnow().isoformat(),
+    }), 200
+
+
 @app.route('/api/data/trainer-360', methods=['GET'])
 def trainer_360():
     """
@@ -927,6 +1671,8 @@ def trainer_360():
     email = request.args.get('email', '').strip().lower()
     if not email:
         return jsonify({"error": "email query param required"}), 400
+    # Optional: lets the profile rank this trainer against their own team.
+    manager_email = request.args.get('manager', '').strip().lower()
 
     today = datetime.utcnow().date()
 
@@ -941,7 +1687,7 @@ def trainer_360():
             "Email":     email,
         }) or []
 
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=8) as pool:
         f_util   = pool.submit(_identity_and_util)
         f_skills = pool.submit(_skills, email)
         f_certs  = pool.submit(_certifications, email)
@@ -949,6 +1695,9 @@ def trainer_360():
         f_off    = pool.submit(_off_dates, email)
         f_neg    = pool.submit(_rms, "negFeedbackCount", {"email": email})
         f_hr     = pool.submit(_rms, "hrIncident", {"email": email})
+        f_resume = pool.submit(_resume, email)
+        f_peers  = (pool.submit(_rms, "reportees", {"email": manager_email})
+                    if manager_email else None)
 
         u_row, series = f_util.result()
         skills   = f_skills.result()
@@ -957,6 +1706,8 @@ def trainer_360():
         off      = f_off.result()
         neg_rows = f_neg.result() or []
         hr_rows  = f_hr.result() or []
+        resume   = f_resume.result()
+        peers    = (f_peers.result() or []) if f_peers else []
 
     emp_code = certs.get("emp_code", "")
     # Negative-feedback detail keys off employee_id, not email.
@@ -994,18 +1745,78 @@ def trainer_360():
     future   = [s for s in skills if s["future_skill"]]
     avg_qubits = round(sum(s["qubits_score"] for s in skills) / len(skills)) if skills else 0
 
+    cert_intel = _cert_intelligence(skills, resume.get("certifications", []), certs["held"])
+
+    # ── Peer context: designation, reporting line and ranking within the team ──
+    peer_rows = [p for p in (peers if isinstance(peers, list) else []) if isinstance(p, dict)]
+    my_row = next(
+        (p for p in peer_rows
+         if str(p.get("OffEmail", "")).strip().lower() == email), {}
+    )
+    team_rank, team_size = None, len(peer_rows)
+    if peer_rows and manager_email:
+        # Rank by utilisation across the team. Only meaningful with 2+ peers.
+        peer_utils = {}
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            addrs = [str(p.get("OffEmail", "")).strip().lower() for p in peer_rows]
+            for addr, u in zip(addrs, pool.map(_safe_util, addrs)):
+                if addr:
+                    peer_utils[addr] = u
+        mine = peer_utils.get(email)
+        if mine is not None and len(peer_utils) > 1:
+            team_rank = 1 + sum(1 for v in peer_utils.values() if v > mine)
+
+    util_ok  = bool(series)
+    util_now = _avg_util(series) if util_ok else None
+
+    risk_score = _risk_score(neg_total, hr_neg, util_now,
+                             has_signal=bool(neg_rows or hr_rows or util_ok))
+    readiness_score = _readiness_score(skills, util_now, risk_score)
+
     return jsonify({
         "identity": {
-            "name":        _re.sub(r"\s+", " ", str(u_row.get("TrainerName", "") or "")).strip(),
+            "name":        (resume.get("name") or
+                            _re.sub(r"\s+", " ", str(u_row.get("TrainerName", "") or "")).strip()),
             "email":       str(u_row.get("EmailId", email) or email),
             "trainer_id":  str(u_row.get("TrainerId", "") or ""),
-            "emp_code":    emp_code,
+            "emp_code":    emp_code or str(my_row.get("EmpId", "") or ""),
             "date_of_joining": _iso(_parse_date(u_row.get("DOJ", ""))),
+            "tenure_years":    _years_since(_parse_date(u_row.get("DOJ", ""))),
+            # Designation comes off the reportee row, which is authoritative;
+            # the resume heading is self-reported and can name a past employer.
+            "designation": (str(my_row.get("Designation", "") or "").strip() or
+                            resume.get("current_title", "")),
+            "reports_to":  manager_email,
+            "direct_report": str(my_row.get("IsdirectReportee", "")).strip().lower() == "yes",
+            "trainer_plus":  str(my_row.get("TrainerPlus", "")).strip().lower() == "yes",
+            "photo_url":   resume.get("photo_url", ""),
+            "languages":   resume.get("languages", []),
+            "summary":     resume.get("summary", "")[:800],
+            "experience":  resume.get("experience", "")[:2500],
+            "clients":     resume.get("clients", [])[:24],
+            "has_resume":  bool(resume),
+        },
+        "metrics": {
+            "readiness_score":  readiness_score,
+            "readiness_bucket": _readiness_bucket(readiness_score),
+            "risk_score":       risk_score,
+            "risk_level":       _risk_level(risk_score),
+            "skill_match_pct":  cert_intel["coverage_pct"],
+            "team_rank":        team_rank,
+            "team_size":        team_size,
+            "avg_qubits":       avg_qubits,
         },
         "utilization": {
-            "current": _avg_util(series),
+            "current": util_now if util_ok else None,
+            "available": util_ok,
             "series":  series,
             "peak":    max((m["utilization"] for m in series), default=0),
+            "upcoming_load": sum(1 for a in assigns
+                                 if _engagement_state(a, today) == "upcoming"),
+            # Months at zero since the most recent non-zero month.
+            "bench_months": next(
+                (i for i, m in enumerate(reversed(series)) if m["utilization"] > 0), len(series)
+            ) if series else None,
         },
         "capability": {
             "total_courses":    len(skills),
@@ -1014,7 +1825,19 @@ def trainer_360():
             "avg_qubits":       avg_qubits,
             "courses":          skills,
         },
-        "certifications": {"count": certs["count"], "held": certs["held"]},
+        # Two different things, kept apart on purpose: `accreditations` is the
+        # right to teach a vendor's material (MCT); `held` is exams passed.
+        "certifications": {
+            "count":          len(cert_intel["held"]),
+            "accreditation_count": certs["count"],
+            "held":           cert_intel["held"],
+            "accreditations": cert_intel["accreditations"],
+            "missing":        cert_intel["missing"],
+            "recommended":    cert_intel["recommended"],
+            "coverage_pct":   cert_intel["coverage_pct"],
+            "gap_count":      cert_intel["gap_count"],
+            "taught_codes":   cert_intel["taught_codes"],
+        },
         "delivery": {
             "total":    len(delivery),
             "upcoming": sum(1 for d in delivery if d["state"] == "upcoming"),
@@ -1073,7 +1896,24 @@ def _demand_rows():
     for r in out:
         r["schedule"] = _re.sub(r"<[^>]+>", " ", r["schedule"])
         r["schedule"] = _re.sub(r"[ \t]+", " ", r["schedule"]).strip()
+        r["session_time"] = _session_time(r["schedule"])
     return out
+
+
+# TOTRecords lists one date + time window per day, e.g.
+#   "24 Aug 2026 / 09:00 - 17:00 IST / 25 Aug 2026 / 09:00 - 17:00 IST".
+# A trainer deciding whether they can take a batch needs the daily window, and
+# it is the one fact the flat demand row does not carry as its own field.
+_TIME_WINDOW = _re.compile(r"(\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}(?:\s*[A-Z]{2,4})?)")
+
+
+def _session_time(schedule):
+    """The daily session window, or "" when the days do not share one."""
+    windows = [w.strip() for w in _TIME_WINDOW.findall(schedule or "")]
+    if not windows:
+        return ""
+    unique = list(dict.fromkeys(windows))
+    return unique[0] if len(unique) == 1 else " / ".join(unique[:3])
 
 
 @app.route('/api/data/allocation-desk', methods=['GET'])
@@ -1117,6 +1957,40 @@ def allocation_desk():
     }), 200
 
 
+@app.route('/api/data/trainer-skills', methods=['GET'])
+def trainer_skills():
+    """
+    The RMS skill register for one trainer — what they are formally on record as
+    able to teach. Also the read-back that proves a mark-skill write landed.
+    """
+    email = request.args.get('email', '').strip().lower()
+    if not email:
+        return jsonify({"error": "email query param required"}), 400
+
+    emp = _emp_code(email)
+    if not emp:
+        # Distinguish "RMS has no employee code for this address" from "no skills".
+        return jsonify({
+            "email": email, "emp_code": "", "skills": [], "count": 0,
+            "available": False,
+            "note": "RMS returned no employee code for this address, so the "
+                    "skill register cannot be looked up.",
+        }), 200
+
+    register = _skill_register(emp)
+    if register is None:
+        return jsonify({"error": "Cannot reach RMS — please retry"}), 503
+
+    return jsonify({
+        "email": email,
+        "emp_code": emp,
+        "skills": register,
+        "count": len(register),
+        "available": True,
+        "timestamp": datetime.utcnow().isoformat(),
+    }), 200
+
+
 @app.route('/api/action/mark-skill', methods=['POST'])
 def mark_skill():
     """
@@ -1124,6 +1998,13 @@ def mark_skill():
 
     This WRITES to production RMS. Inputs are validated here rather than trusted,
     because a bad SkillLevel or CourseId would create a real, wrong record.
+
+    The write is then VERIFIED by re-reading the skill register (key 217) and
+    checking the course id is actually present. RMS answers this endpoint with
+    `[{"JSON_F52E2B61-…": null}]` — a stored-procedure envelope that looks
+    identical whether the row was inserted or silently rejected. Reporting
+    success off that envelope is what made skill assignment look like it saved
+    when it had not; only a read-back can tell the two apart.
     """
     data = request.get_json(silent=True) or {}
     course_id = str(data.get("course_id", "")).strip()
@@ -1144,6 +2025,10 @@ def mark_skill():
     if not 1 <= level <= 10:
         return jsonify({"success": False, "error": "skill_level must be between 1 and 10"}), 400
 
+    emp = _emp_code(trainer_email)
+    before = _skill_register(emp) if emp else None
+    already = bool(before) and any(s["course_id"] == course_id for s in before)
+
     result = _rms("addTrainerSkill", {
         "CourseId":           course_id,
         "TrainerEmail":       trainer_email,
@@ -1152,16 +2037,80 @@ def mark_skill():
         "FromDate":           _iso(_parse_date(from_date)),
     })
     if result is None:
-        return jsonify({"success": False, "error": "RMS unreachable — skill not recorded"}), 503
+        return jsonify({
+            "success": False, "verified": False,
+            "error": "RMS unreachable — skill not recorded",
+        }), 503
 
-    return jsonify({
-        "success": True,
+    status, rms_message = _write_status(result)
+    refused = status.lower() == "error"
+
+    after = _skill_register(emp) if emp else None
+    present = bool(after) and any(s["course_id"] == course_id for s in after)
+    course_name = ""
+    if after:
+        course_name = next(
+            (s["course_name"] for s in after if s["course_id"] == course_id), ""
+        )
+
+    payload = {
         "trainer_email": trainer_email,
-        "course_id": course_id,
-        "skill_level": level,
-        "from_date": _iso(_parse_date(from_date)),
-        "rms_response": result,
-    }), 200
+        "course_id":     course_id,
+        "course_name":   course_name,
+        "skill_level":   level,
+        "from_date":     _iso(_parse_date(from_date)),
+        "already_held":  already,
+        "skill_count":   len(after) if after is not None else None,
+        "rms_status":    status,
+        "rms_message":   rms_message,
+        "rms_response":  result,
+    }
+
+    # Refused *and* already on file is the common, harmless case: RMS will not
+    # remap an existing skill. It is not a failure, but it is not an update
+    # either, and saying "updated" would be a lie.
+    if refused and already and present:
+        payload.update({
+            "success": True, "verified": True, "changed": False,
+            "message": "Already on record in RMS — "
+                       f"{rms_message or 'no change was made'}.",
+        })
+        return jsonify(payload), 200
+
+    if refused and not present:
+        payload.update({
+            "success": False, "verified": False, "changed": False,
+            "error": rms_message or "RMS refused the write without giving a reason.",
+        })
+        return jsonify(payload), 409
+
+    if present:
+        payload.update({
+            "success": True, "verified": True, "changed": not already,
+            "message": ("Skill recorded and confirmed in RMS."
+                        if not already else "Skill confirmed on the RMS register."),
+        })
+        return jsonify(payload), 200
+
+    if after is None or not emp:
+        # The write may well have succeeded; we simply cannot prove it. Say so
+        # rather than claiming either outcome.
+        payload.update({
+            "success": True, "verified": False, "changed": None,
+            "message": "RMS accepted the request but the skill register could "
+                       "not be re-read, so this is unconfirmed. Check the "
+                       "trainer's profile before relying on it.",
+        })
+        return jsonify(payload), 200
+
+    payload.update({
+        "success": False, "verified": False, "changed": False,
+        "error": rms_message or
+                 "RMS accepted the request but the course is still absent from "
+                 "the trainer's skill register — the skill was NOT saved. This "
+                 "usually means the course id is not assignable to this trainer.",
+    })
+    return jsonify(payload), 409
 
 
 @app.errorhandler(404)
@@ -1178,12 +2127,17 @@ def internal_error(error):
 def root():
     return jsonify({
         "service":  "SkillSync Backend",
-        "version":  "5.0.0",
+        "version":  "6.0.0",
         "endpoints": {
             "POST /api/auth/login":                               "Authenticate (role-verified)",
             "POST /api/auth/logout":                              "Logout",
             "GET  /api/data/unified-manager-intelligence?email=": "Full dashboard payload",
+            "GET  /api/data/manager-profile?email=":               "Signed-in user identity",
             "GET  /api/data/trainer-360?email=":                  "Deep single-trainer profile",
+            "GET  /api/data/team-capability?email=":              "Course catalogue + certification gaps",
+            "GET  /api/data/allocation-desk?email=":              "Unallocated batches ranked by team fit",
+            "GET  /api/data/trainer-skills?email=":               "RMS skill register for one trainer",
+            "POST /api/action/mark-skill":                        "Record a skill (verified write)",
             "GET  /healthz":                                      "Health check",
         },
     }), 200

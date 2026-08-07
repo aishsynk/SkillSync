@@ -23,17 +23,43 @@ interface SkillEdgeApi {
     @GET("api/data/unified-manager-intelligence")
     suspend fun getTrainerIntelligence(@Query("email") email: String): Map<String, Any>
 
-    /** Deep single-trainer profile; two extra RMS round-trips, so fetched on demand. */
+    /** The signed-in user's own identity — small and fast, gates the header paint. */
+    @GET("api/data/manager-profile")
+    suspend fun getManagerProfile(@Query("email") email: String): Map<String, Any>
+
+    /**
+     * Deep single-trainer profile. [manager] is optional and only used to rank
+     * the trainer within their own team.
+     */
     @GET("api/data/trainer-360")
-    suspend fun getTrainer360(@Query("email") email: String): Map<String, Any>
+    suspend fun getTrainer360(
+        @Query("email") email: String,
+        @Query("manager") manager: String? = null,
+    ): Map<String, Any>
+
+    /**
+     * Course catalogue and certification gaps for the whole team. Three extra RMS
+     * round-trips per trainer, so it is fetched alongside the dashboard rather
+     * than inside it.
+     */
+    @GET("api/data/team-capability")
+    suspend fun getTeamCapability(@Query("email") email: String): Map<String, Any>
 
     /** Unallocated batches ranked against this manager's team capability. */
     @GET("api/data/allocation-desk")
     suspend fun getAllocationDesk(@Query("email") email: String): Map<String, Any>
 
-    /** Writes a skill record to production RMS. */
+    /** RMS skill register for one trainer — the read-back behind a skill write. */
+    @GET("api/data/trainer-skills")
+    suspend fun getTrainerSkills(@Query("email") email: String): Map<String, Any>
+
+    /**
+     * Writes a skill to production RMS. Returns a raw [retrofit2.Response] because
+     * a rejected-but-well-formed write answers 409 with a body worth showing; the
+     * plain suspend form would throw that away as an HttpException.
+     */
     @POST("api/action/mark-skill")
-    suspend fun markSkill(@Body request: MarkSkillRequest): MarkSkillResponse
+    suspend fun markSkill(@Body request: MarkSkillRequest): retrofit2.Response<MarkSkillResponse>
 }
 
 data class MarkSkillRequest(
@@ -44,11 +70,29 @@ data class MarkSkillRequest(
     val officially_approved: String = "No",
 )
 
+/**
+ * [verified] is the field that matters: the backend sets it only after re-reading
+ * the RMS skill register and finding the course there.
+ *
+ * RMS answers a *refused* write with HTTP 200 and buries the reason in a nested
+ * JSON string ([rms_status] / [rms_message], e.g. "Course not found"). Treating
+ * the absence of an exception as success is what made skill assignment look like
+ * it saved when it had not. [changed] separates a real write from a no-op
+ * re-assert of a skill already on file.
+ */
 data class MarkSkillResponse(
     val success: Boolean?,
+    val verified: Boolean?,
+    val changed: Boolean?,
     val trainer_email: String?,
     val course_id: String?,
+    val course_name: String?,
     val skill_level: Int?,
     val from_date: String?,
+    val already_held: Boolean?,
+    val skill_count: Int?,
+    val rms_status: String?,
+    val rms_message: String?,
+    val message: String?,
     val error: String?,
 )

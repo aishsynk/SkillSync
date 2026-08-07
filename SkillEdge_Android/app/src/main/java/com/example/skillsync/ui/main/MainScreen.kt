@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -18,6 +19,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,13 +52,27 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
     LaunchedEffect(email) { viewModel.loadData(email) }
-    // The allocation desk is a separate, heavier query; only load it when opened.
+    // Both of these cost far more RMS traffic than the dashboard payload, so
+    // neither is fetched until the tab that needs it is actually opened.
     LaunchedEffect(email, tab) {
         if (tab == HomeTab.DEMAND) allocationViewModel.load(email, context)
+        if (tab == HomeTab.COURSES) viewModel.ensureCapability(email)
     }
+
+    // Coming back to the app re-reads everything, so the manager is never acting
+    // on numbers that went stale while the phone was in their pocket.
+    RefreshOnResume(key = email) {
+        viewModel.refresh(email)
+        if (tab == HomeTab.DEMAND) allocationViewModel.refresh(email, context)
+    }
+
     val state by viewModel.uiState.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
+    val profile by viewModel.profile.collectAsState()
+    val capability by viewModel.capability.collectAsState()
+    val capLoading by viewModel.capabilityLoading.collectAsState()
     val allocState by allocationViewModel.state.collectAsState()
+    val allocRefreshing by allocationViewModel.refreshing.collectAsState()
     val newIds by allocationViewModel.newIds.collectAsState()
     StatusBarIcons(lightIcons = true)
 
@@ -69,15 +85,30 @@ fun MainScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        SkillSyncLogo(size = 30.dp)
+                        SkillSyncLogo(size = 28.dp)
                         Spacer(Modifier.width(10.dp))
                         Column {
-                            Text("SkillSync", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Color.White)
+                            Text("SkillSync", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = Color.White)
                             Text(
                                 tabTitle(tab),
                                 fontSize = 9.5.sp, color = Color.White.copy(alpha = 0.78f),
                             )
                         }
+                    }
+                },
+                actions = {
+                    // Manual fallback next to pull-to-refresh, for anyone who
+                    // does not think to drag a screen that is already at the top.
+                    IconButton(onClick = {
+                        viewModel.refresh(email)
+                        if (tab == HomeTab.DEMAND) allocationViewModel.refresh(email, context)
+                    }) {
+                        Icon(
+                            painterResource(R.drawable.ic_trend),
+                            contentDescription = "Refresh",
+                            tint = Color.White.copy(alpha = 0.9f),
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -88,32 +119,51 @@ fun MainScreen(
         bottomBar = { SkillSyncNavBar(tab, onTabChange) },
     ) { pv ->
         Box(modifier.fillMaxSize().padding(pv)) {
-            if (tab == HomeTab.DEMAND) {
-                // Allocation desk has its own query, state and refresh.
-                when (val a = allocState) {
+            when (tab) {
+                HomeTab.DEMAND -> when (val a = allocState) {
+                    // Allocation desk has its own query, state and refresh.
                     is AllocationState.Loading -> DashboardSkeleton()
                     is AllocationState.Error -> DashErrorView(a.message) {
                         allocationViewModel.refresh(email, context)
                     }
                     is AllocationState.Success -> PullToRefreshBox(
-                        isRefreshing = refreshing,
+                        isRefreshing = allocRefreshing,
                         onRefresh = { allocationViewModel.refresh(email, context) },
                     ) {
                         AllocationDeskContent(a.data, newIds) { b -> onBatchClick(b.str("demand_id")) }
                     }
                 }
-            } else when (val s = state) {
-                is DashboardState.Loading -> DashboardSkeleton()
-                is DashboardState.Error -> DashErrorView(s.message) { viewModel.refresh(email) }
-                is DashboardState.Success -> PullToRefreshBox(
+
+                HomeTab.COURSES -> PullToRefreshBox(
                     isRefreshing = refreshing,
                     onRefresh = { viewModel.refresh(email) },
                 ) {
-                    val d = s.intelligenceData
-                    when (tab) {
-                        HomeTab.TEAM -> TeamTab(d, onTrainerClick)
-                        HomeTab.ACTIONS -> ActionsTab(d)
-                        else -> DashboardTab(d, onTrainerClick) { drill = it }
+                    CoursesTab(capability, capLoading, onTrainerClick)
+                }
+
+                else -> when (val s = state) {
+                    is DashboardState.Loading -> DashboardSkeleton()
+                    is DashboardState.Error -> DashErrorView(s.message) { viewModel.refresh(email) }
+                    is DashboardState.Success -> PullToRefreshBox(
+                        isRefreshing = refreshing,
+                        onRefresh = { viewModel.refresh(email) },
+                    ) {
+                        val d = s.intelligenceData
+                        when (tab) {
+                            HomeTab.TEAM -> TeamTab(d, capability, onTrainerClick)
+                            HomeTab.ACTIONS -> ActionsTab(d, capability, onTrainerClick)
+                            else -> DashboardTab(
+                                data = d,
+                                profile = profile,
+                                capability = capability,
+                                capabilityLoading = capLoading,
+                                email = email,
+                                onTrainerClick = onTrainerClick,
+                                onOpenProfile = { onTrainerClick(email, profile?.str("name").orEmpty()) },
+                                onDrill = { drill = it },
+                                onLoadCapability = { viewModel.ensureCapability(email) },
+                            )
+                        }
                     }
                 }
             }
@@ -125,34 +175,81 @@ fun MainScreen(
 
 private fun tabTitle(tab: String) = when (tab) {
     HomeTab.TEAM -> "Team roster"
+    HomeTab.COURSES -> "Course catalogue"
     HomeTab.DEMAND -> "Unallocated demand"
     HomeTab.ACTIONS -> "Manager actions"
     else -> "Manager Command Dashboard"
 }
 
+/**
+ * Compact bottom bar.
+ *
+ * Material's `NavigationBar` is 80dp tall and reserves a large indicator pill per
+ * item — on a 6" phone that is a tenth of the screen spent on five words. This is
+ * a hand-rolled 56dp row with a slim top-edge accent for the active tab instead.
+ * Each item still fills the full bar height, so every touch target stays at or
+ * above the 48dp accessibility minimum despite the smaller visual footprint.
+ */
 @Composable
 internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
+    val sk = MaterialTheme.skill
     val items = listOf(
         Triple(HomeTab.DASHBOARD, R.drawable.ic_home, "Home"),
         Triple(HomeTab.TEAM, R.drawable.ic_people, "Team"),
+        Triple(HomeTab.COURSES, R.drawable.ic_book, "Courses"),
         Triple(HomeTab.DEMAND, R.drawable.ic_inbox, "Demand"),
         Triple(HomeTab.ACTIONS, R.drawable.ic_flag, "Actions"),
     )
-    NavigationBar(containerColor = MaterialTheme.skill.cardBg, tonalElevation = 3.dp) {
-        items.forEach { (key, icon, label) ->
-            NavigationBarItem(
-                selected = current == key,
-                onClick = { onSelect(key) },
-                icon = { Icon(painterResource(icon), contentDescription = label, modifier = Modifier.size(21.dp)) },
-                label = { Text(label, fontSize = 10.sp) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f),
-                    unselectedIconColor = MaterialTheme.skill.subText,
-                    unselectedTextColor = MaterialTheme.skill.subText,
-                ),
-            )
+    Surface(color = sk.cardBg, tonalElevation = 3.dp, shadowElevation = 8.dp) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .height(56.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            items.forEach { (key, icon, label) ->
+                val selected = current == key
+                val tint by animateColorAsState(
+                    if (selected) MaterialTheme.colorScheme.primary else sk.subText,
+                    tween(Motion.FAST), label = "navTint",
+                )
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .selectable(
+                            selected = selected,
+                            onClick = { onSelect(key) },
+                            role = Role.Tab,
+                        ),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Box(
+                        Modifier
+                            .width(20.dp)
+                            .height(2.dp)
+                            .clip(RoundedCornerShape(1.dp))
+                            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    Icon(
+                        painterResource(icon),
+                        contentDescription = label,
+                        tint = tint,
+                        modifier = Modifier.size(19.dp),
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        label,
+                        fontSize = 9.sp,
+                        color = tint,
+                        maxLines = 1,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    )
+                }
+            }
         }
     }
 }
@@ -190,136 +287,104 @@ private fun DrillSheet(drill: Drill, onDismiss: () -> Unit) {
     }
 }
 
-// ── Tabs ──────────────────────────────────────────────────────────────────────
+// ── Dashboard ─────────────────────────────────────────────────────────────────
 
 @Composable
 internal fun DashboardTab(
     data: Map<String, Any>,
+    profile: Map<String, Any>?,
+    capability: Map<String, Any>?,
+    capabilityLoading: Boolean,
+    email: String,
     onTrainerClick: (String, String) -> Unit,
+    onOpenProfile: () -> Unit,
     onDrill: (Drill) -> Unit,
+    onLoadCapability: () -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
     val ops = data.rows("trainer_operations_df")
     val states = data.rows("trainer_current_state_df")
-    val demands = data.rows("unallocated_demand_df")
-    val actions = data.rows("manager_action_objects").filter { it.str("lifecycle_state") != "closed" }
+    val batches = data.rows("batch_engagement_df")
+    val kpis = data.obj("manager_kpis")
+    val capKpis = capability?.obj("kpis")
+    val capTrainers = capability?.rows("trainers").orEmpty()
     val stateMap = states.associateBy { it.str("trainer_email").lowercase() }
-
-    fun named(list: List<Map<*, *>>) = list.map {
-        it.str("trainer_name") to "${it.int("current_utilization")}% · ${it.str("capacity_bucket").ifBlank { it.str("readiness_bucket") }}"
-    }
-
-    val live = states.filter { it.str("current_status") == "teaching_now" }
-    val soon = states.filter { it.str("current_status") in setOf("scheduled_today", "preparing") }
-    val unknown = states.filter { it.str("current_status") == "unknown" }
-    val utilVals = ops.mapNotNull { it.intOrNull("current_utilization")?.takeIf { u -> u > 0 } }
-    val avgUtil = if (utilVals.isNotEmpty()) utilVals.average().toInt() else 0
-    val under = ops.filter { (it.intOrNull("current_utilization") ?: 0) in 1..59 }
-    val over = ops.filter { (it.intOrNull("current_utilization") ?: 0) > 85 }
-
-    fun stateNames(rows: List<Map<*, *>>) = rows.map { s ->
-        val cur = s.obj("current_batch")?.str("course_name").orEmpty()
-        val nxt = s.obj("next_batch")?.str("course_name").orEmpty()
-        val who = ops.firstOrNull { it.str("official_email").equals(s.str("trainer_email"), true) }
-            ?.str("trainer_name").orEmpty()
-        who to listOf(cur.ifBlank { nxt }, s.str("reason")).filter { it.isNotBlank() }.joinToString(" · ")
-    }
+    val capMap = capTrainers.associateBy { it.str("trainer_email").lowercase() }
 
     LazyColumn(
         Modifier.fillMaxSize().background(sk.pageBg),
         contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {
             Appear(0) {
-                HeroCard {
-                    HeroLabel("TEAM DEPLOYMENT")
-                    Spacer(Modifier.height(6.dp))
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        AnimatedCount(ops.size, MaterialTheme.typography.displaySmall, sk.heroText)
-                        Text(
-                            " reportees", style = MaterialTheme.typography.bodyLarge, color = sk.heroMuted,
-                            modifier = Modifier.padding(start = 6.dp, top = 10.dp),
-                        )
-                    }
-                    Spacer(Modifier.height(14.dp))
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
-                    Spacer(Modifier.height(12.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        DeployStat("Delivering", live.size, sk.teal, ops.size, Modifier.weight(1f)) {
-                            onDrill(Drill("Delivering now", "${live.size} trainer(s) mid-batch", stateNames(live)))
-                        }
-                        DeployStat("Upcoming", soon.size, sk.blue, ops.size, Modifier.weight(1f)) {
-                            onDrill(Drill("Starting soon", "${soon.size} scheduled or preparing", stateNames(soon)))
-                        }
-                        DeployStat("Unknown", unknown.size, sk.subText, ops.size, Modifier.weight(1f)) {
-                            onDrill(Drill("Status unknown", "RMS did not return assignment data", stateNames(unknown)))
-                        }
-                    }
-                }
+                ProfileHeader(
+                    email = email,
+                    profile = profile,
+                    kpis = kpis,
+                    capKpis = capKpis,
+                    onOpenProfile = onOpenProfile,
+                )
             }
         }
+
+        item { Appear(1) { DashSectionHeader("Your numbers", "Every figure is counted live from RMS") } }
 
         item {
-            Appear(1) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HeroCard(Modifier.weight(1f), padding = 12.dp) {
-                        HeroLabel("CAPACITY SIGNAL")
-                        Spacer(Modifier.height(4.dp))
-                        AnimatedCount(avgUtil, MaterialTheme.typography.headlineLarge, sk.heroText, suffix = "%")
-                        Text(
-                            "avg of ${utilVals.size} with data",
-                            style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                            modifier = Modifier.padding(bottom = 10.dp),
-                        )
-                        MiniStat("Under 60%", under.size, sk.green) {
-                            onDrill(Drill("Under-utilised", "Below 60% — room to allocate", named(under)))
-                        }
-                        MiniStat("Over 85%", over.size, sk.red) {
-                            onDrill(Drill("Stretched", "Above 85% — protect from more load", named(over)))
-                        }
-                    }
-                    HeroCard(Modifier.weight(1f), padding = 12.dp) {
-                        HeroLabel("MANAGER CONTROL")
-                        Spacer(Modifier.height(4.dp))
-                        AnimatedCount(actions.size, MaterialTheme.typography.headlineLarge, sk.heroText)
-                        Text(
-                            "open decisions",
-                            style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                            modifier = Modifier.padding(bottom = 10.dp),
-                        )
-                        MiniStat("Demand", demands.size, sk.blue) {
-                            onDrill(Drill(
-                                "Unallocated demand", "${demands.size} batches without a trainer",
-                                demands.map {
-                                    it.str("course_name") to listOf(
-                                        it.str("start_date").shortDate(), it.str("delivery_mode"),
-                                        it.str("customer"),
-                                    ).filter(String::isNotBlank).joinToString(" · ")
-                                },
-                            ))
-                        }
-                        MiniStat("Actions", actions.size, sk.amber) {
-                            onDrill(Drill(
-                                "Manager actions", "Open items",
-                                actions.map { it.str("title") to it.str("trainer_name") },
-                            ))
-                        }
-                    }
+            Appear(2) {
+                ManagerKpiGrid(
+                    kpis = kpis,
+                    capKpis = capKpis,
+                    capabilityLoading = capabilityLoading,
+                    ops = ops,
+                    states = states,
+                    batches = batches,
+                    capTrainers = capTrainers,
+                    onDrill = onDrill,
+                    onLoadCapability = onLoadCapability,
+                )
+            }
+        }
+
+        item { Appear(3) { DashSectionHeader("Team health", "What needs attention right now") } }
+
+        item {
+            Appear(4) {
+                TeamAnalytics(
+                    ops = ops,
+                    states = states,
+                    capKpis = capKpis,
+                    capTrainers = capTrainers,
+                    capabilityLoading = capabilityLoading,
+                )
+            }
+        }
+
+        item { Appear(5) { TopPerformers(ops, capMap, onTrainerClick) } }
+
+        item {
+            Appear(6) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Team — right now", style = MaterialTheme.typography.titleLarge, color = sk.bodyText)
+                    Spacer(Modifier.width(8.dp))
+                    Chip("${ops.size}", sk.subText)
                 }
             }
         }
 
-        item { Appear(2) { TopPerformers(ops, onTrainerClick) } }
-
-        item { Appear(3) { SectionHeader("Team — right now", ops.size) } }
-
         if (ops.isEmpty()) {
-            item { EmptyCard("No reportees returned. Check your account permissions.") }
+            item { EmptyStateCard("No reportees returned. Check your account permissions.") }
         } else {
             itemsIndexed(ops) { i, t ->
-                Appear(i + 3) {
-                    TrainerCard(t, stateMap[t.str("official_email").lowercase()]) {
+                Appear(i + 6) {
+                    TrainerCard(
+                        trainer = t,
+                        state = stateMap[t.str("official_email").lowercase()],
+                        capability = capMap[t.str("official_email").lowercase()],
+                    ) {
                         onTrainerClick(t.str("official_email"), t.str("trainer_name"))
                     }
                 }
@@ -330,123 +395,21 @@ internal fun DashboardTab(
     }
 }
 
-private enum class TeamSort(val label: String) {
-    UTIL_DESC("Utilisation"), NAME("Name"), STATUS("Status")
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun TeamTab(data: Map<String, Any>, onTrainerClick: (String, String) -> Unit) {
-    val sk = MaterialTheme.skill
-    val ops = data.rows("trainer_operations_df")
-    val stateMap = data.rows("trainer_current_state_df").associateBy { it.str("trainer_email").lowercase() }
-
-    var query by remember { mutableStateOf("") }
-    var sort by remember { mutableStateOf(TeamSort.UTIL_DESC) }
-    var statusFilter by remember { mutableStateOf<String?>(null) }
-
-    val shown = remember(ops, query, sort, statusFilter, stateMap) {
-        val q = query.trim().lowercase()
-        ops.filter { t ->
-            val st = stateMap[t.str("official_email").lowercase()]
-            val matchesQuery = q.isBlank() ||
-                t.str("trainer_name").lowercase().contains(q) ||
-                t.str("designation").lowercase().contains(q) ||
-                t.str("official_email").lowercase().contains(q) ||
-                st?.obj("current_batch")?.str("course_name")?.lowercase()?.contains(q) == true ||
-                st?.obj("next_batch")?.str("course_name")?.lowercase()?.contains(q) == true
-            val matchesStatus = statusFilter == null ||
-                st?.str("current_status") == statusFilter
-            matchesQuery && matchesStatus
-        }.let { list ->
-            when (sort) {
-                TeamSort.UTIL_DESC -> list.sortedByDescending { it.int("current_utilization") }
-                TeamSort.NAME -> list.sortedBy { it.str("trainer_name") }
-                TeamSort.STATUS -> list.sortedBy {
-                    stateMap[it.str("official_email").lowercase()]?.str("status_label") ?: "zz"
-                }
-            }
-        }
-    }
-
-    LazyColumn(
-        Modifier.fillMaxSize().background(sk.pageBg),
-        contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        item {
-            Column {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = { Text("Search name, designation, course", fontSize = 12.sp) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    TeamSort.entries.forEach { s ->
-                        FilterChip(
-                            selected = sort == s,
-                            onClick = { sort = s },
-                            label = { Text(s.label, fontSize = 10.sp) },
-                        )
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(
-                        "teaching_now" to "Delivering",
-                        "preparing" to "Preparing",
-                        "free" to "Available",
-                    ).forEach { (key, label) ->
-                        FilterChip(
-                            selected = statusFilter == key,
-                            onClick = { statusFilter = if (statusFilter == key) null else key },
-                            label = { Text(label, fontSize = 10.sp) },
-                        )
-                    }
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "${shown.size} of ${ops.size} trainers",
-                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                )
-            }
-        }
-
-        if (shown.isEmpty()) {
-            item { EmptyCard(if (ops.isEmpty()) "No reportees returned." else "No trainer matches this filter.") }
-        }
-        itemsIndexed(shown) { i, t ->
-            Appear(i) {
-                TrainerCard(t, stateMap[t.str("official_email").lowercase()]) {
-                    onTrainerClick(t.str("official_email"), t.str("trainer_name"))
-                }
-            }
-        }
-        item { Spacer(Modifier.height(16.dp)) }
-    }
-}
-
-@Composable
-internal fun DemandTab(data: Map<String, Any>) {
-    val demands = data.rows("unallocated_demand_df")
-    LazyColumn(
-        Modifier.fillMaxSize().background(MaterialTheme.skill.pageBg),
-        contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        if (demands.isEmpty()) item { EmptyCard("No unallocated demand right now.") }
-        itemsIndexed(demands) { i, d -> Appear(i) { DemandCard(d) } }
-        item { Spacer(Modifier.height(16.dp)) }
+private fun DashSectionHeader(title: String, subtitle: String) {
+    Column(Modifier.padding(top = 4.dp)) {
+        Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.skill.bodyText)
+        Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText)
     }
 }
 
 /** Top of the roster by utilisation — a quick read on who is carrying delivery. */
 @Composable
-private fun TopPerformers(ops: List<Map<*, *>>, onTrainerClick: (String, String) -> Unit) {
+private fun TopPerformers(
+    ops: List<Map<*, *>>,
+    capMap: Map<String, Map<*, *>>,
+    onTrainerClick: (String, String) -> Unit,
+) {
     val sk = MaterialTheme.skill
     val top = remember(ops) {
         ops.filter { (it.intOrNull("current_utilization") ?: 0) > 0 }
@@ -473,6 +436,7 @@ private fun TopPerformers(ops: List<Map<*, *>>, onTrainerClick: (String, String)
             Spacer(Modifier.height(10.dp))
             top.forEachIndexed { i, t ->
                 val util = t.int("current_utilization")
+                val cap = capMap[t.str("official_email").lowercase()]
                 val tint = when {
                     util > 85 -> sk.red
                     util >= 60 -> sk.teal
@@ -487,8 +451,10 @@ private fun TopPerformers(ops: List<Map<*, *>>, onTrainerClick: (String, String)
                 ) {
                     Text(
                         "${i + 1}", style = MaterialTheme.typography.labelMedium,
-                        color = sk.subText, modifier = Modifier.width(18.dp),
+                        color = sk.subText, modifier = Modifier.width(16.dp),
                     )
+                    Avatar(t.str("trainer_name"), cap?.str("photo_url"), 28.dp)
+                    Spacer(Modifier.width(9.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
                             t.str("trainer_name"), style = MaterialTheme.typography.titleSmall,
@@ -509,17 +475,124 @@ private fun TopPerformers(ops: List<Map<*, *>>, onTrainerClick: (String, String)
     }
 }
 
+/**
+ * Manager actions, with the certification gaps folded in. Feedback and allocation
+ * items come from the backend's action objects; certification gaps are derived
+ * client-side from capability, because they are the same kind of thing — a
+ * decision waiting on the manager — and splitting them across two screens would
+ * hide half the queue.
+ */
 @Composable
-private fun ActionsTab(data: Map<String, Any>) {
+internal fun ActionsTab(
+    data: Map<String, Any>,
+    capability: Map<String, Any>?,
+    onTrainerClick: (String, String) -> Unit,
+) {
+    val sk = MaterialTheme.skill
     val actions = data.rows("manager_action_objects").filter { it.str("lifecycle_state") != "closed" }
+    val gapTrainers = capability?.rows("trainers").orEmpty()
+        .filter { (it.obj("certification")?.int("gap_count") ?: 0) > 0 }
+
     LazyColumn(
-        Modifier.fillMaxSize().background(MaterialTheme.skill.pageBg),
+        Modifier.fillMaxSize().background(sk.pageBg),
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (actions.isEmpty()) item { EmptyCard("No open manager actions.") }
+        if (actions.isEmpty() && gapTrainers.isEmpty()) {
+            item { EmptyStateCard("No open manager actions.") }
+        }
         itemsIndexed(actions) { i, a -> Appear(i) { AttentionCard(a) } }
+
+        if (gapTrainers.isNotEmpty()) {
+            item {
+                Text(
+                    "Certification gaps",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = sk.bodyText,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            itemsIndexed(gapTrainers) { i, t ->
+                Appear(i) {
+                    CertGapActionCard(t) {
+                        onTrainerClick(t.str("trainer_email"), t.str("trainer_name"))
+                    }
+                }
+            }
+        }
         item { Spacer(Modifier.height(16.dp)) }
+    }
+}
+
+@Composable
+private fun CertGapActionCard(trainer: Map<*, *>, onClick: () -> Unit) {
+    val sk = MaterialTheme.skill
+    val cert = trainer.obj("certification")
+    val missing = cert?.list("missing").orEmpty()
+    Card(
+        Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
+        elevation = CardDefaults.cardElevation(1.dp),
+    ) {
+        Row {
+            Box(Modifier.width(3.dp).fillMaxHeight().background(sk.amber))
+            Column(Modifier.padding(start = 12.dp, top = 10.dp, end = 12.dp, bottom = 10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Avatar(trainer.str("trainer_name"), trainer.str("photo_url"), 28.dp)
+                    Spacer(Modifier.width(9.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            trainer.str("trainer_name"),
+                            style = MaterialTheme.typography.titleSmall, color = sk.bodyText,
+                        )
+                        Text(
+                            "${missing.size} course${if (missing.size == 1) "" else "s"} taught " +
+                                "without the matching certification",
+                            style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                        )
+                    }
+                    Chip("${missing.size}", sk.amber)
+                }
+                Spacer(Modifier.height(8.dp))
+                missing.take(4).forEach { m ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                        Surface(
+                            color = (if (m.str("priority") == "high") sk.red else sk.amber)
+                                .copy(alpha = 0.14f),
+                            shape = RoundedCornerShape(6.dp),
+                        ) {
+                            Text(
+                                m.str("code"),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (m.str("priority") == "high") sk.red else sk.amber,
+                                fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                m.str("name"),
+                                style = MaterialTheme.typography.bodySmall, color = sk.bodyText,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                "teaches ${m.str("because")}",
+                                style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                                fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
+                if (missing.size > 4) {
+                    Text(
+                        "+ ${missing.size - 4} more",
+                        style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -531,14 +604,17 @@ private fun DashboardSkeleton() {
         Modifier.fillMaxSize().background(MaterialTheme.skill.pageBg).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        ShimmerBox(height = 168.dp, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth())
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ShimmerBox(height = 132.dp, shape = RoundedCornerShape(10.dp), modifier = Modifier.weight(1f))
-            ShimmerBox(height = 132.dp, shape = RoundedCornerShape(10.dp), modifier = Modifier.weight(1f))
+        ShimmerBox(height = 168.dp, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth())
+        repeat(2) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                repeat(3) {
+                    ShimmerBox(height = 78.dp, shape = RoundedCornerShape(10.dp), modifier = Modifier.weight(1f))
+                }
+            }
         }
         Spacer(Modifier.height(4.dp))
         ShimmerBox(width = 170.dp, height = 14.dp)
-        repeat(4) {
+        repeat(3) {
             ShimmerBox(height = 128.dp, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth())
         }
     }
@@ -566,28 +642,12 @@ private fun DashErrorView(message: String, onRetry: () -> Unit) {
 // ── Cards ─────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun HeroCard(
-    modifier: Modifier = Modifier,
-    padding: Dp = 16.dp,
-    content: @Composable ColumnScope.() -> Unit,
+internal fun TrainerCard(
+    trainer: Map<*, *>,
+    state: Map<*, *>?,
+    capability: Map<*, *>? = null,
+    onClick: () -> Unit,
 ) {
-    Card(
-        modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.skill.heroBg),
-        elevation = CardDefaults.cardElevation(3.dp),
-    ) {
-        Column(
-            Modifier
-                .background(Brush.linearGradient(listOf(MaterialTheme.skill.heroBg, MaterialTheme.skill.heroBgAlt)))
-                .padding(padding),
-            content = content,
-        )
-    }
-}
-
-@Composable
-internal fun TrainerCard(trainer: Map<*, *>, state: Map<*, *>?, onClick: () -> Unit) {
     val sk = MaterialTheme.skill
     val name = trainer.str("trainer_name")
     val desig = trainer.str("designation").ifBlank { trainer.str("direct_or_indirect") }
@@ -602,6 +662,11 @@ internal fun TrainerCard(trainer: Map<*, *>, state: Map<*, *>?, onClick: () -> U
     val reason = state?.str("reason").orEmpty()
     val cur = state?.obj("current_batch")
     val nxt = state?.obj("next_batch")
+
+    val cert = capability?.obj("certification")
+    val gaps = cert?.int("gap_count") ?: 0
+    val certCount = cert?.list("held")?.size ?: 0
+    val readiness = capability?.str("readiness_bucket").orEmpty()
 
     val statusColor = when (status) {
         "teaching_now" -> sk.teal
@@ -629,21 +694,7 @@ internal fun TrainerCard(trainer: Map<*, *>, state: Map<*, *>?, onClick: () -> U
     ) {
         Column(Modifier.padding(12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(38.dp).clip(RoundedCornerShape(8.dp)).background(
-                        Brush.linearGradient(
-                            listOf(statusColor.copy(alpha = 0.20f), statusColor.copy(alpha = 0.07f))
-                        )
-                    ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        name.split(" ").filter(String::isNotBlank).take(2)
-                            .joinToString("") { it.take(1).uppercase() },
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.ExtraBold, color = statusColor,
-                    )
-                }
+                Avatar(name, capability?.str("photo_url"), 38.dp)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(name, style = MaterialTheme.typography.titleMedium, color = sk.bodyText, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -686,6 +737,25 @@ internal fun TrainerCard(trainer: Map<*, *>, state: Map<*, *>?, onClick: () -> U
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Chip(capacity.ifBlank { "Unknown" }, if (capacity == "Unknown" || capacity.isBlank()) sk.subText else utilColor)
+                if (readiness.isNotBlank() && readiness != "Unknown") {
+                    Spacer(Modifier.width(5.dp))
+                    Chip(
+                        readiness,
+                        when (readiness) {
+                            "Ready" -> sk.green
+                            "Developing" -> sk.amber
+                            else -> sk.red
+                        },
+                    )
+                }
+                if (certCount > 0) {
+                    Spacer(Modifier.width(5.dp))
+                    Chip("$certCount cert", sk.indigo)
+                }
+                if (gaps > 0) {
+                    Spacer(Modifier.width(5.dp))
+                    Chip("$gaps gap", sk.amber)
+                }
                 if (upcoming > 0) {
                     Spacer(Modifier.width(5.dp))
                     Chip("$upcoming upcoming", sk.blue)
@@ -696,7 +766,7 @@ internal fun TrainerCard(trainer: Map<*, *>, state: Map<*, *>?, onClick: () -> U
                 }
                 Spacer(Modifier.weight(1f))
                 if (confidence > 0) {
-                    Text("$confidence% conf.", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                    Text("$confidence%", style = MaterialTheme.typography.labelSmall, color = sk.subText)
                 }
             }
         }
@@ -809,122 +879,14 @@ private fun AttentionCard(action: Map<*, *>) {
     }
 }
 
-@Composable
-private fun DemandCard(demand: Map<*, *>) {
-    val sk = MaterialTheme.skill
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
-    ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(sk.blue.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(painterResource(R.drawable.ic_inbox), null, tint = sk.blue, modifier = Modifier.size(18.dp))
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    demand.str("course_name").ifBlank { "Course not specified" },
-                    style = MaterialTheme.typography.titleSmall, color = sk.bodyText,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    listOfNotNull(
-                        demand.str("start_date").takeIf { it.isNotBlank() }?.shortDate(),
-                        demand.str("delivery_mode").takeIf { it.isNotBlank() },
-                        demand.str("customer").takeIf { it.isNotBlank() },
-                        demand.str("participants").takeIf { it.isNotBlank() }?.let { "$it pax" },
-                        demand.str("location").takeIf { it.isNotBlank() },
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.labelSmall, color = sk.subText, maxLines = 2,
-                )
-            }
-        }
-    }
-}
-
 // ── Small pieces ──────────────────────────────────────────────────────────────
 
 @Composable
-private fun Chip(text: String, tint: Color) {
+internal fun Chip(text: String, tint: Color) {
     Surface(color = tint.copy(alpha = 0.14f), shape = RoundedCornerShape(12.dp)) {
         Text(
             text, style = MaterialTheme.typography.labelSmall, color = tint,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
         )
-    }
-}
-
-@Composable
-private fun HeroLabel(text: String) {
-    Text(
-        text, style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.Bold, color = MaterialTheme.skill.heroMuted,
-    )
-}
-
-@Composable
-private fun DeployStat(
-    label: String, count: Int, color: Color, total: Int,
-    modifier: Modifier, onClick: () -> Unit,
-) {
-    val p by animateProgressFromZero(if (total > 0) count.toFloat() / total else 0f)
-    Column(modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onClick)) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.heroMuted)
-        AnimatedCount(count, MaterialTheme.typography.headlineMedium, MaterialTheme.skill.heroText)
-        LinearProgressIndicator(
-            progress = { p },
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp).height(3.dp).clip(RoundedCornerShape(2.dp)),
-            color = color, trackColor = Color.White.copy(alpha = 0.10f),
-            gapSize = 0.dp, drawStopIndicator = {},
-        )
-    }
-}
-
-@Composable
-private fun MiniStat(label: String, value: Int, color: Color, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(5.dp)).clickable(onClick = onClick).padding(vertical = 3.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(color))
-            Spacer(Modifier.width(5.dp))
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.heroMuted)
-        }
-        Text(
-            "$value", style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold, color = MaterialTheme.skill.heroText,
-        )
-    }
-}
-
-@Composable
-private fun SectionHeader(title: String, count: Int) {
-    Row(
-        Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.skill.bodyText)
-        Spacer(Modifier.width(8.dp))
-        Chip("$count", MaterialTheme.skill.subText)
-    }
-}
-
-@Composable
-private fun EmptyCard(message: String) {
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.skill.cardBg),
-    ) {
-        Box(Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) {
-            Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.skill.subText)
-        }
     }
 }

@@ -298,3 +298,97 @@ Keep entries concise, AI-agnostic, chronological (newest last).
 - **Status:** 14 unit tests green (8 render, 5 share, 1 viewmodel), `assembleDebug` green, backend v5.0.0 live on Render. versionCode 13 / 1.6.0.
 - **NOT yet done / known gaps:** the mark-skill write path has **never been executed** — it writes real RMS records so it needs an explicit go-ahead for a first live test. No push notification for new batches (needs Firebase); the NEW badge only updates when the Demand tab is opened. Trainer-360 is not yet reachable from a batch candidate row.
 - **Next actions:** (1) live-test mark-skill with a known-safe course; (2) decide on push notifications; (3) remaining frontend pages behind the nav.
+
+## v1.7.0 — Personalised dashboard, certification intelligence, verified skill writes — 2026-08-07
+- **Agent/Tool:** Claude Code (claude-opus-5)
+
+### Root cause found: skills were never saving (item 7)
+`POST /api/action/mark-skill` reported success on any non-exception. RMS returns
+**HTTP 200 for a refused write** and buries the real outcome two layers down — a
+single-key envelope named for a SQL Server FOR JSON column
+(`JSON_F52E2B61-18A1-11d1-B105-00805F49916B`) whose value is a JSON *string*:
+`{"Status":"Error","Message":"Skill already mapped for this trainer","TrainerId":7712,"CourseId":11232}`.
+The API instruction file documents that value as `null`, which is why it was
+ignored. Now parsed (`_write_status`) **and** cross-checked by re-reading the
+skill register (key 217) before reporting success.
+
+**Verified with a live production write (2026-08-07), authorised by the user:**
+- Idempotent re-assert (own record, PL-300T00 id 11232, level 10 → level 10):
+  HTTP 200, `verified=true`, `changed=false`, message "Already on record in RMS
+  — Skill already mapped for this trainer". Register 261 → 261, level still 10.
+- Refusal (course id 999999999): HTTP 409, `rms_message="Course not found"`,
+  register unchanged at 261.
+- Validation (non-numeric id / foreign domain / level 44 / bad date): 400 before
+  any RMS traffic.
+- Not exercised: a write that genuinely inserts a new row. There is no delete
+  endpoint, so that path cannot be tested without leaving a real record behind.
+
+### Backend v6.0.0
+- Registered **trainerResume (key 87)** — the only RMS endpoint that returns a
+  person rather than their course list: `TrainerImage`, `Certifications`,
+  `Languages`, `Summary`, `Experience`, `Skill`, `TrainingsDeliveredFor`.
+- New: `GET /api/data/manager-profile`, `GET /api/data/team-capability`,
+  `GET /api/data/trainer-skills`; `manager_kpis` block on the unified payload;
+  `session_time` on demand rows (parsed out of the TOTRecords HTML).
+- Certification intelligence: course title → exam code (`PL-300T00…` → PL-300),
+  exam code → certification via a 30-entry catalogue, plus an adjacency map for
+  "recommended next". Produces held / missing / recommended per trainer.
+- Readiness and risk defined **once** (`_readiness_score`, `_risk_score`) and
+  shared by trainer-360 and team-capability, so a profile reading "Ready" cannot
+  contradict the team roll-up. The dashboard's status-only figure was renamed
+  `deployable_pct` rather than left sharing the name "readiness".
+
+### Parsing defects found and fixed against live data
+- Certification entries split on `": http"`, not the last `:` — titles contain
+  colons ("Microsoft Certified: Azure AI Engineer Associate") and logo filenames
+  contain **spaces** ("DP_700 Logo.png"), so `\S+$` truncated the URL and left
+  its tail glued to the certification name.
+- Exam-code regex dropped its trailing `\b`: `DP-900T00-A` has a word character
+  after the digits, so every T00-suffixed course silently produced no code and
+  the whole gap analysis came back empty for one trainer.
+- `_current_title` handles two resume layouts; the naive "first bold line" read
+  returned "Company: KPMG India" as a job title.
+- `TrainerImage` is the literal string `"None"` when unset, and real photo URLs
+  contain spaces — both handled (`_blank`, percent-encoding).
+
+### Android v1.7.0 (versionCode 14)
+- **Dashboard:** profile header (RMS photo with initials fallback, name, role
+  badge, designation, greeting, tenure), 12 manager KPI cards each with a
+  drill-down, and five Canvas-drawn charts (capacity donut, deployment stacked
+  bar, certification coverage gauge + per-trainer meters, readiness bars,
+  utilisation trend). No chart library added.
+- **Trainer 360:** rebuilt — personal details, utilisation with trend and bench
+  months, capability metrics (readiness / risk / skill match / team rank as
+  gauges), **all** certifications with held / missing / recommended gap analysis,
+  capability, delivery, feedback, availability.
+- **Team:** filter sheet with status, utilisation band, readiness, skill,
+  certification and gaps-only; sort menu; dismissible active-filter chips.
+- **Courses (new tab):** team course catalogue with ownership avatars,
+  certification mapping, single-owner delivery-risk flagging, search and filters.
+- **Navigation:** hand-rolled 56dp bar replacing Material's 80dp `NavigationBar`
+  (items still fill the bar height, so touch targets stay ≥48dp); Courses added
+  as a fifth destination.
+- **Viber:** `BatchShare.Batch`/`Sender` value types; message now carries trainer
+  name, course, dates, **daily time window**, mode, language, pax, location,
+  vendor, reference, TOC link, the action, a response deadline and a signature.
+  Editable preview dialog before sending. Per-candidate direct messaging.
+- **Refresh:** `RefreshOnResume` (ON_RESUME, skips first, 60s throttle) on the
+  shell and Trainer 360; pull-to-refresh on every tab; manual toolbar button;
+  capability re-read after a *changed* skill write only.
+- Added Coil 2.7.0 for RMS profile photos.
+
+### Decisions
+- Team-capability is **not** fetched on dashboard open (user's call): it costs
+  three RMS round-trips per trainer. It loads when Courses is opened, or when a
+  certification KPI is tapped — those four cards read "Tap to load" rather than
+  rendering a false 0.
+- `Appear()` holds alpha at 0, so tests assert existence, not `assertIsDisplayed`.
+
+### Status
+28 unit tests green (17 Robolectric render, 10 share, 1 viewmodel), `assembleDebug`
+green, every new endpoint exercised against live RMS. Still **no on-device run** —
+these tests cover composition and data binding, not visual layout.
+
+### Not done
+- Push notifications for new batches (needs Firebase).
+- A skill write that genuinely inserts has not been exercised; see above.

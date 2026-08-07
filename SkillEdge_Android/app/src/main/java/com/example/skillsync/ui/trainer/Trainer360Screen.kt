@@ -2,11 +2,13 @@ package com.example.skillsync.ui.trainer
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,11 +31,15 @@ import com.example.skillsync.ui.components.*
 fun Trainer360Screen(
     trainerEmail: String,
     trainerName: String,
+    managerEmail: String = "",
     onBack: () -> Unit,
     viewModel: Trainer360ViewModel = viewModel(),
 ) {
-    LaunchedEffect(trainerEmail) { viewModel.load(trainerEmail) }
+    LaunchedEffect(trainerEmail, managerEmail) { viewModel.load(trainerEmail, managerEmail) }
+    RefreshOnResume(key = trainerEmail) { viewModel.refresh(trainerEmail, managerEmail) }
+
     val state by viewModel.state.collectAsState()
+    val refreshing by viewModel.refreshing.collectAsState()
     StatusBarIcons(lightIcons = true)
 
     Scaffold(
@@ -71,17 +77,33 @@ fun Trainer360Screen(
                     Modifier.fillMaxSize().padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    ShimmerBox(height = 120.dp, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth())
+                    ShimmerBox(height = 150.dp, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth())
                     repeat(4) {
                         ShimmerBox(height = 92.dp, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth())
                     }
                 }
-                is Trainer360State.Error -> Box(
-                    Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center
+                is Trainer360State.Error -> Column(
+                    Modifier.fillMaxSize().padding(28.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text(s.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.skill.subText)
+                    Text(
+                        s.message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.skill.subText,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Button(
+                        onClick = { viewModel.refresh(trainerEmail, managerEmail) },
+                        shape = RoundedCornerShape(10.dp),
+                    ) { Text("Try again") }
                 }
-                is Trainer360State.Success -> Trainer360Content(s.data)
+                is Trainer360State.Success -> PullToRefreshBox(
+                    isRefreshing = refreshing,
+                    onRefresh = { viewModel.refresh(trainerEmail, managerEmail) },
+                ) {
+                    Trainer360Content(s.data)
+                }
             }
         }
     }
@@ -91,6 +113,7 @@ fun Trainer360Screen(
 internal fun Trainer360Content(data: Map<String, Any>) {
     val sk = MaterialTheme.skill
     val identity = data.obj("identity")
+    val metrics  = data.obj("metrics")
     val util     = data.obj("utilization")
     val cap      = data.obj("capability")
     val certs    = data.obj("certifications")
@@ -101,191 +124,546 @@ internal fun Trainer360Content(data: Map<String, Any>) {
     val series = util?.list("series").orEmpty()
     val courses = cap?.list("courses").orEmpty()
     val assignments = delivery?.list("assignments").orEmpty()
-    val held = certs?.strings("held").orEmpty()
 
     LazyColumn(
         Modifier.fillMaxSize().background(sk.pageBg),
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // Identity + headline utilisation
-        item {
-            Appear(0) {
-                Card(
-                    Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = sk.heroBg),
-                ) {
-                    Column(
-                        Modifier
-                            .background(Brush.linearGradient(listOf(sk.heroBg, sk.heroBgAlt)))
-                            .padding(16.dp)
-                    ) {
-                        Text(
-                            identity?.str("name").orEmpty().ifBlank { "Trainer" },
-                            style = MaterialTheme.typography.headlineSmall, color = sk.heroText,
-                        )
-                        Text(
-                            identity?.str("email").orEmpty(),
-                            style = MaterialTheme.typography.labelSmall, color = sk.heroMuted,
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                            HeroFigure("Utilisation", "${util?.int("current") ?: 0}%", sk.teal)
-                            HeroFigure("Peak", "${util?.int("peak") ?: 0}%", sk.blue)
-                            HeroFigure("Courses", "${cap?.int("total_courses") ?: 0}", sk.indigo)
-                            HeroFigure("Certs", "${certs?.int("count") ?: 0}", sk.amber)
-                        }
-                        val doj = identity?.str("date_of_joining").orEmpty()
-                        val emp = identity?.str("emp_code").orEmpty()
-                        if (doj.isNotBlank() || emp.isNotBlank()) {
-                            Spacer(Modifier.height(10.dp))
-                            Text(
-                                listOfNotNull(
-                                    emp.takeIf { it.isNotBlank() }?.let { "Emp $it" },
-                                    doj.takeIf { it.isNotBlank() }?.let { "Joined ${it.shortDate()}" },
-                                ).joinToString("  ·  "),
-                                style = MaterialTheme.typography.labelSmall, color = sk.heroMuted,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Utilisation trend
-        if (series.isNotEmpty()) {
-            item {
-                Appear(1) {
-                    SectionCard("Utilisation trend", "${series.size} months") {
-                        UtilisationBars(series)
-                    }
-                }
-            }
-        }
-
-        // Capability
-        item {
-            Appear(2) {
-                SectionCard(
-                    "Capability",
-                    "${cap?.int("approved_courses") ?: 0} approved · avg Qubits ${cap?.int("avg_qubits") ?: 0}",
-                ) {
-                    if (courses.isEmpty()) {
-                        EmptyNote("RMS returned no course capability for this trainer.")
-                    } else {
-                        courses.take(12).forEach { CourseRow(it) }
-                        if (courses.size > 12) {
-                            Text(
-                                "+ ${courses.size - 12} more courses",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = sk.subText,
-                                modifier = Modifier.padding(top = 6.dp),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Certifications
-        item {
-            Appear(3) {
-                SectionCard("Certifications", "${certs?.int("count") ?: 0} held") {
-                    if (held.isEmpty()) EmptyNote("No vendor certifications recorded.")
-                    else FlowChips(held, sk.amber)
-                }
-            }
-        }
-
-        // Delivery history
-        item {
-            Appear(4) {
-                SectionCard(
-                    "Delivery",
-                    "${delivery?.int("total") ?: 0} assignments · ${delivery?.int("upcoming") ?: 0} upcoming",
-                ) {
-                    if (assignments.isEmpty()) EmptyNote("No assignments in the last 12 months.")
-                    else assignments.take(10).forEach { AssignmentRow(it) }
-                }
-            }
-        }
-
-        // Feedback — explicitly distinguishes "clean" from "no data"
-        item {
-            Appear(5) {
-                SectionCard("Feedback & incidents", null) {
-                    val neg = feedback?.int("negative_total") ?: 0
-                    val hrP = feedback?.int("hr_positive") ?: 0
-                    val hrN = feedback?.int("hr_negative") ?: 0
-                    val details = feedback?.list("negative_details").orEmpty()
-                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                        HeroFigure("Negative", "$neg", if (neg > 0) sk.red else sk.green, dark = false)
-                        HeroFigure("HR positive", "$hrP", sk.green, dark = false)
-                        HeroFigure("HR negative", "$hrN", if (hrN > 0) sk.red else sk.subText, dark = false)
-                    }
-                    if (details.isEmpty() && neg == 0 && hrP == 0 && hrN == 0) {
-                        Spacer(Modifier.height(8.dp))
-                        EmptyNote("RMS returned no feedback records — this is an absence of data, not a clean record.")
-                    }
-                    details.take(5).forEach { d ->
-                        Spacer(Modifier.height(8.dp))
-                        Column {
-                            Text(
-                                d.str("feedback_question").ifBlank { "Feedback" },
-                                style = MaterialTheme.typography.bodySmall, color = sk.bodyText,
-                            )
-                            Text(
-                                listOf(d.str("client_name"), d.str("dates"), d.str("delivery_mode"))
-                                    .filter { it.isNotBlank() }.joinToString(" · "),
-                                style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Availability
-        item {
-            Appear(6) {
-                SectionCard("Availability", null) {
-                    val off = avail?.obj("off_dates")
-                    if (off == null || off.isEmpty()) {
-                        EmptyNote("RMS exposes no leave or absence endpoint, and no off-dates are recorded for this trainer.")
-                    } else {
-                        off.forEach { (k, v) ->
-                            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                                Text(
-                                    k.toString().replace('_', ' ').replaceFirstChar { it.uppercase() },
-                                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Text(
-                                    v.toString(),
-                                    style = MaterialTheme.typography.labelSmall, color = sk.bodyText,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
+        item { Appear(0) { IdentityCard(identity, util, cap, certs) } }
+        item { Appear(1) { PersonalDetails(identity) } }
+        item { Appear(2) { UtilisationSection(util, series, delivery) } }
+        item { Appear(3) { CapabilityMetrics(metrics) } }
+        item { Appear(4) { CertificationSection(certs) } }
+        item { Appear(5) { CapabilitySection(cap, courses) } }
+        item { Appear(6) { DeliverySection(delivery, assignments) } }
+        item { Appear(7) { FeedbackSection(feedback) } }
+        item { Appear(8) { AvailabilitySection(avail) } }
         item { Spacer(Modifier.height(20.dp)) }
+    }
+}
+
+// ── Identity ──────────────────────────────────────────────────────────────────
+
+@Composable
+private fun IdentityCard(
+    identity: Map<*, *>?,
+    util: Map<*, *>?,
+    cap: Map<*, *>?,
+    certs: Map<*, *>?,
+) {
+    val sk = MaterialTheme.skill
+    val name = identity?.str("name").orEmpty().ifBlank { "Trainer" }
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.heroBg),
+    ) {
+        Column(
+            Modifier
+                .background(Brush.linearGradient(listOf(sk.heroBg, sk.heroBgAlt)))
+                .padding(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Avatar(name, identity?.str("photo_url"), 58.dp)
+                Spacer(Modifier.width(13.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        name,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold, color = sk.heroText,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    identity?.str("designation")?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, style = MaterialTheme.typography.labelMedium, color = sk.heroMuted)
+                    }
+                    Text(
+                        identity?.str("email").orEmpty(),
+                        style = MaterialTheme.typography.labelSmall, color = sk.heroMuted,
+                        fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                HeroFigure(
+                    "Utilisation",
+                    if (util?.bool("available") == true) "${util.int("current")}%" else "—",
+                    sk.teal,
+                )
+                HeroFigure("Peak", "${util?.int("peak") ?: 0}%", sk.blue)
+                HeroFigure("Courses", "${cap?.int("total_courses") ?: 0}", sk.indigo)
+                HeroFigure("Certs", "${certs?.int("count") ?: 0}", sk.amber)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PersonalDetails(identity: Map<*, *>?) {
+    val sk = MaterialTheme.skill
+    val languages = identity?.list("languages").orEmpty()
+    val clients = identity?.strings("clients").orEmpty()
+
+    SectionCard("Personal details", null) {
+        DetailRow("Email", identity?.str("email").orEmpty())
+        DetailRow("Employee code", identity?.str("emp_code").orEmpty())
+        DetailRow("Trainer id", identity?.str("trainer_id").orEmpty())
+        // Designation is already the subtitle under the name in the header card;
+        // repeating it here just makes the table longer.
+        val reportsTo = identity?.str("reports_to").orEmpty()
+        DetailRow(
+            "Reports to",
+            if (reportsTo.isBlank()) ""
+            else reportsTo + if (identity?.bool("direct_report") == true) " (direct)" else " (indirect)",
+        )
+        DetailRow("Joined", identity?.str("date_of_joining").orEmpty().longDate())
+        DetailRow(
+            "Experience",
+            (identity?.get("tenure_years") as? Number)?.let { "%.1f years at Koenig".format(it.toFloat()) }
+                .orEmpty(),
+        )
+        if (identity?.bool("trainer_plus") == true) DetailRow("Trainer Plus", "Yes")
+        DetailRow(
+            "Languages",
+            languages.joinToString(", ") { "${it.str("language")} (${it.str("level")})" },
+        )
+        DetailRow("Clients delivered for", clients.size.takeIf { it > 0 }?.toString().orEmpty())
+
+        identity?.str("summary")?.takeIf { it.isNotBlank() }?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
+        }
+        if (clients.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Recent clients",
+                style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(4.dp))
+            FlowChips(clients.take(10), sk.blue)
+        }
+        if (identity?.bool("has_resume") != true) {
+            EmptyNote("RMS holds no resume record for this trainer, so photo, certifications and experience are unavailable.")
+        }
+    }
+}
+
+// ── Utilisation ───────────────────────────────────────────────────────────────
+
+@Composable
+private fun UtilisationSection(
+    util: Map<*, *>?,
+    series: List<Map<*, *>>,
+    delivery: Map<*, *>?,
+) {
+    val sk = MaterialTheme.skill
+    val available = util?.bool("available") == true
+    val bench = util?.intOrNull("bench_months")
+
+    SectionCard(
+        "Utilisation",
+        if (available) "${series.size} months on record" else "RMS returned no utilisation",
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Figure("Current", if (available) "${util.int("current")}%" else "—", sk.teal)
+            Figure("Peak", "${util?.int("peak") ?: 0}%", sk.blue)
+            Figure("Active batches", "${delivery?.int("current") ?: 0}", sk.indigo)
+            Figure("Upcoming", "${util?.int("upcoming_load") ?: 0}", sk.amber)
+            Figure(
+                "Bench",
+                // 0 means "working this month"; the count is months since the
+                // most recent month with any load.
+                bench?.let { if (it == 0) "none" else "$it mo" } ?: "—",
+                if ((bench ?: 0) > 2) sk.red else sk.green,
+            )
+        }
+        if (series.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            TrendChart(
+                points = series.map { TrendPoint(it.str("month").take(3), it.int("utilization")) },
+                tint = sk.teal,
+                height = 100.dp,
+            )
+        } else {
+            EmptyNote("No utilisation series returned — this is missing data, not zero utilisation.")
+        }
+    }
+}
+
+// ── Capability metrics ────────────────────────────────────────────────────────
+
+@Composable
+private fun CapabilityMetrics(metrics: Map<*, *>?) {
+    val sk = MaterialTheme.skill
+    val readiness = metrics?.intOrNull("readiness_score")
+    val risk = metrics?.intOrNull("risk_score")
+    val match = metrics?.intOrNull("skill_match_pct")
+    val rank = metrics?.intOrNull("team_rank")
+    val teamSize = metrics?.int("team_size") ?: 0
+
+    SectionCard("Capability metrics", "Computed from Qubits, catalogue depth and capacity") {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            GaugeChart(
+                value = readiness,
+                label = metrics?.str("readiness_bucket").orEmpty().ifBlank { "readiness" },
+                tint = when (metrics?.str("readiness_bucket")) {
+                    "Ready" -> sk.green
+                    "Developing" -> sk.amber
+                    "Needs support" -> sk.red
+                    else -> sk.subText
+                },
+                size = 92.dp,
+            )
+            GaugeChart(
+                value = risk,
+                label = metrics?.str("risk_level").orEmpty().ifBlank { "risk" },
+                tint = when (metrics?.str("risk_level")) {
+                    "High" -> sk.red
+                    "Medium" -> sk.amber
+                    "Low" -> sk.green
+                    else -> sk.subText
+                },
+                size = 92.dp,
+            )
+            GaugeChart(
+                value = match,
+                label = "skill match",
+                tint = when {
+                    match == null -> sk.subText
+                    match >= 80 -> sk.green
+                    match >= 50 -> sk.amber
+                    else -> sk.red
+                },
+                size = 92.dp,
+            )
+            Column(
+                Modifier.height(92.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    // Ranking one person against nobody is not a ranking.
+                    if (rank != null && teamSize > 1) "#$rank" else "—",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.ExtraBold, color = sk.indigo,
+                )
+                Text(
+                    if (teamSize > 1) "of $teamSize in team" else "team ranking",
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 9.sp,
+                )
+            }
+        }
+        if (risk == null) {
+            Spacer(Modifier.height(6.dp))
+            EmptyNote("Risk is Unknown: RMS returned no feedback, incident or utilisation signal. That is an absence of evidence, not a clean record.")
+        }
+    }
+}
+
+// ── Certifications and the gap analysis ───────────────────────────────────────
+
+@Composable
+private fun CertificationSection(certs: Map<*, *>?) {
+    val sk = MaterialTheme.skill
+    val held = certs?.list("held").orEmpty()
+    val missing = certs?.list("missing").orEmpty()
+    val recommended = certs?.list("recommended").orEmpty()
+    val accreditations = certs?.strings("accreditations").orEmpty()
+    val coverage = certs?.intOrNull("coverage_pct")
+
+    SectionCard(
+        "Certifications",
+        "${held.size} held · ${missing.size} gap${if (missing.size == 1) "" else "s"}" +
+            (coverage?.let { " · $it% of taught tracks covered" } ?: ""),
+    ) {
+        // Accreditation is the right to teach a vendor's material and is a
+        // different thing from having passed that vendor's exams. Showing them in
+        // one list is what made "1 certification" look wrong next to nine badges.
+        if (accreditations.isNotEmpty()) {
+            Label("Teaching accreditation")
+            FlowChips(accreditations, sk.teal)
+            Spacer(Modifier.height(12.dp))
+        }
+
+        Label("Certifications held")
+        if (held.isEmpty()) {
+            EmptyNote("No exam certifications on the RMS resume record.")
+        } else {
+            held.forEach { c ->
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_certificate), null,
+                        tint = sk.green, modifier = Modifier.size(15.dp),
+                    )
+                    Spacer(Modifier.width(9.dp))
+                    Text(
+                        c.str("name"),
+                        style = MaterialTheme.typography.bodySmall, color = sk.bodyText,
+                        modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    )
+                    c.str("code").takeIf { it.isNotBlank() }?.let { CodeChip(it, sk.green) }
+                }
+            }
+        }
+
+        if (missing.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(painterResource(R.drawable.ic_gap), null, tint = sk.red, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Label("Missing — teaches the course, holds no certification")
+            }
+            Spacer(Modifier.height(4.dp))
+            missing.forEach { m ->
+                val high = m.str("priority") == "high"
+                Row(
+                    Modifier.fillMaxWidth()
+                        .padding(vertical = 3.dp)
+                        .clip(RoundedCornerShape(7.dp))
+                        .background((if (high) sk.red else sk.amber).copy(alpha = 0.08f))
+                        .padding(horizontal = 9.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CodeChip(m.str("code"), if (high) sk.red else sk.amber)
+                    Spacer(Modifier.width(9.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            m.str("name"),
+                            style = MaterialTheme.typography.bodySmall, color = sk.bodyText,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            "teaches ${m.str("because")}" +
+                                (m.int("delivered").takeIf { it > 0 }?.let { " · $it delivered" } ?: ""),
+                            style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                            fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (high) {
+                        Text(
+                            "HIGH", style = MaterialTheme.typography.labelSmall,
+                            color = sk.red, fontWeight = FontWeight.Bold, fontSize = 8.sp,
+                        )
+                    }
+                }
+            }
+        }
+
+        if (recommended.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            Label("Recommended next")
+            Spacer(Modifier.height(4.dp))
+            recommended.forEach { r ->
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CodeChip(r.str("code"), sk.blue)
+                    Spacer(Modifier.width(9.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            r.str("name"),
+                            style = MaterialTheme.typography.bodySmall, color = sk.bodyText,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        r.str("because").takeIf { it.isNotBlank() }?.let {
+                            Text(
+                                "natural next step from $it",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = sk.subText, fontSize = 9.sp,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (missing.isEmpty() && held.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(painterResource(R.drawable.ic_check), null, tint = sk.green, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "Certified for every exam-linked course they teach.",
+                    style = MaterialTheme.typography.labelSmall, color = sk.green,
+                )
+            }
+        }
+    }
+}
+
+// ── Capability, delivery, feedback, availability ──────────────────────────────
+
+@Composable
+private fun CapabilitySection(cap: Map<*, *>?, courses: List<Map<*, *>>) {
+    val sk = MaterialTheme.skill
+    var expanded by remember { mutableStateOf(false) }
+    val shown = if (expanded) courses else courses.take(12)
+
+    SectionCard(
+        "Capability",
+        "${cap?.int("approved_courses") ?: 0} approved · avg Qubits ${cap?.int("avg_qubits") ?: 0} · " +
+            "${cap?.int("future_skills") ?: 0} future skills",
+    ) {
+        if (courses.isEmpty()) {
+            EmptyNote("RMS returned no course capability for this trainer.")
+        } else {
+            shown.forEach { CourseRow(it) }
+            if (courses.size > 12) {
+                Text(
+                    if (expanded) "Show fewer" else "Show all ${courses.size} courses",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .clickable { expanded = !expanded },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeliverySection(delivery: Map<*, *>?, assignments: List<Map<*, *>>) {
+    SectionCard(
+        "Delivery",
+        "${delivery?.int("total") ?: 0} assignments · ${delivery?.int("upcoming") ?: 0} upcoming",
+    ) {
+        if (assignments.isEmpty()) EmptyNote("No assignments in the last 12 months.")
+        else assignments.take(10).forEach { AssignmentRow(it) }
+    }
+}
+
+@Composable
+private fun FeedbackSection(feedback: Map<*, *>?) {
+    val sk = MaterialTheme.skill
+    SectionCard("Feedback & incidents", null) {
+        val neg = feedback?.int("negative_total") ?: 0
+        val hrP = feedback?.int("hr_positive") ?: 0
+        val hrN = feedback?.int("hr_negative") ?: 0
+        val details = feedback?.list("negative_details").orEmpty()
+        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            Figure("Negative", "$neg", if (neg > 0) sk.red else sk.green)
+            Figure("HR positive", "$hrP", sk.green)
+            Figure("HR negative", "$hrN", if (hrN > 0) sk.red else sk.subText)
+        }
+        if (details.isEmpty() && neg == 0 && hrP == 0 && hrN == 0) {
+            Spacer(Modifier.height(8.dp))
+            EmptyNote("RMS returned no feedback records — this is an absence of data, not a clean record.")
+        }
+        details.take(5).forEach { d ->
+            Spacer(Modifier.height(8.dp))
+            Column {
+                Text(
+                    d.str("feedback_question").ifBlank { "Feedback" },
+                    style = MaterialTheme.typography.bodySmall, color = sk.bodyText,
+                )
+                Text(
+                    listOf(d.str("client_name"), d.str("dates"), d.str("delivery_mode"))
+                        .filter { it.isNotBlank() }.joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AvailabilitySection(avail: Map<*, *>?) {
+    val sk = MaterialTheme.skill
+    SectionCard("Availability", null) {
+        val off = avail?.obj("off_dates")
+        if (off == null || off.isEmpty()) {
+            EmptyNote("RMS exposes no leave or absence endpoint, and no off-dates are recorded for this trainer.")
+        } else {
+            off.forEach { (k, v) ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                    Text(
+                        k.toString().replace('_', ' ').replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(v.toString(), style = MaterialTheme.typography.labelSmall, color = sk.bodyText)
+                }
+            }
+        }
     }
 }
 
 // ── Pieces ────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun HeroFigure(label: String, value: String, tint: Color, dark: Boolean = true) {
+private fun HeroFigure(label: String, value: String, tint: Color) {
     Column {
-        Text(value, style = MaterialTheme.typography.headlineSmall, color = tint)
         Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (dark) MaterialTheme.skill.heroMuted else MaterialTheme.skill.subText,
+            value, style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.ExtraBold, color = tint,
+        )
+        Text(
+            label, style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.skill.heroMuted, fontSize = 9.sp,
+        )
+    }
+}
+
+@Composable
+private fun Figure(label: String, value: String, tint: Color) {
+    Column {
+        Text(
+            value, style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold, color = tint,
+        )
+        Text(
+            label, style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.skill.subText, fontSize = 9.sp,
+        )
+    }
+}
+
+@Composable
+private fun Label(text: String) {
+    Text(
+        text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.skill.subText,
+        fontWeight = FontWeight.Bold, fontSize = 9.sp,
+    )
+}
+
+@Composable
+private fun CodeChip(code: String, tint: Color) {
+    Surface(color = tint.copy(alpha = 0.16f), shape = RoundedCornerShape(6.dp)) {
+        Text(
+            code,
+            style = MaterialTheme.typography.labelSmall, color = tint,
+            fontWeight = FontWeight.Bold, fontSize = 9.5.sp,
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+        )
+    }
+}
+
+/** Skips itself when the value is blank, so the card never shows empty rows. */
+@Composable
+private fun DetailRow(label: String, value: String) {
+    if (value.isBlank()) return
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+        Text(
+            label, style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.skill.subText, modifier = Modifier.width(118.dp),
+        )
+        Text(
+            value, style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.skill.bodyText, modifier = Modifier.weight(1f),
         )
     }
 }
@@ -305,51 +683,6 @@ private fun SectionCard(title: String, subtitle: String?, body: @Composable Colu
             }
             Spacer(Modifier.height(10.dp))
             body()
-        }
-    }
-}
-
-/** Utilisation history as proportional bars — a chart library would be overkill here. */
-@Composable
-private fun UtilisationBars(series: List<Map<*, *>>) {
-    val sk = MaterialTheme.skill
-    val recent = series.takeLast(12)
-    val peak = (recent.maxOfOrNull { it.int("utilization") } ?: 0).coerceAtLeast(1)
-    Row(
-        Modifier.fillMaxWidth().height(96.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        recent.forEach { m ->
-            val v = m.int("utilization")
-            val frac = (v.toFloat() / peak).coerceIn(0.04f, 1f)
-            val tint = when {
-                v > 85 -> sk.red
-                v >= 60 -> sk.teal
-                v >= 30 -> sk.amber
-                else -> sk.subText
-            }
-            Column(
-                Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Bottom,
-            ) {
-                Text("$v", style = MaterialTheme.typography.labelSmall, color = tint, fontSize = 8.sp)
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(frac * 0.72f)
-                        .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                        .background(tint)
-                )
-                Text(
-                    m.str("month").take(3),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.subText,
-                    fontSize = 8.sp,
-                    maxLines = 1,
-                )
-            }
         }
     }
 }
@@ -409,7 +742,6 @@ private fun AssignmentRow(a: Map<*, *>) {
     val tint = when (state) {
         "current" -> sk.teal
         "upcoming" -> sk.blue
-        "completed" -> sk.subText
         else -> sk.subText
     }
     Row(
@@ -447,13 +779,14 @@ private fun AssignmentRow(a: Map<*, *>) {
 @Composable
 private fun FlowChips(items: List<String>, tint: Color) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        items.chunked(3).forEach { row ->
+        items.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 row.forEach {
-                    Surface(color = tint.copy(alpha = 0.14f), shape = RoundedCornerShape(10.dp)) {
+                    Surface(color = tint.copy(alpha = 0.13f), shape = RoundedCornerShape(8.dp)) {
                         Text(
                             it,
                             style = MaterialTheme.typography.labelSmall, color = tint,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 9.5.sp,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                         )
                     }

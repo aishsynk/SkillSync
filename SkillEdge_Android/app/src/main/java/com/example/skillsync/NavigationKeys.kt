@@ -17,6 +17,7 @@ import kotlinx.serialization.Serializable
 object HomeTab {
     const val DASHBOARD = "dashboard"
     const val TEAM = "team"
+    const val COURSES = "courses"
     const val DEMAND = "demand"
     const val ACTIONS = "actions"
 }

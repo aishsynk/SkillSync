@@ -29,6 +29,7 @@ import com.example.skillsync.ui.components.rows
 import com.example.skillsync.ui.components.str
 import com.example.skillsync.ui.components.Motion
 import com.example.skillsync.ui.main.MainScreen
+import com.example.skillsync.ui.main.MainScreenViewModel
 import com.example.skillsync.ui.trainer.Trainer360Screen
 
 @Composable
@@ -37,6 +38,11 @@ fun MainNavigation() {
 
     // Shared so a batch opened from the desk keeps its data and mark-skill state.
     val allocationViewModel: AllocationViewModel = viewModel()
+    // Hoisted out of MainScreen: the batch detail screen signs generated messages
+    // with the manager's real name and title, and Trainer 360 needs the manager
+    // address to rank a trainer within their own team.
+    val mainViewModel: MainScreenViewModel = viewModel()
+    val profile by mainViewModel.profile.collectAsState()
 
     // Hardware/gesture back returns from a pushed detail screen to the shell.
     BackHandler(enabled = current is Trainer360 || current is BatchDetail) {
@@ -94,12 +100,14 @@ fun MainNavigation() {
                 },
                 onBatchClick = { demandId -> current = BatchDetail(screen.email, demandId) },
                 modifier = Modifier,
+                viewModel = mainViewModel,
                 allocationViewModel = allocationViewModel,
             )
 
             is Trainer360 -> Trainer360Screen(
                 trainerEmail = screen.trainerEmail,
                 trainerName = screen.trainerName,
+                managerEmail = screen.email,
                 onBack = { current = Main(screen.email, HomeTab.TEAM) },
             )
 
@@ -129,8 +137,16 @@ fun MainNavigation() {
                         managerEmail = screen.email,
                         reportees = reportees,
                         markState = markState,
+                        senderName = profile?.str("name").orEmpty(),
+                        senderTitle = profile?.str("designation").orEmpty(),
                         onMarkSkill = { courseId, trainerEmail, level, date, who ->
-                            allocationViewModel.markSkill(courseId, trainerEmail, level, date, who)
+                            allocationViewModel.markSkill(
+                                courseId, trainerEmail, level, date, who,
+                                // A confirmed write changes course ownership and
+                                // certification coverage, so the catalogue and the
+                                // cert KPIs are re-read rather than left stale.
+                                onSaved = { mainViewModel.refreshCapability(screen.email) },
+                            )
                         },
                         onClearMark = { allocationViewModel.clearMark() },
                         onBack = { current = Main(screen.email, HomeTab.DEMAND) },

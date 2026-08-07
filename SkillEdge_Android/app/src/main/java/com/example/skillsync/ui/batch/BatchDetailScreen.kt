@@ -34,6 +34,8 @@ fun BatchDetailScreen(
     managerEmail: String,
     reportees: List<Pair<String, String>>,   // name to email
     markState: MarkState,
+    senderName: String = "",
+    senderTitle: String = "",
     onMarkSkill: (courseId: String, trainerEmail: String, level: Int, date: String, who: String) -> Unit,
     onClearMark: () -> Unit,
     onBack: () -> Unit,
@@ -44,21 +46,53 @@ fun BatchDetailScreen(
 
     var showMine by remember { mutableStateOf(false) }
     var showReportee by remember { mutableStateOf(false) }
+    var shareTarget by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var showMessagePreview by remember { mutableStateOf(false) }
 
     val courseId = batch.str("course_id")
     val courseName = batch.str("course_name")
     val relevance = batch.int("relevance")
+    val candidates = batch.list("candidates")
+
+    val shareBatch = remember(batch) {
+        BatchShare.Batch(
+            courseName = courseName,
+            startDate = batch.str("start_date").longDate(),
+            endDate = batch.str("end_date").longDate(),
+            sessionTime = batch.str("session_time"),
+            days = batch.intOrNull("days"),
+            deliveryMode = batch.str("delivery_mode"),
+            language = batch.str("language"),
+            participants = batch.intOrNull("participants")?.toString().orEmpty(),
+            location = batch.str("location"),
+            vendor = batch.str("customer"),
+            reference = batch.str("demand_id"),
+            tocUrl = batch.str("toc_url"),
+        )
+    }
+    val sender = remember(senderName, senderTitle) { BatchShare.Sender(senderName, senderTitle) }
+
+    fun messageFor(target: Pair<String, String>?): String = BatchShare.composeMessage(
+        batch = shareBatch,
+        recipient = target?.first ?: "Team",
+        candidates = if (target == null) candidates.map { it.str("trainer_name") } else emptyList(),
+        sender = sender,
+    )
 
     // Confirm or explain the RMS write, then reset so the dialog can reopen.
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(markState) {
         when (markState) {
             is MarkState.Done -> {
-                snackbar.showSnackbar("Skill recorded for ${markState.who} at level ${markState.level}")
+                snackbar.showSnackbar(markState.message, duration = SnackbarDuration.Short)
+                onClearMark()
+            }
+            is MarkState.Unconfirmed -> {
+                snackbar.showSnackbar(markState.message, duration = SnackbarDuration.Long)
                 onClearMark()
             }
             is MarkState.Failed -> {
-                snackbar.showSnackbar("Not recorded: ${markState.message}")
+                snackbar.showSnackbar("Not saved: ${markState.message}", duration = SnackbarDuration.Long)
                 onClearMark()
             }
             else -> Unit
@@ -134,6 +168,7 @@ fun BatchDetailScreen(
                     batch.str("end_date").takeIf { it.isNotBlank() }?.shortDate(),
                 ).joinToString(" to ").ifBlank { "Not set" })
                 batch.intOrNull("days")?.let { Fact("Duration", "$it day${if (it == 1) "" else "s"}") }
+                Fact("Daily time", batch.str("session_time"))
                 Fact("Mode", batch.str("delivery_mode"))
                 Fact("Participants", batch.intOrNull("participants")?.toString() ?: "—")
                 Fact("Vendor", batch.str("customer"))
@@ -158,7 +193,6 @@ fun BatchDetailScreen(
             }
 
             // Candidates
-            val candidates = batch.list("candidates")
             DetailCard("Who on your team can deliver this") {
                 if (candidates.isEmpty()) {
                     Text(
@@ -183,6 +217,12 @@ fun BatchDetailScreen(
                                 )
                             }
                             Chip("${c.int("match")}% · Q${c.int("qubits_score")}", relevanceColor(c.int("match")))
+                            // Addresses the message to this trainer by name rather
+                            // than sending an unaddressed team broadcast.
+                            TextButton(onClick = {
+                                shareTarget = c.str("trainer_name") to c.str("trainer_email")
+                                showMessagePreview = true
+                            }) { Text("Message", fontSize = 11.sp) }
                         }
                     }
                 }
@@ -196,22 +236,28 @@ fun BatchDetailScreen(
             ActionButton("Mark my skill", R.drawable.ic_check, sk.teal) { showMine = true }
             ActionButton("Mark my reportee's skill", R.drawable.ic_people, sk.indigo) { showReportee = true }
             ActionButton("Share on Viber", R.drawable.ic_flag, sk.green) {
-                BatchShare.shareToViber(
-                    context,
-                    BatchShare.composeMessage(
-                        courseName = courseName,
-                        startDate = batch.str("start_date").shortDate(),
-                        endDate = batch.str("end_date").shortDate(),
-                        deliveryMode = batch.str("delivery_mode"),
-                        reference = batch.str("demand_id"),
-                        participants = batch.intOrNull("participants")?.toString().orEmpty(),
-                        location = batch.str("location"),
-                    ),
-                )
+                shareTarget = null
+                showMessagePreview = true
             }
 
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (showMessagePreview) {
+        MessagePreviewDialog(
+            message = messageFor(shareTarget),
+            recipient = shareTarget?.first,
+            onDismiss = { showMessagePreview = false },
+            onSend = { text ->
+                BatchShare.shareToViber(context, text)
+                showMessagePreview = false
+            },
+            onCopyElsewhere = { text ->
+                BatchShare.shareAnywhere(context, text)
+                showMessagePreview = false
+            },
+        )
     }
 
     if (showMine) {
@@ -247,6 +293,61 @@ fun BatchDetailScreen(
 }
 
 // ── Pieces ────────────────────────────────────────────────────────────────────
+
+/**
+ * Shows the exact text before it leaves the app, and lets the manager edit it.
+ *
+ * A generated message goes out under the manager's own name, so they get to read
+ * and adjust it first — the previous flow fired straight into Viber with no
+ * chance to see what had been written.
+ */
+@Composable
+private fun MessagePreviewDialog(
+    message: String,
+    recipient: String?,
+    onDismiss: () -> Unit,
+    onSend: (String) -> Unit,
+    onCopyElsewhere: (String) -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    var text by remember(message) { mutableStateOf(message) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { onSend(text) }) {
+                Text("Send on Viber", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(onClick = { onCopyElsewhere(text) }) { Text("Other app") }
+            }
+        },
+        title = {
+            Column {
+                Text(
+                    if (recipient != null) "Message $recipient" else "Broadcast to team",
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Text(
+                    "${text.length} characters",
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                )
+            }
+        },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                textStyle = MaterialTheme.typography.bodySmall,
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 380.dp),
+            )
+        },
+    )
+}
 
 @Composable
 private fun DetailCard(title: String, body: @Composable ColumnScope.() -> Unit) {

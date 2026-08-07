@@ -93,6 +93,66 @@ Start the server, then run `python tests/smoke_test.py`.
 - **Utilization API (key=55):** returns single row per trainer with monthly columns `"Jun 2026": "75.77 / 43.05"` (load%/util%). Parse: split `/`, take index [1] as util%, average last 3 months.
 - **Assignments API (key=16 prevUpcoming):** fields `StarDate` (typo), `EndDate`, `Course`, `Mode`, `Location`, `AssignmentId`, `NoOfParticipants`, `Vendor`.
 
+
+## RMS write semantics (verified live 2026-08-07)
+
+`Add Trainer Skill (IDP)` (key 255) — and, by strong implication, every other RMS
+write — returns **HTTP 200 even when it refuses the write**. The outcome lives in
+a single-key envelope named for a SQL Server FOR JSON column, whose value is a
+JSON *string*, not an object:
+
+```json
+[{"JSON_F52E2B61-18A1-11d1-B105-00805F49916B":
+  "{\"Status\":\"Error\",\"Message\":\"Skill already mapped for this trainer\",\"TrainerId\":7712,\"CourseId\":11232}"}]
+```
+
+The instruction file documents that value as `null`. Observed messages so far:
+`"Skill already mapped for this trainer"`, `"Course not found"`. Parse it
+(`backend.py::_write_status`) **and** verify by re-reading the relevant register —
+neither alone is sufficient.
+
+## Trainer Resume Details (key 87) — the only profile endpoint
+
+The one RMS endpoint that returns a person rather than a list of their courses.
+Body `{"email": "..."}`. Fields: `TrainerName`, `TrainerEmail`, `TrainerImage`,
+`Languages`, `Certifications`, `Summary`, `Experience`, `Skill`,
+`TrainingsDeliveredFor`, `Feedback`, `Interest`.
+
+- List-valued fields are `#`-delimited strings.
+- Absent values are the **literal string `"None"`**, not null.
+- Each certification entry is `"<title>: <logo url>"`. Titles contain colons
+  ("Microsoft Certified: Azure AI Engineer Associate") and logo filenames contain
+  spaces ("DP_700 Logo.png") — split on `": http"` and take the URL greedily to
+  end of string.
+- `Summary` / `Experience` are HTML blobs. `Experience` has at least two shapes:
+  a `<strong>` role heading, or a `Company:/Designation:/Duration:` block.
+- Photo URLs contain spaces and must be percent-encoded before use.
+
+There is still **no** API returning the signed-in user's own designation; the
+resume Experience heading is the closest real signal.
+
+## Certification vs accreditation
+
+Two different things, both called "certification" in RMS, and not interchangeable:
+
+- `vendorCertCount` (57) — accrediting **bodies** (MCT, CCSI, VCI, RHCI…). The
+  right to teach a vendor's material. One `"True"`/`"False"` column per body.
+- `trainerResume` (87) `Certifications` — the **exams** the person has passed.
+
+Gap analysis needs the second. Course titles carry the exam code
+(`PL-300T00: …` → PL-300) while certifications are stored under marketing names
+(`Microsoft Certified: Power BI Data Analyst Associate`), so the two are joined
+through the catalogue in `backend.py::_CERT_CATALOG`.
+
+## Endpoints added in v6.0.0
+
+- `GET /api/data/manager-profile?email=` — signed-in identity (3 RMS calls)
+- `GET /api/data/team-capability?email=` — course catalogue + certification gaps
+  (3 RMS calls **per trainer**; the Android client loads it lazily for this reason)
+- `GET /api/data/trainer-skills?email=` — RMS skill register; the write read-back
+- `manager_kpis` block on `unified-manager-intelligence`
+- `session_time` on demand rows, parsed from the `TOTRecords` HTML
+
 ## Deployment
 
 See `DEPLOYMENT.md` for deployment details; `docs/` holds architecture and status.
