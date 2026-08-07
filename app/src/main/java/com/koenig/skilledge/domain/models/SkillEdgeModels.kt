@@ -16,6 +16,17 @@ data class SessionData(
 // ============= Unified Intelligence Payload =============
 
 @Parcelize
+data class NotificationItem(
+    val id: String,
+    val severity: String,
+    val category: String,
+    val title: String,
+    val message: String,
+    val timestamp: String,
+    val read: Boolean = false
+) : Parcelable
+
+@Parcelize
 data class UnifiedManagerIntelligence(
     val generatedAt: Long,
     val servedAt: Long,
@@ -24,6 +35,7 @@ data class UnifiedManagerIntelligence(
     val refreshPending: Boolean = false,
     val lastRefreshError: String? = null,
     val trainerCount: Int,
+    val notifications: List<NotificationItem> = emptyList(),
     val trainerOperationsDf: List<TrainerOperation>,
     val trainerCurrentStateDf: List<TrainerCurrentState>,
     val batchEngagementDf: List<BatchEngagement>,

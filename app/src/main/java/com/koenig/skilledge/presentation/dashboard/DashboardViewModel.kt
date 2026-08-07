@@ -28,11 +28,15 @@ class DashboardViewModel @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
 
-    private val _cacheAge = MutableStateFlow<Int?>(null)
-    val cacheAge: StateFlow<Int?> = _cacheAge
+    private val _showNotificationDialog = MutableStateFlow(false)
+    val showNotificationDialog: StateFlow<Boolean> = _showNotificationDialog
 
     init {
         loadIntelligence()
+    }
+
+    fun toggleNotificationDialog(show: Boolean) {
+        _showNotificationDialog.value = show
     }
 
     fun loadIntelligence(forceRefresh: Boolean = false) {
