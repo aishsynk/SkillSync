@@ -57,7 +57,7 @@ class MainScreenViewModel : ViewModel() {
         loadedFor = email
         viewModelScope.launch {
             _uiState.value = DashboardState.Loading
-            fetchAll(email)
+            fetchAll(email, fresh = false)
         }
     }
 
@@ -65,7 +65,7 @@ class MainScreenViewModel : ViewModel() {
     fun refresh(email: String) {
         viewModelScope.launch {
             _refreshing.value = true
-            fetchAll(email)
+            fetchAll(email, fresh = true)
             _refreshing.value = false
         }
     }
@@ -73,7 +73,7 @@ class MainScreenViewModel : ViewModel() {
     /** Loads capability the first time something actually needs it. */
     fun ensureCapability(email: String) {
         if (_capability.value != null || _capabilityLoading.value) return
-        viewModelScope.launch { fetchCapability(email) }
+        viewModelScope.launch { fetchCapability(email, fresh = false) }
     }
 
     /**
@@ -84,22 +84,25 @@ class MainScreenViewModel : ViewModel() {
      */
     fun refreshCapability(email: String) {
         if (_capability.value == null) return
-        viewModelScope.launch { fetchCapability(email) }
+        viewModelScope.launch { fetchCapability(email, fresh = true) }
     }
 
-    private suspend fun fetchAll(email: String) = coroutineScope {
-        val dash = async { fetchDashboard(email) }
-        val prof = async { fetchProfile(email) }
+    private suspend fun fetchAll(email: String, fresh: Boolean = false) = coroutineScope {
+        val dash = async { fetchDashboard(email, fresh) }
+        val prof = async { fetchProfile(email, fresh) }
         // Capability is refreshed rather than fetched: if the manager has never
         // opened anything that needs it, this must not silently pay for it.
-        val cap = async { if (_capability.value != null) fetchCapability(email) }
+        val cap = async { if (_capability.value != null) fetchCapability(email, fresh) }
         dash.await(); prof.await(); cap.await()
     }
 
-    private suspend fun fetchDashboard(email: String) {
+    /** `?refresh=1` purges the server cache; a plain load is happy to reuse it. */
+    private fun flag(fresh: Boolean) = if (fresh) 1 else null
+
+    private suspend fun fetchDashboard(email: String, fresh: Boolean) {
         try {
             _uiState.value = DashboardState.Success(
-                RetrofitClient.instance.getTrainerIntelligence(email)
+                RetrofitClient.instance.getTrainerIntelligence(email, flag(fresh))
             )
         } catch (e: Exception) {
             // A failed refresh must not wipe out data the manager is already reading.
@@ -111,19 +114,19 @@ class MainScreenViewModel : ViewModel() {
         }
     }
 
-    private suspend fun fetchProfile(email: String) {
+    private suspend fun fetchProfile(email: String, fresh: Boolean) {
         try {
-            _profile.value = RetrofitClient.instance.getManagerProfile(email)
+            _profile.value = RetrofitClient.instance.getManagerProfile(email, flag(fresh))
         } catch (_: Exception) {
             // Identity is presentation only — the dashboard is still usable
             // without it, so this failure stays silent and the header degrades.
         }
     }
 
-    private suspend fun fetchCapability(email: String) {
+    private suspend fun fetchCapability(email: String, fresh: Boolean) {
         _capabilityLoading.value = true
         try {
-            _capability.value = RetrofitClient.instance.getTeamCapability(email)
+            _capability.value = RetrofitClient.instance.getTeamCapability(email, flag(fresh))
         } catch (_: Exception) {
             // Leave the previous value in place; cert KPIs show "—" if there is none.
         } finally {

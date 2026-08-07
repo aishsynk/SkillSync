@@ -54,21 +54,22 @@ class AllocationViewModel : ViewModel() {
         loadedFor = email
         viewModelScope.launch {
             _state.value = AllocationState.Loading
-            fetch(email, context)
+            fetch(email, context, fresh = false)
         }
     }
 
     fun refresh(email: String, context: Context) {
         viewModelScope.launch {
             _refreshing.value = true
-            fetch(email, context)
+            fetch(email, context, fresh = true)
             _refreshing.value = false
         }
     }
 
-    private suspend fun fetch(email: String, context: Context) {
+    private suspend fun fetch(email: String, context: Context, fresh: Boolean) {
         try {
-            val data = RetrofitClient.instance.getAllocationDesk(email)
+            // ?refresh=1 purges the server cache; a plain open reuses it.
+            val data = RetrofitClient.instance.getAllocationDesk(email, if (fresh) 1 else null)
             _newIds.value = SeenBatches.diffAndRemember(context, email, data)
             _state.value = AllocationState.Success(data)
         } catch (e: Exception) {

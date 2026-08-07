@@ -1,6 +1,7 @@
 package com.example.skillsync.ui.batch
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,8 +25,8 @@ import com.example.skillsync.ui.components.*
 
 /**
  * Everything known about one unallocated batch, plus the four actions a manager
- * takes from here: read the syllabus, claim it themselves, claim it for a
- * reportee, or broadcast it to the team.
+ * takes from here: read the outline, claim it themselves, claim it for a
+ * reportee, or message the team about it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,8 +35,6 @@ fun BatchDetailScreen(
     managerEmail: String,
     reportees: List<Pair<String, String>>,   // name to email
     markState: MarkState,
-    senderName: String = "",
-    senderTitle: String = "",
     onMarkSkill: (courseId: String, trainerEmail: String, level: Int, date: String, who: String) -> Unit,
     onClearMark: () -> Unit,
     onBack: () -> Unit,
@@ -70,14 +69,12 @@ fun BatchDetailScreen(
             tocUrl = batch.str("toc_url"),
         )
     }
-    val sender = remember(senderName, senderTitle) { BatchShare.Sender(senderName, senderTitle) }
 
-    fun messageFor(target: Pair<String, String>?): String = BatchShare.composeMessage(
-        batch = shareBatch,
-        recipient = target?.first ?: "Team",
-        candidates = if (target == null) candidates.map { it.str("trainer_name") } else emptyList(),
-        sender = sender,
-    )
+    fun messageFor(target: Pair<String, String>?): String =
+        BatchShare.composeMessage(shareBatch, recipient = target?.first ?: "Team")
+
+    fun htmlFor(target: Pair<String, String>?): String =
+        BatchShare.htmlMessage(shareBatch, recipient = target?.first ?: "Team")
 
     // Confirm or explain the RMS write, then reset so the dialog can reopen.
     val snackbar = remember { SnackbarHostState() }
@@ -228,17 +225,22 @@ fun BatchDetailScreen(
                 }
             }
 
-            // Actions
+            // Actions — one compact row rather than four full-width buttons,
+            // which took a third of the screen and pushed the batch facts off it.
             Spacer(Modifier.height(2.dp))
-            ActionButton("Download course TOC", R.drawable.ic_calendar, sk.blue) {
-                BatchShare.openUrl(context, batch.str("toc_url"))
-            }
-            ActionButton("Mark my skill", R.drawable.ic_check, sk.teal) { showMine = true }
-            ActionButton("Mark my reportee's skill", R.drawable.ic_people, sk.indigo) { showReportee = true }
-            ActionButton("Share on Viber", R.drawable.ic_flag, sk.green) {
-                shareTarget = null
-                showMessagePreview = true
-            }
+            ActionBar(
+                actions = listOf(
+                    ActionItem("Outline", R.drawable.ic_book, sk.blue) {
+                        BatchShare.openUrl(context, batch.str("toc_url"))
+                    },
+                    ActionItem("My skill", R.drawable.ic_check, sk.teal) { showMine = true },
+                    ActionItem("Reportee", R.drawable.ic_people, sk.indigo) { showReportee = true },
+                    ActionItem("Message", R.drawable.ic_mail, sk.green) {
+                        shareTarget = null
+                        showMessagePreview = true
+                    },
+                ),
+            )
 
             Spacer(Modifier.height(24.dp))
         }
@@ -249,11 +251,15 @@ fun BatchDetailScreen(
             message = messageFor(shareTarget),
             recipient = shareTarget?.first,
             onDismiss = { showMessagePreview = false },
-            onSend = { text ->
-                BatchShare.shareToViber(context, text)
+            onCopy = { text ->
+                // Only pass the HTML variant when the text is untouched; once it
+                // has been edited the two would disagree and the rich paste would
+                // silently drop the manager's changes.
+                val html = if (text == messageFor(shareTarget)) htmlFor(shareTarget) else null
+                BatchShare.copyMessage(context, text, html)
                 showMessagePreview = false
             },
-            onCopyElsewhere = { text ->
+            onShare = { text ->
                 BatchShare.shareAnywhere(context, text)
                 showMessagePreview = false
             },
@@ -297,17 +303,18 @@ fun BatchDetailScreen(
 /**
  * Shows the exact text before it leaves the app, and lets the manager edit it.
  *
- * A generated message goes out under the manager's own name, so they get to read
- * and adjust it first — the previous flow fired straight into Viber with no
- * chance to see what had been written.
+ * Copy is the primary action, not a Viber deep link. `viber://forward?text=`
+ * carries the body inside a URI and Viber truncates it at roughly a hundred
+ * characters, so complete messages arrived cut off mid sentence with their
+ * meaning lost. The clipboard has no such limit.
  */
 @Composable
 private fun MessagePreviewDialog(
     message: String,
     recipient: String?,
     onDismiss: () -> Unit,
-    onSend: (String) -> Unit,
-    onCopyElsewhere: (String) -> Unit,
+    onCopy: (String) -> Unit,
+    onShare: (String) -> Unit,
 ) {
     val sk = MaterialTheme.skill
     var text by remember(message) { mutableStateOf(message) }
@@ -315,24 +322,26 @@ private fun MessagePreviewDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = { onSend(text) }) {
-                Text("Send on Viber", fontWeight = FontWeight.Bold)
+            Button(onClick = { onCopy(text) }, shape = RoundedCornerShape(10.dp)) {
+                Icon(painterResource(R.drawable.ic_check), null, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(7.dp))
+                Text("Copy", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             Row {
                 TextButton(onClick = onDismiss) { Text("Cancel") }
-                TextButton(onClick = { onCopyElsewhere(text) }) { Text("Other app") }
+                TextButton(onClick = { onShare(text) }) { Text("Share") }
             }
         },
         title = {
             Column {
                 Text(
-                    if (recipient != null) "Message $recipient" else "Broadcast to team",
+                    if (recipient != null) "Message $recipient" else "Message the team",
                     style = MaterialTheme.typography.titleLarge,
                 )
                 Text(
-                    "${text.length} characters",
+                    "${text.length} of 1000 characters · paste into Viber or Teams",
                     style = MaterialTheme.typography.labelSmall, color = sk.subText,
                 )
             }
@@ -343,7 +352,7 @@ private fun MessagePreviewDialog(
                 onValueChange = { text = it },
                 textStyle = MaterialTheme.typography.bodySmall,
                 shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 380.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp, max = 360.dp),
             )
         },
     )
@@ -387,16 +396,59 @@ private fun Chip(text: String, tint: Color) {
     }
 }
 
+internal data class ActionItem(
+    val label: String,
+    val icon: Int,
+    val tint: Color,
+    val onClick: () -> Unit,
+)
+
+/**
+ * Four actions on one row, each a tinted glyph over a short label.
+ *
+ * Replaces four stacked full-width buttons that ran to roughly 220dp — a third
+ * of a phone screen spent on four words, which pushed the batch facts the
+ * manager came to read below the fold. Each cell still fills the row height, so
+ * the touch targets stay comfortably above the 48dp minimum.
+ */
 @Composable
-private fun ActionButton(label: String, icon: Int, tint: Color, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        shape = RoundedCornerShape(10.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = tint),
-        modifier = Modifier.fillMaxWidth().height(48.dp),
+private fun ActionBar(actions: List<ActionItem>) {
+    val sk = MaterialTheme.skill
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
+        elevation = CardDefaults.cardElevation(1.dp),
     ) {
-        Icon(painterResource(icon), null, tint = Color.White, modifier = Modifier.size(17.dp))
-        Spacer(Modifier.width(9.dp))
-        Text(label, style = MaterialTheme.typography.labelLarge, color = Color.White)
+        Row(Modifier.fillMaxWidth().height(74.dp), verticalAlignment = Alignment.CenterVertically) {
+            actions.forEach { a ->
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(onClick = a.onClick),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Box(
+                        Modifier.size(34.dp).clip(RoundedCornerShape(11.dp))
+                            .background(a.tint.copy(alpha = 0.13f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painterResource(a.icon), null,
+                            tint = a.tint, modifier = Modifier.size(17.dp),
+                        )
+                    }
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        a.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText, fontSize = 9.5.sp, maxLines = 1,
+                    )
+                }
+            }
+        }
     }
 }

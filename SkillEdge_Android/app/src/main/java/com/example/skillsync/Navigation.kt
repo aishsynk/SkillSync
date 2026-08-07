@@ -38,11 +38,9 @@ fun MainNavigation() {
 
     // Shared so a batch opened from the desk keeps its data and mark-skill state.
     val allocationViewModel: AllocationViewModel = viewModel()
-    // Hoisted out of MainScreen: the batch detail screen signs generated messages
-    // with the manager's real name and title, and Trainer 360 needs the manager
-    // address to rank a trainer within their own team.
+    // Hoisted out of MainScreen so a skill write can invalidate the capability
+    // cache that the dashboard and Courses tab read from.
     val mainViewModel: MainScreenViewModel = viewModel()
-    val profile by mainViewModel.profile.collectAsState()
 
     // Hardware/gesture back returns from a pushed detail screen to the shell.
     BackHandler(enabled = current is Trainer360 || current is BatchDetail) {
@@ -137,8 +135,6 @@ fun MainNavigation() {
                         managerEmail = screen.email,
                         reportees = reportees,
                         markState = markState,
-                        senderName = profile?.str("name").orEmpty(),
-                        senderTitle = profile?.str("designation").orEmpty(),
                         onMarkSkill = { courseId, trainerEmail, level, date, who ->
                             allocationViewModel.markSkill(
                                 courseId, trainerEmail, level, date, who,

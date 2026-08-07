@@ -1,6 +1,7 @@
 package com.example.skillsync.ui
 
 import com.example.skillsync.ui.batch.BatchShare
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -8,126 +9,147 @@ import org.junit.Test
 class BatchShareTest {
 
     private val batch = BatchShare.Batch(
-        courseName = "55071-A Microsoft Software Asset Manager",
-        startDate = "24 Aug 2026",
-        endDate = "25 Aug 2026",
-        sessionTime = "09:00 - 17:00 IST",
-        days = 2,
+        courseName = "PL-300T00: Design and Manage Analytics Solutions Using Power BI",
+        startDate = "01 Oct 2026",
+        endDate = "05 Oct 2026",
+        sessionTime = "12:30 to 20:30 IST",
+        days = 5,
         deliveryMode = "ILO",
-        language = "English",
-        participants = "12",
+        language = "French",
+        participants = "1",
         location = "Gurgaon, India",
         vendor = "Microsoft",
-        reference = "266386",
-        tocUrl = "https://www.koenig-solutions.com/CourseContent/custom/55071A.pdf",
+        reference = "264587",
+        tocUrl = "https://www.koenig-solutions.com/CourseContent/custom/PL300.pdf",
     )
 
-    private val sender = BatchShare.Sender("Aishwar Nigam", "Delivery Manager")
+    private fun plain(recipient: String = "Team") =
+        BatchShare.plainMessage(batch, recipient = recipient)
 
-    private fun msg(recipient: String = "Team") =
-        BatchShare.composeMessage(batch, recipient = recipient, sender = sender)
+    /** Greeting on its own line, body next, closing last. */
+    @Test
+    fun message_isStructuredAsGreetingBodyClosing() {
+        val m = plain("Abhinav Samant")
+        val lines = m.lines()
+        assertEquals("Hello Abhinav,", lines.first())
+        assertEquals("", lines[1])
+        assertEquals("Thank you.", lines.last())
+    }
+
+    @Test
+    fun message_carriesTheFactsATrainerNeedsToDecide() {
+        val m = plain()
+        listOf(
+            "PL-300T00: Design and Manage Analytics Solutions Using Power BI",
+            "from 01 Oct 2026 to 05 Oct 2026",
+            "12:30 to 20:30 IST",
+            "Delivery is ILO",
+            "the language is French",
+            "1 participant",
+            "Gurgaon, India",
+            "The reference is 264587",
+            "mark your skill in RMS at level 4 or below",
+            "confirm here by end of day",
+        ).forEach { assertTrue("missing '$it' in:\n$m", m.contains(it)) }
+    }
 
     /**
-     * The spec for these messages: name the trainer, the course, the date, the
-     * time, the action and a closing. Partial messages are the defect being
-     * guarded against, so every element is asserted individually.
+     * No signature. These go to the manager's own team in a chat where the
+     * sender is already visible, so naming themselves is boilerplate.
      */
     @Test
-    fun message_containsEveryRequiredElement() {
-        val m = msg(recipient = "Abhinav Samant")
-        mapOf(
-            "trainer name" to "Hello Abhinav,",
-            "course name" to "55071-A Microsoft Software Asset Manager",
-            "start date" to "24 Aug 2026",
-            "end date" to "25 Aug 2026",
-            "session time" to "09:00 - 17:00 IST",
-            "required action" to "Action required:",
-            "the actual ask" to "mark your skill in RMS",
-            "response deadline" to "Please respond by end of day",
-            "closing" to "Thank you,",
-            "signature" to "Aishwar Nigam",
-            "sender title" to "Delivery Manager, Koenig Solutions",
-        ).forEach { (what, text) ->
-            assertTrue("missing $what ('$text') in:\n$m", m.contains(text))
+    fun message_doesNotSignOff() {
+        val m = plain()
+        listOf("Koenig Solutions", "Delivery Manager", "Regards", "Aishwar").forEach {
+            assertFalse("'$it' should not appear in:\n$m", m.contains(it))
+        }
+    }
+
+    /** House style: no decorative symbols, and full word forms only. */
+    @Test
+    fun message_avoidsDecorationAndContractions() {
+        val m = plain()
+        listOf("—", "–", "•", "*", "_", ">", "|").forEach {
+            assertFalse("'$it' should not appear in:\n$m", m.contains(it))
+        }
+        listOf("can't", "don't", "you're", "we'll", "isn't").forEach {
+            assertFalse("contraction '$it' in:\n$m", m.contains(it))
         }
     }
 
     @Test
-    fun message_carriesTheDeliveryFacts() {
-        val m = msg()
-        listOf("ILO", "English", "12", "Gurgaon, India", "Microsoft", "266386", "(2 days)")
-            .forEach { assertTrue("missing '$it' in:\n$m", m.contains(it)) }
+    fun message_staysShort() {
+        val m = plain()
+        assertTrue("over the 1000 character limit: ${m.length}", m.length <= 1000)
+        // The old version ran past 700 characters of label lines; prose is tighter.
+        assertTrue("message drifted long again: ${m.length}", m.length <= 700)
     }
 
-    /** A broadcast names the people who can actually deliver it. */
+    /** Bold the action, italicise the course name, underline every time reference. */
     @Test
-    fun broadcast_namesMatchedCandidates() {
-        val m = BatchShare.composeMessage(
-            batch, recipient = "Team",
-            candidates = listOf("Abhinav Samant", "Niharika Niharika"),
-            sender = sender,
-        )
-        assertTrue(m.startsWith("Hello Team,"))
-        assertTrue(m.contains("Matched on skill: Abhinav Samant, Niharika Niharika"))
+    fun htmlMessage_appliesEmphasisToTheRightThings() {
+        val h = BatchShare.htmlMessage(batch)
+        assertTrue(h.contains("<b>mark your skill in RMS at level 4 or below</b>"))
+        assertTrue(h.contains("<i>PL-300T00: Design and Manage Analytics Solutions Using Power BI</i>"))
+        assertTrue(h.contains("<u>from 01 Oct 2026 to 05 Oct 2026</u>"))
+        assertTrue(h.contains("<u>12:30 to 20:30 IST</u>"))
+        assertTrue(h.contains("<u>end of day</u>"))
+        assertTrue(h.contains("<i>Thank you.</i>"))
     }
 
-    /** Viber renders plain text, so markdown would show up as literal punctuation. */
+    /** Emphasis is never stacked, so no marker immediately opens inside another. */
     @Test
-    fun viberMessage_containsNoMarkdownNoise() {
-        val m = msg()
-        listOf("*", "_", "•").forEach {
-            assertFalse("'$it' would render literally in Viber:\n$m", m.contains(it))
+    fun htmlMessage_doesNotNestEmphasis() {
+        val h = BatchShare.htmlMessage(batch)
+        listOf("<b><i", "<i><b", "<b><u", "<u><b", "<i><u", "<u><i").forEach {
+            assertFalse("stacked emphasis '$it' in:\n$h", h.contains(it))
         }
     }
 
     /**
-     * A missing time is stated, not dropped. Silently omitting the line is how the
-     * message ends up looking incomplete to the trainer reading it.
+     * Viber understands `*bold*` and `_italic_` but has no underline, so time
+     * references stay plain rather than carrying markers that would render as
+     * literal punctuation.
      */
     @Test
-    fun message_statesMissingTimeRatherThanOmittingIt() {
-        val m = BatchShare.composeMessage(batch.copy(sessionTime = ""), sender = sender)
-        assertTrue(m.contains("Time: To be confirmed"))
+    fun viberMessage_usesOnlyMarkersViberRenders() {
+        val m = BatchShare.composeMessage(batch)
+        assertTrue(m.contains("*mark your skill in RMS at level 4 or below*"))
+        assertTrue(m.contains("_PL-300T00: Design and Manage Analytics Solutions Using Power BI_"))
+        assertTrue("dates must not carry underline markers", m.contains("from 01 Oct 2026 to 05 Oct 2026, 12:30 to 20:30 IST."))
+        assertFalse(m.contains("__"))
     }
 
     @Test
-    fun message_handlesSingleDayAndMissingOptionalFields() {
-        val m = BatchShare.composeMessage(
+    fun message_omitsFieldsRmsDidNotReturn() {
+        val m = BatchShare.plainMessage(
             BatchShare.Batch(
                 courseName = "Power BI Dashboard in a Day",
                 startDate = "18 Aug 2026",
                 endDate = "18 Aug 2026",
-                sessionTime = "09:00 - 17:00 IST",
-                days = 1,
+                sessionTime = "",
                 deliveryMode = "ILO",
-                reference = "264455",
                 participants = "0",
-            ),
-            sender = sender,
+                reference = "264455",
+            )
         )
-        assertTrue(m.contains("Dates: 18 Aug 2026 (1 day)"))
-        assertFalse("single day must not read as a range", m.contains("18 Aug 2026 to"))
-        assertFalse("zero pax should be omitted", m.contains("Participants: 0"))
-        assertFalse("blank vendor should not leave an empty line", m.contains("Vendor:"))
+        assertTrue("single day must not read as a range", m.contains("on 18 Aug 2026."))
+        assertFalse(m.contains("18 Aug 2026 to"))
+        assertFalse("zero pax should be omitted", m.contains("0 participant"))
+        assertFalse("blank language should be omitted", m.contains("the language is"))
+        assertFalse("blank location should be omitted", m.contains("the location is"))
+        // A missing session time drops the clause rather than inventing one.
+        assertFalse(m.contains(", ."))
     }
 
     @Test
-    fun message_fallsBackWhenSenderUnknown() {
-        val m = BatchShare.composeMessage(batch)
-        assertTrue(m.contains("Delivery Management, Koenig Solutions"))
+    fun message_greetsTheTeamWhenBroadcasting() {
+        assertTrue(plain().startsWith("Hello Team,"))
     }
 
+    /** RMS names carry doubled spaces and repeated surnames; greet by first name. */
     @Test
-    fun message_staysWithinLimit() {
-        assertTrue("message too long: ${msg().length}", msg().length <= 2000)
-    }
-
-    @Test
-    fun richText_keepsEmphasisForMarkdownTargets() {
-        val m = BatchShare.asRichText(batch, sender = sender)
-        assertTrue(m.contains("**Unallocated batch — action required**"))
-        assertTrue(m.contains("__24 Aug 2026 to 25 Aug 2026 (2 days)__"))
-        assertTrue(m.contains("*Time:* 09:00 - 17:00 IST"))
-        assertTrue(m.contains("**4 or below**"))
+    fun message_greetsByFirstNameOnly() {
+        assertTrue(plain("Niharika  Niharika").startsWith("Hello Niharika,"))
     }
 }

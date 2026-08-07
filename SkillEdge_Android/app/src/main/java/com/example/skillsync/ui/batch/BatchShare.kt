@@ -1,30 +1,37 @@
 package com.example.skillsync.ui.batch
 
 import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.core.net.toUri
 
 /**
- * Builds the trainer-facing broadcast for an unallocated batch and hands it to
- * Viber (or any share target).
+ * Builds the trainer-facing message for an unallocated batch.
  *
- * Formatting note: Viber renders message bodies as PLAIN TEXT — it has no
- * markdown. Asterisks and underscores would show up literally as punctuation, so
- * the message is written to read well without them. [asRichText] keeps the
- * emphasis markers for targets that do understand them, such as MS Teams.
+ * House style, applied literally:
+ *  - greeting on its own line, message on a new line, closing on a new line
+ *  - complete sentences and full word forms; no contractions
+ *  - no emojis, bullets, decorative symbols or dashes as separators
+ *  - italics only for a name where clarity needs it (the course)
+ *  - bold only for the action being asked for
+ *  - underline only for dates, times and deadlines
+ *  - emphasis used sparingly and never stacked
  *
- * Every message is complete: it names who it is for, what the course is, when it
- * runs (dates *and* the daily time window), the one action being asked for, a
- * response deadline, and who is asking. The earlier one-sentence version left the
- * trainer to go and look up the timing before they could answer, which is what
- * made the messages feel unfinished.
+ * No sender signature: these go to the manager's own team inside a chat where
+ * the sender is already on screen, so naming themselves reads as boilerplate.
+ *
+ * Emphasis travels as HTML on the clipboard ([htmlMessage]) because no chat app
+ * renders underline from markdown. Pasting into Teams or Outlook keeps bold,
+ * italic and underline; pasting into Viber falls back to [composeMessage], which
+ * carries the Viber markers it does understand and drops the rest rather than
+ * leaving punctuation lying in the text.
  */
 object BatchShare {
 
-    private const val MAX_CHARS = 2000
+    private const val MAX_CHARS = 1000
 
     /** Everything the message needs, so no caller can accidentally omit a field. */
     data class Batch(
@@ -42,140 +49,125 @@ object BatchShare {
         val tocUrl: String = "",
     )
 
-    data class Sender(val name: String = "", val title: String = "")
+    /** One sentence of delivery facts, only for the fields RMS actually returned. */
+    private fun facts(b: Batch): String {
+        val parts = listOfNotNull(
+            b.deliveryMode.ifBlank { null }?.let { "delivery is $it" },
+            b.language.ifBlank { null }?.let { "the language is $it" },
+            b.participants.takeIf { it.isNotBlank() && it != "0" }
+                ?.let { "there ${if (it == "1") "is" else "are"} $it participant${if (it == "1") "" else "s"}" },
+            b.location.ifBlank { null }?.let { "the location is $it" },
+        )
+        if (parts.isEmpty()) return ""
+        val joined = when (parts.size) {
+            1 -> parts[0]
+            else -> parts.dropLast(1).joinToString(", ") + " and " + parts.last()
+        }
+        return joined.replaceFirstChar { it.uppercase() } + "."
+    }
+
+    private fun window(b: Batch): String = when {
+        b.startDate.isBlank() -> "on dates still to be confirmed"
+        b.endDate.isBlank() || b.endDate == b.startDate -> "on ${b.startDate}"
+        else -> "from ${b.startDate} to ${b.endDate}"
+    }
+
+    private fun greetingName(recipient: String): String =
+        recipient.split(" ").firstOrNull { it.isNotBlank() } ?: "Team"
 
     /**
-     * Plain, Viber-safe wording addressed to [recipient] — a trainer's first name,
-     * or a team when broadcasting. [candidates] are named in the broadcast form so
-     * the people who can actually deliver it know the message is meant for them.
+     * Viber and WhatsApp read `*bold*` and `_italic_`; neither has underline, so
+     * time references are left plain rather than wrapped in markers that would
+     * show up as literal punctuation.
      */
     fun composeMessage(
         batch: Batch,
         recipient: String = "Team",
-        candidates: List<String> = emptyList(),
-        sender: Sender = Sender(),
         maxSkillLevel: Int = 4,
         respondBy: String = "end of day",
-    ): String = buildString {
-        appendLine("Hello ${greetingName(recipient)},")
-        appendLine()
-        appendLine("Please note the following unallocated batch.")
-        appendLine()
+    ): String = build(batch, recipient, maxSkillLevel, respondBy,
+        bold = { "*$it*" }, italic = { "_${it}_" }, underline = { it })
 
-        appendLine("Course: ${batch.courseName.ifBlank { "Not specified" }}")
-        appendLine("Dates: ${dateWindow(batch)}")
-        // Time is a required field; say so explicitly rather than dropping the
-        // line, so nobody assumes it was simply forgotten.
-        appendLine("Time: ${batch.sessionTime.ifBlank { "To be confirmed" }}")
-        batch.deliveryMode.ifBlank { null }?.let { appendLine("Delivery mode: $it") }
-        batch.language.ifBlank { null }?.let { appendLine("Language: $it") }
-        batch.participants.takeIf { it.isNotBlank() && it != "0" }?.let { appendLine("Participants: $it") }
-        batch.location.ifBlank { null }?.let { appendLine("Location: $it") }
-        batch.vendor.ifBlank { null }?.let { appendLine("Vendor: $it") }
-        batch.reference.ifBlank { null }?.let { appendLine("Reference: $it") }
-        batch.tocUrl.ifBlank { null }?.let { appendLine("Course outline: $it") }
-
-        if (candidates.isNotEmpty()) {
-            appendLine()
-            appendLine(
-                "Matched on skill: ${candidates.joinToString(", ")}" +
-                    " — you are already on record for a matching course."
-            )
-        }
-
-        appendLine()
-        appendLine("Action required:")
-        appendLine(
-            "If you can deliver this course, please mark your skill in RMS and keep the " +
-                "skill level at $maxSkillLevel or below, then confirm here. If you are not " +
-                "available on these dates, please reply so the batch can be offered elsewhere."
-        )
-        appendLine()
-        appendLine("Please respond by $respondBy so allocation can be closed.")
-        appendLine()
-        appendLine("Thank you,")
-        append(signature(sender))
-    }.trim().take(MAX_CHARS)
-
-    /** Same content with emphasis markers, for targets that render markdown. */
-    fun asRichText(
+    /** Plain text with no markers at all, for anywhere emphasis would be noise. */
+    fun plainMessage(
         batch: Batch,
         recipient: String = "Team",
-        candidates: List<String> = emptyList(),
-        sender: Sender = Sender(),
         maxSkillLevel: Int = 4,
         respondBy: String = "end of day",
+    ): String = build(batch, recipient, maxSkillLevel, respondBy,
+        bold = { it }, italic = { it }, underline = { it })
+
+    /** HTML for the clipboard, so Teams and Outlook keep all three styles. */
+    fun htmlMessage(
+        batch: Batch,
+        recipient: String = "Team",
+        maxSkillLevel: Int = 4,
+        respondBy: String = "end of day",
+    ): String = build(batch, recipient, maxSkillLevel, respondBy,
+        bold = { "<b>$it</b>" }, italic = { "<i>$it</i>" }, underline = { "<u>$it</u>" })
+        .replace("\n", "<br>")
+
+    private fun build(
+        b: Batch,
+        recipient: String,
+        maxSkillLevel: Int,
+        respondBy: String,
+        bold: (String) -> String,
+        italic: (String) -> String,
+        underline: (String) -> String,
     ): String = buildString {
         appendLine("Hello ${greetingName(recipient)},")
         appendLine()
-        appendLine("**Unallocated batch — action required**")
+
+        append("A batch of ${italic(b.courseName.ifBlank { "an unnamed course" })} is open for allocation ")
+        append(underline(window(b)))
+        if (b.sessionTime.isNotBlank()) append(", ${underline(b.sessionTime)}")
+        append(".")
+        facts(b).ifBlank { null }?.let { append(" $it") }
+        b.reference.ifBlank { null }?.let { append(" The reference is $it.") }
         appendLine()
-        appendLine("*Course:* ${batch.courseName.ifBlank { "Not specified" }}")
-        appendLine("*Dates:* __${dateWindow(batch)}__")
-        appendLine("*Time:* ${batch.sessionTime.ifBlank { "To be confirmed" }}")
-        batch.deliveryMode.ifBlank { null }?.let { appendLine("*Delivery mode:* $it") }
-        batch.language.ifBlank { null }?.let { appendLine("*Language:* $it") }
-        batch.participants.takeIf { it.isNotBlank() && it != "0" }?.let { appendLine("*Participants:* $it") }
-        batch.location.ifBlank { null }?.let { appendLine("*Location:* $it") }
-        batch.vendor.ifBlank { null }?.let { appendLine("*Vendor:* $it") }
-        batch.reference.ifBlank { null }?.let { appendLine("*Reference:* $it") }
-        batch.tocUrl.ifBlank { null }?.let { appendLine("*Course outline:* $it") }
-        if (candidates.isNotEmpty()) {
-            appendLine()
-            appendLine("*Matched on skill:* ${candidates.joinToString(", ")}")
-        }
         appendLine()
-        appendLine(
-            "**Action required:** mark your skill in RMS at level **$maxSkillLevel or below** " +
-                "and confirm here, or reply if you are unavailable on these dates."
-        )
+
+        append("If you can take this, please ")
+        append(bold("mark your skill in RMS at level $maxSkillLevel or below"))
+        append(" and confirm here by ${underline(respondBy)}. ")
+        append("If you are not available on these dates, please let me know so it can be offered to someone else.")
         appendLine()
-        appendLine("_Please respond by $respondBy._")
         appendLine()
-        appendLine("Thank you,")
-        append(signature(sender))
+        append(italic("Thank you."))
     }.trim().take(MAX_CHARS)
 
-    /**
-     * Greet by first name. RMS stores names with doubled spaces and repeated
-     * surnames ("Abhinav   Samant", "Niharika  Niharika"), and addressing someone
-     * by their full RMS record reads like a mail merge, so the salutation is
-     * normalised here rather than at each call site.
-     */
-    private fun greetingName(recipient: String): String =
-        recipient.split(" ").firstOrNull { it.isNotBlank() } ?: "Team"
-
-    private fun dateWindow(b: Batch): String {
-        val span = when {
-            b.startDate.isBlank() -> "To be confirmed"
-            b.endDate.isBlank() || b.endDate == b.startDate -> b.startDate
-            else -> "${b.startDate} to ${b.endDate}"
-        }
-        val days = b.days?.takeIf { it > 0 }?.let { " ($it day${if (it == 1) "" else "s"})" }.orEmpty()
-        return span + days
-    }
-
-    private fun signature(s: Sender): String = when {
-        s.name.isBlank() -> "Delivery Management, Koenig Solutions"
-        s.title.isBlank() -> "${s.name}\nKoenig Solutions"
-        else -> "${s.name}\n${s.title}, Koenig Solutions"
-    }
+    // ── Delivery ──────────────────────────────────────────────────────────────
 
     /**
-     * Opens Viber with [message] pre-filled. Falls back to the system share sheet
-     * when Viber is not installed, so the action never dead-ends.
+     * Copies the message to the clipboard.
+     *
+     * Deliberately not a `viber://forward?text=` deep link. That scheme puts the
+     * whole body in a URI, and Viber truncates it around a hundred characters,
+     * so a complete message arrived cut off mid sentence and lost its meaning.
+     * Copy and paste has no length limit and the sender sees exactly what goes.
      */
-    fun shareToViber(context: Context, message: String) {
-        val viber = Intent(Intent.ACTION_VIEW).apply {
-            data = "viber://forward?text=${Uri.encode(message)}".toUri()
+    fun copyMessage(context: Context, plain: String, html: String? = null) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        if (clipboard == null) {
+            Toast.makeText(context, "Clipboard unavailable on this device", Toast.LENGTH_SHORT).show()
+            return
         }
-        try {
-            context.startActivity(viber)
-        } catch (_: ActivityNotFoundException) {
-            shareAnywhere(context, message, "Viber is not installed — choose another app")
+        val clip = if (html.isNullOrBlank()) {
+            ClipData.newPlainText("Batch message", plain)
+        } else {
+            // Plain text is the fallback every target can read; the HTML is only
+            // used by apps that accept rich text.
+            ClipData.newHtmlText("Batch message", plain, html)
         }
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(context, "Message copied. Paste it into Viber or Teams.", Toast.LENGTH_LONG).show()
     }
 
+    /**
+     * Hands the message to a share target. `ACTION_SEND` passes the body as an
+     * intent extra rather than a URI, so unlike the deep link it is not truncated.
+     */
     fun shareAnywhere(context: Context, message: String, toast: String? = null) {
         toast?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
         val send = Intent(Intent.ACTION_SEND).apply {

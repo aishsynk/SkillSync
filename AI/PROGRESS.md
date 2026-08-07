@@ -392,3 +392,81 @@ these tests cover composition and data binding, not visual layout.
 ### Not done
 - Push notifications for new batches (needs Firebase).
 - A skill write that genuinely inserts has not been exercised; see above.
+
+## v1.7.1 — RMS response cache, rewritten messages, compact batch actions — 2026-08-07
+- **Agent/Tool:** Claude Code (claude-opus-5)
+
+### Load times (the Demand and Actions complaint)
+Measured from Render, not guessed: a single RMS round-trip costs **2 to 5 seconds**
+from that region, and the backend had **no caching at all**. Every screen open
+re-fetched data another screen had just read — `reportees` is used by four
+endpoints, `trainerDetails` by three.
+
+Before / after (`?refresh=1` excluded):
+
+| endpoint | cold | warm |
+|---|---|---|
+| manager-profile | 14.4s / 3 RMS calls | 0.00s / 0 calls |
+| allocation-desk (Demand) | 2.7s / 3 calls | 0.02s / 0 calls |
+| team-capability (Courses) | 5.3s / 6 calls | 0.01s / 0 calls |
+| unified-manager-intelligence | 55.6s first, 6.6s after | 0.87s |
+
+- `backend.py::_rms` now reads through a TTL cache (`_CACHE_TTL`), with per-endpoint
+  TTLs set by how fast each dataset actually moves (utilisation 30 min, unallocated
+  demand 3 min, resume 60 min).
+- **`trainerSkills` is deliberately never cached** — it is the read-back that proves
+  a skill write landed, and a cached copy would defeat the whole check. Verified:
+  two consecutive calls still make one RMS request each.
+- Failures are never cached: `_rms` returns `None` on a network error and
+  `_cache_put` ignores it, so a blip cannot freeze into a 30-minute outage.
+- `?refresh=1` purges that manager's entries (plus the global `{}` demand query,
+  which no email needle would otherwise match). Wired to pull-to-refresh and the
+  toolbar button only; a first open happily takes the cached answer.
+- A successful skill write purges that trainer's entries, so the confirmed skill
+  cannot be contradicted by a cached course list.
+
+### Messages rewritten to house style
+Old messages were label lists ("Course: …", "Dates: …") that ran ~700 characters
+and signed off with the sender's name and title — noise inside a team chat where
+the sender is already on screen. Now prose, 522 characters, no signature:
+
+    Hello Team,
+
+    A batch of PL-300T00: Design and Manage Analytics Solutions Using Power BI is
+    open for allocation from 01 Oct 2026 to 05 Oct 2026, 12:30 to 20:30 IST.
+    Delivery is ILO, the language is French, there is 1 participant and the
+    location is Gurgaon, India. The reference is 264587.
+
+    If you can take this, please mark your skill in RMS at level 4 or below and
+    confirm here by end of day. If you are not available on these dates, please
+    let me know so it can be offered to someone else.
+
+    Thank you.
+
+Emphasis follows the rule set exactly: **bold** only the action, *italic* only the
+course name and the closing, <u>underline</u> only dates, times and deadlines,
+never stacked. Full word forms, no contractions, no dashes or bullets.
+
+Three renderings from one builder so the rules cannot drift apart:
+`htmlMessage` (clipboard rich text — the only way to get underline into Teams),
+`composeMessage` (Viber markers `*bold*` / `_italic_`, dates left plain because
+Viber has no underline), and `plainMessage`.
+
+### Viber truncation fixed
+`viber://forward?text=` carries the body inside a URI and Viber truncates it at
+roughly 100 characters, so complete messages arrived cut off mid sentence. The
+deep link is **gone**. Copy is now the primary action, using `ClipData.newHtmlText`
+so a paste into Teams keeps bold/italic/underline while Viber gets the plain
+fallback. "Share" via `ACTION_SEND` remains as a secondary route — it passes the
+body as an intent extra and is not length-limited. The HTML variant is only
+attached when the text is unedited, so a manager's edits can never be silently
+replaced by the rich version.
+
+### Batch detail actions
+Four stacked full-width 48dp buttons (~220dp, a third of the screen) replaced by
+one 74dp row of four tinted glyph tiles. Each cell fills the row height, so touch
+targets stay above 48dp despite the smaller footprint.
+
+### Status
+29 unit tests green, `assembleDebug` green, cache and refresh bypass verified
+against live RMS. Still no on-device run.

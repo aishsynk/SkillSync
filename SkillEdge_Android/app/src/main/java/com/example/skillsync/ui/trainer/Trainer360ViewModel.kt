@@ -27,7 +27,7 @@ class Trainer360ViewModel : ViewModel() {
         loadedFor = trainerEmail
         viewModelScope.launch {
             _state.value = Trainer360State.Loading
-            fetch(trainerEmail, managerEmail)
+            fetch(trainerEmail, managerEmail, fresh = false)
         }
     }
 
@@ -35,17 +35,18 @@ class Trainer360ViewModel : ViewModel() {
     fun refresh(trainerEmail: String, managerEmail: String = "") {
         viewModelScope.launch {
             _refreshing.value = true
-            fetch(trainerEmail, managerEmail)
+            fetch(trainerEmail, managerEmail, fresh = true)
             _refreshing.value = false
         }
     }
 
-    private suspend fun fetch(trainerEmail: String, managerEmail: String) {
+    private suspend fun fetch(trainerEmail: String, managerEmail: String, fresh: Boolean) {
         try {
             _state.value = Trainer360State.Success(
                 RetrofitClient.instance.getTrainer360(
                     email = trainerEmail,
                     manager = managerEmail.takeIf { it.isNotBlank() },
+                    refresh = if (fresh) 1 else null,
                 )
             )
         } catch (e: Exception) {

@@ -20,12 +20,23 @@ interface SkillEdgeApi {
     @POST("api/auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
 
+    /**
+     * [refresh] maps to `?refresh=1`, which purges this manager's server-side
+     * cache before rebuilding. Sent on pull-to-refresh only: a first load should
+     * take the cached answer, otherwise the cache never helps anyone.
+     */
     @GET("api/data/unified-manager-intelligence")
-    suspend fun getTrainerIntelligence(@Query("email") email: String): Map<String, Any>
+    suspend fun getTrainerIntelligence(
+        @Query("email") email: String,
+        @Query("refresh") refresh: Int? = null,
+    ): Map<String, Any>
 
     /** The signed-in user's own identity — small and fast, gates the header paint. */
     @GET("api/data/manager-profile")
-    suspend fun getManagerProfile(@Query("email") email: String): Map<String, Any>
+    suspend fun getManagerProfile(
+        @Query("email") email: String,
+        @Query("refresh") refresh: Int? = null,
+    ): Map<String, Any>
 
     /**
      * Deep single-trainer profile. [manager] is optional and only used to rank
@@ -35,6 +46,7 @@ interface SkillEdgeApi {
     suspend fun getTrainer360(
         @Query("email") email: String,
         @Query("manager") manager: String? = null,
+        @Query("refresh") refresh: Int? = null,
     ): Map<String, Any>
 
     /**
@@ -43,11 +55,17 @@ interface SkillEdgeApi {
      * than inside it.
      */
     @GET("api/data/team-capability")
-    suspend fun getTeamCapability(@Query("email") email: String): Map<String, Any>
+    suspend fun getTeamCapability(
+        @Query("email") email: String,
+        @Query("refresh") refresh: Int? = null,
+    ): Map<String, Any>
 
     /** Unallocated batches ranked against this manager's team capability. */
     @GET("api/data/allocation-desk")
-    suspend fun getAllocationDesk(@Query("email") email: String): Map<String, Any>
+    suspend fun getAllocationDesk(
+        @Query("email") email: String,
+        @Query("refresh") refresh: Int? = null,
+    ): Map<String, Any>
 
     /** RMS skill register for one trainer — the read-back behind a skill write. */
     @GET("api/data/trainer-skills")

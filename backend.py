@@ -68,6 +68,8 @@ import json
 import os
 import re as _re
 import secrets
+import threading
+import time
 import urllib.parse
 import urllib.request
 
@@ -230,6 +232,83 @@ _APIS = {
 _token_cache: dict = {}
 _sessions: dict = {}
 
+# ─── Response cache ───────────────────────────────────────────────────────────
+#
+# Measured from Render (2026-08-07): a single RMS round-trip costs 2-5s, and the
+# screens overlap heavily — reportees is fetched by four different endpoints,
+# trainerDetails by three. Uncached, opening Demand cost ~6s and Team Capability
+# ~8s *every time*, re-fetching data that had just been read.
+#
+# TTLs are set by how fast each dataset actually moves, not by a single global
+# number: utilisation is a monthly rollup, unallocated demand turns over during
+# the day. The skill register is deliberately absent — it is the read-back that
+# proves a write landed, and a cached copy would defeat the entire check.
+_CACHE_TTL = {
+    "reportees":        1800,   # org structure; changes on transfer, not hourly
+    "trainerDetails":   1800,   # course capability
+    "trainerResume":    3600,   # photo, certifications, experience
+    "utilization":      1800,   # monthly rollup
+    "vendorCertCount":  3600,   # accreditation bodies
+    "negFeedbackCount":  900,
+    "hrIncident":        900,
+    "trainerNegFeedback": 900,
+    "prevUpcoming":      600,   # assignment calendar
+    "unallocated":       180,   # demand turns over during the day
+    # "trainerSkills" intentionally omitted — see above.
+    # "addTrainerSkill" is a write and must never be served from cache.
+}
+
+_cache: dict = {}
+_cache_lock = threading.Lock()
+
+
+def _cache_key(api_name, body):
+    return api_name, json.dumps(body or {}, sort_keys=True, default=str)
+
+
+def _cache_get(api_name, body):
+    ttl = _CACHE_TTL.get(api_name)
+    if not ttl:
+        return None
+    with _cache_lock:
+        hit = _cache.get(_cache_key(api_name, body))
+    if not hit:
+        return None
+    expires, value = hit
+    return value if time.time() < expires else None
+
+
+def _cache_put(api_name, body, value):
+    ttl = _CACHE_TTL.get(api_name)
+    # Never cache a failure: `None` means RMS did not answer, and freezing that
+    # for 30 minutes would turn a blip into a half-hour outage.
+    if not ttl or value is None:
+        return
+    with _cache_lock:
+        _cache[_cache_key(api_name, body)] = (time.time() + ttl, value)
+
+
+def _cache_purge(needle=""):
+    """
+    Drop cached entries. With [needle] (an email), drops only entries whose
+    request body mentions it, so one manager's refresh does not evict another's.
+    """
+    with _cache_lock:
+        if not needle:
+            _cache.clear()
+            return
+        n = str(needle).lower()
+        # "{}" is the unallocated-demand query: global data belonging to nobody,
+        # so an email needle would never match it and pull-to-refresh on the
+        # Demand tab would keep serving the stale list.
+        for key in [k for k in _cache if n in k[1].lower() or k[1] == "{}"]:
+            _cache.pop(key, None)
+
+
+def _wants_fresh():
+    """`?refresh=1` — pull-to-refresh must actually re-read RMS."""
+    return str(request.args.get("refresh", "")).strip() in ("1", "true", "yes")
+
 
 # ─── RMS low-level helpers ────────────────────────────────────────────────────
 
@@ -259,7 +338,15 @@ def _token(api_name):
 
 
 def _rms(api_name, body):
-    """Call RMS and return list/dict content. Returns None on network failure."""
+    """
+    Call RMS and return list/dict content. Returns None on network failure.
+
+    Served from `_cache` when the endpoint has a TTL and a fresh entry exists;
+    see `_CACHE_TTL` for why each TTL is what it is.
+    """
+    cached = _cache_get(api_name, body)
+    if cached is not None:
+        return cached
     try:
         cfg = _APIS[api_name]
         for attempt in range(2):
@@ -283,7 +370,9 @@ def _rms(api_name, body):
                     if k in content:
                         content = content[k]
                         break
-            return content if isinstance(content, list) else ([] if content is None else content)
+            out = content if isinstance(content, list) else ([] if content is None else content)
+            _cache_put(api_name, body, out)
+            return out
     except Exception:
         return None
 
@@ -1226,7 +1315,7 @@ def healthz():
     return jsonify({
         "status":    "ok",
         "service":   "SkillSync Backend",
-        "version":   "6.0.0",
+        "version":   "6.1.0",
         "timestamp": datetime.utcnow().isoformat(),
     }), 200
 
@@ -1285,6 +1374,9 @@ def unified_intelligence():
     email = request.args.get('email', '').strip().lower()
     if not email:
         return jsonify({"error": "email query param required"}), 400
+
+    if _wants_fresh():
+        _cache_purge(email)
 
     today = datetime.utcnow().date()
 
@@ -1468,6 +1560,9 @@ def manager_profile():
     if not email:
         return jsonify({"error": "email query param required"}), 400
 
+    if _wants_fresh():
+        _cache_purge(email)
+
     with ThreadPoolExecutor(max_workers=3) as pool:
         f_resume = pool.submit(_resume, email)
         f_util   = pool.submit(_util_row, email)
@@ -1573,6 +1668,9 @@ def team_capability():
     if not email:
         return jsonify({"error": "email query param required"}), 400
 
+    if _wants_fresh():
+        _cache_purge(email)
+
     reps = _rms("reportees", {"email": email})
     if reps is None:
         return jsonify({"error": "Cannot reach RMS — please retry"}), 503
@@ -1671,6 +1769,9 @@ def trainer_360():
     email = request.args.get('email', '').strip().lower()
     if not email:
         return jsonify({"error": "email query param required"}), 400
+
+    if _wants_fresh():
+        _cache_purge(email)
     # Optional: lets the profile rank this trainer against their own team.
     manager_email = request.args.get('manager', '').strip().lower()
 
@@ -1927,6 +2028,9 @@ def allocation_desk():
     if not email:
         return jsonify({"error": "email query param required"}), 400
 
+    if _wants_fresh():
+        _cache_purge(email)
+
     demand = _demand_rows()
     if demand is None:
         return jsonify({"error": "Cannot reach RMS — please retry"}), 503
@@ -2045,6 +2149,11 @@ def mark_skill():
     status, rms_message = _write_status(result)
     refused = status.lower() == "error"
 
+    # A write invalidates this trainer's capability picture. Without this the
+    # app would show a confirmed skill that the cached course list still denies.
+    if not refused:
+        _cache_purge(trainer_email)
+
     after = _skill_register(emp) if emp else None
     present = bool(after) and any(s["course_id"] == course_id for s in after)
     course_name = ""
@@ -2127,7 +2236,7 @@ def internal_error(error):
 def root():
     return jsonify({
         "service":  "SkillSync Backend",
-        "version":  "6.0.0",
+        "version":  "6.1.0",
         "endpoints": {
             "POST /api/auth/login":                               "Authenticate (role-verified)",
             "POST /api/auth/logout":                              "Logout",
