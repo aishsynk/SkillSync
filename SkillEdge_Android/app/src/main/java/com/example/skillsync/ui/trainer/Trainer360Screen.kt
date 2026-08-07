@@ -120,6 +120,9 @@ internal fun Trainer360Content(data: Map<String, Any>) {
     val delivery = data.obj("delivery")
     val feedback = data.obj("feedback")
     val avail    = data.obj("availability")
+    // Delivery readiness — the trainer-360 endpoint already returns these in [metrics]
+    // as readiness_score, risk_score, readiness_bucket. Surface them in a dedicated section.
+    val deliveryReadiness = data.obj("delivery_readiness") ?: metrics
 
     val series = util?.list("series").orEmpty()
     val courses = cap?.list("courses").orEmpty()
@@ -134,11 +137,12 @@ internal fun Trainer360Content(data: Map<String, Any>) {
         item { Appear(1) { PersonalDetails(identity) } }
         item { Appear(2) { UtilisationSection(util, series, delivery) } }
         item { Appear(3) { CapabilityMetrics(metrics) } }
-        item { Appear(4) { CertificationSection(certs) } }
-        item { Appear(5) { CapabilitySection(cap, courses) } }
-        item { Appear(6) { DeliverySection(delivery, assignments) } }
-        item { Appear(7) { FeedbackSection(feedback) } }
-        item { Appear(8) { AvailabilitySection(avail) } }
+        item { Appear(4) { DeliveryReadinessSection(deliveryReadiness, feedback) } }
+        item { Appear(5) { CertificationSection(certs) } }
+        item { Appear(6) { CapabilitySection(cap, courses) } }
+        item { Appear(7) { DeliverySection(delivery, assignments) } }
+        item { Appear(8) { FeedbackSection(feedback) } }
+        item { Appear(9) { AvailabilitySection(avail) } }
         item { Spacer(Modifier.height(20.dp)) }
     }
 }
@@ -363,6 +367,260 @@ private fun CapabilityMetrics(metrics: Map<*, *>?) {
         if (risk == null) {
             Spacer(Modifier.height(6.dp))
             EmptyNote("Risk is Unknown: RMS returned no feedback, incident or utilisation signal. That is an absence of evidence, not a clean record.")
+        }
+    }
+}
+
+// ── Delivery Readiness (Phase 4 Stream 1) ───────────────────────────────────────
+
+/**
+ * Delivery Readiness section — the single source of truth for deployment decisions.
+ *
+ * Reads from [metrics] (readiness_score, readiness_bucket, risk_score, risk_level)
+ * and [feedback] (negative_total) to surface:
+ *   • Readiness score with animated gauge + label
+ *   • Capacity status
+ *   • Delivery strengths and constraints
+ *   • Actionable recommendations for the manager
+ *
+ * All data comes from the trainer-360 endpoint — no extra API call.
+ */
+@Composable
+private fun DeliveryReadinessSection(
+    metrics: Map<*, *>?,
+    feedback: Map<*, *>?,
+) {
+    val sk = MaterialTheme.skill
+
+    // Readiness score — use delivery_readiness_score if available (Phase 4 backend),
+    // otherwise fall back to readiness_score from capability metrics.
+    val score        = metrics?.intOrNull("delivery_readiness_score")
+        ?: metrics?.intOrNull("readiness_score")
+    val label        = metrics?.str("delivery_readiness_label").orEmpty()
+        .ifBlank {
+            when {
+                score == null    -> ""
+                score >= 80      -> "Ready"
+                score >= 65      -> "Ready with Prep"
+                score >= 45      -> "Needs Mentoring"
+                else             -> "Hold"
+            }
+        }
+    val capacity     = metrics?.str("delivery_capacity_status").orEmpty()
+        .ifBlank { metrics?.str("capacity_bucket").orEmpty() }
+    val riskLevel    = metrics?.str("delivery_risk_level").orEmpty()
+        .ifBlank { metrics?.str("risk_level").orEmpty() }
+    val strengths    = metrics?.list("delivery_strengths").orEmpty()
+        .map { it.str("value").ifBlank { it.toString() } }.filter { it.isNotBlank() }
+    val constraints  = metrics?.list("delivery_constraints").orEmpty()
+        .map { it.str("value").ifBlank { it.toString() } }.filter { it.isNotBlank() }
+    val recs         = metrics?.list("delivery_recommendations").orEmpty()
+    val confidence   = metrics?.intOrNull("delivery_confidence")
+
+    val (labelColor, labelEmoji) = when (label) {
+        "Ready"            -> sk.green  to "🟢"
+        "Ready with Prep"  -> sk.teal   to "🟡"
+        "Needs Mentoring" -> sk.amber  to "🟠"
+        "Hold"             -> sk.red    to "🔴"
+        else               -> sk.subText to "⌓"
+    }
+    val capacityColor = when (capacity) {
+        "Overloaded"   -> sk.red
+        "Balanced"     -> sk.teal
+        "Underutilized" -> sk.green
+        else           -> sk.subText
+    }
+    val riskColor = when (riskLevel) {
+        "High"   -> sk.red
+        "Medium" -> sk.amber
+        "Low"    -> sk.green
+        else     -> sk.subText
+    }
+
+    SectionCard(
+        "Delivery Readiness",
+        "Manager deployment decision support",
+    ) {
+        // Header row — score gauge + label badges
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GaugeChart(
+                value = score,
+                label = label.ifBlank { "readiness" },
+                tint = labelColor,
+                size = 92.dp,
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (label.isNotBlank()) {
+                    Surface(
+                        color = labelColor.copy(alpha = 0.14f),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                    ) {
+                        Text(
+                            "$labelEmoji $label",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = labelColor,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        )
+                    }
+                }
+                if (capacity.isNotBlank()) {
+                    Surface(
+                        color = capacityColor.copy(alpha = 0.12f),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                    ) {
+                        Text(
+                            capacity,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = capacityColor,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+                if (riskLevel.isNotBlank()) {
+                    Surface(
+                        color = riskColor.copy(alpha = 0.12f),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                    ) {
+                        Text(
+                            "Risk: $riskLevel",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = riskColor,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+                confidence?.let {
+                    Text(
+                        "Confidence: $it%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText, fontSize = 9.sp,
+                    )
+                }
+            }
+        }
+
+        // Strengths + Constraints
+        if (strengths.isNotEmpty() || constraints.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            HorizontalDivider(color = sk.cardBorder)
+            Spacer(Modifier.height(10.dp))
+            if (strengths.isNotEmpty()) {
+                Label("Delivery Strengths")
+                Spacer(Modifier.height(6.dp))
+                strengths.forEach { s ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_check), null,
+                            tint = sk.green, modifier = Modifier.size(13.dp),
+                        )
+                        Spacer(Modifier.width(7.dp))
+                        Text(s, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
+                    }
+                }
+            }
+            if (constraints.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Label("Constraints")
+                Spacer(Modifier.height(6.dp))
+                constraints.forEach { c ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_alert), null,
+                            tint = sk.amber, modifier = Modifier.size(13.dp),
+                        )
+                        Spacer(Modifier.width(7.dp))
+                        Text(c, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
+                    }
+                }
+            }
+        }
+
+        // Recommendations — the most actionable part
+        if (recs.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            HorizontalDivider(color = sk.cardBorder)
+            Spacer(Modifier.height(10.dp))
+            Label("Recommendations")
+            Spacer(Modifier.height(8.dp))
+            recs.take(4).forEach { rec ->
+                val priority = rec.str("priority")
+                val priorityColor = when (priority) {
+                    "High"   -> sk.red
+                    "Medium" -> sk.amber
+                    else     -> sk.teal
+                }
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 5.dp)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                        .background(priorityColor.copy(alpha = 0.06f))
+                        .padding(10.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Surface(
+                            color = priorityColor.copy(alpha = 0.16f),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                        ) {
+                            Text(
+                                priority.ifBlank { rec.str("recommendation_type").ifBlank { "Action" } },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = priorityColor, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                fontSize = 8.5.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                        }
+                        Text(
+                            rec.str("title"),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = sk.bodyText,
+                        )
+                    }
+                    rec.str("reason").takeIf { it.isNotBlank() }?.let { reason ->
+                        Spacer(Modifier.height(4.dp))
+                        Text(reason, style = MaterialTheme.typography.bodySmall, color = sk.subText)
+                    }
+                    rec.str("manager_action").takeIf { it.isNotBlank() }?.let { action ->
+                        Spacer(Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                painterResource(R.drawable.ic_flag), null,
+                                tint = priorityColor, modifier = Modifier.size(12.dp),
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                action,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = priorityColor,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (score == null && label.isBlank()) {
+            EmptyNote(
+                "Delivery readiness is computed from Qubit scores, assignment history, " +
+                "capacity and quality signals. Data will appear once the trainer has RMS records."
+            )
         }
     }
 }

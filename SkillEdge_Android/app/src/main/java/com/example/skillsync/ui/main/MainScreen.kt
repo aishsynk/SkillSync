@@ -371,6 +371,11 @@ internal fun DashboardTab(
     val capTrainers = capability?.rows("trainers").orEmpty()
     val stateMap = states.associateBy { it.str("trainer_email").lowercase() }
     val capMap = capTrainers.associateBy { it.str("trainer_email").lowercase() }
+    // Delivery readiness rows — always present in the unified payload, no extra API call.
+    val deliveryRows = data.rows("delivery_intelligence_df")
+    val deliveryByEmail = remember(deliveryRows) {
+        deliveryRows.associateBy { it.str("trainer_email").lowercase() }
+    }
 
     var showProfileMenu by remember { mutableStateOf(false) }
 
@@ -425,10 +430,17 @@ internal fun DashboardTab(
             }
         }
 
-        item { Appear(3) { DashSectionHeader("Team health", "What needs attention right now") } }
+        // Delivery Readiness summary — sourced from delivery_intelligence_df
+        // Always available in the unified payload, shown right after KPI numbers.
+        if (deliveryRows.isNotEmpty()) {
+            item { Appear(3) { DashSectionHeader("Delivery readiness", "Which trainers are deployment-ready today") } }
+            item { Appear(4) { TeamReadinessSummaryCard(deliveryRows) } }
+        }
+
+        item { Appear(5) { DashSectionHeader("Team health", "What needs attention right now") } }
 
         item {
-            Appear(4) {
+            Appear(6) {
                 TeamAnalytics(
                     ops = ops,
                     states = states,
@@ -439,10 +451,10 @@ internal fun DashboardTab(
             }
         }
 
-        item { Appear(5) { TopPerformers(ops, capMap, onTrainerClick) } }
+        item { Appear(7) { TopPerformers(ops, capMap, onTrainerClick) } }
 
         item {
-            Appear(6) {
+            Appear(8) {
                 Row(
                     Modifier.fillMaxWidth().padding(top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -458,11 +470,12 @@ internal fun DashboardTab(
             item { EmptyStateCard("No reportees returned. Check your account permissions.") }
         } else {
             itemsIndexed(ops) { i, t ->
-                Appear(i + 6) {
+                Appear(i + 8) {
                     TrainerCard(
                         trainer = t,
                         state = stateMap[t.str("official_email").lowercase()],
                         capability = capMap[t.str("official_email").lowercase()],
+                        delivery = deliveryByEmail[t.str("official_email").lowercase()],
                     ) {
                         onTrainerClick(t.str("official_email"), t.str("trainer_name"))
                     }
@@ -725,6 +738,8 @@ internal fun TrainerCard(
     trainer: Map<*, *>,
     state: Map<*, *>?,
     capability: Map<*, *>? = null,
+    /** Row from delivery_intelligence_df keyed by trainer_email. */
+    delivery: Map<*, *>? = null,
     onClick: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
@@ -746,6 +761,11 @@ internal fun TrainerCard(
     val gaps = cert?.int("gap_count") ?: 0
     val certCount = cert?.list("held")?.size ?: 0
     val readiness = capability?.str("readiness_bucket").orEmpty()
+
+    // Delivery readiness — from delivery_intelligence_df (always in main payload)
+    val deliveryLabel    = delivery?.str("delivery_readiness_label").orEmpty()
+    val deliveryCapacity = delivery?.str("delivery_capacity_status").orEmpty()
+    val deliveryRisk     = delivery?.str("delivery_risk_level").orEmpty()
 
     val statusColor = when (status) {
         "teaching_now" -> sk.teal
@@ -815,29 +835,62 @@ internal fun TrainerCard(
             Spacer(Modifier.height(8.dp))
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Chip(capacity.ifBlank { "Unknown" }, if (capacity == "Unknown" || capacity.isBlank()) sk.subText else utilColor)
-                if (readiness.isNotBlank() && readiness != "Unknown") {
+                // —— Delivery Readiness Badge (from delivery_intelligence_df) ——
+                // Always shown when available; no extra API call required.
+                if (deliveryLabel.isNotBlank()) {
+                    val (rdLabel, rdColor) = when (deliveryLabel) {
+                        "Ready"            -> "🟢 Ready"          to sk.green
+                        "Ready with Prep"  -> "🟡 Ready w/ Prep"  to sk.teal
+                        "Needs Mentoring" -> "🟠 Needs Mentoring" to sk.amber
+                        else               -> "🔴 Hold"            to sk.red
+                    }
+                    Chip(rdLabel, rdColor)
                     Spacer(Modifier.width(5.dp))
-                    Chip(
-                        readiness,
-                        when (readiness) {
-                            "Ready" -> sk.green
-                            "Developing" -> sk.amber
-                            else -> sk.red
-                        },
-                    )
+                } else {
+                    // Fallback to capability-based readiness if delivery data not yet available
+                    Chip(capacity.ifBlank { "Unknown" }, if (capacity == "Unknown" || capacity.isBlank()) sk.subText else utilColor)
+                    if (readiness.isNotBlank() && readiness != "Unknown") {
+                        Spacer(Modifier.width(5.dp))
+                        Chip(
+                            readiness,
+                            when (readiness) {
+                                "Ready"      -> sk.green
+                                "Developing" -> sk.amber
+                                else         -> sk.red
+                            },
+                        )
+                    }
                 }
-                if (certCount > 0) {
+
+                // —— Capacity Badge (from delivery_intelligence_df) ——
+                if (deliveryCapacity.isNotBlank()) {
+                    val capColor = when (deliveryCapacity) {
+                        "Overloaded"   -> sk.red
+                        "Balanced"     -> sk.teal
+                        "Underutilized" -> sk.green
+                        else           -> sk.subText
+                    }
+                    Chip(deliveryCapacity, capColor)
                     Spacer(Modifier.width(5.dp))
+                }
+
+                // —— Risk indicator ——
+                if (deliveryRisk == "High") {
+                    Chip("⚠️ High Risk", sk.red)
+                    Spacer(Modifier.width(5.dp))
+                }
+
+                if (certCount > 0) {
                     Chip("$certCount cert", sk.indigo)
+                    Spacer(Modifier.width(5.dp))
                 }
                 if (gaps > 0) {
-                    Spacer(Modifier.width(5.dp))
                     Chip("$gaps gap", sk.amber)
+                    Spacer(Modifier.width(5.dp))
                 }
                 if (upcoming > 0) {
-                    Spacer(Modifier.width(5.dp))
                     Chip("$upcoming upcoming", sk.blue)
+                    Spacer(Modifier.width(5.dp))
                 }
                 if (negCount > 0) {
                     Spacer(Modifier.width(5.dp))

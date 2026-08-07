@@ -1,11 +1,14 @@
 package com.example.skillsync.ui.main
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -420,6 +423,178 @@ private fun KpiCard(
                 color = sk.subText, fontSize = 8.sp, maxLines = 2,
             )
         }
+    }
+}
+
+// ── Delivery Readiness Summary ────────────────────────────────────────────────
+
+/**
+ * Team Delivery Readiness card — sourced entirely from [delivery_intelligence_df]
+ * which is always present in the unified payload. No extra API call required.
+ *
+ * Shows four bands: Ready / Ready with Prep / Needs Mentoring / Hold with counts,
+ * percentages and animated progress bars so the manager instantly understands
+ * how many of their team are deployment-ready without opening any trainer profile.
+ */
+@Composable
+fun TeamReadinessSummaryCard(deliveryRows: List<Map<*, *>>) {
+    if (deliveryRows.isEmpty()) return
+    val sk = MaterialTheme.skill
+
+    val total = deliveryRows.size
+    val ready        = deliveryRows.count { it.str("delivery_readiness_label") == "Ready" }
+    val readyPrep    = deliveryRows.count { it.str("delivery_readiness_label") == "Ready with Prep" }
+    val needsMentor  = deliveryRows.count { it.str("delivery_readiness_label") == "Needs Mentoring" }
+    val hold         = deliveryRows.count { it.str("delivery_readiness_label") == "Hold" }
+
+    data class Band(val label: String, val count: Int, val color: Color, val emoji: String)
+    val bands = listOf(
+        Band("Ready",            ready,       sk.green,  "🟢"),
+        Band("Ready with Prep",  readyPrep,   sk.teal,   "🟡"),
+        Band("Needs Mentoring",  needsMentor, sk.amber,  "🟠"),
+        Band("Hold",             hold,        sk.red,    "🔴"),
+    )
+
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
+        elevation = CardDefaults.cardElevation(2.dp),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painterResource(R.drawable.ic_trend), null,
+                    tint = sk.teal, modifier = Modifier.size(17.dp),
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    "Delivery Readiness",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = sk.bodyText,
+                )
+                Spacer(Modifier.weight(1f))
+                Surface(
+                    color = if (ready > 0) sk.green.copy(alpha = 0.14f) else sk.subText.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Text(
+                        "$ready of $total ready",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (ready > 0) sk.green else sk.subText,
+                        fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                }
+            }
+            Text(
+                "From delivery intelligence · updated with each sync",
+                style = MaterialTheme.typography.labelSmall,
+                color = sk.subText, fontSize = 9.sp,
+            )
+            Spacer(Modifier.height(14.dp))
+
+            bands.forEach { band ->
+                val fraction = if (total > 0) band.count.toFloat() / total.toFloat() else 0f
+                val pct      = (fraction * 100).toInt()
+                val anim by animateFloatAsState(
+                    targetValue = fraction,
+                    animationSpec = tween(600),
+                    label = "readiness_${band.label}",
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Label column — fixed 140dp so all bars start at the same x
+                    Row(
+                        Modifier.width(140.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(band.emoji, fontSize = 10.sp)
+                        Spacer(Modifier.width(5.dp))
+                        Text(
+                            band.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.bodyText,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    // Bar
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(7.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(sk.track)
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(anim.coerceIn(0f, 1f))
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(band.color)
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    // Count + pct
+                    Text(
+                        "${band.count}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (band.count > 0) band.color else sk.subText,
+                        modifier = Modifier.width(20.dp),
+                    )
+                    Text(
+                        "$pct%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText, fontSize = 9.sp,
+                        modifier = Modifier.width(28.dp),
+                    )
+                }
+            }
+
+            // Capacity split below the readiness bands
+            val overloaded   = deliveryRows.count { it.str("delivery_capacity_status") == "Overloaded" }
+            val balanced     = deliveryRows.count { it.str("delivery_capacity_status") == "Balanced" }
+            val underused    = deliveryRows.count { it.str("delivery_capacity_status") == "Underutilized" }
+            if (overloaded + balanced + underused > 0) {
+                Spacer(Modifier.height(14.dp))
+                HorizontalDivider(color = sk.cardBorder)
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Capacity".uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.subText, fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CapacityStat("Overloaded", overloaded, sk.red, Modifier.weight(1f))
+                    CapacityStat("Balanced",   balanced,   sk.teal, Modifier.weight(1f))
+                    CapacityStat("Available",  underused,  sk.green, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CapacityStat(label: String, count: Int, tint: Color, modifier: Modifier = Modifier) {
+    val sk = MaterialTheme.skill
+    Column(
+        modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(tint.copy(alpha = 0.09f))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            "$count",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.ExtraBold,
+            color = if (count > 0) tint else sk.subText,
+        )
+        Text(label, style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 8.5.sp)
     }
 }
 

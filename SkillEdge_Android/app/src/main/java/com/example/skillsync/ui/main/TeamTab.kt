@@ -89,6 +89,9 @@ internal fun TeamTab(
     val stateMap = data.rows("trainer_current_state_df").associateBy { it.str("trainer_email").lowercase() }
     val capMap = (capability?.rows("trainers") ?: emptyList())
         .associateBy { it.str("trainer_email").lowercase() }
+    // Delivery readiness — always in the unified payload, no extra API call.
+    val deliveryMap = data.rows("delivery_intelligence_df")
+        .associateBy { it.str("trainer_email").lowercase() }
 
     var filters by remember { mutableStateOf(TeamFilters()) }
     var sheetOpen by remember { mutableStateOf(false) }
@@ -213,6 +216,7 @@ internal fun TeamTab(
                     trainer = t,
                     state = stateMap[t.str("official_email").lowercase()],
                     capability = capMap[t.str("official_email").lowercase()],
+                    delivery = deliveryMap[t.str("official_email").lowercase()],
                 ) {
                     onTrainerClick(t.str("official_email"), t.str("trainer_name"))
                 }
