@@ -20,6 +20,17 @@ class MainActivity : ComponentActivity() {
     
     com.example.skillsync.data.SessionManager.init(applicationContext)
     com.example.skillsync.data.api.RetrofitClient.init(applicationContext)
+    
+    // Schedule background push service
+    val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.example.skillsync.util.SkillSyncNotificationWorker>(
+        15, java.util.concurrent.TimeUnit.MINUTES
+    ).build()
+    androidx.work.WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+        "SkillSyncPushService",
+        androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+        workRequest
+    )
+    
     enableEdgeToEdge()
     
     lifecycle.addObserver(object : LifecycleEventObserver {

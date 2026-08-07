@@ -211,26 +211,46 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, onClick: () -> Unit) {
                     HorizontalDivider(color = sk.cardBorder)
                     Spacer(Modifier.height(7.dp))
                     candidates.take(3).forEach { c ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(5.dp).clip(RoundedCornerShape(3.dp))
-                                .background(relevanceColor(c.int("match"))))
-                            Spacer(Modifier.width(7.dp))
-                            Text(
-                                c.str("category"),
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), 
-                                color = relevanceColor(c.int("match")),
-                                modifier = Modifier.weight(0.5f),
-                            )
-                            Text(
-                                c.str("trainer_name"),
-                                style = MaterialTheme.typography.labelMedium, color = sk.bodyText,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Text(
-                                "${c.int("match")}%",
-                                style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                            )
+                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp))
+                                    .background(relevanceColor(c.int("match"))))
+                                Spacer(Modifier.width(7.dp))
+                                Text(
+                                    c.str("category"),
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), 
+                                    color = relevanceColor(c.int("match")),
+                                    modifier = Modifier.weight(0.4f),
+                                )
+                                Text(
+                                    c.str("trainer_name"),
+                                    style = MaterialTheme.typography.labelMedium, color = sk.bodyText,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    "${c.int("match")}%",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = relevanceColor(c.int("match")),
+                                )
+                            }
+                            
+                            val missing = c.list("missing_skills").joinToString(", ")
+                            if (missing.isNotBlank()) {
+                                Text(
+                                    "⚠ Missing: $missing",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = sk.amber,
+                                    modifier = Modifier.padding(start = 13.dp, top = 2.dp)
+                                )
+                            } else if (c.int("match") < 75) {
+                                Text(
+                                    "⚠ Upskilling Required",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = sk.amber,
+                                    modifier = Modifier.padding(start = 13.dp, top = 2.dp)
+                                )
+                            }
                         }
                     }
                 } else {

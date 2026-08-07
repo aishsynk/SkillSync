@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.skillsync"
         minSdk = 24
         targetSdk = 34
-        versionCode = 17
-        versionName = "1.9.0"
+        versionCode = 18
+        versionName = "1.10.0"
     }
 
     buildTypes {
@@ -102,6 +102,9 @@ dependencies {
   implementation("com.squareup.retrofit2:retrofit:2.11.0")
   implementation("com.squareup.retrofit2:converter-gson:2.11.0")
   implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+  // WorkManager for background notifications
+  implementation("androidx.work:work-runtime-ktx:2.9.0")
 
   // Trainer profile photos come from RMS as plain URLs.
   implementation(libs.coil.compose)

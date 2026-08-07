@@ -87,16 +87,24 @@ fun MainScreen(
     // Which KPI the manager tapped; drives the drill-down sheet.
     var drill by remember { mutableStateOf<Drill?>(null) }
 
+    var bannerMessage by remember { mutableStateOf<String?>(null) }
+
     LaunchedEffect(Unit) {
         viewModel.notification.collect { message: String ->
-            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+            // System Push Notification (if in background or even foreground)
+            com.example.skillsync.util.LocalNotificationService.showNotification(
+                context, "SkillSync Alert", message
+            )
+            // Show custom in-app banner
+            bannerMessage = message
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.skill.pageBg,
-        topBar = {
-            TopAppBar(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = MaterialTheme.skill.pageBg,
+            topBar = {
+                TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         SkillSyncLogo(size = 28.dp)
@@ -214,6 +222,14 @@ fun MainScreen(
     }
 
     }
+        
+        // Show banner overlaying everything
+        com.example.skillsync.ui.components.TopBannerNotification(
+            message = bannerMessage,
+            onDismiss = { bannerMessage = null }
+        )
+    }
+
     drill?.let { DrillSheet(it) { drill = null } }
 }
 
