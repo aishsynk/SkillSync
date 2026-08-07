@@ -34,7 +34,15 @@ import com.example.skillsync.ui.trainer.Trainer360Screen
 
 @Composable
 fun MainNavigation() {
-    var current by remember { mutableStateOf<NavKey>(Login) }
+    var current by remember { 
+        mutableStateOf<NavKey>(
+            if (com.example.skillsync.data.SessionManager.isLoggedIn()) {
+                Main(com.example.skillsync.data.SessionManager.getEmail()!!)
+            } else {
+                Login
+            }
+        ) 
+    }
 
     // Shared so a batch opened from the desk keeps its data and mark-skill state.
     val allocationViewModel: AllocationViewModel = viewModel()
@@ -97,6 +105,7 @@ fun MainNavigation() {
                     current = Trainer360(screen.email, trainerEmail, trainerName)
                 },
                 onBatchClick = { demandId -> current = BatchDetail(screen.email, demandId) },
+                onLogout = { current = Login },
                 modifier = Modifier,
                 viewModel = mainViewModel,
                 allocationViewModel = allocationViewModel,

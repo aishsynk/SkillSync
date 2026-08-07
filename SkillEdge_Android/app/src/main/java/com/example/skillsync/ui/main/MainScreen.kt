@@ -46,6 +46,7 @@ fun MainScreen(
     onTabChange: (String) -> Unit,
     onTrainerClick: (email: String, name: String) -> Unit,
     onBatchClick: (demandId: String) -> Unit = {},
+    onLogout: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: MainScreenViewModel = viewModel(),
     allocationViewModel: AllocationViewModel = viewModel(),
@@ -57,6 +58,14 @@ fun MainScreen(
     LaunchedEffect(email, tab) {
         if (tab == HomeTab.DEMAND) allocationViewModel.load(email, context)
         if (tab == HomeTab.COURSES) viewModel.ensureCapability(email)
+        
+        // In-app polling for the Unallocated Batch Intelligence Center
+        if (tab == HomeTab.DEMAND) {
+            while(true) {
+                kotlinx.coroutines.delay(60_000L) // 1 minute
+                allocationViewModel.refresh(email, context)
+            }
+        }
     }
 
     // Coming back to the app re-reads everything, so the manager is never acting
@@ -106,6 +115,17 @@ fun MainScreen(
                         Icon(
                             painterResource(R.drawable.ic_trend),
                             contentDescription = "Refresh",
+                            tint = Color.White.copy(alpha = 0.9f),
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                    IconButton(onClick = {
+                        com.example.skillsync.data.SessionManager.clearSession()
+                        onLogout()
+                    }) {
+                        Icon(
+                            painterResource(R.drawable.ic_user),
+                            contentDescription = "Logout",
                             tint = Color.White.copy(alpha = 0.9f),
                             modifier = Modifier.size(18.dp),
                         )

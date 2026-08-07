@@ -13,7 +13,9 @@ import com.example.skillsync.theme.SkillSyncTheme
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-
+    
+    com.example.skillsync.data.SessionManager.init(applicationContext)
+    com.example.skillsync.data.api.RetrofitClient.init(applicationContext)
     enableEdgeToEdge()
     setContent {
       SkillSyncTheme { Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { MainNavigation() } }

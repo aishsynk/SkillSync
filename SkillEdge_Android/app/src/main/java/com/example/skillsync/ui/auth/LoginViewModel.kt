@@ -26,9 +26,12 @@ class LoginViewModel : ViewModel() {
             try {
                 val response = RetrofitClient.instance.login(LoginRequest(email = email.trim().lowercase()))
                 if (response.success == true) {
+                    val finalSessionId = response.session_id ?: ""
+                    val finalEmail = response.email ?: email.trim().lowercase()
+                    com.example.skillsync.data.SessionManager.saveSession(finalEmail, finalSessionId)
                     _loginState.value = LoginState.Success(
-                        sessionId = response.session_id ?: "",
-                        email     = response.email ?: email.trim().lowercase(),
+                        sessionId = finalSessionId,
+                        email     = finalEmail,
                     )
                 } else {
                     _loginState.value = LoginState.Error(

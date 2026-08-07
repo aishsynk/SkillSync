@@ -470,3 +470,17 @@ targets stay above 48dp despite the smaller footprint.
 ### Status
 29 unit tests green, `assembleDebug` green, cache and refresh bypass verified
 against live RMS. Still no on-device run.
+
+## 2026-08-07 — Phase 3: Unallocated Batch Intelligence Engine
+- **Agent/Tool:** Antigravity (Gemini)
+- **Files modified:** `backend.py`, `AllocationDeskScreen.kt`, `BatchDetailScreen.kt`
+- **Summary:** Implemented the Phase 3 Unallocated Batch Intelligence Engine as requested by the user. Added logic to backend to classify matches as Best Match, Alternate Match, and Risky Assignment, and to assign backup roles (Primary, Secondary, Emergency). Simulated Revenue Impact and Customer Priority. Updated Kotlin UI to show these intelligence fields in the Allocation Desk and Batch Details.
+- **Status:** Phase A and B (Batch Intelligence Center) of Task 2 roadmap complete.
+- **Next steps:** Proceed to Phase 4 (Readiness Engine, Risk Engine, Team Health Dashboard) or await user feedback.
+
+## 2026-08-07 — Phase 3.5: Architecture Infrastructure 
+- **Agent/Tool:** Antigravity (Gemini)
+- **Files modified:** `SessionManager.kt`, `LoginViewModel.kt`, `Navigation.kt`, `MainScreen.kt`, `RetrofitClient.kt`, `MainActivity.kt`
+- **Summary:** Implemented persistent authentication using SharedPreferences, enabling auto-login and session logout. Added OkHttp offline caching with a custom interceptor (7-day `max-stale`) allowing offline review of previously fetched dashboards. Set up a silent 1-minute background polling loop on the Demand Tab to drive the real-time "New Batch" banner without external notification services.
+- **Status:** Architecture infrastructure complete. 
+- **Next steps:** Proceed to Phase 4 (Readiness Engine).

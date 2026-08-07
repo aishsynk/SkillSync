@@ -625,8 +625,20 @@ def _rank_batch(batch, team):
                 "via_course":    best_course,
                 "qubits_score":  best_q,
                 "exact":         best >= 92,
+                "category":      "Best Match" if best >= 90 else "Alternate Match" if best >= 75 else "Risky Assignment",
             })
     candidates.sort(key=lambda c: (-c["match"], -c["qubits_score"]))
+    
+    for i, c in enumerate(candidates):
+        if i == 0:
+            c["backup_role"] = "Primary Trainer"
+        elif i == 1:
+            c["backup_role"] = "Secondary Trainer"
+        elif i == 2:
+            c["backup_role"] = "Emergency Backup"
+        else:
+            c["backup_role"] = ""
+            
     return (candidates[0]["match"] if candidates else 0), candidates[:5]
 
 
@@ -1993,6 +2005,8 @@ def _demand_rows():
             # SCID and TOTRecords arrive as HTML blobs; strip to readable text.
             "scid":          _re.sub(r"<[^>]+>", " ", str(d.get("SCID", "") or "")).strip(),
             "schedule":      _re.sub(r"<br\s*/?>", "\n", str(d.get("TOTRecords", "") or "")),
+            "revenue_impact": "High" if int(d.get("NoOfParticipants", 0) or 0) > 10 else "Medium" if int(d.get("NoOfParticipants", 0) or 0) >= 5 else "Low",
+            "customer_priority": "High" if str(d.get("vendor", "") or "").strip().lower() in ["microsoft", "aws", "cisco", "google"] else "Medium",
         })
     for r in out:
         r["schedule"] = _re.sub(r"<[^>]+>", " ", r["schedule"])

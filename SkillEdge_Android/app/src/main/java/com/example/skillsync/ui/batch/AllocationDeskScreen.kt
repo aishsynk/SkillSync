@@ -189,6 +189,8 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, onClick: () -> Unit) {
                                 b.str("delivery_mode").takeIf { it.isNotBlank() },
                                 b.intOrNull("participants")?.takeIf { it > 0 }?.let { "$it pax" },
                                 b.str("customer").takeIf { it.isNotBlank() },
+                                b.str("customer_priority").takeIf { it.isNotBlank() }?.let { "Priority: $it" },
+                                b.str("revenue_impact").takeIf { it.isNotBlank() }?.let { "Rev: $it" }
                             ).joinToString(" · "),
                             style = MaterialTheme.typography.labelSmall, color = sk.subText,
                         )
@@ -208,11 +210,17 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, onClick: () -> Unit) {
                     Spacer(Modifier.height(8.dp))
                     HorizontalDivider(color = sk.cardBorder)
                     Spacer(Modifier.height(7.dp))
-                    candidates.take(2).forEach { c ->
+                    candidates.take(3).forEach { c ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.size(5.dp).clip(RoundedCornerShape(3.dp))
                                 .background(relevanceColor(c.int("match"))))
                             Spacer(Modifier.width(7.dp))
+                            Text(
+                                c.str("category"),
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), 
+                                color = relevanceColor(c.int("match")),
+                                modifier = Modifier.weight(0.5f),
+                            )
                             Text(
                                 c.str("trainer_name"),
                                 style = MaterialTheme.typography.labelMedium, color = sk.bodyText,
@@ -220,7 +228,7 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, onClick: () -> Unit) {
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
-                                "${c.int("match")}% · Q${c.int("qubits_score")}",
+                                "${c.int("match")}%",
                                 style = MaterialTheme.typography.labelSmall, color = sk.subText,
                             )
                         }
