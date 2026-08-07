@@ -1525,7 +1525,12 @@ def unified_intelligence():
         "future_skill_roadmap_df":  [],
         "data_health_df":           [],
         "from_cache":               False,
-        # Backward-compat fields (Android v1.2.x)
+        # Backward-compat fields (Android v1.2.x - v1.8.x)
+        "trainers_operational":     trainer_ops,
+        "trainer_states":           trainer_states,
+        "unallocated_batches":      all_batches,
+        "manager_decisions":        decisions,
+        "manager_actions":          actions,
         "manager": {
             "name":  mgr_name,
             "email": email,

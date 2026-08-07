@@ -52,10 +52,10 @@ fun MainScreen(
     allocationViewModel: AllocationViewModel = viewModel(),
 ) {
     val context = LocalContext.current
-    LaunchedEffect(email) { viewModel.loadData(email) }
-    // Both of these cost far more RMS traffic than the dashboard payload, so
-    // neither is fetched until the tab that needs it is actually opened.
+
+
     LaunchedEffect(email, tab) {
+        viewModel.loadData(email)
         if (tab == HomeTab.DEMAND) allocationViewModel.load(email, context)
         if (tab == HomeTab.COURSES) viewModel.ensureCapability(email)
         
@@ -67,7 +67,6 @@ fun MainScreen(
             }
         }
     }
-
     // Coming back to the app re-reads everything, so the manager is never acting
     // on numbers that went stale while the phone was in their pocket.
     RefreshOnResume(key = email) {
@@ -203,6 +202,7 @@ fun MainScreen(
                                 email = email,
                                 onTrainerClick = onTrainerClick,
                                 onOpenProfile = { onTrainerClick(email, profile?.str("name").orEmpty()) },
+                                onLogout = onLogout,
                                 onDrill = { drill = it },
                                 onLoadCapability = { viewModel.ensureCapability(email) },
                             )
@@ -211,9 +211,9 @@ fun MainScreen(
                 }
             }
         }
-        }
     }
 
+    }
     drill?.let { DrillSheet(it) { drill = null } }
 }
 
@@ -342,6 +342,7 @@ internal fun DashboardTab(
     email: String,
     onTrainerClick: (String, String) -> Unit,
     onOpenProfile: () -> Unit,
+    onLogout: () -> Unit,
     onDrill: (Drill) -> Unit,
     onLoadCapability: () -> Unit = {},
 ) {
@@ -355,13 +356,31 @@ internal fun DashboardTab(
     val stateMap = states.associateBy { it.str("trainer_email").lowercase() }
     val capMap = capTrainers.associateBy { it.str("trainer_email").lowercase() }
 
+    var showProfileMenu by remember { mutableStateOf(false) }
+
+    if (showProfileMenu) {
+        ProfileMenuBottomSheet(
+            email = email,
+            onDismiss = { showProfileMenu = false },
+            onLogout = {
+                showProfileMenu = false
+                com.example.skillsync.data.SessionManager.clearSession()
+                onLogout()
+            },
+            onViewProfile = {
+                showProfileMenu = false
+                onOpenProfile()
+            }
+        )
+    }
+
     LazyColumn(
         Modifier.fillMaxSize().background(sk.pageBg),
         contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Appear(0) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ProfileHeader(
                     email = email,
                     profile = profile,

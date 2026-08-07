@@ -154,6 +154,50 @@ private fun RoleBadge(role: String) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProfileMenuBottomSheet(
+    email: String,
+    onDismiss: () -> Unit,
+    onLogout: () -> Unit,
+    onViewProfile: () -> Unit
+) {
+    val sk = MaterialTheme.skill
+    val sheetState = rememberModalBottomSheetState()
+    
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = sk.cardBg,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("Session Information", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            Spacer(Modifier.height(8.dp))
+            Text("Logged in as: $email", color = Color.LightGray)
+            Text("Session ID: ${com.example.skillsync.data.SessionManager.getSessionId()?.take(8)}...", color = Color.LightGray)
+            Text("Last Sync: ${java.util.Date(com.example.skillsync.data.SessionManager.getLastSyncTime())}", color = Color.LightGray)
+            
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+            Spacer(Modifier.height(8.dp))
+            
+            ListItem(
+                headlineContent = { Text("View My Profile", color = Color.White) },
+                leadingContent = { Icon(painterResource(R.drawable.ic_people), null, tint = Color.White) },
+                modifier = Modifier.clickable { onViewProfile() },
+                colors = ListItemDefaults.colors(containerColor = sk.cardBg)
+            )
+            ListItem(
+                headlineContent = { Text("Logout", color = Color(0xFFF44336)) },
+                leadingContent = { Icon(painterResource(R.drawable.ic_alert), null, tint = Color(0xFFF44336)) },
+                modifier = Modifier.clickable { onLogout() },
+                colors = ListItemDefaults.colors(containerColor = sk.cardBg)
+            )
+            Spacer(Modifier.height(32.dp))
+        }
+    }
+}
+
 @Composable
 private fun SummaryFigure(label: String, value: String, tint: Color? = null) {
     Column {
