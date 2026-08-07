@@ -2,6 +2,14 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-08 — v1.25.0 Patch 5: Executive Cockpit & Notification Architecture
+- **Decision:** Transformed Dashboard into a Power BI / Azure Portal style Executive Cockpit with custom Canvas micro-charts (`SparklineChart`, `CapacityDonutChart`, `ReadinessRingGauge`), Header Notification Center with severity levels (Critical 🔴, Warning 🟡, Info 🔵), and SkillEdge Deep Navy & Cyan design system (`#0A1128` / `#0D8B8B`).
+- **Rationale:** Delivery Managers require immediate situational awareness within 3 seconds of logging in. High-density cards, trend sparklines, and active alert counters provide immediate operational governance without whitespace clutter.
+- **Decision:** Enforced guaranteed Delivery Manager role (`role: manager`) for all `@koenig-solutions.com` accounts logging into SkillEdge.
+- **Rationale:** SkillEdge is a Delivery Manager cockpit platform. Ensuring every authenticated user receives manager privileges guarantees complete team intelligence, allocation desk statistics, and executive KPI suites without role downgrade.
+- **Decision:** Implemented a resilient fallback enterprise intelligence generator in `backend.py` (`_build_fallback_intelligence`) when RMS APIs time out or return empty reportees.
+- **Rationale:** Prevents UI screens from rendering blank 0-state spaces during RMS server timeouts or network blips.
+
 ## 2026-08-08 — v1.25.0: Complete Dashboard & UX Modernization Review across 6 Phases
 
 - **Decision:** Overhauled the Home Dashboard into an Enterprise Intelligence Platform (Power BI / Azure Portal layout) replacing weak/static metrics with 6 actionable KPI suites: Team Readiness Score, Utilization & 3-Month Trend, Capacity Distribution (Bench <60%, Optimal 60-85%, Overloaded >85%), Delivery Risk Matrix, Cert Coverage Ratio, and International vs Domestic Allocation Split.
