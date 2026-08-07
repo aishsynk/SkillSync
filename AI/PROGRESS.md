@@ -1,5 +1,16 @@
 # SkillEdge Project Progress
 
+## Release v1.27.0 — Executive Management Command Centre Redesign
+- **Timestamp**: 2026-08-07T19:59:00+05:30
+- **Agent/Tool Used**: Antigravity
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `DashboardSections.kt`, `AI/PROGRESS.md`
+- **Work Completed**:
+  - Overhauled Dashboard into a high-density Delivery Manager Cockpit mimicking Azure Portal style.
+  - Consolidated 14 scattered KPIs into a 6-item `ManagerKpiGrid` focused on Critical Pulse metrics.
+  - Redesigned `TeamReadinessSummaryCard`, `TeamRiskSummaryCard`, and `TeamCapacityAlertCard` by eliminating excessive whitespace and implementing tight typography.
+  - Bumped version to 1.27.0 (versionCode 36).
+- **Build Status**: Built cleanly.
+
 ## Release v1.26.0 — Android Codebase Alignment & Executive Cockpit Deployment
 - **Timestamp**: 2026-08-08T03:25:00+05:30
 - **Agent/Tool Used**: Antigravity (Google DeepMind Advanced Agentic Coding)

@@ -271,45 +271,30 @@ fun ManagerKpiGrid(
     }
 
     val items = listOf(
-        Kpi("Team members", figure(n("total_team_members")), "direct + indirect", sk.blue,
-            Drill("Team members", "Everyone reporting to you", namesOf(ops))),
         Kpi("Active trainers", figure(n("active_trainers")), "delivering or scheduled", sk.teal,
             Drill("Active trainers", "Delivering, scheduled or preparing",
                 namesOf(opsWithStatus("teaching_now", "scheduled_today", "preparing")))),
-        Kpi("Unallocated", figure(n("unallocated_trainers")), "no batch booked", sk.amber,
-            Drill("Unallocated trainers", "Free to take work now",
-                namesOf(opsWithStatus("free")))),
-        Kpi("Active batches", figure(n("active_batches")), "running today", sk.teal,
+        Kpi("Active batches", figure(n("active_batches")), "running today", sk.blue,
             Drill("Active batches", "Currently being delivered",
                 batches.filter { it.str("engagement_state") == "current" }.map {
                     it.str("course_name") to "${it.str("trainer_name")} · ${it.str("delivery_mode")}"
                 })),
-        Kpi("Upcoming batches", figure(n("upcoming_batches")), "scheduled ahead", sk.blue,
-            Drill("Upcoming batches", "Booked and not yet started",
-                batches.filter { it.str("engagement_state") == "upcoming" }.map {
-                    it.str("course_name") to
-                        "${it.str("trainer_name")} · ${it.str("start_at").shortDate()}"
-                })),
-        Kpi("Training days", figure(n("training_days_delivered")),
-            kpis?.str("training_days_window_label").orEmpty().ifBlank { "delivered" }, sk.indigo,
-            Drill("Training days delivered",
-                "Completed batches in the ${kpis?.str("training_days_window_label").orEmpty().ifBlank { "window" }}",
-                batches.filter { it.str("engagement_state") == "completed" }.map {
-                    it.str("course_name") to
-                        "${it.str("trainer_name")} · ${it.str("start_at").shortDate()}"
-                })),
         Kpi("Avg utilisation", n("avg_team_utilization")?.let { "$it%" } ?: "—",
-            // Self-explanatory without opening the drill sheet: what window,
-            // and how many of the team it's actually based on. Trainers RMS
-            // returned no utilization row for are excluded from both the
-            // average and this count — they're not silently counted as 0%.
             "3-mo avg · ${n("utilization_sample") ?: 0}/${n("total_team_members") ?: 0} tracked",
             utilTint(n("avg_team_utilization"), sk),
-            Drill("Utilisation", "Three-month average per trainer — trainers with no RMS utilization data are excluded, not counted as 0%",
+            Drill("Utilisation", "Three-month average per trainer",
                 ops.sortedByDescending { it.int("current_utilization") }.map {
                     it.str("trainer_name") to
                         (if (it.bool("utilization_available")) "${it.int("current_utilization")}%" else "no data")
                 })),
+        Kpi("Readiness", c("team_readiness_score")?.let { "$it%" } ?: "—",
+            "${c("ready_trainers") ?: 0} rated Ready", sk.teal,
+            Drill("Readiness", "Qubits, approved catalogue depth and spare capacity",
+                capTrainers.sortedByDescending { it.int("readiness_score") }.map {
+                    it.str("trainer_name") to
+                        "${it.intOrNull("readiness_score") ?: "—"} · ${it.str("readiness_bucket")}"
+                }),
+            pending = capabilityLoading, needsCapability = capKpis == null),
         Kpi("Certified", figure(c("certified_trainers")), "hold at least one exam", sk.green,
             Drill("Certified trainers", "Exams passed, from the RMS resume record",
                 capTrainers.map { t ->
@@ -324,41 +309,6 @@ fun ManagerKpiGrid(
                         "${m.str("code")} — ${m.str("name")}" to
                             "${t.str("trainer_name")} · via ${m.str("because")}"
                     }
-                }),
-            pending = capabilityLoading, needsCapability = capKpis == null),
-        Kpi("High risk", figure(n("high_risk_trainers")), "feedback or incidents",
-            if ((n("high_risk_trainers") ?: 0) > 0) sk.red else sk.green,
-            Drill("High-risk trainers", "Repeated negative feedback on record",
-                namesOf(ops.filter { it.str("feedback_risk") == "High" }))),
-        // Backend already computes both — previously fetched every load and
-        // never displayed anywhere in the app.
-        Kpi("Vouched for", n("deployable_pct")?.let { "$it%" } ?: "—",
-            "known status, no high risk", sk.teal,
-            Drill("Vouched-for share", "Trainers whose position you can actually vouch for right now — status is known and feedback risk isn't High",
-                namesOf(ops.filter {
-                    stateBy[it.str("official_email").lowercase()]?.str("current_status") != "unknown" &&
-                        it.str("feedback_risk") != "High"
-                }))),
-        Kpi("Unknown status", figure(n("unknown_status")), "RMS gave no signal",
-            if ((n("unknown_status") ?: 0) > 0) sk.amber else sk.green,
-            Drill("Unknown status", "RMS returned no assignment data to determine what these trainers are doing right now",
-                namesOf(opsWithStatus("unknown")))),
-        Kpi("Readiness", c("team_readiness_score")?.let { "$it%" } ?: "—",
-            "${c("ready_trainers") ?: 0} rated Ready", sk.teal,
-            Drill("Readiness", "Qubits, approved catalogue depth and spare capacity",
-                capTrainers.sortedByDescending { it.int("readiness_score") }.map {
-                    it.str("trainer_name") to
-                        "${it.intOrNull("readiness_score") ?: "—"} · ${it.str("readiness_bucket")}"
-                }),
-            pending = capabilityLoading, needsCapability = capKpis == null),
-        Kpi("Skill coverage", c("team_skill_coverage_pct")?.let { "$it%" } ?: "—",
-            "${c("certification_tracks") ?: 0} tracks taught", sk.indigo,
-            Drill("Team skill coverage",
-                "Share of the certification tracks the team teaches that someone is certified in",
-                capTrainers.map {
-                    it.str("trainer_name") to
-                        (it.obj("certification")?.intOrNull("coverage_pct")?.let { p -> "$p% covered" }
-                            ?: "no certifiable courses")
                 }),
             pending = capabilityLoading, needsCapability = capKpis == null),
     )
@@ -477,42 +427,38 @@ fun TeamReadinessSummaryCard(deliveryRows: List<Map<*, *>>) {
 
     Card(
         Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(2.dp),
+        elevation = CardDefaults.cardElevation(1.dp),
     ) {
-        Column(Modifier.padding(14.dp)) {
+        Column(Modifier.padding(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     painterResource(R.drawable.ic_trend), null,
-                    tint = sk.teal, modifier = Modifier.size(17.dp),
+                    tint = sk.teal, modifier = Modifier.size(15.dp),
                 )
-                Spacer(Modifier.width(7.dp))
+                Spacer(Modifier.width(6.dp))
                 Text(
                     "Delivery Readiness",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     color = sk.bodyText,
+                    fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.weight(1f))
                 Surface(
                     color = if (ready > 0) sk.green.copy(alpha = 0.14f) else sk.subText.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(6.dp),
                 ) {
                     Text(
                         "$ready of $total ready",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (ready > 0) sk.green else sk.subText,
                         fontWeight = FontWeight.Bold, fontSize = 9.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                 }
             }
-            Text(
-                "From delivery intelligence · updated with each sync",
-                style = MaterialTheme.typography.labelSmall,
-                color = sk.subText, fontSize = 9.sp,
-            )
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
 
             bands.forEach { band ->
                 val fraction = if (total > 0) band.count.toFloat() / total.toFloat() else 0f
@@ -523,20 +469,21 @@ fun TeamReadinessSummaryCard(deliveryRows: List<Map<*, *>>) {
                     label = "readiness_${band.label}",
                 )
                 Row(
-                    Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                    Modifier.fillMaxWidth().padding(vertical = 3.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // Label column — fixed 140dp so all bars start at the same x
+                    // Label column — fixed 120dp so all bars start at the same x
                     Row(
-                        Modifier.width(140.dp),
+                        Modifier.width(120.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(band.emoji, fontSize = 10.sp)
-                        Spacer(Modifier.width(5.dp))
+                        Text(band.emoji, fontSize = 9.sp)
+                        Spacer(Modifier.width(4.dp))
                         Text(
                             band.label,
                             style = MaterialTheme.typography.labelSmall,
                             color = sk.bodyText,
+                            fontSize = 10.sp,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
@@ -544,32 +491,33 @@ fun TeamReadinessSummaryCard(deliveryRows: List<Map<*, *>>) {
                     Box(
                         Modifier
                             .weight(1f)
-                            .height(7.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
                             .background(sk.track)
                     ) {
                         Box(
                             Modifier
                                 .fillMaxHeight()
                                 .fillMaxWidth(anim.coerceIn(0f, 1f))
-                                .clip(RoundedCornerShape(4.dp))
+                                .clip(RoundedCornerShape(3.dp))
                                 .background(band.color)
                         )
                     }
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(6.dp))
                     // Count + pct
                     Text(
                         "${band.count}",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
                         color = if (band.count > 0) band.color else sk.subText,
-                        modifier = Modifier.width(20.dp),
+                        modifier = Modifier.width(18.dp),
                     )
                     Text(
                         "$pct%",
                         style = MaterialTheme.typography.labelSmall,
                         color = sk.subText, fontSize = 9.sp,
-                        modifier = Modifier.width(28.dp),
+                        modifier = Modifier.width(26.dp),
                     )
                 }
             }
@@ -579,16 +527,16 @@ fun TeamReadinessSummaryCard(deliveryRows: List<Map<*, *>>) {
             val balanced     = deliveryRows.count { it.str("delivery_capacity_status") == "Balanced" }
             val underused    = deliveryRows.count { it.str("delivery_capacity_status") == "Underutilized" }
             if (overloaded + balanced + underused > 0) {
-                Spacer(Modifier.height(14.dp))
-                HorizontalDivider(color = sk.cardBorder)
                 Spacer(Modifier.height(10.dp))
-                Text(
-                    "Capacity".uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.subText, fontWeight = FontWeight.Bold, fontSize = 9.sp,
-                )
+                HorizontalDivider(color = sk.cardBorder)
                 Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Capacity Snapshot".uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.subText, fontWeight = FontWeight.Bold, fontSize = 8.sp,
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     CapacityStat("Overloaded", overloaded, sk.red, Modifier.weight(1f))
                     CapacityStat("Balanced",   balanced,   sk.teal, Modifier.weight(1f))
                     CapacityStat("Available",  underused,  sk.green, Modifier.weight(1f))
@@ -644,42 +592,38 @@ fun TeamRiskSummaryCard(opsRows: List<Map<*, *>>) {
 
     Card(
         Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(2.dp),
+        elevation = CardDefaults.cardElevation(1.dp),
     ) {
-        Column(Modifier.padding(14.dp)) {
+        Column(Modifier.padding(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     painterResource(R.drawable.ic_alert), null,
-                    tint = sk.red, modifier = Modifier.size(17.dp),
+                    tint = sk.red, modifier = Modifier.size(15.dp),
                 )
-                Spacer(Modifier.width(7.dp))
+                Spacer(Modifier.width(6.dp))
                 Text(
                     "Feedback Risk",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     color = sk.bodyText,
+                    fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.weight(1f))
                 Surface(
                     color = if (high > 0) sk.red.copy(alpha = 0.14f) else sk.subText.copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(6.dp),
                 ) {
                     Text(
                         "$high need attention",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (high > 0) sk.red else sk.subText,
                         fontWeight = FontWeight.Bold, fontSize = 9.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                 }
             }
-            Text(
-                "Trainers with unresolved feedback incidents",
-                style = MaterialTheme.typography.labelSmall,
-                color = sk.subText, fontSize = 9.sp,
-            )
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
 
             bands.forEach { band ->
                 val fraction = if (total > 0) band.count.toFloat() / total.toFloat() else 0f
@@ -690,50 +634,52 @@ fun TeamRiskSummaryCard(opsRows: List<Map<*, *>>) {
                     label = "risk_${band.label}",
                 )
                 Row(
-                    Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                    Modifier.fillMaxWidth().padding(vertical = 3.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Row(
-                        Modifier.width(110.dp),
+                        Modifier.width(120.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(band.emoji, fontSize = 10.sp)
-                        Spacer(Modifier.width(5.dp))
+                        Text(band.emoji, fontSize = 9.sp)
+                        Spacer(Modifier.width(4.dp))
                         Text(
                             band.label,
                             style = MaterialTheme.typography.labelSmall,
                             color = sk.bodyText,
+                            fontSize = 10.sp,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
                     Box(
                         Modifier
                             .weight(1f)
-                            .height(7.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
                             .background(sk.track)
                     ) {
                         Box(
                             Modifier
                                 .fillMaxHeight()
                                 .fillMaxWidth(anim.coerceIn(0f, 1f))
-                                .clip(RoundedCornerShape(4.dp))
+                                .clip(RoundedCornerShape(3.dp))
                                 .background(band.color)
                         )
                     }
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(6.dp))
                     Text(
                         "${band.count}",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
                         color = if (band.count > 0) band.color else sk.subText,
-                        modifier = Modifier.width(20.dp),
+                        modifier = Modifier.width(18.dp),
                     )
                     Text(
                         "$pct%",
                         style = MaterialTheme.typography.labelSmall,
                         color = sk.subText, fontSize = 9.sp,
-                        modifier = Modifier.width(28.dp),
+                        modifier = Modifier.width(26.dp),
                     )
                 }
             }
@@ -759,45 +705,41 @@ fun TeamCapacityAlertCard(opsRows: List<Map<*, *>>) {
 
     Card(
         Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(2.dp),
+        elevation = CardDefaults.cardElevation(1.dp),
     ) {
-        Column(Modifier.padding(14.dp)) {
+        Column(Modifier.padding(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     painterResource(R.drawable.ic_people), null,
-                    tint = sk.amber, modifier = Modifier.size(17.dp),
+                    tint = sk.amber, modifier = Modifier.size(15.dp),
                 )
-                Spacer(Modifier.width(7.dp))
+                Spacer(Modifier.width(6.dp))
                 Text(
                     "Capacity Optimization",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     color = sk.bodyText,
+                    fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.weight(1f))
                 if (bench > 0) {
                     Surface(
                         color = sk.amber.copy(alpha = 0.14f),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(6.dp),
                     ) {
                         Text(
                             "$bench on bench",
                             style = MaterialTheme.typography.labelSmall,
                             color = sk.amber,
                             fontWeight = FontWeight.Bold, fontSize = 9.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                         )
                     }
                 }
             }
-            Text(
-                "Optimize team utilization and assignment allocation",
-                style = MaterialTheme.typography.labelSmall,
-                color = sk.subText, fontSize = 9.sp,
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 CapacityStat("Stretched",  stretched, sk.red,   Modifier.weight(1f))
                 CapacityStat("Balanced",   balanced,  sk.teal,  Modifier.weight(1f))
                 CapacityStat("Light",      light,     sk.amber, Modifier.weight(1f))
