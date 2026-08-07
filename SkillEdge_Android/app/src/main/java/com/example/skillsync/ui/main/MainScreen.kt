@@ -443,10 +443,16 @@ internal fun DashboardTab(
             item { Appear(4) { TeamRiskSummaryCard(ops) } }
         }
 
-        item { Appear(5) { DashSectionHeader("Team health", "What needs attention right now") } }
+        // Capacity & Bench Risk (Stream 4) — sourced from trainer_operations_df
+        if (ops.isNotEmpty()) {
+            item { Appear(5) { DashSectionHeader("Capacity", "Optimize team utilization and deployment") } }
+            item { Appear(5) { TeamCapacityAlertCard(ops) } }
+        }
+
+        item { Appear(6) { DashSectionHeader("Team health", "What needs attention right now") } }
 
         item {
-            Appear(6) {
+            Appear(7) {
                 TeamAnalytics(
                     ops = ops,
                     states = states,
@@ -457,10 +463,10 @@ internal fun DashboardTab(
             }
         }
 
-        item { Appear(7) { TopPerformers(ops, capMap, onTrainerClick) } }
+        item { Appear(8) { TopPerformers(ops, capMap, onTrainerClick) } }
 
         item {
-            Appear(8) {
+            Appear(9) {
                 Row(
                     Modifier.fillMaxWidth().padding(top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -476,7 +482,7 @@ internal fun DashboardTab(
             item { EmptyStateCard("No reportees returned. Check your account permissions.") }
         } else {
             itemsIndexed(ops) { i, t ->
-                Appear(i + 8) {
+                Appear(i + 9) {
                     TrainerCard(
                         trainer = t,
                         state = stateMap[t.str("official_email").lowercase()],

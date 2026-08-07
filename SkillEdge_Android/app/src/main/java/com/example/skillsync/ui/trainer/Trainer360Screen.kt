@@ -143,7 +143,8 @@ internal fun Trainer360Content(data: Map<String, Any>) {
         item { Appear(7) { CapabilitySection(cap, courses) } }
         item { Appear(8) { DeliverySection(delivery, assignments) } }
         item { Appear(9) { FeedbackSection(feedback) } }
-        item { Appear(10) { AvailabilitySection(avail) } }
+        item { Appear(10) { SPOFAndActionsSection(cap, metrics) } }
+        item { Appear(11) { AvailabilitySection(avail) } }
         item { Spacer(Modifier.height(20.dp)) }
     }
 }
@@ -940,6 +941,122 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
                         .filter { it.isNotBlank() }.joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall, color = sk.subText,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SPOFAndActionsSection(cap: Map<*, *>?, metrics: Map<*, *>?) {
+    val sk = MaterialTheme.skill
+    val courses = cap?.list("courses").orEmpty()
+    val readinessScore = metrics?.intOrNull("delivery_readiness_score")
+        ?: metrics?.intOrNull("readiness_score") ?: 0
+
+    // Identify courses where this trainer might be the only expert
+    val criticalCourses = courses.filter { course ->
+        val level = course.str("skill_level").lowercase()
+        level.contains("advanced") || level.contains("architect") || level.contains("expert")
+    }.take(3)
+
+    SectionCard("Strategic Impact & Actions", "Succession planning & key-person risk") {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // SPOF Risk Indicator
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (criticalCourses.isNotEmpty()) sk.red.copy(alpha = 0.09f) else sk.green.copy(alpha = 0.09f))
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column {
+                    Text(
+                        if (criticalCourses.isNotEmpty()) "⚠️ Critical Skill Owner" else "✓ Good Coverage",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (criticalCourses.isNotEmpty()) sk.red else sk.green,
+                    )
+                    Text(
+                        "${criticalCourses.size} advanced courses",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText, fontSize = 9.sp,
+                    )
+                }
+                if (criticalCourses.isNotEmpty()) {
+                    Surface(
+                        Modifier.weight(1f),
+                        color = sk.red.copy(alpha = 0.14f),
+                        shape = RoundedCornerShape(6.dp),
+                    ) {
+                        Text(
+                            "Plan succession",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.red,
+                            fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+            }
+
+            if (criticalCourses.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                HorizontalDivider(color = sk.cardBorder)
+                Spacer(Modifier.height(8.dp))
+                Label("Critical Courses (Advanced Level)")
+                Spacer(Modifier.height(6.dp))
+                criticalCourses.forEach { course ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_alert), null,
+                            tint = sk.red, modifier = Modifier.size(13.dp),
+                        )
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            course.str("course_name"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = sk.bodyText,
+                        )
+                    }
+                }
+            }
+
+            // Recommended Actions
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider(color = sk.cardBorder)
+            Spacer(Modifier.height(8.dp))
+            Label("Recommended Actions")
+            Spacer(Modifier.height(8.dp))
+            val actions = buildList {
+                if (criticalCourses.isNotEmpty()) {
+                    add("Develop backup trainer for advanced courses")
+                }
+                if (readinessScore >= 80) {
+                    add("Consider for mentoring / knowledge transfer")
+                }
+                add("Quarterly skill validation & career planning")
+            }
+            actions.forEach { action ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(sk.teal.copy(alpha = 0.06f))
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_check), null,
+                        tint = sk.teal, modifier = Modifier.size(13.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(action, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
+                }
             }
         }
     }

@@ -721,6 +721,72 @@ fun TeamRiskSummaryCard(opsRows: List<Map<*, *>>) {
     }
 }
 
+// ── Capacity & Bench Risk ────────────────────────────────────────────────────
+
+/**
+ * Stream 4: Bench Risk — highlights underutilized trainers who should be deployed.
+ * Shows count of trainers on bench, their capacity status distribution.
+ */
+@Composable
+fun TeamCapacityAlertCard(opsRows: List<Map<*, *>>) {
+    val sk = MaterialTheme.skill
+    val stretched = opsRows.count { it.str("capacity_bucket") == "Stretched" }
+    val balanced = opsRows.count { it.str("capacity_bucket") == "Balanced" }
+    val light = opsRows.count { it.str("capacity_bucket") == "Light" }
+    val bench = opsRows.count { it.str("capacity_bucket") == "On Bench" }
+
+    if (bench == 0 && light == 0) return
+
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
+        elevation = CardDefaults.cardElevation(2.dp),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painterResource(R.drawable.ic_people), null,
+                    tint = sk.amber, modifier = Modifier.size(17.dp),
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    "Capacity Optimization",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = sk.bodyText,
+                )
+                Spacer(Modifier.weight(1f))
+                if (bench > 0) {
+                    Surface(
+                        color = sk.amber.copy(alpha = 0.14f),
+                        shape = RoundedCornerShape(8.dp),
+                    ) {
+                        Text(
+                            "$bench on bench",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.amber,
+                            fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        )
+                    }
+                }
+            }
+            Text(
+                "Optimize team utilization and assignment allocation",
+                style = MaterialTheme.typography.labelSmall,
+                color = sk.subText, fontSize = 9.sp,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CapacityStat("Stretched",  stretched, sk.red,   Modifier.weight(1f))
+                CapacityStat("Balanced",   balanced,  sk.teal,  Modifier.weight(1f))
+                CapacityStat("Light",      light,     sk.amber, Modifier.weight(1f))
+                CapacityStat("On Bench",   bench,     sk.green, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
 // ── Analytics ─────────────────────────────────────────────────────────────────
 
 /**
