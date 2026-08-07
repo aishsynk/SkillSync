@@ -7,6 +7,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 
 sealed class DashboardState {
@@ -104,6 +105,7 @@ class MainScreenViewModel : ViewModel() {
             _uiState.value = DashboardState.Success(
                 RetrofitClient.instance.getTrainerIntelligence(email, flag(fresh))
             )
+            com.example.skillsync.data.SessionManager.setLastSyncTime(System.currentTimeMillis())
         } catch (e: Exception) {
             // A failed refresh must not wipe out data the manager is already reading.
             if (_uiState.value !is DashboardState.Success) {
@@ -132,5 +134,39 @@ class MainScreenViewModel : ViewModel() {
         } finally {
             _capabilityLoading.value = false
         }
+    }
+
+    private val _notification = kotlinx.coroutines.flow.MutableSharedFlow<String>()
+    val notification = _notification.asSharedFlow()
+
+    private var pollingJob: kotlinx.coroutines.Job? = null
+
+    fun startPolling(email: String) {
+        if (pollingJob?.isActive == true) return
+        pollingJob = viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(60000)
+                try {
+                    val oldState = _uiState.value as? DashboardState.Success
+                    val oldBatches = (oldState?.intelligenceData?.get("unallocated_batches") as? List<*>)?.size ?: 0
+                    
+                    fetchAll(email, fresh = true)
+                    
+                    val newState = _uiState.value as? DashboardState.Success
+                    val newBatches = (newState?.intelligenceData?.get("unallocated_batches") as? List<*>)?.size ?: 0
+                    
+                    if (newBatches > oldBatches) {
+                        _notification.emit("🔔 New Unallocated Batch Available")
+                    }
+                } catch (e: Exception) {
+                    // Ignore polling errors
+                }
+            }
+        }
+    }
+
+    fun stopPolling() {
+        pollingJob?.cancel()
+        pollingJob = null
     }
 }

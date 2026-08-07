@@ -36,9 +36,25 @@ object RetrofitClient {
             chain.proceed(request)
         }
 
+        val rewriteCacheControlInterceptor = Interceptor { chain ->
+            val originalResponse = chain.proceed(chain.request())
+            if (isNetworkAvailable(context)) {
+                val maxAge = 60 * 60 * 2 // 2 hours
+                originalResponse.newBuilder()
+                    .header("Cache-Control", "public, max-age=$maxAge")
+                    .build()
+            } else {
+                val maxStale = 60 * 60 * 24 * 7 // 7 days
+                originalResponse.newBuilder()
+                    .header("Cache-Control", "public, only-if-cached, max-stale=$maxStale")
+                    .build()
+            }
+        }
+
         okHttpClient = OkHttpClient.Builder()
             .cache(cache)
             .addInterceptor(offlineInterceptor)
+            .addNetworkInterceptor(rewriteCacheControlInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
             .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
@@ -46,7 +62,7 @@ object RetrofitClient {
             .build()
     }
 
-    private fun isNetworkAvailable(context: Context): Boolean {
+    fun isNetworkAvailable(context: Context): Boolean {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false

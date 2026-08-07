@@ -59,6 +59,29 @@ fun MainNavigation() {
         }
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(current, lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                if (current is Main) {
+                    val email = (current as Main).email
+                    mainViewModel.refresh(email)
+                    allocationViewModel.refresh(email, context)
+                    mainViewModel.startPolling(email)
+                }
+            } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
+                mainViewModel.stopPolling()
+            }
+        }
+        lifecycle.addObserver(observer)
+        try {
+            kotlinx.coroutines.awaitCancellation()
+        } finally {
+            lifecycle.removeObserver(observer)
+        }
+    }
+
     AnimatedContent(
         targetState = current,
         transitionSpec = {
@@ -147,10 +170,10 @@ fun MainNavigation() {
                         onMarkSkill = { courseId, trainerEmail, level, date, who ->
                             allocationViewModel.markSkill(
                                 courseId, trainerEmail, level, date, who,
-                                // A confirmed write changes course ownership and
-                                // certification coverage, so the catalogue and the
-                                // cert KPIs are re-read rather than left stale.
-                                onSaved = { mainViewModel.refreshCapability(screen.email) },
+                                onSaved = { 
+                                    mainViewModel.refreshCapability(screen.email)
+                                    allocationViewModel.refresh(screen.email, context)
+                                },
                             )
                         },
                         onClearMark = { allocationViewModel.clearMark() },

@@ -88,6 +88,12 @@ fun MainScreen(
     // Which KPI the manager tapped; drives the drill-down sheet.
     var drill by remember { mutableStateOf<Drill?>(null) }
 
+    LaunchedEffect(Unit) {
+        viewModel.notification.collect { message: String ->
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.skill.pageBg,
         topBar = {
@@ -119,15 +125,15 @@ fun MainScreen(
                             modifier = Modifier.size(18.dp),
                         )
                     }
-                    IconButton(onClick = {
+                    androidx.compose.material3.TextButton(onClick = {
                         com.example.skillsync.data.SessionManager.clearSession()
                         onLogout()
                     }) {
-                        Icon(
-                            painterResource(R.drawable.ic_back),
-                            contentDescription = "Logout",
-                            tint = Color.White.copy(alpha = 0.9f),
-                            modifier = Modifier.size(18.dp),
+                        Text(
+                            "Logout",
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
                         )
                     }
                 },
@@ -138,7 +144,24 @@ fun MainScreen(
         },
         bottomBar = { SkillSyncNavBar(tab, onTabChange) },
     ) { pv ->
-        Box(modifier.fillMaxSize().padding(pv)) {
+        Column(modifier.fillMaxSize().padding(pv)) {
+            val hasNetwork = com.example.skillsync.data.api.RetrofitClient.isNetworkAvailable(context)
+            val lastSync = com.example.skillsync.data.SessionManager.getLastSyncTime()
+            if (!hasNetwork || lastSync > 0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().background(if (!hasNetwork) MaterialTheme.colorScheme.errorContainer else MaterialTheme.skill.cardBg).padding(vertical = 4.dp, horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val syncMsg = if (!hasNetwork) "Offline Mode - Showing Cached Data" else {
+                        val diff = System.currentTimeMillis() - lastSync
+                        val mins = java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(diff)
+                        if (mins == 0L) "Synced just now" else "Last synced $mins mins ago"
+                    }
+                    Text(syncMsg, style = MaterialTheme.typography.labelSmall, color = if (!hasNetwork) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.skill.subText)
+                }
+            }
+            Box(Modifier.weight(1f)) {
             when (tab) {
                 HomeTab.DEMAND -> when (val a = allocState) {
                     // Allocation desk has its own query, state and refresh.
@@ -187,6 +210,7 @@ fun MainScreen(
                     }
                 }
             }
+        }
         }
     }
 

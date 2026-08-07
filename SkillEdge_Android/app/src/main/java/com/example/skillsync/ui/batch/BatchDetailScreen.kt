@@ -212,12 +212,21 @@ fun BatchDetailScreen(
                                     style = MaterialTheme.typography.labelSmall, color = sk.subText,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
+                                val category = c.str("category")
+                                if (category.isNotBlank()) {
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        category,
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = relevanceColor(c.int("match")),
+                                    )
+                                }
                                 val backupRole = c.str("backup_role")
                                 if (backupRole.isNotBlank()) {
                                     Spacer(Modifier.height(2.dp))
                                     Text(
                                         backupRole,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        style = MaterialTheme.typography.labelSmall,
                                         color = relevanceColor(c.int("match")),
                                     )
                                 }

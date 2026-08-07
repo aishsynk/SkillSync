@@ -29,5 +29,11 @@ object SessionManager {
         prefs.edit().clear().apply()
     }
 
+    fun setLastSyncTime(timeMillis: Long) {
+        prefs.edit().putLong("last_sync_time", timeMillis).apply()
+    }
+
+    fun getLastSyncTime(): Long = prefs.getLong("last_sync_time", 0L)
+
     fun isLoggedIn(): Boolean = getEmail() != null && getSessionId() != null
 }
