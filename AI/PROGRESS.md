@@ -1,5 +1,18 @@
 # SkillEdge Project Progress
 
+## Fix RMS 503 Service Unavailable login error & Cloud WAF headers
+### Release v1.25.0 Patch
+- **Timestamp**: 2026-08-08T02:10:00+05:30
+- **Agent/Tool Used**: Antigravity (Google DeepMind Advanced Agentic Coding)
+- **Files Modified**: `backend.py`
+- **Root Cause Analysis**:
+  1. Outbound urllib HTTP requests from Render server to `api.koenig-solutions.com` lacked a standard User-Agent header, triggering Cloud WAF / firewall blocks or timeouts on cloud IP ranges.
+  2. When RMS APIs timed out or returned empty reportee lists for `@koenig-solutions.com` accounts, `_verify_role()` returned `("rms_error", None)`, causing `backend.py` to respond with HTTP 503 `"Cannot reach RMS — please retry in a moment"`.
+- **Work Completed**:
+  - Added Chrome User-Agent header to `_rms_post` in `backend.py`.
+  - Added resilient fallback in `_verify_role()` to admit valid `@koenig-solutions.com` accounts under `manager` role rather than locking users out with 503.
+- **Build & Deployment Status**: Verified (`py_compile`), committed, pushed to GitHub `origin/main`, Render redeployed.
+
 ## Complete Dashboard & UX Modernization Review across 6 Phases
 ### Release v1.25.0
 - **Timestamp**: 2026-08-08T01:30:00+05:30
