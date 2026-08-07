@@ -598,6 +598,129 @@ private fun CapacityStat(label: String, count: Int, tint: Color, modifier: Modif
     }
 }
 
+// ── Team Feedback Risk Summary ─────────────────────────────────────────────────
+
+/**
+ * Team Feedback Risk card — sourced entirely from [trainer_operations_df].
+ * Shows three risk bands: High / Medium / Low with counts, percentages, and animated progress bars.
+ * Managers see at a glance how many team members have unresolved feedback issues.
+ */
+@Composable
+fun TeamRiskSummaryCard(opsRows: List<Map<*, *>>) {
+    if (opsRows.isEmpty()) return
+    val sk = MaterialTheme.skill
+
+    val total = opsRows.size
+    val high   = opsRows.count { it.str("feedback_risk") == "High" }
+    val medium = opsRows.count { it.str("feedback_risk") == "Medium" }
+    val low    = opsRows.count { it.str("feedback_risk") == "Low" }
+
+    data class RiskBand(val label: String, val count: Int, val color: Color, val emoji: String)
+    val bands = listOf(
+        RiskBand("High",   high,   sk.red,    "🔴"),
+        RiskBand("Medium", medium, sk.amber,  "🟡"),
+        RiskBand("Low",    low,    sk.green,  "🟢"),
+    )
+
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
+        elevation = CardDefaults.cardElevation(2.dp),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painterResource(R.drawable.ic_alert), null,
+                    tint = sk.red, modifier = Modifier.size(17.dp),
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    "Feedback Risk",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = sk.bodyText,
+                )
+                Spacer(Modifier.weight(1f))
+                Surface(
+                    color = if (high > 0) sk.red.copy(alpha = 0.14f) else sk.subText.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Text(
+                        "$high need attention",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (high > 0) sk.red else sk.subText,
+                        fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                }
+            }
+            Text(
+                "Trainers with unresolved feedback incidents",
+                style = MaterialTheme.typography.labelSmall,
+                color = sk.subText, fontSize = 9.sp,
+            )
+            Spacer(Modifier.height(14.dp))
+
+            bands.forEach { band ->
+                val fraction = if (total > 0) band.count.toFloat() / total.toFloat() else 0f
+                val pct      = (fraction * 100).toInt()
+                val anim by animateFloatAsState(
+                    targetValue = fraction,
+                    animationSpec = tween(600),
+                    label = "risk_${band.label}",
+                )
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(
+                        Modifier.width(110.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(band.emoji, fontSize = 10.sp)
+                        Spacer(Modifier.width(5.dp))
+                        Text(
+                            band.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.bodyText,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(7.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(sk.track)
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(anim.coerceIn(0f, 1f))
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(band.color)
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "${band.count}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (band.count > 0) band.color else sk.subText,
+                        modifier = Modifier.width(20.dp),
+                    )
+                    Text(
+                        "$pct%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText, fontSize = 9.sp,
+                        modifier = Modifier.width(28.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
 // ── Analytics ─────────────────────────────────────────────────────────────────
 
 /**

@@ -138,11 +138,12 @@ internal fun Trainer360Content(data: Map<String, Any>) {
         item { Appear(2) { UtilisationSection(util, series, delivery) } }
         item { Appear(3) { CapabilityMetrics(metrics) } }
         item { Appear(4) { DeliveryReadinessSection(deliveryReadiness, feedback) } }
-        item { Appear(5) { CertificationSection(certs) } }
-        item { Appear(6) { CapabilitySection(cap, courses) } }
-        item { Appear(7) { DeliverySection(delivery, assignments) } }
-        item { Appear(8) { FeedbackSection(feedback) } }
-        item { Appear(9) { AvailabilitySection(avail) } }
+        item { Appear(5) { RiskSection(metrics, feedback) } }
+        item { Appear(6) { CertificationSection(certs) } }
+        item { Appear(7) { CapabilitySection(cap, courses) } }
+        item { Appear(8) { DeliverySection(delivery, assignments) } }
+        item { Appear(9) { FeedbackSection(feedback) } }
+        item { Appear(10) { AvailabilitySection(avail) } }
         item { Spacer(Modifier.height(20.dp)) }
     }
 }
@@ -799,6 +800,114 @@ private fun DeliverySection(delivery: Map<*, *>?, assignments: List<Map<*, *>>) 
     ) {
         if (assignments.isEmpty()) EmptyNote("No assignments in the last 12 months.")
         else assignments.take(10).forEach { AssignmentRow(it) }
+    }
+}
+
+@Composable
+private fun RiskSection(metrics: Map<*, *>?, feedback: Map<*, *>?) {
+    val sk = MaterialTheme.skill
+    val riskScore = metrics?.intOrNull("risk_score")
+    val riskLevel = metrics?.str("risk_level").orEmpty()
+    val negCount = feedback?.int("negative_total") ?: 0
+    val hrNeg = feedback?.int("hr_negative") ?: 0
+
+    val (riskColor, riskEmoji) = when (riskLevel) {
+        "High"   -> sk.red    to "🔴"
+        "Medium" -> sk.amber  to "🟡"
+        "Low"    -> sk.green  to "🟢"
+        else     -> sk.subText to "⌓"
+    }
+
+    SectionCard("Feedback Risk", "Incidents and HR flags") {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (riskScore != null) {
+                GaugeChart(
+                    value = riskScore,
+                    label = riskLevel.ifBlank { "risk" },
+                    tint = riskColor,
+                    size = 92.dp,
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (riskLevel.isNotBlank()) {
+                    Surface(
+                        color = riskColor.copy(alpha = 0.14f),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                    ) {
+                        Text(
+                            "$riskEmoji $riskLevel Risk",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = riskColor,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        )
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Figure("Negative", "$negCount", if (negCount > 0) sk.red else sk.green)
+                    Figure("HR Issues", "$hrNeg", if (hrNeg > 0) sk.red else sk.subText)
+                }
+            }
+        }
+
+        // Risk summary
+        Spacer(Modifier.height(12.dp))
+        HorizontalDivider(color = sk.cardBorder)
+        Spacer(Modifier.height(10.dp))
+        Label("Risk Indicators")
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            RiskIndicator(
+                "Feedback Issues",
+                negCount > 0,
+                negCount,
+                if (negCount > 2) sk.red else if (negCount > 0) sk.amber else sk.green,
+                Modifier.weight(1f),
+            )
+            RiskIndicator(
+                "HR Flags",
+                hrNeg > 0,
+                hrNeg,
+                if (hrNeg > 0) sk.red else sk.green,
+                Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RiskIndicator(
+    label: String,
+    hasRisk: Boolean,
+    count: Int,
+    tint: Color,
+    modifier: Modifier = Modifier,
+) {
+    val sk = MaterialTheme.skill
+    Surface(
+        modifier
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+            .background(tint.copy(alpha = 0.09f))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        color = tint.copy(alpha = 0.09f),
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                if (hasRisk) "⚠️ $count" else "✓",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = tint,
+                fontSize = 18.sp,
+            )
+            Text(label, style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 8.5.sp)
+        }
     }
 }
 

@@ -437,6 +437,12 @@ internal fun DashboardTab(
             item { Appear(4) { TeamReadinessSummaryCard(deliveryRows) } }
         }
 
+        // Feedback Risk summary — sourced from trainer_operations_df
+        if (ops.isNotEmpty()) {
+            item { Appear(4) { DashSectionHeader("Feedback risk", "Trainers with unresolved feedback issues") } }
+            item { Appear(4) { TeamRiskSummaryCard(ops) } }
+        }
+
         item { Appear(5) { DashSectionHeader("Team health", "What needs attention right now") } }
 
         item {
@@ -767,6 +773,10 @@ internal fun TrainerCard(
     val deliveryCapacity = delivery?.str("delivery_capacity_status").orEmpty()
     val deliveryRisk     = delivery?.str("delivery_risk_level").orEmpty()
 
+    // Feedback risk — from trainer_operations_df
+    val feedbackRisk = trainer.str("feedback_risk").orEmpty()
+    val feedbackCount = trainer.int("negative_count")
+
     val statusColor = when (status) {
         "teaching_now" -> sk.teal
         "scheduled_today" -> sk.blue
@@ -874,10 +884,23 @@ internal fun TrainerCard(
                     Spacer(Modifier.width(5.dp))
                 }
 
-                // —— Risk indicator ——
+                // —— Delivery Risk Indicator ——
                 if (deliveryRisk == "High") {
-                    Chip("⚠️ High Risk", sk.red)
+                    Chip("⚠️ Delivery Risk", sk.red)
                     Spacer(Modifier.width(5.dp))
+                }
+
+                // —— Feedback Risk Indicator ——
+                if (feedbackRisk.isNotBlank() && feedbackRisk != "Low") {
+                    val (riskLabel, riskColor) = when (feedbackRisk) {
+                        "High"   -> "🔴 Feedback Issues" to sk.red
+                        "Medium" -> "🟡 Feedback Alert" to sk.amber
+                        else     -> null to null
+                    }
+                    if (riskColor != null) {
+                        Chip(riskLabel!!, riskColor!!)
+                        Spacer(Modifier.width(5.dp))
+                    }
                 }
 
                 if (certCount > 0) {
