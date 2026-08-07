@@ -465,13 +465,12 @@ internal fun DashboardTab(
             }
         }
 
-        // Team Pulse — one header covering all four current-state signals
-        // (readiness, feedback risk, capacity, forecast) instead of a separate
-        // header+subtitle per card. Same information, a third of the header
-        // chrome eating vertical space before the manager reaches anything
-        // actionable.
+        // Team Pulse — one header covering readiness/risk/capacity (current
+        // state, right now) plus a clearly-separated forecast card
+        // (predictive, next month) so it never reads as an unexplained extra
+        // card in the middle of the section.
         if (deliveryRows.isNotEmpty() || ops.isNotEmpty()) {
-            item { Appear(3) { DashSectionHeader("Team pulse", "Readiness, risk and capacity at a glance") } }
+            item { Appear(3) { DashSectionHeader("Team pulse", "Readiness, risk, capacity — and what's trending next") } }
         }
         if (deliveryRows.isNotEmpty()) {
             item { Appear(3) { TeamReadinessSummaryCard(deliveryRows) } }
@@ -481,7 +480,9 @@ internal fun DashboardTab(
             item { Appear(4) { TeamCapacityAlertCard(ops) } }
             // Predictive trend projection — renders nothing when nobody is
             // trending toward overload or bench, so a healthy team sees no
-            // extra card at all.
+            // extra card at all. The card's own header makes clear this is a
+            // forward-looking projection, not another current-state reading
+            // like the three cards above it (see TeamCapacityForecastCard).
             item { Appear(5) { TeamCapacityForecastCard(ops) } }
         }
 

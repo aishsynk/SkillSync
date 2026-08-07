@@ -2,6 +2,13 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-07 — v1.23.0: "No utilization data" is not the same as "0% utilization"
+
+- **Decision:** Added an explicit `utilization_available` boolean to every trainer's operational row (`ops_row` in `backend.py`), and switched both the backend's team-average KPI and the Android capacity-distribution chart to filter on that flag instead of inferring availability from the numeric value.
+- **Rationale:** `_build_trainer` already computed `util_ok = bool(u_row)` — knew perfectly well whether RMS had answered with real utilization data — but never carried that knowledge into `ops_row`, which just stored `current_utilization = util` (a default of 0 when there's no row). Two different aggregations downstream then handled that ambiguity two different *wrong* ways: the backend's `avg_team_utilization` counted every 0 as a real reading (dragging the average down), while the Android capacity-distribution chart excluded every 0 as if it were missing data (which would also wrongly exclude a trainer genuinely measured at 0% load, undercounting real bench trainers). Same root ambiguity, two opposite biases, both wrong, both silently disagreeing with each other on the same screen. A user directly noticed the downstream effect ("what it is so less?") without knowing why — the fix makes the two numbers correct *and* mutually consistent, because they now share one unambiguous source of truth instead of two different heuristics guessing at the same missing piece of information.
+- **Decision:** Every dashboard figure with a non-obvious calculation basis (a time-windowed average, in particular) now states that basis directly in its visible caption, not only inside a drill-down sheet.
+- **Rationale:** The pre-existing "Top performing" card already did this correctly ("Ranked by utilisation over the last three months," visible without a tap) while the KPI tile next to it said "N with data" — same underlying metric, one clear, one opaque. Matched the KPI tile's wording to the pattern that was already right, rather than inventing a new convention.
+
 ## 2026-08-07 — v1.22.0: Allocation matching mirrors RMS's real AutoTall rules, partially
 
 - **Decision:** Given HR's AutoTall changelog (08 Jul – 05 Aug 2026), implemented the negative-feedback allocation block, the 6-month clean-record tie-break, removed Qubits/QI as a tie-breaker, and treated RedHat officially-approved as Certified in `backend.py`'s allocation-desk matching (`_rank_batch`) and cert-gap analysis (`_cert_intelligence`) — but explicitly did **not** implement the tech-call-trainer preference, mock-rating preference, or the Additional-Trainer least-skill-removal rule.

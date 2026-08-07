@@ -299,11 +299,16 @@ fun ManagerKpiGrid(
                         "${it.str("trainer_name")} · ${it.str("start_at").shortDate()}"
                 })),
         Kpi("Avg utilisation", n("avg_team_utilization")?.let { "$it%" } ?: "—",
-            "${n("utilization_sample") ?: 0} with data", utilTint(n("avg_team_utilization"), sk),
-            Drill("Utilisation", "Three-month average per trainer",
+            // Self-explanatory without opening the drill sheet: what window,
+            // and how many of the team it's actually based on. Trainers RMS
+            // returned no utilization row for are excluded from both the
+            // average and this count — they're not silently counted as 0%.
+            "3-mo avg · ${n("utilization_sample") ?: 0}/${n("total_team_members") ?: 0} tracked",
+            utilTint(n("avg_team_utilization"), sk),
+            Drill("Utilisation", "Three-month average per trainer — trainers with no RMS utilization data are excluded, not counted as 0%",
                 ops.sortedByDescending { it.int("current_utilization") }.map {
                     it.str("trainer_name") to
-                        (it.intOrNull("current_utilization")?.let { u -> "$u%" } ?: "no data")
+                        (if (it.bool("utilization_available")) "${it.int("current_utilization")}%" else "no data")
                 })),
         Kpi("Certified", figure(c("certified_trainers")), "hold at least one exam", sk.green,
             Drill("Certified trainers", "Exams passed, from the RMS resume record",
@@ -422,6 +427,7 @@ private fun KpiCard(
                 kpi.caption,
                 style = MaterialTheme.typography.labelSmall,
                 color = sk.subText, fontSize = 8.sp, maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -805,7 +811,13 @@ fun TeamAnalytics(
 ) {
     val sk = MaterialTheme.skill
 
-    val utils = ops.mapNotNull { it.intOrNull("current_utilization")?.takeIf { u -> u > 0 } }
+    // "utilization_available" distinguishes "RMS returned no row for this
+    // trainer" (excluded) from "RMS says they're genuinely at 0% load"
+    // (a real data point, counted in the On Bench bucket below). A raw
+    // `current_utilization > 0` filter used to conflate the two, which
+    // silently miscounted every idle-but-measured trainer as "no data" and
+    // skewed the average.
+    val utils = ops.filter { it.bool("utilization_available") }.map { it.int("current_utilization") }
     val stretched = utils.count { it > 85 }
     val balanced = utils.count { it in 60..85 }
     val light = utils.count { it in 30..59 }
@@ -830,7 +842,7 @@ fun TeamAnalytics(
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
 
-        AnalyticsCard("Capacity distribution", "Where the team sits on utilisation") {
+        AnalyticsCard("Capacity distribution", "3-month avg utilisation per trainer, bucketed") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 DonutChart(
                     slices = capacitySlices,
@@ -1046,9 +1058,21 @@ fun TeamCapacityForecastCard(opsRows: List<Map<*, *>>) {
                     style = MaterialTheme.typography.titleLarge,
                     color = sk.bodyText,
                 )
+                Spacer(Modifier.width(7.dp))
+                // Unmissable distinction from the Readiness/Risk/Capacity
+                // cards above: those are today's numbers, this is a
+                // projection of where they're headed.
+                Surface(color = sk.indigo.copy(alpha = 0.14f), shape = RoundedCornerShape(6.dp)) {
+                    Text(
+                        "NEXT MONTH",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.indigo, fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
             }
             Text(
-                "Linear trend from the last few months · a projection, not a prediction",
+                "Projected from each trainer's own utilisation trend — not today's number, a forecast of where it's headed",
                 style = MaterialTheme.typography.labelSmall,
                 color = sk.subText, fontSize = 9.sp,
             )

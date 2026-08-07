@@ -1,5 +1,75 @@
 # SkillEdge Project Progress
 
+## Dashboard accuracy fix + clarity redesign
+### Release v1.23.0
+- **Timestamp**: 2026-08-07T23:00:00+05:30
+- **Agent/Tool Used**: Claude Code
+- **Files Modified**: `backend.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/{DashboardSections.kt,MainScreen.kt}`, `app/build.gradle.kts` (versionCode 32, versionName 1.23.0)
+
+- **User report**: "the dashboard data seem inaccurate... util, what it is so
+  less? average of all for a month?... forecast in middle is what?" — a
+  direct accuracy/clarity complaint, not a cosmetic one. Investigated the
+  actual calculation before touching any visuals.
+
+- **Real bug found and fixed**: `backend.py`'s `ops_row` never carried
+  forward the `util_ok` flag computed in `_build_trainer` — a trainer RMS
+  returned **no** utilization row for defaulted `current_utilization` to
+  `0`, indistinguishable from a trainer genuinely measured at 0% load. The
+  dashboard's headline "Avg utilisation" KPI then averaged in every one of
+  those phantom zeros (`isinstance(x, (int,float))` doesn't exclude `0`),
+  silently dragging the number down below what the team's *actual* measured
+  utilization was. This is almost certainly why the number looked "so less."
+  - Fix: added `"utilization_available": util_ok` to `ops_row`; the KPI
+    aggregation now filters on that explicit flag instead of the broken
+    `isinstance` check.
+  - Found the **exact same bug, opposite bias** on the Android side:
+    `TeamAnalytics`'s capacity-distribution donut used `current_utilization
+    > 0` to exclude "no data" trainers — which also excluded any trainer
+    genuinely measured at exactly 0%, under-counting real bench trainers and
+    silently mislabeling them as "No utilisation data." Fixed to use the
+    same `utilization_available` flag, so the KPI tile and the donut chart
+    now compute from the identical, correct basis — they can no longer
+    silently disagree with each other on the same dashboard.
+
+- **Clarity fixes** (the "what is this?" complaints):
+  - "Avg utilisation" KPI subtitle changed from the meaningless "N with
+    data" to "3-mo avg · N/M tracked" — states the time window *and* the
+    real sample size inline, no drill-down tap required to understand what
+    the number means.
+  - "Capacity distribution" chart subtitle changed to "3-month avg
+    utilisation per trainer, bucketed" — matches the KPI tile's language
+    exactly, and matches the pre-existing "Top performing" card's own
+    "Ranked by utilisation over the last three months" pattern, which was
+    already doing this correctly and served as the reference for the fix.
+  - "Team pulse" section subtitle now explicitly mentions the forecast card
+    ("Readiness, risk, capacity — and what's trending next") instead of
+    silently omitting it, which was the direct cause of the forecast card
+    reading as an unexplained extra between other cards.
+  - Capacity Forecast card gained a "NEXT MONTH" badge next to its title and
+    a plainer subtitle ("Projected from each trainer's own utilisation
+    trend — not today's number, a forecast of where it's headed") so its
+    predictive nature is unmistakable at a glance, not just implied by
+    careful reading.
+  - Added defensive `TextOverflow.Ellipsis` to KPI captions — previously
+    absent, so any caption exceeding its 2-line budget would clip abruptly
+    rather than truncate cleanly.
+
+- **Build Status**: ✓ `assembleDebug` + `assembleRelease` both BUILD SUCCESSFUL.
+- **⚠️ Not visually verified on-device** — same standing limitation this
+  session (no Android SDK/emulator). The bug fix is a straightforward,
+  hand-verified data-flow correction (traced `util_ok` from computation
+  through to the KPI aggregation and confirmed the exact break point); the
+  wording/label changes were reviewed for length against the existing
+  KPI-tile caption style to avoid new overflow, but the actual on-screen
+  look is unconfirmed.
+- **Current Status**: Pushed.
+- **Next Actions**: after install, the "Avg utilisation" number should now
+  read higher (or the same, if every trainer already had real utilization
+  data) than before this fix — worth a direct before/after comparison if the
+  old number is still visible anywhere (e.g. a screenshot) to confirm the
+  fix actually moved the number as expected.
+
+
 ## AutoTall allocation-rule parity
 ### Release v1.22.0
 - **Timestamp**: 2026-08-07T22:00:00+05:30

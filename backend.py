@@ -1354,6 +1354,12 @@ def _build_trainer(r, today):
         "current_utilization":    util,
         "utilization_current":    util,
         "utilization_series":     series,
+        # RMS returned no utilization row at all for this trainer, so `util`
+        # above is a default 0, not a measured 0% — indistinguishable from a
+        # genuinely idle trainer unless this flag is checked. Without it,
+        # team-wide averages silently count "no data" as "0% utilized" and
+        # skew low. See _avg_util(series) — an empty series also returns 0.
+        "utilization_available":  util_ok,
         "capacity_bucket":        capacity_bucket,
         "readiness_bucket":        capacity_bucket,   # legacy key, v1.4.x clients
         "overall_readiness_score": readiness_score,
@@ -1546,7 +1552,10 @@ def unified_intelligence():
             actions.append(action)
 
     # ── KPI summary ──────────────────────────────────────────────────────
-    util_vals   = [t["current_utilization"] for t in trainer_ops if isinstance(t["current_utilization"], (int, float))]
+    # Only trainers RMS actually returned a utilization row for — a missing
+    # row defaults current_utilization to 0, which is not the same claim as
+    # "measured at 0% load" and must not silently pull the team average down.
+    util_vals   = [t["current_utilization"] for t in trainer_ops if t.get("utilization_available")]
     avg_util    = round(sum(util_vals) / len(util_vals)) if util_vals else 0
     active_cnt  = sum(1 for s in trainer_states if s["current_status"] != "unknown")
     mgr_name    = email.split("@")[0].replace(".", " ").title()
