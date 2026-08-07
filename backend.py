@@ -53,6 +53,17 @@ which have proven wrong more than once:
     and HTML blobs in SCID / TOTRecords that must be stripped before display.
   * uniqueCerts (72) returns zero rows for every body shape tried
     (employee_id / email / EmpCode / empty) — treat as unavailable, not empty.
+  * trainerFeedback (244) and assignmentPax (209), added 2026-08-07: NOT YET
+    verified against a live response. Field names below are transcribed from
+    the instruction file only, which has been wrong before (see
+    trainer_portal_api_details/ "Check Course Availability in RMS.txt" —
+    mislabeled, actually the Trainer RC Schedule API). Parsed defensively with
+    multiple key fallbacks; trainer-360's feedback.responses_raw_sample field
+    is temporary scaffolding to confirm the real shape from a live call, then
+    should be deleted.
+    - trainerFeedback expected: Question, TextAnswer/MCQAnswer, FeedBackDate,
+      AssignmentId, SCID, TrainerEmail, TrainerName.
+    - assignmentPax expected: StudentName, StudentEmail.
 
 There is no leave/absence endpoint in the RMS catalogue. The only unavailability
 signal is the *OffDates fields on trainerDetails, which are frequently null.
@@ -252,6 +263,8 @@ _CACHE_TTL = {
     "negFeedbackCount":  900,
     "hrIncident":        900,
     "trainerNegFeedback": 900,
+    "trainerFeedback":   900,   # per-question detail, same volatility as the count endpoints
+    "assignmentPax":     600,   # roster can still change until the batch starts
     "prevUpcoming":      600,   # assignment calendar
     "unallocated":       180,   # demand turns over during the day
     # "trainerSkills" intentionally omitted — see above.
@@ -1814,6 +1827,12 @@ def trainer_360():
         f_neg    = pool.submit(_rms, "negFeedbackCount", {"email": email})
         f_hr     = pool.submit(_rms, "hrIncident", {"email": email})
         f_resume = pool.submit(_resume, email)
+        # Per-question feedback detail (not negative-only) — field shape is from
+        # the instruction file, not a verified live response; parsed defensively
+        # below and a raw sample is included until a real call confirms it.
+        f_fbdet  = pool.submit(_rms, "trainerFeedback", {
+            "TrainerEmail": email, "AssignmentId": "", "SCID": "",
+        })
         f_peers  = (pool.submit(_rms, "reportees", {"email": manager_email})
                     if manager_email else None)
 
@@ -1826,10 +1845,30 @@ def trainer_360():
         hr_rows  = f_hr.result() or []
         resume   = f_resume.result()
         peers    = (f_peers.result() or []) if f_peers else []
+        fbdet_raw = [r for r in (f_fbdet.result() or []) if isinstance(r, dict)]
 
     emp_code = certs.get("emp_code", "")
     # Negative-feedback detail keys off employee_id, not email.
     neg_detail = (_rms("trainerNegFeedback", {"employee_id": emp_code}) or []) if emp_code else []
+
+    # Per-question feedback (positive and negative both) — separate from the
+    # negative-only detail above. Field names are unverified against a live
+    # response (see f_fbdet comment); coerced with fallbacks and a raw sample
+    # kept for the first real call to confirm the actual shape.
+    feedback_responses = []
+    for r in fbdet_raw[:20]:
+        question = str(r.get("Question", r.get("feedback_question", "")) or "").strip()
+        answer = str(
+            r.get("TextAnswer", r.get("MCQAnswer", r.get("feedback_answer", ""))) or ""
+        ).strip()
+        if not question and not answer:
+            continue
+        feedback_responses.append({
+            "question":      question,
+            "answer":        answer,
+            "date":          str(r.get("FeedBackDate", r.get("feedback_date", "")) or "").strip(),
+            "assignment_id": str(r.get("AssignmentId", r.get("assignment_id", "")) or "").strip(),
+        })
 
     delivery = []
     for a in assigns:
@@ -1848,6 +1887,30 @@ def trainer_360():
             "state":          _engagement_state(a, today),
         })
     delivery.sort(key=lambda d: d["start_at"] or "", reverse=True)
+
+    # Participant roster — bounded to the current + next assignment only. The
+    # full delivery list can span a year of history; fetching pax for every row
+    # would multiply RMS calls for data nobody but the active batch needs.
+    # Field names are unverified against a live response — see assignmentPax
+    # registration comment.
+    pax_targets = [d for d in delivery if d["state"] in ("current", "upcoming")][:2]
+    if pax_targets:
+        with ThreadPoolExecutor(max_workers=2) as pax_pool:
+            pax_results = list(pax_pool.map(
+                lambda d: _rms("assignmentPax", {"AssignmentId": d["assignment_id"]})
+                if d["assignment_id"] else None,
+                pax_targets,
+            ))
+        for d, raw in zip(pax_targets, pax_results):
+            rows = [r for r in (raw or []) if isinstance(r, dict)]
+            d["participants"] = [
+                {
+                    "name":  str(r.get("StudentName", r.get("Name", "")) or "").strip(),
+                    "email": str(r.get("StudentEmail", r.get("Email", "")) or "").strip(),
+                }
+                for r in rows
+                if str(r.get("StudentName", r.get("Name", "")) or "").strip()
+            ]
 
     def _num(v):
         try:
@@ -1967,6 +2030,10 @@ def trainer_360():
             "hr_positive":      hr_pos,
             "hr_negative":      hr_neg,
             "negative_details": [r for r in neg_detail if isinstance(r, dict)],
+            "responses":        feedback_responses,
+            # TEMPORARY — drop once a live call confirms Question/TextAnswer/
+            # MCQAnswer/FeedBackDate/AssignmentId are the real keys RMS returns.
+            "responses_raw_sample": fbdet_raw[:2],
         },
         # Surfaced so the UI can say "no data" honestly rather than implying zero.
         "availability": {

@@ -978,6 +978,37 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
                 )
             }
         }
+
+        // Per-question responses — positive and negative both, unlike the
+        // negative-only list above. New field; empty until RMS confirms it.
+        val responses = feedback?.list("responses").orEmpty()
+        if (responses.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(color = sk.cardBorder)
+            Spacer(Modifier.height(8.dp))
+            Label("Recent Feedback")
+            responses.take(5).forEach { r ->
+                Spacer(Modifier.height(8.dp))
+                Column {
+                    Text(
+                        r.str("question").ifBlank { "Feedback" },
+                        style = MaterialTheme.typography.bodySmall, color = sk.bodyText,
+                    )
+                    if (r.str("answer").isNotBlank()) {
+                        Text(
+                            r.str("answer"),
+                            style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                        )
+                    }
+                    if (r.str("date").isNotBlank()) {
+                        Text(
+                            r.str("date"),
+                            style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 9.sp,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1284,6 +1315,17 @@ private fun AssignmentRow(a: Map<*, *>) {
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.labelSmall, color = sk.subText, maxLines = 1,
             )
+            // Roster is only fetched for the current + next assignment (see
+            // backend), so this is populated for at most two rows here.
+            val roster = a.list("participants")
+            if (roster.isNotEmpty()) {
+                Text(
+                    "With: " + roster.take(3).joinToString(", ") { it.str("name") } +
+                        (if (roster.size > 3) " +${roster.size - 3} more" else ""),
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         Surface(color = tint.copy(alpha = 0.14f), shape = RoundedCornerShape(10.dp)) {
             Text(

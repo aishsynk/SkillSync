@@ -1,5 +1,26 @@
 # SkillEdge Project Progress
 
+## API audit + first two Tier-2 activations
+### Release v1.18.0
+- **Timestamp**: 2026-08-07T18:00:00+05:30
+- **Agent/Tool Used**: Claude Code
+- **Files Modified**:
+  - `backend.py` — registered `trainerFeedback` (244) and `assignmentPax` (209) cache TTLs; wired both into `/api/data/trainer-360`; added `feedback.responses` and per-assignment `participants`; updated module docstring's schema-notes block
+  - `Trainer360Screen.kt` — `FeedbackSection` gained a "Recent Feedback" subsection from `feedback.responses`; `AssignmentRow` shows a roster preview when `participants` is present
+  - `app/build.gradle.kts` — versionCode 26, versionName 1.18.0
+
+- **What led here**: Read all 36 files in `trainer_portal_api_details/`, cross-referenced against `backend.py`'s actual `_APIS` dict and call sites (not the files' claims alone). Found: 11 APIs active, 9 registered-but-never-called ("Tier 2"), 14 never wired at all ("Tier 3"), 2 confirmed dead ends already documented in backend.py's own header. Recorded the full breakdown in `AI/CONTEXT.md`. Also found `trainer_portal_api_details/Check Course Availability in RMS.txt` (no underscore) is mislabeled — its content is actually the "Trainer RC Schedule" API.
+
+- **⚠️ IMPORTANT — unverified against live RMS**: `trainerFeedback` and `assignmentPax` field names come from the instruction files only, which this same codebase's header comment says "have proven wrong more than once." Per project verification standards, this must not be treated as confirmed from a compile alone. Concretely:
+  - `feedback.responses` in the trainer-360 response is parsed defensively (`Question`/`TextAnswer`/`MCQAnswer`/`FeedBackDate` with lowercase fallbacks) but may come back empty if the real field names differ.
+  - A **temporary** `feedback.responses_raw_sample` field (first 2 raw rows, unparsed) was added specifically so the next live trainer-360 call can be inspected to confirm or correct the field mapping — same empirical-discovery technique already used historically for the `unallocated` endpoint (see DECISIONS.md 2026-08-06). **Delete this field once confirmed.**
+  - `participants` is fetched only for the current + next assignment (bounded, not the full delivery history) to avoid an N+1 RMS call explosion.
+
+- **Build Status**: ✓ v1.18.0 — `assembleDebug` and `assembleRelease` both BUILD SUCCESSFUL, zero warnings.
+- **Current Status**: Pushed. Functionally inert until a real trainer-360 call proves out the field names — the UI sections simply render nothing if the lists come back empty, so this ships safely regardless.
+- **Next Actions**: Open Trainer360 for a real trainer post-deploy, inspect `feedback.responses_raw_sample` in the raw API response (e.g. via browser devtools or a temporary log), correct the field mapping in `backend.py` if needed, then delete the raw-sample scaffolding field. After that's confirmed, the same defensive pattern can extend to the remaining Tier-2 APIs (`last3MonthsUtil`, `trainerAvailability`, etc.) with more confidence.
+
+
 ## Phase 5 + 6: Offline Resilience & Trend Forecasting
 ### Release v1.17.0
 - **Timestamp**: 2026-08-07T17:00:00+05:30
