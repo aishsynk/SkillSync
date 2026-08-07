@@ -24,6 +24,7 @@ import com.example.skillsync.R
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
 import java.util.Calendar
+import kotlin.math.roundToInt
 
 // ── Personalised header ───────────────────────────────────────────────────────
 
@@ -953,6 +954,149 @@ internal fun teamUtilisationTrend(ops: List<Map<*, *>>): List<TrendPoint> {
             TrendPoint(month.take(3), (values.sum() / values.size.coerceAtLeast(1)))
         }
         .takeLast(12)
+}
+
+// ── Capacity forecast (trend projection, not ML) ────────────────────────────────
+
+data class UtilForecast(
+    val trainerName: String,
+    val trainerEmail: String,
+    val current: Int,
+    val projected: Int,
+    val direction: String, // "Rising" | "Falling" | "Flat"
+)
+
+/**
+ * A month-over-month average delta, projected one step forward — the only
+ * time-series signal RMS actually gives us is [utilization_series], so this is
+ * a plain linear projection of real numbers, not a trained model. Needs at
+ * least 3 months on record; fewer than that and a slope is noise, not signal.
+ */
+internal fun utilizationForecasts(ops: List<Map<*, *>>): List<UtilForecast> {
+    return ops.mapNotNull { t ->
+        val values = t.list("utilization_series").takeLast(6).map { it.int("utilization") }
+        val proj = projectNextUtilization(values) ?: return@mapNotNull null
+        UtilForecast(
+            trainerName  = t.str("trainer_name"),
+            trainerEmail = t.str("official_email"),
+            current      = values.last(),
+            projected    = proj.projected,
+            direction    = proj.direction,
+        )
+    }
+}
+
+data class UtilProjection(val projected: Int, val direction: String)
+
+/**
+ * Shared by the team-level forecast card and the single-trainer utilisation
+ * section. Null when fewer than 3 months are on record — a slope from less
+ * than that is noise, not signal.
+ */
+internal fun projectNextUtilization(values: List<Int>): UtilProjection? {
+    if (values.size < 3) return null
+    val slope = averageMonthOverMonthDelta(values)
+    val projected = (values.last() + slope).roundToInt().coerceIn(0, 100)
+    val direction = when {
+        slope > 3f -> "Rising"
+        slope < -3f -> "Falling"
+        else -> "Flat"
+    }
+    return UtilProjection(projected, direction)
+}
+
+private fun averageMonthOverMonthDelta(values: List<Int>): Float {
+    if (values.size < 2) return 0f
+    var sum = 0
+    for (i in 1 until values.size) sum += values[i] - values[i - 1]
+    return sum.toFloat() / (values.size - 1)
+}
+
+/**
+ * Stream 6 (predictive): trainers whose own utilization trend is heading toward
+ * overload or the bench next month, surfaced *before* it happens rather than
+ * only once the capacity bucket already shows Stretched/On Bench. Explicitly
+ * labelled as a trend projection — this reads real monthly numbers, it does not
+ * model or predict a person's behaviour.
+ */
+@Composable
+fun TeamCapacityForecastCard(opsRows: List<Map<*, *>>) {
+    val sk = MaterialTheme.skill
+    val forecasts = remember(opsRows) { utilizationForecasts(opsRows) }
+    val towardOverload = forecasts.filter { it.projected >= 90 && it.current < 90 && it.direction == "Rising" }
+    val towardBench = forecasts.filter { it.projected <= 25 && it.direction == "Falling" }
+
+    if (towardOverload.isEmpty() && towardBench.isEmpty()) return
+
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
+        elevation = CardDefaults.cardElevation(2.dp),
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painterResource(R.drawable.ic_trend), null,
+                    tint = sk.indigo, modifier = Modifier.size(17.dp),
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    "Capacity Forecast",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = sk.bodyText,
+                )
+            }
+            Text(
+                "Linear trend from the last few months · a projection, not a prediction",
+                style = MaterialTheme.typography.labelSmall,
+                color = sk.subText, fontSize = 9.sp,
+            )
+            Spacer(Modifier.height(12.dp))
+
+            if (towardOverload.isNotEmpty()) {
+                Text(
+                    "⚠️ Trending toward overload".uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.red, fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                )
+                Spacer(Modifier.height(6.dp))
+                towardOverload.forEach { f -> ForecastRow(f, sk.red) }
+                Spacer(Modifier.height(10.dp))
+            }
+            if (towardBench.isNotEmpty()) {
+                Text(
+                    "Trending toward bench".uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.amber, fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                )
+                Spacer(Modifier.height(6.dp))
+                towardBench.forEach { f -> ForecastRow(f, sk.amber) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ForecastRow(f: UtilForecast, tint: Color) {
+    val sk = MaterialTheme.skill
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            f.trainerName,
+            style = MaterialTheme.typography.bodySmall,
+            color = sk.bodyText,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "${f.current}% → ${f.projected}%",
+            style = MaterialTheme.typography.labelSmall,
+            color = tint, fontWeight = FontWeight.Bold, fontSize = 10.sp,
+        )
+    }
 }
 
 @Composable

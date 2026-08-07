@@ -152,20 +152,36 @@ fun MainScreen(
         bottomBar = { SkillSyncNavBar(tab, onTabChange) },
     ) { pv ->
         Column(modifier.fillMaxSize().padding(pv)) {
+            // Driven by whether the data actually on screen came from disk
+            // (fetch failed and LocalCache answered) rather than just guessing
+            // from connectivity — a live network with a down backend/RMS chain
+            // looks identical to the manager as being offline.
             val hasNetwork = com.example.skillsync.data.api.RetrofitClient.isNetworkAvailable(context)
+            val dashSuccess = state as? DashboardState.Success
             val lastSync = com.example.skillsync.data.SessionManager.getLastSyncTime()
-            if (!hasNetwork || lastSync > 0) {
+            val showBanner = dashSuccess?.fromCache == true || !hasNetwork || lastSync > 0
+            if (showBanner) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().background(if (!hasNetwork) MaterialTheme.colorScheme.errorContainer else MaterialTheme.skill.cardBg).padding(vertical = 4.dp, horizontal = 16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                        .background(if (dashSuccess?.fromCache == true || !hasNetwork) MaterialTheme.colorScheme.errorContainer else MaterialTheme.skill.cardBg)
+                        .padding(vertical = 4.dp, horizontal = 16.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val syncMsg = if (!hasNetwork) "Offline Mode - Showing Cached Data" else {
-                        val diff = System.currentTimeMillis() - lastSync
-                        val mins = java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(diff)
-                        if (mins == 0L) "Synced just now" else "Last synced $mins mins ago"
+                    val syncMsg = when {
+                        dashSuccess?.fromCache == true -> "Offline — showing data from ${relativeAge(dashSuccess.cachedAt)}"
+                        !hasNetwork -> "Offline Mode - Showing Cached Data"
+                        else -> {
+                            val diff = System.currentTimeMillis() - lastSync
+                            val mins = java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(diff)
+                            if (mins == 0L) "Synced just now" else "Last synced $mins mins ago"
+                        }
                     }
-                    Text(syncMsg, style = MaterialTheme.typography.labelSmall, color = if (!hasNetwork) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.skill.subText)
+                    Text(
+                        syncMsg,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (dashSuccess?.fromCache == true || !hasNetwork) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.skill.subText,
+                    )
                 }
             }
             Box(Modifier.weight(1f)) {
@@ -231,6 +247,21 @@ fun MainScreen(
     }
 
     drill?.let { DrillSheet(it) { drill = null } }
+}
+
+/** "3 mins ago" / "2 hours ago" / "5 days ago" for a past epoch-millis timestamp. */
+internal fun relativeAge(epochMillis: Long): String {
+    if (epochMillis <= 0L) return "an earlier session"
+    val diff = System.currentTimeMillis() - epochMillis
+    val mins = java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(diff)
+    val hours = java.util.concurrent.TimeUnit.MILLISECONDS.toHours(diff)
+    val days = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(diff)
+    return when {
+        mins < 1L -> "just now"
+        mins < 60L -> "$mins min${if (mins == 1L) "" else "s"} ago"
+        hours < 24L -> "$hours hour${if (hours == 1L) "" else "s"} ago"
+        else -> "$days day${if (days == 1L) "" else "s"} ago"
+    }
 }
 
 private fun tabTitle(tab: String) = when (tab) {
@@ -447,6 +478,13 @@ internal fun DashboardTab(
         if (ops.isNotEmpty()) {
             item { Appear(5) { DashSectionHeader("Capacity", "Optimize team utilization and deployment") } }
             item { Appear(5) { TeamCapacityAlertCard(ops) } }
+        }
+
+        // Capacity Forecast (Stream 6, predictive) — trend projection from each
+        // trainer's own utilization_series; renders nothing if no one is trending
+        // toward overload or bench, so it never adds noise to a healthy team.
+        if (ops.isNotEmpty()) {
+            item { Appear(5) { TeamCapacityForecastCard(ops) } }
         }
 
         item { Appear(6) { DashSectionHeader("Team health", "What needs attention right now") } }

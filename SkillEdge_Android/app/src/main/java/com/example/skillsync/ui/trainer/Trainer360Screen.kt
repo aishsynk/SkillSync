@@ -25,6 +25,8 @@ import com.example.skillsync.R
 import com.example.skillsync.theme.StatusBarIcons
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
+import com.example.skillsync.ui.main.relativeAge
+import com.example.skillsync.ui.main.projectNextUtilization
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,11 +100,28 @@ fun Trainer360Screen(
                         shape = RoundedCornerShape(10.dp),
                     ) { Text("Try again") }
                 }
-                is Trainer360State.Success -> PullToRefreshBox(
-                    isRefreshing = refreshing,
-                    onRefresh = { viewModel.refresh(trainerEmail, managerEmail) },
-                ) {
-                    Trainer360Content(s.data)
+                is Trainer360State.Success -> Column(Modifier.fillMaxSize()) {
+                    if (s.fromCache) {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.errorContainer)
+                                .padding(vertical = 4.dp, horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            Text(
+                                "Offline — showing data from ${relativeAge(s.cachedAt)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                        }
+                    }
+                    PullToRefreshBox(
+                        isRefreshing = refreshing,
+                        onRefresh = { viewModel.refresh(trainerEmail, managerEmail) },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Trainer360Content(s.data)
+                    }
                 }
             }
         }
@@ -294,6 +313,22 @@ private fun UtilisationSection(
                 tint = sk.teal,
                 height = 100.dp,
             )
+            val projection = remember(series) {
+                projectNextUtilization(series.map { it.int("utilization") })
+            }
+            if (projection != null) {
+                Spacer(Modifier.height(8.dp))
+                val tint = when (projection.direction) {
+                    "Rising"  -> if (projection.projected >= 90) sk.red else sk.teal
+                    "Falling" -> if (projection.projected <= 25) sk.amber else sk.teal
+                    else      -> sk.subText
+                }
+                Text(
+                    "Next month (trend projection): ${projection.projected}% · ${projection.direction}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = tint, fontSize = 9.sp,
+                )
+            }
         } else {
             EmptyNote("No utilisation series returned — this is missing data, not zero utilisation.")
         }

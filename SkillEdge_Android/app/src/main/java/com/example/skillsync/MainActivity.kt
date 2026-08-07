@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
     
     com.example.skillsync.data.SessionManager.init(applicationContext)
     com.example.skillsync.data.api.RetrofitClient.init(applicationContext)
+    com.example.skillsync.data.cache.LocalCache.init(applicationContext)
     
     // Schedule background push service
     val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.example.skillsync.util.SkillSyncNotificationWorker>(

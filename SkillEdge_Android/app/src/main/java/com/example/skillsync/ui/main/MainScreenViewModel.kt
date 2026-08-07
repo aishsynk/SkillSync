@@ -3,6 +3,7 @@ package com.example.skillsync.ui.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.skillsync.data.api.RetrofitClient
+import com.example.skillsync.data.cache.LocalCache
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,7 +13,17 @@ import kotlinx.coroutines.launch
 
 sealed class DashboardState {
     object Loading : DashboardState()
-    data class Success(val intelligenceData: Map<String, Any>) : DashboardState()
+    /**
+     * [fromCache] is true when this data came from [LocalCache] after a live
+     * fetch failed — offline, or the backend/RMS chain is down — rather than
+     * from a fresh network response. [cachedAt] is the disk-write time in that
+     * case, so the UI can say how old the data actually is instead of guessing.
+     */
+    data class Success(
+        val intelligenceData: Map<String, Any>,
+        val fromCache: Boolean = false,
+        val cachedAt: Long = 0L,
+    ) : DashboardState()
     data class Error(val message: String) : DashboardState()
 }
 
@@ -100,37 +111,61 @@ class MainScreenViewModel : ViewModel() {
     /** `?refresh=1` purges the server cache; a plain load is happy to reuse it. */
     private fun flag(fresh: Boolean) = if (fresh) 1 else null
 
+    private fun dashboardCacheKey(email: String) = "dashboard_$email"
+    private fun profileCacheKey(email: String) = "profile_$email"
+    private fun capabilityCacheKey(email: String) = "capability_$email"
+
     private suspend fun fetchDashboard(email: String, fresh: Boolean) {
         try {
-            _uiState.value = DashboardState.Success(
-                RetrofitClient.instance.getTrainerIntelligence(email, flag(fresh))
-            )
+            val data = RetrofitClient.instance.getTrainerIntelligence(email, flag(fresh))
+            _uiState.value = DashboardState.Success(data)
+            LocalCache.saveMap(dashboardCacheKey(email), data)
             com.example.skillsync.data.SessionManager.setLastSyncTime(System.currentTimeMillis())
         } catch (e: Exception) {
             // A failed refresh must not wipe out data the manager is already reading.
             if (_uiState.value !is DashboardState.Success) {
-                _uiState.value = DashboardState.Error(
-                    e.localizedMessage ?: "Failed to load dashboard data"
-                )
+                val cached = LocalCache.loadMap(dashboardCacheKey(email))
+                _uiState.value = if (cached != null) {
+                    DashboardState.Success(
+                        cached,
+                        fromCache = true,
+                        cachedAt = LocalCache.savedAt(dashboardCacheKey(email)),
+                    )
+                } else {
+                    DashboardState.Error(e.localizedMessage ?: "Failed to load dashboard data")
+                }
             }
         }
     }
 
     private suspend fun fetchProfile(email: String, fresh: Boolean) {
         try {
-            _profile.value = RetrofitClient.instance.getManagerProfile(email, flag(fresh))
+            val data = RetrofitClient.instance.getManagerProfile(email, flag(fresh))
+            _profile.value = data
+            LocalCache.saveMap(profileCacheKey(email), data)
         } catch (_: Exception) {
             // Identity is presentation only — the dashboard is still usable
-            // without it, so this failure stays silent and the header degrades.
+            // without it. Fall back to whatever was last cached so the header
+            // stays populated instead of degrading to the bare email.
+            if (_profile.value == null) {
+                _profile.value = LocalCache.loadMap(profileCacheKey(email))
+            }
         }
     }
 
     private suspend fun fetchCapability(email: String, fresh: Boolean) {
         _capabilityLoading.value = true
         try {
-            _capability.value = RetrofitClient.instance.getTeamCapability(email, flag(fresh))
+            val data = RetrofitClient.instance.getTeamCapability(email, flag(fresh))
+            _capability.value = data
+            LocalCache.saveMap(capabilityCacheKey(email), data)
         } catch (_: Exception) {
-            // Leave the previous value in place; cert KPIs show "—" if there is none.
+            // Leave the previous value in place; fall back to disk only if this
+            // is the very first attempt, so cert KPIs show something offline
+            // rather than "—" when a prior session already fetched it.
+            if (_capability.value == null) {
+                _capability.value = LocalCache.loadMap(capabilityCacheKey(email))
+            }
         } finally {
             _capabilityLoading.value = false
         }

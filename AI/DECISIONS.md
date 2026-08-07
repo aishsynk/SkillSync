@@ -2,6 +2,15 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-07 — v1.17.0: App-level disk cache instead of relying on HTTP caching; trend projection instead of fabricated ML
+
+- **Decision:** Add `LocalCache` — a small Gson/JSON disk cache keyed by email — as the explicit offline fallback for the dashboard and Trainer360, on top of (not replacing) the existing OkHttp HTTP cache.
+- **Rationale:** OkHttp's cache is opaque to the ViewModel: it can't distinguish "live response" from "stale cache hit," and cache hits depend on exact request/query-param matching that a cold app start with a `refresh` flag flip can miss. A manager should never see a blank Error screen after a failed fetch if *any* prior successful payload exists on disk — `LocalCache` makes that a deliberate, testable fallback rather than an OkHttp implementation detail the app happens to benefit from sometimes.
+- **Decision:** Both `DashboardState.Success` and `Trainer360State.Success` now carry `fromCache: Boolean` and `cachedAt: Long`, and the UI banners are driven by that flag rather than by `isNetworkAvailable()` alone.
+- **Rationale:** A device can have a live network connection while the Render backend or an upstream RMS API is down — that looks identical to "offline" from the manager's chair. Deriving the banner from whether the *data on screen* actually came from cache is honest in both cases; deriving it from connectivity alone is not.
+- **Decision:** For "predictive intelligence," implement only a transparent linear trend projection (`projectNextUtilization`) over the real `utilization_series` already in the payload, explicitly labelled in the UI as "a projection, not a prediction." Did not build a machine-learning risk/attrition/readiness predictor.
+- **Rationale:** RMS provides genuine time-series data for exactly one metric (monthly utilization); feedback, HR incidents, and readiness are point-in-time only, with no history endpoint to train or project from. Fabricating a "risk forecast" without real historical signal would be exactly the kind of placeholder functionality the project's quality gate forbids, and would erode trust in the intelligence platform's other engines, which are all real backend computations. A slope-based projection over real numbers, honestly labelled, is useful; a black-box model with no underlying data would not be.
+
 ## 2026-08-06 — v1.4.0: Brand identity + premium UI/UX motion system
 
 - **Decision:** Drop Material You dynamic colour (`dynamicColor` was `true`, so on Android 12+ the whole app took its palette from the user's wallpaper) and lock the app to a brand scheme. SkillSync is a corporate tool; wallpaper-driven theming actively destroyed the teal/blue identity shared with the web dashboard.
