@@ -1,5 +1,37 @@
 # SkillEdge Project Progress
 
+## Real push notifications: allocation, mandatory feedback, unallocated demand
+### Release v1.19.0
+- **Timestamp**: 2026-08-07T19:00:00+05:30
+- **Agent/Tool Used**: Claude Code
+- **Files Modified**:
+  - `util/NotificationStateStore.kt` (new) — SharedPreferences seen-set per manager email + first-run guard
+  - `util/NotificationEngine.kt` (new) — pure delta detection over `batch_engagement_df`/`unallocated_demand_df`: new allocation, batch-just-completed (feedback mandatory), new unallocated demand
+  - `util/SkillSyncNotificationWorker.kt` — rewritten from "always notify if pending count > 0" (fired the same notification every 15 min regardless of change) to real delta detection via the engine + seen-set
+  - `ui/main/MainScreenViewModel.kt` — foreground 60s poll now uses the same engine/seen-set instead of its own narrow unallocated-only size-diff; `notification` flow changed from `String` to `(title, message)` pairs
+  - `ui/main/MainScreen.kt` — updated notification collector for the new pair type
+  - `util/LocalNotificationService.kt` — notifications now open the app on tap (previously had no content intent — tapping just dismissed) and use `BigTextStyle` so longer messages aren't truncated
+  - `MainActivity.kt` — requests `POST_NOTIFICATIONS` at runtime on Android 13+; removed a dead no-op `LifecycleEventObserver` block
+  - `app/build.gradle.kts` — versionCode 27, versionName 1.19.0
+
+- **What this actually does**: three notification triggers, each backed by real fields already in the unified payload (no new backend work needed):
+  1. **New batch assigned** — a reportee's `batch_engagement_df` row transitions to `current`/`upcoming` for an assignment not seen before
+  2. **Feedback required (mandatory)** — a reportee's batch transitions to `engagement_state == "completed"` — fires once per completed assignment, framed as mandatory per the request
+  3. **New unallocated batch** — a new row appears in `unallocated_demand_df`
+
+- **Two real bugs fixed while wiring this, not introduced by it**:
+  1. **Notifications were likely silently no-op'ing on all Android 13+ devices.** The manifest declared `POST_NOTIFICATIONS` but nothing ever called `requestPermission` — `LocalNotificationService.showNotification` checks the permission and returns early if it's not granted, and it defaults to denied until requested. Now requested once at app start.
+  2. **The background worker could crash on first background run.** WorkManager can spawn a fresh process to run `SkillSyncNotificationWorker` without `MainActivity.onCreate()` ever executing (no `Application` subclass exists to guarantee init order), so `SessionManager`/`RetrofitClient` could be accessed before `.init()` ran, throwing `UninitializedPropertyAccessException`/`IllegalStateException`. Worker now defensively re-initializes both at the top of `doWork()` — idempotent, safe if already initialized.
+
+- **Design note — one seen-set, two check paths**: the 60s foreground poll and the 15-min background WorkManager check both call `NotificationEngine.detect()` against the *same* `NotificationStateStore` (SharedPreferences), so an event fires exactly once no matter which path notices it first — no duplicate notifications from having both a foreground and background checker.
+
+- **First-run safety**: a fresh login (or first-ever background check) seeds the seen-set from whatever already exists *without* notifying — otherwise every pre-existing batch on a manager's roster would fire one notification each on first use.
+
+- **Build Status**: ✓ v1.19.0 — `assembleDebug` and `assembleRelease` both BUILD SUCCESSFUL.
+- **Current Status**: Pushed. Functionally testable only on-device (WorkManager timing + notification permission dialog can't be verified from a build log) — next real allocation/completion/unallocated-demand event on a live account should produce a real Android notification.
+- **Next Actions**: Verify on-device after this reaches a signed release build; consider deep-linking the tap target to the specific trainer's profile instead of just opening the dashboard (currently opens the app generally).
+
+
 ## API audit + first two Tier-2 activations
 ### Release v1.18.0
 - **Timestamp**: 2026-08-07T18:00:00+05:30

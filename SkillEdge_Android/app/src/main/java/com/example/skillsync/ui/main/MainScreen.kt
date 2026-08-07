@@ -90,12 +90,13 @@ fun MainScreen(
     var bannerMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        viewModel.notification.collect { message: String ->
-            // System Push Notification (if in background or even foreground)
+        viewModel.notification.collect { (title, message) ->
+            // System notification — fires even if the manager is on a
+            // different screen than the dashboard right now.
             com.example.skillsync.util.LocalNotificationService.showNotification(
-                context, "SkillSync Alert", message
+                context, title, message
             )
-            // Show custom in-app banner
+            // In-app banner for immediate visibility while the app is open.
             bannerMessage = message
         }
     }

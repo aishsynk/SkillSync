@@ -8,6 +8,13 @@ import com.example.skillsync.data.api.RetrofitClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/**
+ * Runs every 15 minutes (WorkManager's floor for periodic work) even when the
+ * app is closed — this is the actual push-notification path; the in-app poll
+ * in MainScreenViewModel only runs while a screen is open. Both call into
+ * [NotificationEngine] against the same [NotificationStateStore] seen-set, so
+ * whichever notices an event first is the only one that fires it.
+ */
 class SkillSyncNotificationWorker(
     private val context: Context,
     workerParams: WorkerParameters
@@ -15,30 +22,55 @@ class SkillSyncNotificationWorker(
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
-            // Retrieve session email
+            // WorkManager can spawn a fresh process to run this worker without
+            // MainActivity.onCreate() ever executing (no Application subclass
+            // exists in this app to guarantee it runs first), so every
+            // singleton this worker touches must be (re-)initialized here.
+            // .init() is idempotent — safe even if MainActivity already ran.
+            com.example.skillsync.data.SessionManager.init(context)
+            com.example.skillsync.data.api.RetrofitClient.init(context)
+            NotificationStateStore.init(context)
+
             val email = com.example.skillsync.data.SessionManager.getEmail()
             if (email.isNullOrBlank()) {
                 return@withContext Result.success() // Not logged in, nothing to do
             }
 
-            // Check API for unallocated demand
-            val data = RetrofitClient.instance.getAllocationDesk(email)
-            val batches = data["batches"] as? List<*> ?: emptyList<Any>()
-            val unallocatedCount = batches.size
-            
-            // Usually we'd compare this to a local DB or DataStore to see if there are *new* items.
-            // For demonstration, we'll notify if there's any pending demand.
-            if (unallocatedCount > 0) {
-                LocalNotificationService.showNotification(
-                    context,
-                    "Pending Allocations",
-                    "You have $unallocatedCount unallocated batches requiring attention."
-                )
+            val data = RetrofitClient.instance.getTrainerIntelligence(email, null)
+
+            if (NotificationStateStore.isFirstRun(email)) {
+                // Seed from whatever already exists without notifying — the
+                // first check after install/login must not fire once per
+                // pre-existing batch.
+                seedSeenState(email, data)
+                return@withContext Result.success()
+            }
+
+            val seenAlloc = NotificationStateStore.getSeen(email, NotificationEngine.BUCKET_ALLOCATION)
+            val seenFb = NotificationStateStore.getSeen(email, NotificationEngine.BUCKET_FEEDBACK)
+            val seenDemand = NotificationStateStore.getSeen(email, NotificationEngine.BUCKET_DEMAND)
+
+            val events = NotificationEngine.detect(data, seenAlloc, seenFb, seenDemand)
+            if (events.isNotEmpty()) {
+                NotificationEngine.toNotifications(events).forEach { (title, message) ->
+                    LocalNotificationService.showNotification(context, title, message)
+                }
+                events.groupBy { it.bucket }.forEach { (bucket, group) ->
+                    NotificationStateStore.addSeen(email, bucket, group.map { it.id }.toSet())
+                }
             }
             Result.success()
         } catch (e: Exception) {
             Log.e("NotificationWorker", "Exception in background check", e)
             Result.retry()
         }
+    }
+
+    private fun seedSeenState(email: String, data: Map<String, Any>) {
+        val all = NotificationEngine.detect(data, emptySet(), emptySet(), emptySet())
+        all.groupBy { it.bucket }.forEach { (bucket, group) ->
+            NotificationStateStore.addSeen(email, bucket, group.map { it.id }.toSet())
+        }
+        NotificationStateStore.markInitialized(email)
     }
 }

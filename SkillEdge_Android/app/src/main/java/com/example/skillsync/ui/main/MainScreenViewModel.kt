@@ -171,32 +171,57 @@ class MainScreenViewModel : ViewModel() {
         }
     }
 
-    private val _notification = kotlinx.coroutines.flow.MutableSharedFlow<String>()
+    /** (title, message) pairs for the UI to fire as a system notification + in-app banner. */
+    private val _notification = kotlinx.coroutines.flow.MutableSharedFlow<Pair<String, String>>()
     val notification = _notification.asSharedFlow()
 
     private var pollingJob: kotlinx.coroutines.Job? = null
 
+    /**
+     * Foreground fast-path: while a screen is open, checks every 60s instead
+     * of waiting for the 15-min WorkManager floor. Shares
+     * [com.example.skillsync.util.NotificationStateStore]'s seen-set with
+     * [com.example.skillsync.util.SkillSyncNotificationWorker], so an event is
+     * only ever reported once regardless of which path notices it first.
+     */
     fun startPolling(email: String) {
         if (pollingJob?.isActive == true) return
         pollingJob = viewModelScope.launch {
             while (true) {
                 kotlinx.coroutines.delay(60000)
                 try {
-                    val oldState = _uiState.value as? DashboardState.Success
-                    val oldBatches = (oldState?.intelligenceData?.get("unallocated_batches") as? List<*>)?.size ?: 0
-                    
                     fetchAll(email, fresh = true)
-                    
-                    val newState = _uiState.value as? DashboardState.Success
-                    val newBatches = (newState?.intelligenceData?.get("unallocated_batches") as? List<*>)?.size ?: 0
-                    
-                    if (newBatches > oldBatches) {
-                        _notification.emit("🔔 New Unallocated Batch Available")
-                    }
+                    val fresh = (_uiState.value as? DashboardState.Success)?.intelligenceData
+                    if (fresh != null) checkForNotifications(email, fresh)
                 } catch (e: Exception) {
-                    // Ignore polling errors
+                    // Ignore — next tick tries again.
                 }
             }
+        }
+    }
+
+    private suspend fun checkForNotifications(email: String, data: Map<String, Any>) {
+        val store = com.example.skillsync.util.NotificationStateStore
+        val engine = com.example.skillsync.util.NotificationEngine
+        if (store.isFirstRun(email)) {
+            // A fresh login/first poll must not fire once per pre-existing
+            // batch — seed the seen-set from the current snapshot instead.
+            engine.detect(data, emptySet(), emptySet(), emptySet())
+                .groupBy { it.bucket }
+                .forEach { (bucket, group) -> store.addSeen(email, bucket, group.map { it.id }.toSet()) }
+            store.markInitialized(email)
+            return
+        }
+        val events = engine.detect(
+            data,
+            store.getSeen(email, engine.BUCKET_ALLOCATION),
+            store.getSeen(email, engine.BUCKET_FEEDBACK),
+            store.getSeen(email, engine.BUCKET_DEMAND),
+        )
+        if (events.isEmpty()) return
+        engine.toNotifications(events).forEach { _notification.emit(it) }
+        events.groupBy { it.bucket }.forEach { (bucket, group) ->
+            store.addSeen(email, bucket, group.map { it.id }.toSet())
         }
     }
 
