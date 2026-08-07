@@ -30,6 +30,7 @@ import com.example.skillsync.ui.components.*
 enum class TeamSort(val label: String) {
     UTILISATION("Utilisation"),
     READINESS("Readiness"),
+    RISK("Risk"),
     NAME("Name"),
     STATUS("Status"),
     CERT_GAPS("Cert gaps"),
@@ -45,19 +46,23 @@ enum class UtilBand(val label: String, val range: IntRange) {
 
 enum class ReadinessBand(val label: String) { READY("Ready"), DEVELOPING("Developing"), SUPPORT("Needs support") }
 
+/** Matches trainer_operations_df.feedback_risk verbatim — no capability fetch needed. */
+enum class RiskBand(val label: String) { HIGH("High"), MEDIUM("Medium"), LOW("Low") }
+
 data class TeamFilters(
     val query: String = "",
     val sort: TeamSort = TeamSort.UTILISATION,
     val status: String? = null,
     val util: UtilBand? = null,
     val readiness: ReadinessBand? = null,
+    val risk: RiskBand? = null,
     val skill: String? = null,
     val certification: String? = null,
     val gapsOnly: Boolean = false,
 ) {
     /** Everything except sort and query — what the "Filters" badge counts. */
     val activeCount: Int
-        get() = listOfNotNull(status, util, readiness, skill, certification).size +
+        get() = listOfNotNull(status, util, readiness, risk, skill, certification).size +
             (if (gapsOnly) 1 else 0)
 }
 
@@ -136,6 +141,8 @@ internal fun TeamTab(
             val matchesReadiness = f.readiness == null ||
                 cap?.str("readiness_bucket") == f.readiness.label
 
+            val matchesRisk = f.risk == null || t.str("feedback_risk") == f.risk.label
+
             val matchesSkill = f.skill == null ||
                 cap?.list("courses")?.any { c -> c.str("course") == f.skill } == true
 
@@ -145,7 +152,7 @@ internal fun TeamTab(
             val matchesGaps = !f.gapsOnly || (cert?.int("gap_count") ?: 0) > 0
 
             matchesQuery && matchesStatus && matchesUtil &&
-                matchesReadiness && matchesSkill && matchesCert && matchesGaps
+                matchesReadiness && matchesRisk && matchesSkill && matchesCert && matchesGaps
         }.let { list ->
             when (f.sort) {
                 TeamSort.UTILISATION -> list.sortedByDescending { it.int("current_utilization") }
@@ -155,6 +162,9 @@ internal fun TeamTab(
                 }
                 TeamSort.READINESS -> list.sortedByDescending {
                     capMap[it.str("official_email").lowercase()]?.intOrNull("readiness_score") ?: -1
+                }
+                TeamSort.RISK -> list.sortedByDescending {
+                    when (it.str("feedback_risk")) { "High" -> 2; "Medium" -> 1; else -> 0 }
                 }
                 TeamSort.CERT_GAPS -> list.sortedByDescending {
                     capMap[it.str("official_email").lowercase()]
@@ -271,6 +281,16 @@ private fun TeamFilterSheet(
                 UtilBand.entries.forEach { b ->
                     SelectChip(b.label, draft.util == b) {
                         draft = draft.copy(util = if (draft.util == b) null else b)
+                    }
+                }
+            }
+
+            // Straight off trainer_operations_df -- no capability fetch needed,
+            // so this stays enabled even before team-capability has loaded.
+            FilterGroup("Risk") {
+                RiskBand.entries.forEach { b ->
+                    SelectChip(b.label, draft.risk == b) {
+                        draft = draft.copy(risk = if (draft.risk == b) null else b)
                     }
                 }
             }

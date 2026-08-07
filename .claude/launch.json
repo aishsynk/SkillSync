@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "skilledge-local",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["SkillEdge_Local/server.py"],
+      "port": 8765
+    }
+  ]
+}

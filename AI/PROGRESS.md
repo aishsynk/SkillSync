@@ -1,5 +1,46 @@
 # SkillEdge Project Progress
 
+## Android audit P1 fixes implemented
+### Release v1.24.0
+- **Timestamp**: 2026-08-08T01:00:00+05:30
+- **Agent/Tool Used**: Claude Code
+- **Files Modified**: `TeamTab.kt`, `MainScreen.kt`, `DashboardSections.kt`, `ui/batch/AllocationDeskScreen.kt`, `app/build.gradle.kts` (versionCode 33, versionName 1.24.0)
+
+- **Context**: Implemented all four P1 items from `AI/ANDROID_AUDIT.md` — user asked for implementation, not more analysis.
+
+1. **Team screen Risk filter + sort** (the audit's single biggest finding):
+   added `RiskBand` enum + `risk` field to `TeamFilters`, `RISK` to
+   `TeamSort`, wired into the existing filter predicate chain and sort
+   `when`. Sources `feedback_risk` directly off `trainer_operations_df` — no
+   capability fetch needed, so unlike Readiness/Skill/Certification this
+   filter is enabled immediately, not gated behind capability loading.
+2. **Dashboard reorder**: "Needs Attention" moved from two-thirds down the
+   page (after 5 analytics charts + Top Performers) to directly under the
+   KPI grid, ahead of Team Pulse and Team Health. A command center leads
+   with decisions, not charts.
+3. **Surfaced previously-fetched-but-unused data**: `TrainerCard` now shows
+   a `→ recommended_action` caption (backend's per-trainer next-step string,
+   e.g. "Urgent: Review feedback incidents") when it's more specific than
+   the no-op default "Monitor performance". Added two new KPI tiles —
+   "Vouched for" (`deployable_pct`) and "Unknown status" (`unknown_status`)
+   — both already computed server-side in every `manager_kpis` response
+   Android already fetches; zero new API cost.
+4. **Allocation Desk backup-role visibility**: `backup_role` (Primary
+   Trainer / Secondary Trainer / Emergency Backup) now shown on the compact
+   list-card candidate rows, not only after opening `BatchDetailScreen`.
+
+- **Build Status**: ✓ `assembleDebug` + `assembleRelease` both BUILD
+  SUCCESSFUL, only pre-existing unrelated warnings.
+- **⚠️ Not visually verified on-device** — same standing limitation (no
+  Android SDK/emulator in this environment). All four changes are additive
+  (new fields/filters alongside existing working code) and were reviewed
+  line-by-line against the existing, already-working patterns they extend.
+- **Current Status**: Pushed.
+- **Next Actions**: `AI/ANDROID_AUDIT.md`'s P2 list is next — persistent
+  "Synced Xm ago" header, Trainer 360 section-jump nav, Courses owner
+  sorting, skill-write outcome persistence, and filter-sheet visual grouping.
+
+
 ## Full Android Product Audit (no code changes — deliberately)
 ### 2026-08-08
 - **Timestamp**: 2026-08-08T00:30:00+05:30

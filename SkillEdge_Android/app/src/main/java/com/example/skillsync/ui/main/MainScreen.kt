@@ -465,19 +465,73 @@ internal fun DashboardTab(
             }
         }
 
+        // Needs Attention — promoted directly under the numbers, ahead of the
+        // descriptive analytics below. A command center leads with decisions,
+        // not charts: this is the one section a manager should act on first,
+        // so it no longer sits two-thirds down the page behind five chart
+        // cards. A short, ranked preview, not the full roster — the complete
+        // list with real search/sort/filter already lives on the Team tab;
+        // repeating every TrainerCard here just to also show it on Home was
+        // pure duplication, and on a roster of any real size (this product's
+        // own reportees dataset runs to 80+) it turned the home screen into
+        // an extremely long scroll for zero extra information.
+        item {
+            Appear(3) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Needs attention", style = MaterialTheme.typography.titleLarge, color = sk.bodyText)
+                    Spacer(Modifier.width(8.dp))
+                    Chip("${ops.size} total", sk.subText)
+                }
+            }
+        }
+
+        if (ops.isEmpty()) {
+            item { EmptyStateCard("No reportees returned. Check your account permissions.") }
+        } else {
+            if (attention.isEmpty()) {
+                item {
+                    Appear(3) {
+                        EmptyStateCard("No urgent items — the whole team looks healthy right now.")
+                    }
+                }
+            } else {
+                itemsIndexed(attention) { i, (t, reason) ->
+                    Appear(i + 3) {
+                        AttentionRow(
+                            trainer = t,
+                            reason = reason,
+                            capability = capMap[t.str("official_email").lowercase()],
+                        ) {
+                            onTrainerClick(t.str("official_email"), t.str("trainer_name"))
+                        }
+                    }
+                }
+            }
+            item {
+                OutlinedButton(
+                    onClick = onOpenTeam,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                ) { Text("View full team (${ops.size})") }
+            }
+        }
+
         // Team Pulse — one header covering readiness/risk/capacity (current
         // state, right now) plus a clearly-separated forecast card
         // (predictive, next month) so it never reads as an unexplained extra
         // card in the middle of the section.
         if (deliveryRows.isNotEmpty() || ops.isNotEmpty()) {
-            item { Appear(3) { DashSectionHeader("Team pulse", "Readiness, risk, capacity — and what's trending next") } }
+            item { Appear(4) { DashSectionHeader("Team pulse", "Readiness, risk, capacity — and what's trending next") } }
         }
         if (deliveryRows.isNotEmpty()) {
-            item { Appear(3) { TeamReadinessSummaryCard(deliveryRows) } }
+            item { Appear(4) { TeamReadinessSummaryCard(deliveryRows) } }
         }
         if (ops.isNotEmpty()) {
             item { Appear(4) { TeamRiskSummaryCard(ops) } }
-            item { Appear(4) { TeamCapacityAlertCard(ops) } }
+            item { Appear(5) { TeamCapacityAlertCard(ops) } }
             // Predictive trend projection — renders nothing when nobody is
             // trending toward overload or bench, so a healthy team sees no
             // extra card at all. The card's own header makes clear this is a
@@ -501,56 +555,6 @@ internal fun DashboardTab(
         }
 
         item { Appear(7) { TopPerformers(ops, capMap, onTrainerClick) } }
-
-        // Needs Attention — a short, ranked preview, not the full roster.
-        // The complete list with real search/sort/filter already lives on the
-        // Team tab; repeating every TrainerCard here just to also show it on
-        // Home was pure duplication, and on a roster of any real size (this
-        // product's own reportees dataset runs to 80+) it turned the home
-        // screen into an extremely long scroll for zero extra information.
-        item {
-            Appear(8) {
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Needs attention", style = MaterialTheme.typography.titleLarge, color = sk.bodyText)
-                    Spacer(Modifier.width(8.dp))
-                    Chip("${ops.size} total", sk.subText)
-                }
-            }
-        }
-
-        if (ops.isEmpty()) {
-            item { EmptyStateCard("No reportees returned. Check your account permissions.") }
-        } else {
-            if (attention.isEmpty()) {
-                item {
-                    Appear(9) {
-                        EmptyStateCard("No urgent items — the whole team looks healthy right now.")
-                    }
-                }
-            } else {
-                itemsIndexed(attention) { i, (t, reason) ->
-                    Appear(i + 9) {
-                        AttentionRow(
-                            trainer = t,
-                            reason = reason,
-                            capability = capMap[t.str("official_email").lowercase()],
-                        ) {
-                            onTrainerClick(t.str("official_email"), t.str("trainer_name"))
-                        }
-                    }
-                }
-            }
-            item {
-                OutlinedButton(
-                    onClick = onOpenTeam,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                ) { Text("View full team (${ops.size})") }
-            }
-        }
 
         item { Spacer(Modifier.height(16.dp)) }
     }
@@ -1055,6 +1059,20 @@ internal fun TrainerCard(
                 if (confidence > 0) {
                     Text("$confidence%", style = MaterialTheme.typography.labelSmall, color = sk.subText)
                 }
+            }
+
+            // Backend already computes a specific next step per trainer
+            // ("Urgent: Review feedback incidents", "Check availability" …);
+            // previously fetched but never shown anywhere in the app.
+            val recommendedAction = trainer.str("recommended_action")
+            if (recommendedAction.isNotBlank() && recommendedAction != "Monitor performance") {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "→ $recommendedAction",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (recommendedAction.startsWith("Urgent")) sk.red else sk.subText,
+                    fontWeight = if (recommendedAction.startsWith("Urgent")) FontWeight.Bold else FontWeight.Normal,
+                )
             }
         }
     }

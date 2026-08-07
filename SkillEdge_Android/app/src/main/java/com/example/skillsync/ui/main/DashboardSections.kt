@@ -330,6 +330,19 @@ fun ManagerKpiGrid(
             if ((n("high_risk_trainers") ?: 0) > 0) sk.red else sk.green,
             Drill("High-risk trainers", "Repeated negative feedback on record",
                 namesOf(ops.filter { it.str("feedback_risk") == "High" }))),
+        // Backend already computes both — previously fetched every load and
+        // never displayed anywhere in the app.
+        Kpi("Vouched for", n("deployable_pct")?.let { "$it%" } ?: "—",
+            "known status, no high risk", sk.teal,
+            Drill("Vouched-for share", "Trainers whose position you can actually vouch for right now — status is known and feedback risk isn't High",
+                namesOf(ops.filter {
+                    stateBy[it.str("official_email").lowercase()]?.str("current_status") != "unknown" &&
+                        it.str("feedback_risk") != "High"
+                }))),
+        Kpi("Unknown status", figure(n("unknown_status")), "RMS gave no signal",
+            if ((n("unknown_status") ?: 0) > 0) sk.amber else sk.green,
+            Drill("Unknown status", "RMS returned no assignment data to determine what these trainers are doing right now",
+                namesOf(opsWithStatus("unknown")))),
         Kpi("Readiness", c("team_readiness_score")?.let { "$it%" } ?: "—",
             "${c("ready_trainers") ?: 0} rated Ready", sk.teal,
             Drill("Readiness", "Qubits, approved catalogue depth and spare capacity",

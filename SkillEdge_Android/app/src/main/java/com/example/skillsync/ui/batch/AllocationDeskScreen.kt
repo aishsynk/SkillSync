@@ -556,13 +556,27 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, isPriority: Boolean = true,
                                     color = dotTint,
                                     modifier = Modifier.weight(0.4f),
                                 )
-                                Text(
-                                    c.str("trainer_name"),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = if (blocked) sk.subText else sk.bodyText,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f),
-                                )
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        c.str("trainer_name"),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = if (blocked) sk.subText else sk.bodyText,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    )
+                                    // Previously only visible after opening the batch
+                                    // detail screen — a manager scanning the list
+                                    // couldn't tell which candidate was the actual
+                                    // Primary pick vs. an Alternate at a glance.
+                                    val backupRole = c.str("backup_role")
+                                    if (!blocked && backupRole.isNotBlank()) {
+                                        Text(
+                                            backupRole,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = sk.subText, fontSize = 9.sp,
+                                            maxLines = 1,
+                                        )
+                                    }
+                                }
                                 if (!blocked) {
                                     Text(
                                         "${c.int("match")}%",

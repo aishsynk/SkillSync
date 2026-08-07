@@ -164,7 +164,7 @@ def _schedule_background_refresh(email):
 
     def _run():
         try:
-            refresh_service.refresh_once(email, lambda em, force=True: intelligence.build_unified(em), force=True)
+            refresh_service.refresh_once(email, lambda em, force=True: build_or_load_intelligence(em, force=True)[0], force=True)
         except Exception:  # noqa: BLE001
             log.exception("Background refresh failed for %s", email)
         finally:
@@ -273,7 +273,7 @@ def _run_background_refresh():
         try:
             session_email = os.getenv("SKILLEDGE_REFRESH_EMAIL") or os.getenv("SKILLEDGE_DEFAULT_EMAIL") or ""
             if session_email:
-                refresh_service.poll_due(session_email, lambda email, force=True: intelligence.build_unified(email))
+                refresh_service.poll_due(session_email, lambda email, force=True: build_or_load_intelligence(email, force=True)[0])
         except Exception:
             log.exception("Background refresh loop failed")
         time.sleep(60 * 15)
@@ -308,7 +308,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not self._require_session():
                 return
             email = self._session_email()
-            self._json(200, refresh_service.refresh_once(email, lambda em, force=True: intelligence.build_unified(em), force=True))
+            self._json(200, refresh_service.refresh_once(email, lambda em, force=True: build_or_load_intelligence(em, force=True)[0], force=True))
         elif action_match:
             if not self._require_session():
                 return

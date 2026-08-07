@@ -224,11 +224,14 @@ Cross-checked `SkillEdgeApi.kt` (every Retrofit call Android makes) against what
 ### P0 — Critical Fixes
 *(None outstanding.)* The one bug found and fixed this session (utilization phantom-zero averaging) is already shipped in v1.23.0. No other functional break was found in this audit — Skill Management, Allocation Desk's Phase 3 checklist, and the Session/Auth flow were all verified working as designed.
 
-### P1 — Core Improvements
-1. Add Risk filter + sort to the Team screen (Section 2) — the single clearest gap in the whole audit relative to how central feedback-risk is everywhere else in the app.
-2. Reorder the Dashboard so "Needs Attention" sits directly under the KPI grid, ahead of the descriptive analytics charts (Section 1).
-3. Surface `recommended_action` on `TrainerCard` (Section 2) and `deployable_pct`/`unknown_status` as Dashboard KPI tiles (Section 1/9) — all zero-new-API-call, data already in hand.
-4. Add `backup_role` to the Allocation Desk's compact list-card view, not just the detail screen (Section 5).
+### P1 — Core Improvements — ✅ ALL SHIPPED in v1.24.0 (2026-08-08)
+1. ✅ Add Risk filter + sort to the Team screen (Section 2) — the single clearest gap in the whole audit relative to how central feedback-risk is everywhere else in the app.
+2. ✅ Reorder the Dashboard so "Needs Attention" sits directly under the KPI grid, ahead of the descriptive analytics charts (Section 1).
+3. ✅ Surface `recommended_action` on `TrainerCard` (Section 2) and `deployable_pct`/`unknown_status` as Dashboard KPI tiles (Section 1/9) — all zero-new-API-call, data already in hand.
+4. ✅ Add `backup_role` to the Allocation Desk's compact list-card view, not just the detail screen (Section 5).
+
+See `AI/PROGRESS.md` v1.24.0 entry for exact file-level changes. Not yet
+visually verified on-device (no Android SDK/emulator in this environment).
 
 ### P2 — Experience Enhancements
 1. Persistent "Synced Xm ago" header caption on Dashboard (Section 1).

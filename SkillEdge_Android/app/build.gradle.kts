@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.skillsync"
         minSdk = 24
         targetSdk = 34
-        versionCode = 32
-        versionName = "1.23.0"
+        versionCode = 33
+        versionName = "1.24.0"
     }
 
     buildTypes {
