@@ -124,7 +124,7 @@ fun MainScreen(
                         onLogout()
                     }) {
                         Icon(
-                            painterResource(R.drawable.ic_user),
+                            painterResource(R.drawable.ic_back),
                             contentDescription = "Logout",
                             tint = Color.White.copy(alpha = 0.9f),
                             modifier = Modifier.size(18.dp),
