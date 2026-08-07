@@ -40,6 +40,41 @@
   "Synced Xm ago" header, Trainer 360 section-jump nav, Courses owner
   sorting, skill-write outcome persistence, and filter-sheet visual grouping.
 
+## ⚠️ Git hygiene incident + cleanup (same session)
+- **Timestamp**: 2026-08-08T01:15:00+05:30
+- **What happened**: The v1.24.0 commit above was staged with `git add -A`
+  without checking `git status` first, and swept in a large amount of
+  unrelated, pre-existing uncommitted state from `SkillEdge_Local`: stale
+  `__pycache__/*.pyc` binaries, `runtime/cache/*.json` (per-manager
+  intelligence cache), `runtime/knowledge_base/*.jsonl`, `runtime/refresh/*`,
+  and a local `.claude/launch.json`. This violated the session's explicit
+  Android-only scope and the git safety protocol (review a broad `git add`
+  before committing).
+- **Also swept in one real source change**: `SkillEdge_Local/backend/app.py`
+  — a call-site refactor (`intelligence.build_unified(em)` →
+  `build_or_load_intelligence(em, force=True)[0]`) that was sitting
+  uncommitted in the working tree before this session touched anything.
+  This was **not written by this session** (confirmed — no `SkillEdge_Local`
+  file was opened or edited in any turn before this incident) and its origin
+  is unknown — possibly earlier local IDE work never committed.
+- **Fix applied** (new commit, not a history rewrite — the bad commit was
+  already pushed): untracked all the runtime-generated noise via
+  `git rm --cached`, added `SkillEdge_Local/runtime/` and
+  `.claude/launch.json` to `.gitignore` so this can't recur. All files
+  remain untouched on disk — this only stops git from tracking them.
+- **Deliberately left alone**: `SkillEdge_Local/backend/app.py`'s real
+  change was **not reverted** — reverting someone's in-progress,
+  uncommitted work without being asked would itself be an unauthorized
+  destructive action. It remains in history as of commit `33514c0` and on
+  disk. Flagged directly to the user in-conversation; needs a decision on
+  whether to keep, revert, or investigate further — out of scope for this
+  (Android-only) session to decide unilaterally.
+- **Lesson for future sessions**: always run `git status` before `git add
+  -A` in this repo — it has multiple live/local processes (a local Flask
+  dev server for `SkillEdge_Local`, IDE tooling) that write uncommitted
+  state into the working tree between sessions.
+
+
 
 ## Full Android Product Audit (no code changes — deliberately)
 ### 2026-08-08
