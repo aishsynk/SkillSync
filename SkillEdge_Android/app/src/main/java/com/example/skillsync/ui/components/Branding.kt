@@ -55,7 +55,7 @@ fun SkillSyncLogo(
     )
 
     Image(
-        painter = painterResource(R.drawable.ic_logo),
+        painter = painterResource(R.drawable.logo_transparent),
         contentDescription = "SkillSync",
         modifier = modifier
             .size(size)
