@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -42,92 +43,91 @@ fun ProfileHeader(
     kpis: Map<*, *>?,
     capKpis: Map<*, *>?,
     onOpenProfile: () -> Unit,
+    onOpenNotifications: () -> Unit = {}
 ) {
     val sk = MaterialTheme.skill
     val name = profile?.str("name").orEmpty()
         .ifBlank { email.substringBefore("@").replace(".", " ").replaceFirstChar { it.uppercase() } }
-    val designation = profile?.str("designation").orEmpty()
-    val role = profile?.str("role").orEmpty()
+    val role = profile?.str("role").orEmpty().ifBlank { "Delivery Manager" }
     val photo = profile?.str("photo_url").orEmpty()
-    val tenure = profile?.get("tenure_years") as? Number
 
     Card(
-        Modifier.fillMaxWidth().clickable(onClick = onOpenProfile),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.heroBg),
-        elevation = CardDefaults.cardElevation(3.dp),
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpenProfile),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+        elevation = CardDefaults.cardElevation(4.dp),
     ) {
-        Column(
+        Row(
             Modifier
-                .background(Brush.linearGradient(listOf(sk.heroBg, sk.heroBgAlt)))
-                .padding(16.dp)
+                .background(Brush.linearGradient(listOf(Color(0xFF0A1128), Color(0xFF1E293B))))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Avatar(name = name, photoUrl = photo, size = 54.dp)
-                Spacer(Modifier.width(13.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        greeting(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = sk.heroMuted, fontSize = 10.sp,
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    Avatar(name = name, photoUrl = photo, size = 42.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(Color(0xFF10B981))
+                            .border(1.dp, Color(0xFF1E293B), androidx.compose.foundation.shape.CircleShape)
                     )
-                    Text(
-                        name,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.ExtraBold, color = sk.heroText,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (role.isNotBlank()) {
-                            RoleBadge(role)
-                            Spacer(Modifier.width(6.dp))
-                        }
-                        if (designation.isNotBlank() && !designation.equals(role, true)) {
-                            Text(
-                                designation,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = sk.heroMuted, maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
                 }
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        RoleBadge("MANAGER")
+                    }
+                    Text(
+                        "Delivery Manager Cockpit",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF94A3B8),
+                        fontSize = 11.sp,
+                    )
+                }
+            }
+
+            // Notification Bell with Badge
+            Box(
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .clickable(onClick = onOpenNotifications)
+                    .padding(6.dp)
+            ) {
                 Icon(
-                    painterResource(R.drawable.ic_chevron), null,
-                    tint = sk.heroMuted, modifier = Modifier.size(16.dp),
+                    painter = painterResource(R.drawable.ic_alert),
+                    contentDescription = "Notifications",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
                 )
-            }
-
-            Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
-            Spacer(Modifier.height(12.dp))
-
-            // The profile summary the manager asked to see at a glance.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                SummaryFigure("Team", figure(kpis?.intOrNull("total_team_members")))
-                SummaryFigure("Active batches", figure(kpis?.intOrNull("active_batches")))
-                SummaryFigure(
-                    "Utilisation",
-                    kpis?.intOrNull("avg_team_utilization")?.let { "$it%" } ?: "—",
-                )
-                SummaryFigure(
-                    "At risk",
-                    figure(kpis?.intOrNull("high_risk_trainers")),
-                    tint = if ((kpis?.intOrNull("high_risk_trainers") ?: 0) > 0) sk.red else null,
-                )
-            }
-
-            val gaps = capKpis?.intOrNull("certification_gap_count")
-            if (tenure != null || gaps != null) {
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    listOfNotNull(
-                        tenure?.let { "%.1f yrs at Koenig".format(it.toFloat()) },
-                        gaps?.let { "$it certification gap${if (it == 1) "" else "s"} across the team" },
-                    ).joinToString("  ·  "),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.heroMuted, fontSize = 9.5.sp,
-                )
+                Box(
+                    modifier = Modifier
+                        .size(14.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(Color(0xFFEF4444))
+                        .align(Alignment.TopEnd),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "3",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
         }
     }

@@ -64,7 +64,7 @@ fun DashboardScreen(
             topBar = {
                 val data = (intelligenceState as? UiState.Success)?.data
                 ExecutiveDashboardTopBar(
-                    managerName = data?.organizationIntelligence?.firstOrNull()?.name ?: "Delivery Manager",
+                    managerName = "Delivery Manager",
                     unreadNotifCount = data?.notifications?.size ?: 3,
                     isRefreshing = isRefreshing,
                     onRefresh = { viewModel.refresh() },
@@ -88,7 +88,7 @@ fun DashboardScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 CircularProgressIndicator(color = CyanAccent, modifier = Modifier.size(44.dp))
                                 Spacer(modifier = Modifier.height(16.dp))
-                                Text("Loading Executive Cockpit...", color = Color.White, fontSize = 14.sp)
+                                Text(text = "Loading Executive Cockpit...", color = Color.White, fontSize = 14.sp)
                             }
                         }
                     }
@@ -111,7 +111,7 @@ fun DashboardScreen(
                     }
 
                     is UiState.Error -> {
-                        val err = (intelligenceState as UiState.Error).message
+                        val err = (intelligenceState as UiState.Error).error
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -126,17 +126,26 @@ fun DashboardScreen(
                                     modifier = Modifier.size(48.dp)
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
-                                Text("Cockpit Load Failure", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text(text = "Cockpit Load Failure", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(err, color = Color(0xFF94A3B8), fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                Text(text = err, color = Color(0xFF94A3B8), fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Button(
                                     onClick = { viewModel.refresh() },
                                     colors = ButtonDefaults.buttonColors(containerColor = CyanAccent)
                                 ) {
-                                    Text("Retry Load")
+                                    Text(text = "Retry Load")
                                 }
                             }
+                        }
+                    }
+
+                    else -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = "No intelligence data available", color = Color.White)
                         }
                     }
                 }
@@ -351,7 +360,7 @@ fun ExecutiveDashboardContent(
         items(trainers.take(6)) { trainer ->
             ExecutiveTrainerRowCard(
                 trainer = trainer,
-                onClick = { onTrainerClick(trainer.empCode) }
+                onClick = { onTrainerClick(trainer.trainerId) }
             )
         }
     }
@@ -717,7 +726,7 @@ fun ExecutiveTrainerRowCard(
                 )
 
                 Text(
-                    text = "${trainer.designation} • ${trainer.primarySkill}",
+                    text = "${trainer.designation ?: "Trainer"} • ${trainer.officialEmail}",
                     fontSize = 11.sp,
                     color = Color(0xFF94A3B8),
                     maxLines = 1,
@@ -731,7 +740,7 @@ fun ExecutiveTrainerRowCard(
                     shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(
-                        text = "$util% Util",
+                        text = "${util.toInt()}% Util",
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
@@ -742,7 +751,7 @@ fun ExecutiveTrainerRowCard(
                 Spacer(modifier = Modifier.height(2.dp))
 
                 Text(
-                    text = trainer.capacityBucket,
+                    text = trainer.readinessBucket ?: "Optimal",
                     fontSize = 10.sp,
                     color = Color(0xFFCBD5E1)
                 )

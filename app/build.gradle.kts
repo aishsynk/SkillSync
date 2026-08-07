@@ -8,14 +8,14 @@ plugins {
 
 android {
     namespace = "com.koenig.skilledge"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.koenig.skilledge"
         minSdk = 21
         targetSdk = 34
-        versionCode = 34
-        versionName = "1.25.0"
+        versionCode = 35
+        versionName = "1.26.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
