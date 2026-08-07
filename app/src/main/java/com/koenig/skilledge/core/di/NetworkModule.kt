@@ -58,8 +58,15 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        val rawUrl = BuildConfig.API_BASE_URL
+        val url = if (rawUrl.contains("koenig-solutions.com") || rawUrl.contains("localhost") || rawUrl.isBlank()) {
+            "https://skilledge-backend-fpcl.onrender.com/"
+        } else {
+            rawUrl
+        }
+        val baseUrl = if (url.endsWith("/")) url else "$url/"
         return Retrofit.Builder()
-            .baseUrl(BuildConfig.API_BASE_URL)
+            .baseUrl(baseUrl)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

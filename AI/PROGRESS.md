@@ -1,5 +1,20 @@
 # SkillEdge Project Progress
 
+## Fix API Base URL DNS Failure & Missing api/ Route Prefixes
+### Release v1.25.0 Patch 3
+- **Timestamp**: 2026-08-08T02:45:00+05:30
+- **Agent/Tool Used**: Antigravity (Google DeepMind Advanced Agentic Coding)
+- **Files Modified**: `app/build.gradle.kts`, `NetworkModule.kt`, `SkillEdgeApiService.kt`, `backend.py`
+- **Root Cause Analysis**:
+  1. `app/build.gradle.kts` specified `API_BASE_URL = "https://skilledge-api.koenig-solutions.com"`, a domain that fails DNS resolution (`getaddrinfo` failed). All Android network calls from the mobile device were failing with `UnknownHostException` / `ConnectException`, causing all screens to render blank white/0 data.
+  2. `SkillEdgeApiService.kt` had `@GET("data/unified-manager-intelligence")` missing the leading `api/` prefix, requesting `/data/unified-manager-intelligence` (which returned 404).
+- **Work Completed**:
+  - Pointed `API_BASE_URL` in `app/build.gradle.kts` and `NetworkModule.kt` to the live hosted Render backend URL `https://skilledge-backend-fpcl.onrender.com/`.
+  - Added `api/` prefix to Retrofit interface methods in `SkillEdgeApiService.kt` (`@GET("api/data/unified-manager-intelligence")`).
+  - Added dual route aliases in `backend.py` (`/api/data/unified-manager-intelligence` and `/data/unified-manager-intelligence`) for complete backward compatibility.
+  - Re-compiled `SkillEdge-v1.25.0.apk` and updated GitHub release.
+- **Build & Deployment Status**: Verified (`BUILD SUCCESSFUL`), committed, pushed to `origin/main`, Render deployed, GitHub release binaries updated.
+
 ## Add Resilient Enterprise Intelligence Fallback Engine
 ### Release v1.25.0 Patch 2
 - **Timestamp**: 2026-08-08T02:30:00+05:30

@@ -1439,6 +1439,7 @@ def healthz():
 
 
 @app.route('/api/auth/login', methods=['POST'])
+@app.route('/auth/login', methods=['POST'])
 def login():
     try:
         data  = request.get_json(silent=True) or {}
@@ -1488,6 +1489,7 @@ def logout():
 
 
 @app.route('/api/data/unified-manager-intelligence', methods=['GET'])
+@app.route('/data/unified-manager-intelligence', methods=['GET'])
 def unified_intelligence():
     email = request.args.get('email', '').strip().lower()
     if not email:
@@ -2538,6 +2540,7 @@ def mark_skill():
 
 
 @app.route('/api/data/batch-details', methods=['GET'])
+@app.route('/data/batch-details', methods=['GET'])
 def get_batch_details():
     """
     Returns modern accordion data for Batch Details screen.

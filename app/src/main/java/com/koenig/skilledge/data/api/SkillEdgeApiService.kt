@@ -16,18 +16,18 @@ interface SkillEdgeApiService {
 
     // ============= Authentication =============
 
-    @POST("auth/login")
+    @POST("api/auth/login")
     suspend fun login(@Body loginRequest: LoginRequest): Response<LoginResponse>
 
-    @GET("auth/session")
+    @GET("api/auth/session")
     suspend fun getSession(): Response<SessionResponse>
 
-    @GET("auth/logout")
+    @GET("api/auth/logout")
     suspend fun logout(): Response<LogoutResponse>
 
     // ============= Intelligence & Data =============
 
-    @GET("data/unified-manager-intelligence")
+    @GET("api/data/unified-manager-intelligence")
     suspend fun getUnifiedManagerIntelligence(
         @Query("email") email: String,
         @Query("refresh") refresh: Boolean = false,
@@ -39,7 +39,7 @@ interface SkillEdgeApiService {
         @Query("delivery_type") deliveryType: String? = null
     ): Response<UnifiedManagerIntelligence>
 
-    @GET("data/batch-details")
+    @GET("api/data/batch-details")
     suspend fun getBatchDetails(
         @Query("assignment_id") assignmentId: String
     ): Response<com.koenig.skilledge.domain.models.BatchDetailsData>
