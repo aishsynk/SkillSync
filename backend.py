@@ -608,12 +608,84 @@ def _match_score(batch_course, batch_vendor, cap_course, cap_vendor):
     return int(min(100, round(score)))
 
 
+# ─── AutoTall parity: negative-feedback allocation block + clean-record tie-break
+#
+# Mirrors RMS's own "Auto Tall" trainer-allocation engine (HR changelog rules,
+# current as of 05 Aug 2026) so this app's suggested candidates match what RMS
+# will actually let a manager auto-allocate — a "top match" the real system
+# would refuse to auto-assign is worse than no suggestion at all.
+#
+#   - Negative-feedback block: starts 3 days after the feedback is marked,
+#     lasts until 14 days after the mark date (effective 16 Jul 2026,
+#     detailed 20 Jul 2026). A trainer inside that window is flagged and
+#     sorted below every available candidate — not removed, since RMS's own
+#     rule says the block only affects auto-selection; a manager can still
+#     specify them manually.
+#   - 6-month clean-record preference (effective 05 Aug 2026, the current
+#     rule): among candidates tied on match score, one with no negative
+#     feedback in the trailing 6 months is preferred over one who has any.
+#   - Qubits score / QI category are deliberately NOT used as tie-breakers
+#     below — RMS removed both on 27 Jul 2026 (they were briefly introduced
+#     20-22 Jul 2026, then reversed). qubits_score is still returned for
+#     display only.
+#
+# Rules referenced in the same HR changelog but NOT implemented here, because
+# no RMS API in this app's integration (see AI/CONTEXT.md's 36-file audit)
+# carries the underlying data: tech-call-trainer attribution (no pre-sales
+# call endpoint), mock-delivery ratings (no mock/rehearsal endpoint), and the
+# Main/Additional-Trainer role distinction (unallocated demand rows don't
+# distinguish role types the way RMS's internal engine does).
+
+def _feedback_recency(emp_code):
+    """
+    Most recent negative-feedback date for one trainer, or None.
+
+    Field name is unverified against a live response — trainerNegFeedback's
+    documented shape (feedback_date) comes from the same instruction-file set
+    that has already proven wrong more than once this project, so every
+    plausible key is checked rather than trusting one.
+    """
+    if not emp_code:
+        return None
+    rows = _rms("trainerNegFeedback", {"employee_id": emp_code}) or []
+    dates = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        raw = r.get("feedback_date") or r.get("FeedBackDate") or r.get("dates") or r.get("Date")
+        d = _parse_date(str(raw or ""))
+        if d:
+            dates.append(d)
+    return max(dates) if dates else None
+
+
+def _allocation_block_status(most_recent_negative, today):
+    """RMS AutoTall's block window: not auto-allocated from day 3 to day 14
+    after the feedback is marked. Outside that window — including before day
+    3, the verification grace period — the trainer is unaffected."""
+    if most_recent_negative is None:
+        return {"blocked": False, "blocked_until": None, "recent_negative_6mo": False}
+    blocked_from = most_recent_negative + timedelta(days=3)
+    blocked_until = most_recent_negative + timedelta(days=14)
+    is_blocked = blocked_from <= today <= blocked_until
+    return {
+        "blocked": is_blocked,
+        "blocked_until": _iso(blocked_until) if is_blocked else None,
+        "recent_negative_6mo": (today - most_recent_negative).days <= 182,
+    }
+
+
 def _team_capability(reportees):
-    """[(trainer_name, email, [capability rows])] for the manager's roster."""
+    """[(trainer_name, email, [capability rows], feedback_status)] for the manager's roster."""
+    today = datetime.utcnow().date()
+
     def one(r):
         email = str(r.get("OffEmail", "")).strip().lower()
         name = _re.sub(r"\s+", " ", str(r.get("TrainerName", ""))).strip()
-        return name, email, (_skills(email) if email else [])
+        caps = _skills(email) if email else []
+        emp_code = _certifications(email)["emp_code"] if email else ""
+        recent_negative = _feedback_recency(emp_code) if emp_code else None
+        return name, email, caps, _allocation_block_status(recent_negative, today)
 
     rows = [r for r in (reportees if isinstance(reportees, list) else []) if isinstance(r, dict)]
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -624,7 +696,7 @@ def _rank_batch(batch, team):
     """Best team match for one unallocated batch, plus the ranked candidate list."""
     course, vendor = batch.get("course_name", ""), batch.get("customer", "")
     candidates = []
-    for name, email, caps in team:
+    for name, email, caps, feedback in team:
         best, best_course, best_q = 0, "", 0
         for c in caps:
             s = _match_score(course, vendor, c["course"], c["vendor"])
@@ -639,19 +711,27 @@ def _rank_batch(batch, team):
                 "qubits_score":  best_q,
                 "exact":         best >= 92,
                 "category":      "Best Match" if best >= 90 else "Alternate Match" if best >= 75 else "Risky Assignment",
+                "blocked":             feedback["blocked"],
+                "blocked_until":       feedback["blocked_until"],
+                "recent_negative_6mo": feedback["recent_negative_6mo"],
             })
-    candidates.sort(key=lambda c: (-c["match"], -c["qubits_score"]))
-    
-    for i, c in enumerate(candidates):
-        if i == 0:
-            c["backup_role"] = "Primary Trainer"
-        elif i == 1:
-            c["backup_role"] = "Secondary Trainer"
-        elif i == 2:
-            c["backup_role"] = "Emergency Backup"
-        else:
-            c["backup_role"] = ""
-            
+    # Available trainers before blocked ones (RMS would not auto-allocate a
+    # blocked trainer regardless of match score), then by match, then a clean
+    # 6-month feedback record breaks ties. No Qubits tie-break — see header.
+    candidates.sort(key=lambda c: (c["blocked"], -c["match"], c["recent_negative_6mo"]))
+
+    rank = 0
+    for c in candidates:
+        if c["blocked"]:
+            c["backup_role"] = ""   # RMS would not auto-select this trainer right now
+            continue
+        c["backup_role"] = (
+            "Primary Trainer" if rank == 0 else
+            "Secondary Trainer" if rank == 1 else
+            "Emergency Backup" if rank == 2 else ""
+        )
+        rank += 1
+
     return (candidates[0]["match"] if candidates else 0), candidates[:5]
 
 
@@ -944,6 +1024,13 @@ def _cert_intelligence(courses, held_certs, accreditations):
     missing = []
     for code, c in sorted(taught.items()):
         if code in held_codes:
+            continue
+        # RMS AutoTall (effective 22 Jul 2026): officially-approved RedHat
+        # trainers are treated as Certified, the same precedent already used
+        # for CLC. Mirrored here so an approved-but-unexamined RedHat course
+        # isn't flagged as a certification gap it effectively isn't.
+        vendor = str(c.get("vendor", "")).lower()
+        if c.get("approved") and "red hat" in vendor.replace("redhat", "red hat"):
             continue
         missing.append({
             "code":         code,

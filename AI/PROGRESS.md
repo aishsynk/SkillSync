@@ -1,5 +1,82 @@
 # SkillEdge Project Progress
 
+## AutoTall allocation-rule parity
+### Release v1.22.0
+- **Timestamp**: 2026-08-07T22:00:00+05:30
+- **Agent/Tool Used**: Claude Code
+- **Files Modified**: `backend.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `app/build.gradle.kts` (versionCode 31, versionName 1.22.0)
+
+- **What was asked**: HR supplied the real RMS "Auto Tall" allocation-engine
+  rule changelog (08 Jul – 05 Aug 2026, 13 entries) and asked to understand it
+  and apply it wherever relevant in the app.
+
+- **Key finding before implementing anything**: the changelog contains its
+  own reversals — Qubits score and QI category were introduced 20-22 Jul
+  2026 as tie-breakers, then **both explicitly removed** 27 Jul 2026. Reading
+  every bullet as additive would have re-implemented factors RMS itself
+  deleted. Built against the *current effective ruleset* (as of the 05 Aug
+  entry), not the full history.
+
+- **Found the one place these rules actually matter**: `backend.py`'s own
+  allocation-desk trainer-matching engine (`_rank_batch`) is a separate,
+  simpler system (pure course/vendor text matching) that predates this
+  changelog entirely and reflected none of it — including still using
+  `qubits_score` as a live tie-breaker, the exact thing RMS removed. If this
+  app's own "top match" suggestion disagreed with what RMS's real engine
+  would actually auto-allocate, that's a real, silent inconsistency.
+
+- **Implemented (data exists for these)**:
+  - **Negative-feedback block**: new `_feedback_recency()` /
+    `_allocation_block_status()` helpers; `_team_capability` now also fetches
+    each trainer's emp_code + most recent negative-feedback date (reusing
+    already-wired `trainerNegFeedback`). A trainer inside the 3-14-day block
+    window is flagged `blocked`/`blocked_until` and sorted below every
+    available candidate (not removed — RMS's rule only blocks *auto*-selection).
+  - **6-month clean-record soft tie-break** (05 Aug 2026, the current rule):
+    among same-match candidates, no-recent-negative sorts first.
+  - **Qubits/QI tie-break removed**: `_rank_batch`'s sort key dropped
+    `-qubits_score`; still shown for information, no longer breaks ties.
+  - **RedHat officially-approved ≈ Certified**: `_cert_intelligence` no
+    longer flags an approved RedHat course as a cert gap (same precedent HR
+    cited already exists for CLC).
+  - **Android**: `AllocationDeskScreen.kt`'s candidate rows now show a
+    distinct "🚫 Not auto-allocated until <date>" line and neutral-red tint
+    for blocked candidates instead of a misleading green "great match," plus
+    a quieter "feedback on file within 6 months" note for the soft tie-break
+    signal.
+
+- **Deliberately NOT implemented — no RMS data source exists in this app's
+  integration** (confirmed against the 36-file `trainer_portal_api_details/`
+  audit from earlier this session):
+  - Tech-call trainer preference — no pre-sales/tech-call attribution endpoint.
+  - Mock-delivery rating preference — no mock/rehearsal endpoint.
+  - Least-skill-removal for Additional Trainer — this app has no
+    Main/Additional-Trainer or Chat-Moderator role concept; its own
+    `backup_role` labels are an invented ranking convenience, not RMS's
+    actual role model, so the rule has nothing correct to attach to.
+  - OEM-above-course in the allocation email — an RMS email template change
+    with no corresponding app screen; vendor/OEM is already shown in
+    `BatchCard`'s metadata line.
+  Full tier breakdown recorded in `AI/CONTEXT.md` so a future session with a
+  new RMS endpoint knows exactly what to wire up.
+
+- **Same field-verification caveat as this session's earlier RMS work**:
+  `_feedback_recency()`'s date extraction is defensive (multiple key
+  fallbacks) but unverified against a live `trainerNegFeedback` response.
+
+- **Build Status**: ✓ `python -c "import ast..."` syntax check passed;
+  `assembleDebug` + `assembleRelease` both BUILD SUCCESSFUL.
+- **⚠️ Not verified against live RMS data or on-device** — same standing
+  limitations this session (no test trainer/assignment IDs available safely,
+  no Android SDK/emulator). The blocking/tie-break logic is straightforward
+  date arithmetic reviewed by hand, but "reviewed" is not "observed working."
+- **Current Status**: Pushed.
+- **Next Actions**: after this deploys, pull up the Allocation Desk for a
+  team with at least one recent negative-feedback incident and confirm the
+  blocked flag/date actually appears — that's the one part of this change
+  that depends on RMS field names this session couldn't verify live.
+
+
 ## Dashboard information-architecture redesign
 ### Release v1.21.0
 - **Timestamp**: 2026-08-07T21:00:00+05:30

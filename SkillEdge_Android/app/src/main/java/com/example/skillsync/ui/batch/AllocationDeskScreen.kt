@@ -534,43 +534,68 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, isPriority: Boolean = true,
                     HorizontalDivider(color = sk.cardBorder)
                     Spacer(Modifier.height(7.dp))
                     candidates.take(3).forEach { c ->
-                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        // RMS AutoTall parity: a trainer inside their 3-14 day
+                        // negative-feedback window won't actually be
+                        // auto-allocated, so showing them tinted as a "great
+                        // match" would be misleading — this dot/text stays
+                        // neutral-red regardless of match score when blocked.
+                        val blocked = c.bool("blocked")
+                        val dotTint = if (blocked) sk.red else relevanceColor(c.int("match"))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .then(if (blocked) Modifier.background(sk.red.copy(alpha = 0.05f), RoundedCornerShape(6.dp)).padding(4.dp) else Modifier),
+                        ) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp))
-                                    .background(relevanceColor(c.int("match"))))
+                                Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(dotTint))
                                 Spacer(Modifier.width(7.dp))
                                 Text(
-                                    c.str("category"),
+                                    if (blocked) "Blocked" else c.str("category"),
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = relevanceColor(c.int("match")),
+                                    color = dotTint,
                                     modifier = Modifier.weight(0.4f),
                                 )
                                 Text(
                                     c.str("trainer_name"),
-                                    style = MaterialTheme.typography.labelMedium, color = sk.bodyText,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (blocked) sk.subText else sk.bodyText,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f),
                                 )
-                                Text(
-                                    "${c.int("match")}%",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = relevanceColor(c.int("match")),
-                                )
+                                if (!blocked) {
+                                    Text(
+                                        "${c.int("match")}%",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = dotTint,
+                                    )
+                                }
                             }
 
                             val missing = c.list("missing_skills").joinToString(", ")
-                            if (missing.isNotBlank()) {
-                                Text(
+                            when {
+                                blocked -> Text(
+                                    "🚫 Negative feedback — not auto-allocated until ${c.str("blocked_until").shortDate()}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = sk.red,
+                                    modifier = Modifier.padding(start = 13.dp, top = 2.dp)
+                                )
+                                missing.isNotBlank() -> Text(
                                     "⚠ Missing: $missing",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = sk.amber,
                                     modifier = Modifier.padding(start = 13.dp, top = 2.dp)
                                 )
-                            } else if (c.int("match") < 75) {
-                                Text(
+                                c.int("match") < 75 -> Text(
                                     "⚠ Upskilling Required",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = sk.amber,
+                                    modifier = Modifier.padding(start = 13.dp, top = 2.dp)
+                                )
+                                c.bool("recent_negative_6mo") -> Text(
+                                    "Feedback on file within last 6 months",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = sk.subText,
                                     modifier = Modifier.padding(start = 13.dp, top = 2.dp)
                                 )
                             }

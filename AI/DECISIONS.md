@@ -2,6 +2,14 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-07 — v1.22.0: Allocation matching mirrors RMS's real AutoTall rules, partially
+
+- **Decision:** Given HR's AutoTall changelog (08 Jul – 05 Aug 2026), implemented the negative-feedback allocation block, the 6-month clean-record tie-break, removed Qubits/QI as a tie-breaker, and treated RedHat officially-approved as Certified in `backend.py`'s allocation-desk matching (`_rank_batch`) and cert-gap analysis (`_cert_intelligence`) — but explicitly did **not** implement the tech-call-trainer preference, mock-rating preference, or the Additional-Trainer least-skill-removal rule.
+- **Rationale:** The changelog itself contains reversals — Qubits and QI were introduced 20-22 Jul 2026 then both explicitly removed 27 Jul 2026. Implementing every historical bullet additively would have re-added factors RMS itself deleted; the only correct target is the *current effective ruleset* as of the latest entry (05 Aug 2026), not the full history.
+- **Rationale (partial implementation):** Three of the rules describe data this app's RMS integration does not have: no endpoint among the 36 audited files in `trainer_portal_api_details/` carries pre-sales tech-call attribution or mock-delivery ratings, and unallocated demand rows don't distinguish a Main/Additional-Trainer role the way RMS's internal engine does (this app's own `backup_role` labels — Primary/Secondary/Emergency Backup — are an invented ranking convenience, not RMS's real role model). Fabricating a feature against data that doesn't exist would be exactly the kind of unverifiable, unhonest implementation this project's standards forbid; these are documented in `AI/CONTEXT.md` as "not implemented — no data source" so a future session with a new RMS endpoint knows exactly what to wire up.
+- **Decision:** A trainer inside their negative-feedback block window is flagged and sorted to the bottom of the candidate list, not removed from it.
+- **Rationale:** RMS's own rule states the block "only affects auto-selected trainers" — a manager can still specify a blocked trainer manually. Removing them from the app's candidate list entirely would hide a legitimate manual option; sorting them last while clearly flagging *why* communicates "RMS won't auto-pick this person right now" without taking away the manager's ability to override.
+
 ## 2026-08-07 — v1.21.0: Dashboard shows a ranked preview, not the full roster
 
 - **Decision:** Remove the full inline `TrainerCard` list from the Home dashboard (it duplicated the Team tab's roster exactly, minus the Team tab's search/sort/filter) and replace it with a 5-item "Needs Attention" preview ranked by a simple priority score, plus a button to the Team tab.

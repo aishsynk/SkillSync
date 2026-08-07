@@ -367,3 +367,52 @@ distinct from `Check_Course_Availability_in_RMS_Instructions.txt`) is
 mislabeled — its actual body is the "Trainer RC Schedule" API (key 111), not
 course availability. Another concrete instance of the instruction files being
 wrong; do not trust a filename over its content.
+
+### RMS "Auto Tall" allocation-engine rules — HR changelog audit (2026-08-07)
+
+HR supplied the RMS AutoTall (real trainer-allocation engine) rule changelog,
+08 Jul – 05 Aug 2026. Several rules were introduced then explicitly reversed
+by later entries in the same changelog (Qubits and QI were added 20-22 Jul,
+then both removed 27 Jul) — the *current effective ruleset* is what matters,
+not every historical bullet. This app's own allocation-desk matching
+(`backend.py::_rank_batch`) is a separate, simpler engine (course/vendor text
+match only) that predates this changelog and didn't reflect any of it before
+this audit. Three tiers:
+
+**Mirrored in `_rank_batch`/`_cert_intelligence` (this app has the data):**
+- Negative-feedback allocation block (16/20 Jul 2026): 3-day grace period,
+  then not auto-allocated until 14 days after the feedback was marked.
+  Candidates inside that window are flagged `blocked`/`blocked_until` and
+  sorted below every available candidate rather than removed — mirrors "only
+  affects auto-selected trainers," so a manager can still pick them manually.
+- 6-month clean-record soft preference (05 Aug 2026, the *current* rule):
+  among candidates tied on match score, one with no negative feedback in the
+  trailing 6 months sorts first.
+- Qubits score / QI category removed as tie-breakers (27 Jul 2026): the
+  matching engine's old `-qubits_score` secondary sort key was deleted.
+  Qubits is still returned for display, just no longer breaks ties.
+- RedHat officially-approved ≈ Certified (22 Jul 2026, same precedent as
+  CLC): `_cert_intelligence` no longer flags an approved-but-unexamined
+  RedHat course as a certification gap.
+
+**Confirmed already consistent, no change needed:**
+- "4-day free" / weekly-busyness removed (27 Jul 2026) — `_rank_batch` never
+  used utilization in its matching in the first place.
+
+**NOT implemented — no RMS API in this integration carries the data:**
+- Tech-call trainer preference (30 Jul 2026) — no pre-sales/tech-call
+  endpoint exists among the 36 audited `trainer_portal_api_details/` files.
+- Mock-delivery rating preference (27 Jul 2026) — no mock/rehearsal endpoint
+  exists in the same audit.
+- Least-skill-preference removal for Additional Trainer (30 Jul 2026) — this
+  app has no Main/Additional-Trainer or Chat-Moderator role distinction;
+  `_rank_batch`'s own `backup_role` labels (Primary/Secondary/Emergency
+  Backup) are an app-invented ranking convenience, not RMS's actual role
+  model, so there's nothing correct to map this rule onto.
+- OEM shown above course name in the allocation email — this is an RMS email
+  template change with no corresponding screen in this app; the vendor/OEM
+  is already shown in `BatchCard`'s metadata line via `customer`.
+
+If a future RMS API surfaces tech-call attribution or mock ratings, revisit
+the "not implemented" list above — the block/clean-record wiring in
+`_team_capability`/`_rank_batch` is the pattern to extend.
