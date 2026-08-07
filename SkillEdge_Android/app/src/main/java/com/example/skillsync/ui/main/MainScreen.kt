@@ -230,6 +230,7 @@ fun MainScreen(
                                 onLogout = onLogout,
                                 onDrill = { drill = it },
                                 onLoadCapability = { viewModel.ensureCapability(email) },
+                                onOpenTeam = { onTabChange(HomeTab.TEAM) },
                             )
                         }
                     }
@@ -393,6 +394,7 @@ internal fun DashboardTab(
     onLogout: () -> Unit,
     onDrill: (Drill) -> Unit,
     onLoadCapability: () -> Unit = {},
+    onOpenTeam: () -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
     val ops = data.rows("trainer_operations_df")
@@ -408,6 +410,7 @@ internal fun DashboardTab(
     val deliveryByEmail = remember(deliveryRows) {
         deliveryRows.associateBy { it.str("trainer_email").lowercase() }
     }
+    val attention = remember(ops, deliveryByEmail) { rankByAttention(ops, deliveryByEmail) }
 
     var showProfileMenu by remember { mutableStateOf(false) }
 
@@ -462,36 +465,30 @@ internal fun DashboardTab(
             }
         }
 
-        // Delivery Readiness summary — sourced from delivery_intelligence_df
-        // Always available in the unified payload, shown right after KPI numbers.
+        // Team Pulse — one header covering all four current-state signals
+        // (readiness, feedback risk, capacity, forecast) instead of a separate
+        // header+subtitle per card. Same information, a third of the header
+        // chrome eating vertical space before the manager reaches anything
+        // actionable.
+        if (deliveryRows.isNotEmpty() || ops.isNotEmpty()) {
+            item { Appear(3) { DashSectionHeader("Team pulse", "Readiness, risk and capacity at a glance") } }
+        }
         if (deliveryRows.isNotEmpty()) {
-            item { Appear(3) { DashSectionHeader("Delivery readiness", "Which trainers are deployment-ready today") } }
-            item { Appear(4) { TeamReadinessSummaryCard(deliveryRows) } }
+            item { Appear(3) { TeamReadinessSummaryCard(deliveryRows) } }
         }
-
-        // Feedback Risk summary — sourced from trainer_operations_df
         if (ops.isNotEmpty()) {
-            item { Appear(4) { DashSectionHeader("Feedback risk", "Trainers with unresolved feedback issues") } }
             item { Appear(4) { TeamRiskSummaryCard(ops) } }
-        }
-
-        // Capacity & Bench Risk (Stream 4) — sourced from trainer_operations_df
-        if (ops.isNotEmpty()) {
-            item { Appear(5) { DashSectionHeader("Capacity", "Optimize team utilization and deployment") } }
-            item { Appear(5) { TeamCapacityAlertCard(ops) } }
-        }
-
-        // Capacity Forecast (Stream 6, predictive) — trend projection from each
-        // trainer's own utilization_series; renders nothing if no one is trending
-        // toward overload or bench, so it never adds noise to a healthy team.
-        if (ops.isNotEmpty()) {
+            item { Appear(4) { TeamCapacityAlertCard(ops) } }
+            // Predictive trend projection — renders nothing when nobody is
+            // trending toward overload or bench, so a healthy team sees no
+            // extra card at all.
             item { Appear(5) { TeamCapacityForecastCard(ops) } }
         }
 
-        item { Appear(6) { DashSectionHeader("Team health", "What needs attention right now") } }
+        item { Appear(6) { DashSectionHeader("Team health", "Distribution and trend across the whole team") } }
 
         item {
-            Appear(7) {
+            Appear(6) {
                 TeamAnalytics(
                     ops = ops,
                     states = states,
@@ -502,17 +499,23 @@ internal fun DashboardTab(
             }
         }
 
-        item { Appear(8) { TopPerformers(ops, capMap, onTrainerClick) } }
+        item { Appear(7) { TopPerformers(ops, capMap, onTrainerClick) } }
 
+        // Needs Attention — a short, ranked preview, not the full roster.
+        // The complete list with real search/sort/filter already lives on the
+        // Team tab; repeating every TrainerCard here just to also show it on
+        // Home was pure duplication, and on a roster of any real size (this
+        // product's own reportees dataset runs to 80+) it turned the home
+        // screen into an extremely long scroll for zero extra information.
         item {
-            Appear(9) {
+            Appear(8) {
                 Row(
                     Modifier.fillMaxWidth().padding(top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Team — right now", style = MaterialTheme.typography.titleLarge, color = sk.bodyText)
+                    Text("Needs attention", style = MaterialTheme.typography.titleLarge, color = sk.bodyText)
                     Spacer(Modifier.width(8.dp))
-                    Chip("${ops.size}", sk.subText)
+                    Chip("${ops.size} total", sk.subText)
                 }
             }
         }
@@ -520,21 +523,104 @@ internal fun DashboardTab(
         if (ops.isEmpty()) {
             item { EmptyStateCard("No reportees returned. Check your account permissions.") }
         } else {
-            itemsIndexed(ops) { i, t ->
-                Appear(i + 9) {
-                    TrainerCard(
-                        trainer = t,
-                        state = stateMap[t.str("official_email").lowercase()],
-                        capability = capMap[t.str("official_email").lowercase()],
-                        delivery = deliveryByEmail[t.str("official_email").lowercase()],
-                    ) {
-                        onTrainerClick(t.str("official_email"), t.str("trainer_name"))
+            if (attention.isEmpty()) {
+                item {
+                    Appear(9) {
+                        EmptyStateCard("No urgent items — the whole team looks healthy right now.")
                     }
                 }
+            } else {
+                itemsIndexed(attention) { i, (t, reason) ->
+                    Appear(i + 9) {
+                        AttentionRow(
+                            trainer = t,
+                            reason = reason,
+                            capability = capMap[t.str("official_email").lowercase()],
+                        ) {
+                            onTrainerClick(t.str("official_email"), t.str("trainer_name"))
+                        }
+                    }
+                }
+            }
+            item {
+                OutlinedButton(
+                    onClick = onOpenTeam,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                ) { Text("View full team (${ops.size})") }
             }
         }
 
         item { Spacer(Modifier.height(16.dp)) }
+    }
+}
+
+/**
+ * Ranks trainers by how urgently a manager should look at them: feedback risk
+ * first (a real incident), then delivery risk, then capacity extremes
+ * (overloaded or benched). Returns at most 5 — this is a preview, not the
+ * roster; [reason] is the single sentence explaining why each one is here.
+ */
+private fun rankByAttention(
+    ops: List<Map<*, *>>,
+    deliveryByEmail: Map<String, Map<*, *>>,
+): List<Pair<Map<*, *>, String>> {
+    return ops.mapNotNull { t ->
+        val email = t.str("official_email").lowercase()
+        val delivery = deliveryByEmail[email]
+        val feedbackRisk = t.str("feedback_risk")
+        val deliveryRisk = delivery?.str("delivery_risk_level").orEmpty()
+        val capacity = t.str("capacity_bucket")
+        val (score, reason) = when {
+            feedbackRisk == "High" -> 100 to "High feedback risk"
+            deliveryRisk == "High" -> 90 to "High delivery risk"
+            feedbackRisk == "Medium" -> 60 to "Feedback alert"
+            capacity == "Stretched" -> 40 to "Stretched — over 85% utilised"
+            capacity == "On Bench" -> 30 to "On bench — available now"
+            else -> 0 to ""
+        }
+        if (score == 0) null else Triple(t, score, reason)
+    }.sortedByDescending { it.second }.take(5).map { it.first to it.third }
+}
+
+@Composable
+private fun AttentionRow(
+    trainer: Map<*, *>,
+    reason: String,
+    capability: Map<*, *>?,
+    onClick: () -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    val name = trainer.str("trainer_name")
+    val tint = when {
+        reason.contains("risk", ignoreCase = true) -> sk.red
+        reason.contains("Stretched") -> sk.amber
+        else -> sk.green
+    }
+    Card(
+        Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
+        elevation = CardDefaults.cardElevation(1.dp),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Avatar(name, capability?.str("photo_url"), 32.dp)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    name, style = MaterialTheme.typography.titleSmall, color = sk.bodyText,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Text(reason, style = MaterialTheme.typography.labelSmall, color = tint)
+            }
+            Icon(
+                painterResource(R.drawable.ic_chevron), null,
+                tint = sk.subText, modifier = Modifier.size(15.dp),
+            )
+        }
     }
 }
 

@@ -2,6 +2,15 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-07 — v1.21.0: Dashboard shows a ranked preview, not the full roster
+
+- **Decision:** Remove the full inline `TrainerCard` list from the Home dashboard (it duplicated the Team tab's roster exactly, minus the Team tab's search/sort/filter) and replace it with a 5-item "Needs Attention" preview ranked by a simple priority score, plus a button to the Team tab.
+- **Rationale:** On this product's real data (82 reportees per `AI/CONTEXT.md`), rendering every trainer as a full card on the page meant to be a manager's quick daily glance produced 80+ full-size cards in one scroll — the dominant cause of the dashboard feeling too long/wide, not any individual spacing value. A home screen's job is to say "look here first," not to be a second, worse copy of the roster tab.
+- **Decision:** Consulted github.com/wasabeef/awesome-android-ui per user request but did not integrate any library from it — it's a ~200-entry index of pre-Compose View-system libraries (RecyclerView decorators, ViewPager transformers, custom Views, mostly 2013-2019), and this codebase is 100% Jetpack Compose. Pulling in View-interop dependencies for a Compose-native app would be a net architectural regression.
+- **Rationale:** Took the applicable *pattern* instead — short scannable previews with drill-through beat long inline lists — and combined it with Bootstrap-style layout discipline (one header per logical group, no redundant chrome) to justify both the roster-preview change and consolidating three separate section headers (Delivery Readiness / Feedback Risk / Capacity) into one "Team pulse" header.
+- **Decision:** Did not do a mechanical pass renumbering every `Spacer` value in `DashboardSections.kt` to a strict spacing scale, despite finding a genuinely unsystematic mix (3/5/6/7/8/10/12/13/14/24/32dp).
+- **Rationale:** No Android SDK or emulator exists in this development environment to visually confirm the result of such a sweep, and it would touch dozens of call sites inside already-shipped, already-working cards unrelated to the actual complaint. A blind cosmetic sweep with no way to see the outcome risks a regression nobody catches until a user reports it — worse than leaving admittedly-inconsistent-but-functional spacing in place. The structural fixes (roster preview, header consolidation) address the real complaint; the spacing scale is real but lower-priority technical debt, noted in `AI/PROGRESS.md` rather than gambled on blind.
+
 ## 2026-08-07 — v1.17.0: App-level disk cache instead of relying on HTTP caching; trend projection instead of fabricated ML
 
 - **Decision:** Add `LocalCache` — a small Gson/JSON disk cache keyed by email — as the explicit offline fallback for the dashboard and Trainer360, on top of (not replacing) the existing OkHttp HTTP cache.

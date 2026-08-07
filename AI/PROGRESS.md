@@ -1,5 +1,76 @@
 # SkillEdge Project Progress
 
+## Dashboard information-architecture redesign
+### Release v1.21.0
+- **Timestamp**: 2026-08-07T21:00:00+05:30
+- **Agent/Tool Used**: Claude Code
+- **Files Modified**: `ui/main/MainScreen.kt`, `app/build.gradle.kts` (versionCode 30, versionName 1.21.0)
+
+- **Research step**: reviewed github.com/wasabeef/awesome-android-ui per user request. It's a
+  curated index of ~200 standalone Android UI *libraries* (mostly pre-Compose,
+  View-system, XML-attribute based — RecyclerView decorators, ViewPager
+  transformers, custom Views from the 2013-2019 era), not a design system or
+  style guide. Integrating any of these literally would mean pulling legacy
+  View-interop dependencies into a 100%-Compose codebase for no real benefit.
+  The applicable takeaway was the *pattern*, not the libraries: well-designed
+  Android list/grid/dashboard UIs favor short, scannable previews with
+  drill-through navigation over long inline lists — combined with
+  Bootstrap-style layout discipline (clear card grouping, one header per
+  logical section, no redundant chrome), this directly informed the two
+  structural fixes below.
+
+- **The real problem found**: the Home dashboard was rendering **every single
+  trainer as a full `TrainerCard`** (util bar, batch banner, 4 badges) inline
+  at the bottom of the page — and the Team tab (`TeamTab.kt`) already shows
+  the exact same roster with real search/sort/filter. On this product's own
+  reportee counts (CONTEXT.md: 82 trainers), that's 80+ full-size cards
+  rendered on the screen meant to be a quick daily glance — pure duplication,
+  and the actual source of "unnecessary wide spacing" more than any single
+  padding value.
+
+- **Fix 1 — removed the duplicated roster**: replaced the full inline list
+  with a "Needs Attention" preview — at most 5 trainers, ranked by a simple
+  scored priority (High feedback risk > High delivery risk > Feedback alert >
+  Stretched capacity > On Bench), rendered as compact single-line rows
+  (avatar + name + one reason + chevron, ~56dp vs. ~200dp for a full
+  `TrainerCard`). A "View full team (N)" button opens the Team tab, which
+  already has proper filtering. A healthy team with nothing scored shows an
+  honest "no urgent items" state rather than an empty list.
+
+- **Fix 2 — consolidated section headers**: the three cards added earlier
+  this session (Delivery Readiness, Feedback Risk, Capacity) each had their
+  own `DashSectionHeader` (title + subtitle). Merged into one "Team pulse"
+  header covering all four current-state cards (readiness, risk, capacity,
+  forecast) — same information, two fewer header blocks' worth of vertical
+  space before the manager reaches anything else.
+
+- **Spacing audit — scoped decision**: checked every `Spacer` height value in
+  `DashboardSections.kt` (found a real, unsystematic mix: 3/5/6/7/8/10/12/13/
+  14/24/32dp with no consistent scale). Decided **not** to do a mechanical
+  renumbering sweep across those internal composables: they're inside
+  already-working, already-shipped cards unrelated to this redesign's actual
+  target, this environment has no Android SDK/emulator to visually confirm
+  the result, and a blind sweep across dozens of call sites is a good way to
+  introduce a regression nobody can see coming. The structural fixes above
+  address the dashboard-length complaint directly; a cosmetic pass on
+  individual spacer values is lower-value and higher-risk without visual
+  verification, so it's deferred rather than done blind.
+
+- **Build Status**: ✓ v1.21.0 — `assembleDebug` + `assembleRelease` both BUILD SUCCESSFUL.
+- **⚠️ Not visually verified on-device** — same standing limitation this
+  session (no Android SDK/emulator available). Verified via clean compile +
+  full manual read-through of the new `rankByAttention`/`AttentionRow` logic
+  and the LazyColumn item wiring.
+- **Current Status**: Pushed. Please check on-device: the "Needs Attention"
+  ranking (does it surface the right trainers?), the "Team pulse" section
+  reads as one coherent group, and the "View full team" button correctly
+  opens the Team tab.
+- **Next Actions**: if the attention-ranking heuristic doesn't match what
+  managers actually want to see first, `rankByAttention()` in `MainScreen.kt`
+  is a single, isolated function — easy to retune once there's real feedback
+  on what "needs attention" should mean.
+
+
 ## Allocation Desk: priority grouping correction
 ### Release v1.20.1
 - **Timestamp**: 2026-08-07T20:15:00+05:30
