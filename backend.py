@@ -398,29 +398,16 @@ def _rms(api_name, body):
 
 def _verify_role(email):
     """
-    Returns:
-      ("manager",      reportees_list)  — user has direct/indirect reportees
-      ("trainer_plus", [util_row])      — user is a trainer flagged Trainer Plus
-      ("rms_error",    None)            — RMS unreachable
-      (None,           None)            — no qualifying role found
+    SkillEdge is a Delivery Manager intelligence platform.
+    All @koenig-solutions.com accounts logging in are granted full Delivery Manager role,
+    with real reportees from RMS if available, or fallback team intelligence if
+    reportees list is empty or RMS is unreachable.
     """
+    if not email or not email.endswith("@koenig-solutions.com"):
+        return None, None
+
     reportees = _rms("reportees", {"email": email})
-    if isinstance(reportees, list) and reportees:
-        return "manager", reportees
-
-    util = _rms("utilization", {"email": email})
-    if isinstance(util, list) and util and isinstance(util[0], dict) and util[0].get("TrainerId"):
-        return "trainer_plus", util
-
-    # Resilient fallback: if RMS network is unreachable/timed-out, admit valid @koenig-solutions.com
-    # accounts under manager role to avoid locking users out with 503 errors.
-    if email.endswith("@koenig-solutions.com"):
-        return "manager", reportees or []
-
-    if reportees is None or util is None:
-        return "rms_error", None
-
-    return None, None
+    return "manager", reportees if isinstance(reportees, list) else []
 
 
 # ─── Date helpers ─────────────────────────────────────────────────────────────

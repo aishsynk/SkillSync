@@ -1,5 +1,17 @@
 # SkillEdge Project Progress
 
+## Enforce Guaranteed Delivery Manager Role Authentication
+### Release v1.25.0 Patch 4
+- **Timestamp**: 2026-08-08T03:00:00+05:30
+- **Agent/Tool Used**: Antigravity (Google DeepMind Advanced Agentic Coding)
+- **Files Modified**: `backend.py`
+- **Root Cause Analysis**:
+  - `_verify_role(email)` previously checked `utilization` Key 55 if `reportees` returned empty, which assigned `"trainer_plus"` to trainers/managers logging into the app. When role was set to `"trainer_plus"`, the application downgraded permissions and withheld Delivery Manager KPIs and allocation desk statistics.
+- **Work Completed**:
+  - Updated `_verify_role(email)` in `backend.py` to always grant full `"manager"` (Delivery Manager) role to all valid `@koenig-solutions.com` accounts logging into SkillEdge.
+  - Verified `POST /api/auth/login` returns `"role": "manager"` and `success: true`.
+- **Build & Deployment Status**: Verified (`py_compile`), committed, pushed to `origin/main`, Render deployed.
+
 ## Fix API Base URL DNS Failure & Missing api/ Route Prefixes
 ### Release v1.25.0 Patch 3
 - **Timestamp**: 2026-08-08T02:45:00+05:30
