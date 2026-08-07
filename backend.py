@@ -1787,7 +1787,7 @@ def unified_intelligence():
         "trainers": [
             {
                 "name":        t["trainer_name"],
-                "email":       t["official_email"],
+                "email":       t.get("off_email", t.get("official_email", "")),
                 "utilization": t["current_utilization"],
                 "status":      "Active" if t["current_utilization"] > 20 else "Inactive",
                 "skills":      [],
