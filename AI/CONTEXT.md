@@ -325,16 +325,45 @@ Each API requires: (1) POST to `/api/Kites/Operator/GetToken` with username/pass
 4. **Dead scaffolding:** `intelligence_engines/` and `knowledge/` stubs (7 + 4 files) have zero imports; wire or delete
 5. **KB parser bug:** `app.py::_read_kb_jsonl` mis-parses multi-line JSONL; knowledge search endpoints return empty
 
-### Additional APIs documented but not yet integrated (21 more)
+### `trainer_portal_api_details/` — full audit (2026-08-07, Android backend `backend.py`)
 
-`trainer_portal_api_details/` lists 30 APIs total; 9 active, 21 documented but not in intelligence pipeline:
-- Course modules, syllabus, schedule, content URL
-- Course without exam, exam-linked courses, latest version, availability in RMS
-- SCID (Scheduling ID), recording details
-- Active SC date, assignment PAX, course & domain
-- Trainer free schedule, last 3-month utilization, resume details
-- Trainer negative feedback (detailed), unique cert count
-- Direct/indirect reportee (detailed), unallocated/upcoming assignments
-- Add trainer skill (IDP), check course availability
+36 instruction files, verified against `backend.py`'s actual `_APIS` dict and call
+sites (not taken at face value — see the file's own header: "verified against
+live responses, not the instruction files, which have proven wrong more than
+once"). Splits into four tiers:
 
-These are verified endpoints with credentials + API keys; integration would expand intelligence pipeline coverage but is not blocking current functionality.
+**Tier 1 — Active (11):** `reportees`, `trainerDetails`, `utilization`,
+`prevUpcoming`, `unallocated`, `negFeedbackCount`, `hrIncident`,
+`trainerNegFeedback`, `trainerSkills`, `vendorCertCount`, `trainerResume`,
+`addTrainerSkill`.
+
+**Tier 2 — Wired but dormant (9):** credentials already registered in `_APIS`,
+zero call sites:
+- `trainerFeedback` (244) — per-question feedback text (question/answer/date),
+  richer than the count-only `negFeedbackCount`
+- `assignmentPax` (209) — participant roster per assignment
+- `last3MonthsUtil` (39) — utilization in **long format** (one row per month:
+  `EmployeeCode/EmployeeName/Utilization/MonthName`), vs. the wide-format
+  `utilization` (55) that requires splitting `"Jun 2026": "75.77 / 43.05"`
+  strings — worth a live A/B check as a cleaner trend-data source
+- `trainerAvailability` (90), `upcomingAssignments` (93), `assignment` (15),
+  `recordingDetails` (278), `activeSCDate` (13), `courseAvailability` (104)
+
+**Tier 3 — Never wired (14):** no credentials in `backend.py` at all, course
+catalogue/syllabus metadata mostly: `Course_List` (164, full catalogue with
+vendor + course_url — distinct from `trainerDetails`'s per-trainer capability
+rows), `Course_Module`, `Course_Syllabus_TOC`, `Course_Content_URL`,
+`Course_and_Domain`, `Course_&_Technology_List`, `Course_Name`,
+`Course_Schedule`, `Course_Whitout_Exam`, `Exam_Course_Linked_API`,
+`Latest_Version_Of_Courses`, `Inhouse_and_FL_Trainers_Of_Courses`, `SCID` (173),
+`Trainer_Free_Shedule_and_Details` (171).
+
+**Tier 4 — Confirmed dead ends, do not retry:** `uniqueCerts` (72) returns zero
+rows for every body shape tried (already in `backend.py`'s header comment); no
+leave/absence endpoint exists anywhere in the catalogue.
+
+**Data-quality flag:** `Check Course Availability in RMS.txt` (no underscore,
+distinct from `Check_Course_Availability_in_RMS_Instructions.txt`) is
+mislabeled — its actual body is the "Trainer RC Schedule" API (key 111), not
+course availability. Another concrete instance of the instruction files being
+wrong; do not trust a filename over its content.
