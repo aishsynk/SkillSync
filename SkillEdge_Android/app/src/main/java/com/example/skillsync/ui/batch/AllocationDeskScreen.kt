@@ -1,16 +1,21 @@
 package com.example.skillsync.ui.batch
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +38,30 @@ internal fun relevanceColor(relevance: Int): Color {
     }
 }
 
+// ── Delivery-mode priority ───────────────────────────────────────────────────
+
+/**
+ * ILT (instructor-led) is the priority tier a manager needs to staff first;
+ * FMAT and ILO are deliberately kept below it regardless of date. Anything
+ * else RMS returns (a mode we haven't seen, or a typo in the source data)
+ * defaults to the priority tier rather than being silently buried — an
+ * unrecognised mode is a data-quality question, not a reason to demote it.
+ */
+private fun isDeprioritisedMode(mode: String): Boolean {
+    val m = mode.uppercase()
+    return m.contains("FMAT") || m.contains("ILO")
+}
+
+private enum class MatchBand(val label: String) {
+    ALL("All"), HIGH("75%+ Ready"), MEDIUM("50-74% Partial"), LOW("Under 50%"),
+}
+
+private fun matchBandOf(relevance: Int) = when {
+    relevance >= 75 -> MatchBand.HIGH
+    relevance >= 50 -> MatchBand.MEDIUM
+    else -> MatchBand.LOW
+}
+
 @Composable
 internal fun AllocationDeskContent(
     data: Map<String, Any>,
@@ -44,9 +73,19 @@ internal fun AllocationDeskContent(
     val summary = data.obj("summary")
 
     var query by remember { mutableStateOf("") }
-    var onlyRelevant by remember { mutableStateOf(false) }
+    var matchBand by remember { mutableStateOf(MatchBand.ALL) }
+    var selectedModes by remember { mutableStateOf(setOf<String>()) }
+    var showFilters by remember { mutableStateOf(false) }
+    var priorityExpanded by remember { mutableStateOf(true) }
+    var otherExpanded by remember { mutableStateOf(true) }
 
-    val filtered = remember(batches, query, onlyRelevant) {
+    // Built from what's actually in the data, not a guessed enum — RMS's real
+    // delivery-mode strings have proven inconsistent before (see AI/CONTEXT.md).
+    val availableModes = remember(batches) {
+        batches.map { it.str("delivery_mode") }.filter { it.isNotBlank() }.distinct().sorted()
+    }
+
+    val filtered = remember(batches, query, matchBand, selectedModes) {
         batches.filter { b ->
             val q = query.trim().lowercase()
             val matchesQuery = q.isBlank() ||
@@ -54,9 +93,30 @@ internal fun AllocationDeskContent(
                 b.str("customer").lowercase().contains(q) ||
                 b.str("delivery_mode").lowercase().contains(q) ||
                 b.str("demand_id").contains(q)
-            val matchesBand = !onlyRelevant || b.int("relevance") >= 75
-            matchesQuery && matchesBand
+            val matchesBand = matchBand == MatchBand.ALL || matchBandOf(b.int("relevance")) == matchBand
+            val matchesMode = selectedModes.isEmpty() || b.str("delivery_mode") in selectedModes
+            matchesQuery && matchesBand && matchesMode
         }
+    }
+
+    // Segregated by priority, each tier sorted by delivery date descending.
+    val (priorityBatches, otherBatches) = remember(filtered) {
+        val sorted = filtered.sortedByDescending { it.str("start_date") }
+        sorted.partition { !isDeprioritisedMode(it.str("delivery_mode")) }
+    }
+
+    val activeFilterCount = selectedModes.size + (if (matchBand != MatchBand.ALL) 1 else 0)
+
+    if (showFilters) {
+        FilterBottomSheet(
+            availableModes = availableModes,
+            selectedModes = selectedModes,
+            matchBand = matchBand,
+            onModesChange = { selectedModes = it },
+            onBandChange = { matchBand = it },
+            onReset = { selectedModes = emptySet(); matchBand = MatchBand.ALL },
+            onDismiss = { showFilters = false },
+        )
     }
 
     LazyColumn(
@@ -66,31 +126,78 @@ internal fun AllocationDeskContent(
     ) {
         item {
             Column {
+                Text(
+                    "Unallocated Batches",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.ExtraBold, color = sk.bodyText,
+                )
+                Text(
+                    "Sorted by delivery date · ILT prioritised, FMAT/ILO below",
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                )
+                Spacer(Modifier.height(12.dp))
+
                 if (newIds.isNotEmpty()) {
                     NewBatchBanner(newIds.size)
                     Spacer(Modifier.height(8.dp))
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SummaryPill("Total", summary?.int("total") ?: batches.size, sk.subText)
-                    SummaryPill("75%+", summary?.int("high") ?: 0, sk.green)
-                    SummaryPill("Partial", summary?.int("medium") ?: 0, sk.amber)
-                    SummaryPill("No match", summary?.int("unmatched") ?: 0, sk.red)
+
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SummaryPill(R.drawable.ic_inbox, "Total", summary?.int("total") ?: batches.size, sk.subText)
+                    SummaryPill(R.drawable.ic_check, "75%+", summary?.int("high") ?: 0, sk.green)
+                    SummaryPill(R.drawable.ic_gap, "Partial", summary?.int("medium") ?: 0, sk.amber)
+                    SummaryPill(R.drawable.ic_alert, "No match", summary?.int("unmatched") ?: 0, sk.red)
                 }
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = { Text("Search course, vendor, mode, ref", fontSize = 12.sp) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(6.dp))
-                FilterChip(
-                    selected = onlyRelevant,
-                    onClick = { onlyRelevant = !onlyRelevant },
-                    label = { Text("My team can deliver (75%+)", fontSize = 11.sp) },
-                )
+                Spacer(Modifier.height(12.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        placeholder = { Text("Search course, vendor, mode, ref", fontSize = 12.sp) },
+                        leadingIcon = {
+                            Icon(painterResource(R.drawable.ic_search), null, tint = sk.subText, modifier = Modifier.size(16.dp))
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Box {
+                        FilledTonalButton(
+                            onClick = { showFilters = true },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = if (activeFilterCount > 0) sk.teal.copy(alpha = 0.16f) else sk.cardBg,
+                            ),
+                        ) {
+                            Text(
+                                if (activeFilterCount > 0) "Filters ($activeFilterCount)" else "Filters",
+                                fontSize = 12.sp,
+                                color = if (activeFilterCount > 0) sk.teal else sk.subText,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                }
+
+                if (activeFilterCount > 0) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        if (matchBand != MatchBand.ALL) {
+                            ActiveFilterChip(matchBand.label) { matchBand = MatchBand.ALL }
+                        }
+                        selectedModes.forEach { mode ->
+                            ActiveFilterChip(mode) { selectedModes = selectedModes - mode }
+                        }
+                    }
+                }
             }
         }
 
@@ -106,15 +213,201 @@ internal fun AllocationDeskContent(
             }
         }
 
-        itemsIndexed(filtered) { i, b ->
-            Appear(i) {
-                BatchCard(b, isNew = b.str("demand_id") in newIds) { onBatchClick(b) }
+        if (priorityBatches.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(4.dp))
+                SectionHeader(
+                    title = "Priority — Instructor-Led (ILT)",
+                    count = priorityBatches.size,
+                    tint = sk.teal,
+                    expanded = priorityExpanded,
+                    onToggle = { priorityExpanded = !priorityExpanded },
+                )
+            }
+        }
+        if (priorityExpanded) {
+            itemsIndexed(priorityBatches, key = { _, b -> "p_" + b.str("demand_id") }) { i, b ->
+                Appear(i) {
+                    BatchCard(b, isNew = b.str("demand_id") in newIds, isPriority = true) { onBatchClick(b) }
+                }
+            }
+        }
+
+        if (otherBatches.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(4.dp))
+                SectionHeader(
+                    title = "Other Delivery Modes (FMAT / ILO)",
+                    count = otherBatches.size,
+                    tint = sk.subText,
+                    expanded = otherExpanded,
+                    onToggle = { otherExpanded = !otherExpanded },
+                )
+            }
+        }
+        if (otherExpanded) {
+            itemsIndexed(otherBatches, key = { _, b -> "o_" + b.str("demand_id") }) { i, b ->
+                Appear(i) {
+                    BatchCard(b, isNew = b.str("demand_id") in newIds, isPriority = false) { onBatchClick(b) }
+                }
             }
         }
 
         item { Spacer(Modifier.height(20.dp)) }
     }
 }
+
+// ── Filters ──────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FilterBottomSheet(
+    availableModes: List<String>,
+    selectedModes: Set<String>,
+    matchBand: MatchBand,
+    onModesChange: (Set<String>) -> Unit,
+    onBandChange: (MatchBand) -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = sk.cardBg) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Filter batches", style = MaterialTheme.typography.headlineSmall, color = sk.bodyText, modifier = Modifier.weight(1f))
+                TextButton(onClick = onReset) { Text("Reset", color = sk.red, fontWeight = FontWeight.Bold) }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            Text("Skill match".uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.subText, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                MatchBand.entries.forEach { band ->
+                    FilterChip(
+                        selected = matchBand == band,
+                        onClick = { onBandChange(band) },
+                        label = { Text(band.label, fontSize = 11.sp) },
+                    )
+                }
+            }
+
+            if (availableModes.isNotEmpty()) {
+                Spacer(Modifier.height(20.dp))
+                Text("Delivery mode".uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.subText, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    availableModes.forEach { mode ->
+                        val checked = mode in selectedModes
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    onModesChange(if (checked) selectedModes - mode else selectedModes + mode)
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = checked, onCheckedChange = {
+                                onModesChange(if (checked) selectedModes - mode else selectedModes + mode)
+                            })
+                            Spacer(Modifier.width(4.dp))
+                            Text(mode, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
+                            if (isDeprioritisedMode(mode)) {
+                                Spacer(Modifier.width(6.dp))
+                                MiniTag("below ILT", sk.subText)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+            ) { Text("Show results") }
+        }
+    }
+}
+
+/**
+ * Small tinted label, same visual language as the app-wide `Chip` in
+ * ui.main.MainScreen.kt — redeclared locally because BatchDetailScreen.kt
+ * (same package) already owns the name `Chip` as a file-private composable,
+ * and Kotlin resolves an unqualified same-package name before a wildcard
+ * import from a different package.
+ */
+@Composable
+private fun MiniTag(text: String, tint: Color) {
+    Surface(color = tint.copy(alpha = 0.14f), shape = RoundedCornerShape(12.dp)) {
+        Text(
+            text, style = MaterialTheme.typography.labelSmall, color = tint,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+        )
+    }
+}
+
+@Composable
+private fun ActiveFilterChip(label: String, onRemove: () -> Unit) {
+    val sk = MaterialTheme.skill
+    Surface(
+        color = sk.teal.copy(alpha = 0.14f),
+        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier.clickable(onClick = onRemove),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = sk.teal, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+            Spacer(Modifier.width(4.dp))
+            Text("×", style = MaterialTheme.typography.labelSmall, color = sk.teal, fontWeight = FontWeight.ExtraBold)
+        }
+    }
+}
+
+// ── Section header ───────────────────────────────────────────────────────────
+
+@Composable
+private fun SectionHeader(title: String, count: Int, tint: Color, expanded: Boolean, onToggle: () -> Unit) {
+    val sk = MaterialTheme.skill
+    val rotation by animateFloatAsStateCompat(if (expanded) 90f else 0f)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onToggle)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(4.dp).height(18.dp).clip(RoundedCornerShape(2.dp)).background(tint))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            title, style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold, color = sk.bodyText, modifier = Modifier.weight(1f),
+        )
+        Surface(color = tint.copy(alpha = 0.14f), shape = RoundedCornerShape(10.dp)) {
+            Text(
+                "$count", style = MaterialTheme.typography.labelSmall, color = tint,
+                fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+        }
+        Spacer(Modifier.width(6.dp))
+        Icon(
+            painterResource(R.drawable.ic_chevron), null, tint = sk.subText,
+            modifier = Modifier.size(14.dp).rotate(rotation),
+        )
+    }
+}
+
+@Composable
+private fun animateFloatAsStateCompat(target: Float) =
+    androidx.compose.animation.core.animateFloatAsState(target, tween(Motion.FAST), label = "chevron")
 
 @Composable
 private fun NewBatchBanner(count: Int) {
@@ -135,33 +428,41 @@ private fun NewBatchBanner(count: Int) {
 }
 
 @Composable
-private fun SummaryPill(label: String, value: Int, tint: Color) {
-    Column(
-        Modifier.clip(RoundedCornerShape(8.dp))
+private fun SummaryPill(icon: Int, label: String, value: Int, tint: Color) {
+    Row(
+        Modifier.clip(RoundedCornerShape(10.dp))
             .background(MaterialTheme.skill.cardBg).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("$value", style = MaterialTheme.typography.titleLarge, color = tint)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText)
+        Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(6.dp))
+        Column {
+            Text("$value", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = tint)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText, fontSize = 9.sp)
+        }
     }
 }
 
+// ── Batch card ───────────────────────────────────────────────────────────────
+
 @Composable
-internal fun BatchCard(b: Map<*, *>, isNew: Boolean, onClick: () -> Unit) {
+internal fun BatchCard(b: Map<*, *>, isNew: Boolean, isPriority: Boolean = true, onClick: () -> Unit) {
     val sk = MaterialTheme.skill
     val relevance = b.int("relevance")
     val tint = relevanceColor(relevance)
     val candidates = b.list("candidates")
+    val mode = b.str("delivery_mode")
 
     Card(
-        Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
+        Modifier.fillMaxWidth().animateContentSize().clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
+        elevation = CardDefaults.cardElevation(if (isPriority) 2.dp else 1.dp),
     ) {
         Row {
             // Relevance is the primary scan signal, so it owns the leading edge.
             Box(Modifier.width(4.dp).fillMaxHeight().background(tint))
-            Column(Modifier.padding(12.dp)) {
+            Column(Modifier.padding(12.dp).fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -175,25 +476,47 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, onClick: () -> Unit) {
                                 }
                                 Spacer(Modifier.width(6.dp))
                             }
-                            Text(
-                                b.str("course_name").ifBlank { "Course not specified" },
-                                style = MaterialTheme.typography.titleSmall, color = sk.bodyText,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis,
-                            )
+                            if (mode.isNotBlank()) {
+                                Surface(
+                                    color = (if (isPriority) sk.teal else sk.subText).copy(alpha = 0.14f),
+                                    shape = RoundedCornerShape(4.dp),
+                                ) {
+                                    Text(
+                                        mode.uppercase(), style = MaterialTheme.typography.labelSmall,
+                                        color = if (isPriority) sk.teal else sk.subText,
+                                        fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                    )
+                                }
+                                Spacer(Modifier.width(6.dp))
+                            }
                         }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            b.str("course_name").ifBlank { "Course not specified" },
+                            style = MaterialTheme.typography.titleSmall, color = sk.bodyText,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        )
                         Spacer(Modifier.height(3.dp))
                         Text(
                             listOfNotNull(
                                 b.str("start_date").takeIf { it.isNotBlank() }?.shortDate(),
                                 b.intOrNull("days")?.let { "${it}d" },
-                                b.str("delivery_mode").takeIf { it.isNotBlank() },
                                 b.intOrNull("participants")?.takeIf { it > 0 }?.let { "$it pax" },
                                 b.str("customer").takeIf { it.isNotBlank() },
-                                b.str("customer_priority").takeIf { it.isNotBlank() }?.let { "Priority: $it" },
-                                b.str("revenue_impact").takeIf { it.isNotBlank() }?.let { "Rev: $it" }
                             ).joinToString(" · "),
                             style = MaterialTheme.typography.labelSmall, color = sk.subText,
                         )
+                        val badges = listOfNotNull(
+                            b.str("customer_priority").takeIf { it.isNotBlank() }?.let { "Priority: $it" },
+                            b.str("revenue_impact").takeIf { it.isNotBlank() }?.let { "Rev: $it" },
+                        )
+                        if (badges.isNotEmpty()) {
+                            Spacer(Modifier.height(4.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                badges.forEach { MiniTag(it, sk.indigo) }
+                            }
+                        }
                     }
                     Spacer(Modifier.width(8.dp))
                     Column(horizontalAlignment = Alignment.End) {
@@ -218,7 +541,7 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, onClick: () -> Unit) {
                                 Spacer(Modifier.width(7.dp))
                                 Text(
                                     c.str("category"),
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), 
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                     color = relevanceColor(c.int("match")),
                                     modifier = Modifier.weight(0.4f),
                                 )
@@ -234,7 +557,7 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, onClick: () -> Unit) {
                                     color = relevanceColor(c.int("match")),
                                 )
                             }
-                            
+
                             val missing = c.list("missing_skills").joinToString(", ")
                             if (missing.isNotBlank()) {
                                 Text(

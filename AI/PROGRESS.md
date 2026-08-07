@@ -1,5 +1,80 @@
 # SkillEdge Project Progress
 
+## Allocation Desk: full redesign — priority segregation, filters, UI/UX overhaul
+### Release v1.20.0
+- **Timestamp**: 2026-08-07T20:00:00+05:30
+- **Agent/Tool Used**: Claude Code
+- **Files Modified**:
+  - `ui/batch/AllocationDeskScreen.kt` — full rewrite
+  - `app/build.gradle.kts` — versionCode 28, versionName 1.20.0
+
+- **Segregation logic (the core ask)**: unallocated batches are split into two
+  visually distinct, independently collapsible sections rather than a single
+  flat sort — "segregate" reads as grouping, not just ordering:
+  - **"Priority — Instructor-Led (ILT)"** — everything whose `delivery_mode`
+    does NOT match FMAT/ILO
+  - **"Other Delivery Modes (FMAT / ILO)"** — always rendered below, regardless
+    of date
+  - Within each section, sorted by `start_date` **descending**, exactly as
+    requested. Classification is case-insensitive substring match on
+    `delivery_mode`; an unrecognised mode defaults to the priority tier rather
+    than being silently demoted — an unrecognised value is a data-quality
+    question, not grounds to bury it.
+
+- **Filters added** (previously only a single "75%+ match" toggle existed):
+  - Skill-match band: All / 75%+ Ready / 50-74% Partial / Under 50%
+  - Delivery mode: multi-select, built from the **actual distinct values
+    present in the live data** rather than a guessed/hardcoded list — RMS's
+    delivery-mode strings have already proven inconsistent once this session
+    (see the mislabeled-instruction-file finding in `AI/CONTEXT.md`), so
+    guessing exact enum values risked a filter that silently matched nothing
+  - Active filters surface as removable chips above the list; one-tap reset
+  - Search (kept from before, restyled)
+
+- **UI/UX overhaul**: page title + sort-order subtitle, restyled search bar
+  with leading icon, icon-led summary stat pills, a "Filters (N)" button that
+  opens a bottom sheet (consistent with the app's existing bottom-sheet
+  pattern used elsewhere — DrillSheet, ProfileMenuBottomSheet), collapsible
+  section headers with an animated chevron and per-section counts, redesigned
+  batch cards (delivery-mode tag distinctly coloured for priority vs.
+  deprioritised, cleaner metadata line, revenue/customer-priority as tinted
+  tags instead of plain text).
+
+- **Compatibility note**: `BatchCard` gained an `isPriority: Boolean = true`
+  parameter (defaulted, so nothing else calling it breaks) to drive the
+  priority-vs-other tag colour. `relevanceColor` (shared with
+  `BatchDetailScreen.kt`) and the `AllocationDeskContent(data, newIds,
+  onBatchClick)` signature are unchanged, so `MainScreen.kt`'s call site
+  needed no edits.
+
+- **One naming collision found and fixed**: `BatchDetailScreen.kt` (same
+  package) already declares a file-private `Chip` composable. Kotlin resolves
+  an unqualified same-package name before a wildcard import from a different
+  package, so referencing the app-wide `Chip` from `ui.main.MainScreen.kt`
+  failed with "cannot access: it is private in file" — not a missing import,
+  a same-package name clash. Resolved by declaring a locally-scoped `MiniTag`
+  composable instead of fighting resolution order.
+
+- **⚠️ Could not visually verify on-device or in an emulator** — no Android
+  SDK/emulator is available in this environment (confirmed absent earlier
+  this session too: no `adb`, no `ANDROID_HOME`/`ANDROID_SDK_ROOT`, no Android
+  Studio install). Verified via: (a) `assembleDebug` + `assembleRelease` both
+  BUILD SUCCESSFUL with zero new warnings, (b) a full manual read-through of
+  the composable tree for logical correctness (sort direction, partition
+  correctness, filter predicates, parameter wiring). Per this project's own
+  verification standard, a clean compile is not the same as a verified UI —
+  **please check the actual look and feel on-device after installing
+  v1.20.0** and report back anything that doesn't look right (spacing,
+  colours, the bottom sheet, section collapse behaviour) so it can be
+  corrected against a real screen rather than guessed at twice.
+- **Current Status**: Pushed. Awaiting on-device confirmation.
+- **Next Actions**: If the exact `delivery_mode` string values RMS returns
+  turn out not to contain "FMAT"/"ILO" as substrings (e.g. a different vendor
+  code or abbreviation), the classification in `isDeprioritisedMode()` will
+  need adjusting — easiest to confirm by opening the new Filters sheet, which
+  lists every distinct mode string actually present.
+
+
 ## Real push notifications: allocation, mandatory feedback, unallocated demand
 ### Release v1.19.0
 - **Timestamp**: 2026-08-07T19:00:00+05:30
