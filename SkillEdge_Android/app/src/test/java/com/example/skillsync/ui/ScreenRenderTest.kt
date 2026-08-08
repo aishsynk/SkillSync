@@ -13,6 +13,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performScrollToNode
 import com.example.skillsync.HomeTab
 import com.example.skillsync.theme.SkillSyncTheme
+import com.example.skillsync.ui.batch.BatchCard
 import com.example.skillsync.ui.main.CoursesTab
 import com.example.skillsync.ui.main.DashboardTab
 import com.example.skillsync.ui.main.SkillSyncNavBar
@@ -618,5 +619,30 @@ class ScreenRenderTest {
         // The endpoint can legitimately return sparse data; this must not crash.
         compose.setContent { SkillSyncTheme { Trainer360Content(emptyMap()) } }
         compose.onNodeWithText("Trainer").assertExists()
+    }
+
+    @Test
+    fun internationalFmat_showsPremiumBusinessCallout() {
+        val batch = mapOf<String, Any>(
+            "course_name" to "AZ-104 Microsoft Azure Administrator",
+            "customer" to "Microsoft",
+            "delivery_mode" to "FMAT",
+            "delivery_mode_kind" to "FMAT",
+            "is_international" to true,
+            "location" to "London, United Kingdom",
+            "revenue_potential" to "High",
+            "priority_score" to 90,
+            "assignment_risk" to "Medium",
+            "coverage_status" to "Best Match",
+            "candidates" to emptyList<Map<String, Any>>(),
+        )
+        compose.setContent {
+            SkillSyncTheme {
+                BatchCard(batch, isNew = false, isPriority = true, onClick = {})
+            }
+        }
+        compose.onNodeWithText("INTERNATIONAL FMAT OPPORTUNITY").assertExists()
+        compose.onNodeWithText("London, United Kingdom").assertExists()
+        compose.onNodeWithText("Travel, visa and schedule readiness", substring = true).assertExists()
     }
 }

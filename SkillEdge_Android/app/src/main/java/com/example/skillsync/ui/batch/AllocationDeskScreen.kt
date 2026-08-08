@@ -715,7 +715,10 @@ internal fun BatchCard(
         Modifier
             .fillMaxWidth()
             .animateContentSize()
-            .accentGlass(if (isPriority) sk.teal else sk.subText.copy(alpha = 0.3f), RoundedCornerShape(Radii.card), strong = isPriority)
+            .accentGlass(
+                if (international) sk.sky else if (isPriority) sk.teal else sk.subText.copy(alpha = 0.3f),
+                RoundedCornerShape(Radii.card), strong = isPriority || international,
+            )
             .clickable(onClick = onClick),
     ) {
         Row {
@@ -810,6 +813,11 @@ internal fun BatchCard(
                             modifier = Modifier.widthIn(max = 88.dp),
                         )
                     }
+                }
+
+                if (international) {
+                    Spacer(Modifier.height(10.dp))
+                    InternationalOpportunityBanner(b)
                 }
 
                 Spacer(Modifier.height(9.dp))
@@ -1004,12 +1012,77 @@ private fun InternationalBadge() {
             Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("🌐", fontSize = 10.sp, modifier = Modifier.rotate(rotation))
+            Icon(
+                painterResource(R.drawable.ic_globe), contentDescription = null,
+                tint = sk.sky, modifier = Modifier.size(11.dp).rotate(rotation),
+            )
             Spacer(Modifier.width(3.dp))
             Text(
-                "ABROAD", color = sk.sky, fontSize = 8.5.sp,
+                "INTERNATIONAL", color = sk.sky, fontSize = 8.sp,
                 fontWeight = FontWeight.Bold, letterSpacing = 0.05.em,
             )
+        }
+    }
+}
+
+@Composable
+private fun InternationalOpportunityBanner(batch: Map<*, *>) {
+    val sk = MaterialTheme.skill
+    val transition = rememberInfiniteTransition(label = "internationalOpportunity")
+    val globeRotation by transition.animateFloat(
+        initialValue = -5f, targetValue = 5f,
+        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing)),
+        label = "internationalOpportunityGlobe",
+    )
+    Box(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                androidx.compose.ui.graphics.Brush.horizontalGradient(
+                    listOf(sk.sky.copy(alpha = 0.18f), sk.indigo.copy(alpha = 0.10f))
+                )
+            )
+            .border(1.dp, sk.sky.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 11.dp, vertical = 9.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = sk.sky.copy(alpha = 0.20f), shape = RoundedCornerShape(9.dp)) {
+                Icon(
+                    painterResource(R.drawable.ic_globe), contentDescription = "International opportunity",
+                    tint = sk.sky, modifier = Modifier.padding(7.dp).size(19.dp).rotate(globeRotation),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "INTERNATIONAL ${batch.str("delivery_mode_kind")} OPPORTUNITY",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.sky, fontWeight = FontWeight.ExtraBold,
+                    fontSize = 9.sp, letterSpacing = 0.06.em,
+                )
+                Text(
+                    batch.str("location").ifBlank { "Foreign location" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = sk.bodyText, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    if (batch.str("delivery_mode_kind") == "FMAT")
+                        "Travel, visa and schedule readiness require manager review"
+                    else
+                        "Confirm classroom location, schedule and trainer readiness",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.subText, fontSize = 8.5.sp, maxLines = 2,
+                )
+            }
+            Surface(color = sk.indigo.copy(alpha = 0.16f), shape = RoundedCornerShape(7.dp)) {
+                Text(
+                    batch.str("revenue_potential").ifBlank { "Priority" },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.indigo, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                )
+            }
         }
     }
 }

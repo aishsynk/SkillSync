@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T03:22:00+05:30 - Phase 5 local release gate passed
+- **Tool Used**: Codex (`unittest`, Gradle, Compose JVM tests, APK Signer, AAPT)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Backend tests pass 13/13 and Android tests pass 32/32, including the new international FMAT business-callout render test. v1.47.0/code 56 release APK assembled with SHA-256 `583172A4D87AF52E4451FE297B9E6CDDB50E02AA9C84C2EBE661ACE0B6900F1D`; package remains `com.example.skillsync` and signer SHA-256 remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`.
+- **Current Status**: Phase 5 passed local code, UI render, build, package and signing gates; publication/CI/production API validation remain. Physical install-over-existing remains unavailable without a connected ADB device.
+- **Next Actions**: Commit/push v1.47.0, verify GitHub Actions/release and production ordering/data contract remain healthy, publish notes, then close Phase 5 and begin Phase 6 Team redesign.
+
+## 2026-08-09T03:15:00+05:30 - Phase 5 international Demand design implemented locally
+- **Tool Used**: Codex (`apply_patch`)
+- **Files Modified**: `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `SkillEdge_Android/app/src/main/res/drawable/ic_globe.xml`, `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/ScreenRenderTest.kt`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Redesigned named international FMAT/ILT cards with a premium sky/indigo accent, native globe vector and subtle motion, explicit `INTERNATIONAL <MODE> OPPORTUNITY` hierarchy, foreign location, revenue band, and manager-focused travel/visa/schedule or classroom-readiness guidance. Replaced the emoji globe/`ABROAD` label with an accessible vector icon and `INTERNATIONAL` badge. Added a Compose regression that renders an international FMAT and asserts its business callout. Incremented Android to v1.47.0/code 56.
+- **Current Status**: Phase 5 UI is implemented locally; Android tests/build/signing, publication, and production validation remain.
+- **Next Actions**: Run backend/Android suites, validate the signed v1.47.0 APK, publish and verify CI/release/Render, then close Phase 5 and begin Phase 6 Team two-column manager redesign.
+
 ## 2026-08-09T03:09:00+05:30 - Phase 4 completed and production-validated (v1.46.0/code 55)
 - **Tool Used**: Codex (`gh`, GitHub Actions, Render production API probes, SHA-256 comparison)
 - **Files Modified**: `AI/PROGRESS.md`
