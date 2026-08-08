@@ -3,6 +3,7 @@ package com.example.skillsync.ui.batch
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -76,6 +77,8 @@ internal fun AllocationDeskContent(
     var query by remember { mutableStateOf("") }
     var matchBand by remember { mutableStateOf(MatchBand.ALL) }
     var selectedModes by remember { mutableStateOf(setOf<String>()) }
+    var selectedLanguages by remember { mutableStateOf(setOf<String>()) }
+    var selectedSkillLevels by remember { mutableStateOf(setOf<String>()) }
     var showFilters by remember { mutableStateOf(false) }
     var priorityExpanded by remember { mutableStateOf(true) }
     var otherExpanded by remember { mutableStateOf(true) }
@@ -85,12 +88,18 @@ internal fun AllocationDeskContent(
     val availableModes = remember(batches) {
         batches.map { it.str("delivery_mode") }.filter { it.isNotBlank() }.distinct().sorted()
     }
+    val availableLanguages = remember(batches) {
+        batches.map { it.str("language") }.filter { it.isNotBlank() }.distinct().sorted()
+    }
+    val availableSkillLevels = remember(batches) {
+        batches.map { it.str("skill_level") }.filter { it.isNotBlank() }.distinct().sorted()
+    }
 
     // Filtering narrows the set; it never reorders it. The list a manager sees
     // is either the untouched RMS order or a subset of it — arrival order is
     // how demand is actually worked, and re-sorting by match% (the previous
     // behaviour) buried high-priority batches the team can't yet cover.
-    val filtered = remember(batches, query, matchBand, selectedModes) {
+    val filtered = remember(batches, query, matchBand, selectedModes, selectedLanguages, selectedSkillLevels) {
         batches.filter { b ->
             val q = query.trim().lowercase()
             val matchesQuery = q.isBlank() ||
@@ -100,7 +109,9 @@ internal fun AllocationDeskContent(
                 b.str("demand_id").contains(q)
             val matchesBand = matchBand == MatchBand.ALL || matchBandOf(b.int("relevance")) == matchBand
             val matchesMode = selectedModes.isEmpty() || b.str("delivery_mode") in selectedModes
-            matchesQuery && matchesBand && matchesMode
+            val matchesLang = selectedLanguages.isEmpty() || b.str("language") in selectedLanguages
+            val matchesSkill = selectedSkillLevels.isEmpty() || b.str("skill_level") in selectedSkillLevels
+            matchesQuery && matchesBand && matchesMode && matchesLang && matchesSkill
         }
     }
 
@@ -108,19 +119,36 @@ internal fun AllocationDeskContent(
     // (is_priority) as the higher-business-value tier that earns dedicated,
     // premium visual treatment. Everything else keeps its RMS arrival order.
     val (priorityBatches, otherBatches) = remember(filtered) {
-        filtered.partition { it.bool("is_priority") }
+        val (prio, others) = filtered.partition { it.bool("is_priority") }
+        // Deprioritize ILO by pushing them to the bottom
+        val (ilo, nonIlo) = others.partition { 
+            val mode = it.str("delivery_mode").lowercase()
+            mode.contains("ilo") || mode.contains("instructor led online")
+        }
+        prio to (nonIlo + ilo)
     }
 
-    val activeFilterCount = selectedModes.size + (if (matchBand != MatchBand.ALL) 1 else 0)
+    val activeFilterCount = selectedModes.size + selectedLanguages.size + selectedSkillLevels.size + (if (matchBand != MatchBand.ALL) 1 else 0)
 
     if (showFilters) {
         FilterBottomSheet(
             availableModes = availableModes,
+            availableLanguages = availableLanguages,
+            availableSkillLevels = availableSkillLevels,
             selectedModes = selectedModes,
+            selectedLanguages = selectedLanguages,
+            selectedSkillLevels = selectedSkillLevels,
             matchBand = matchBand,
             onModesChange = { selectedModes = it },
+            onLanguagesChange = { selectedLanguages = it },
+            onSkillLevelsChange = { selectedSkillLevels = it },
             onBandChange = { matchBand = it },
-            onReset = { selectedModes = emptySet(); matchBand = MatchBand.ALL },
+            onReset = { 
+                selectedModes = emptySet()
+                selectedLanguages = emptySet()
+                selectedSkillLevels = emptySet()
+                matchBand = MatchBand.ALL 
+            },
             onDismiss = { showFilters = false },
         )
     }
@@ -224,6 +252,12 @@ internal fun AllocationDeskContent(
                         selectedModes.forEach { mode ->
                             ActiveFilterChip(mode) { selectedModes = selectedModes - mode }
                         }
+                        selectedLanguages.forEach { lang ->
+                            ActiveFilterChip(lang) { selectedLanguages = selectedLanguages - lang }
+                        }
+                        selectedSkillLevels.forEach { skill ->
+                            ActiveFilterChip(skill) { selectedSkillLevels = selectedSkillLevels - skill }
+                        }
                     }
                 }
             }
@@ -294,9 +328,15 @@ internal fun AllocationDeskContent(
 @Composable
 private fun FilterBottomSheet(
     availableModes: List<String>,
+    availableLanguages: List<String>,
+    availableSkillLevels: List<String>,
     selectedModes: Set<String>,
+    selectedLanguages: Set<String>,
+    selectedSkillLevels: Set<String>,
     matchBand: MatchBand,
     onModesChange: (Set<String>) -> Unit,
+    onLanguagesChange: (Set<String>) -> Unit,
+    onSkillLevelsChange: (Set<String>) -> Unit,
     onBandChange: (MatchBand) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit,
@@ -347,6 +387,58 @@ private fun FilterBottomSheet(
                             })
                             Spacer(Modifier.width(4.dp))
                             Text(mode, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
+                        }
+                    }
+                }
+            }
+            if (availableLanguages.isNotEmpty()) {
+                Spacer(Modifier.height(20.dp))
+                Text("Language".uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.subText, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    availableLanguages.forEach { lang ->
+                        val checked = lang in selectedLanguages
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    onLanguagesChange(if (checked) selectedLanguages - lang else selectedLanguages + lang)
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = checked, onCheckedChange = {
+                                onLanguagesChange(if (checked) selectedLanguages - lang else selectedLanguages + lang)
+                            })
+                            Spacer(Modifier.width(4.dp))
+                            Text(lang, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
+                        }
+                    }
+                }
+            }
+            if (availableSkillLevels.isNotEmpty()) {
+                Spacer(Modifier.height(20.dp))
+                Text("Skill Level".uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.subText, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    availableSkillLevels.forEach { skill ->
+                        val checked = skill in selectedSkillLevels
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    onSkillLevelsChange(if (checked) selectedSkillLevels - skill else selectedSkillLevels + skill)
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = checked, onCheckedChange = {
+                                onSkillLevelsChange(if (checked) selectedSkillLevels - skill else selectedSkillLevels + skill)
+                            })
+                            Spacer(Modifier.width(4.dp))
+                            Text(skill, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
                         }
                     }
                 }
@@ -474,21 +566,32 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, isPriority: Boolean = true,
     val risk = b.str("assignment_risk")
     val riskTint = when (risk) { "High" -> sk.crit; "Medium" -> sk.warn; else -> sk.aqua }
 
+    val gradientColors = if (isPriority) {
+        listOf(sk.cardBg, sk.teal.copy(alpha = 0.05f))
+    } else {
+        listOf(sk.cardBg, sk.cardBg)
+    }
+
     Box(
         Modifier
             .fillMaxWidth()
             .animateContentSize()
-            .accentGlass(coverageTint, RoundedCornerShape(Radii.card), strong = isPriority)
+            .background(
+                brush = androidx.compose.ui.graphics.Brush.linearGradient(gradientColors),
+                shape = RoundedCornerShape(Radii.card)
+            )
+            .border(1.dp, sk.cardBorder.copy(alpha = 0.5f), RoundedCornerShape(Radii.card))
+            .clip(RoundedCornerShape(Radii.card))
             .clickable(onClick = onClick),
     ) {
         Row {
             // Coverage is the primary scan signal — can my team even do this —
             // so it owns the leading edge, same convention as the roster card.
             Box(
-                Modifier.width(3.dp).fillMaxHeight()
+                Modifier.width(4.dp).fillMaxHeight()
                     .background(
                         androidx.compose.ui.graphics.Brush.verticalGradient(
-                            listOf(coverageTint, coverageTint.copy(alpha = 0.2f))
+                            listOf(coverageTint, coverageTint.copy(alpha = 0.3f))
                         )
                     )
             )

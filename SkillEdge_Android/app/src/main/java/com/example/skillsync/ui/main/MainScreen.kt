@@ -404,7 +404,8 @@ internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
 
 // ── Drill-down ────────────────────────────────────────────────────────────────
 
-data class Drill(val title: String, val subtitle: String, val rows: List<Pair<String, String>>)
+data class DrillRow(val primary: String, val secondary: String, val targetEmail: String? = null)
+data class Drill(val title: String, val subtitle: String, val rows: List<DrillRow>)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -420,12 +421,42 @@ private fun DrillSheet(drill: Drill, onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.skill.subText,
                 )
             }
-            drill.rows.forEach { (primary, secondary) ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
+            drill.rows.forEach { row ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(primary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.skill.bodyText)
-                        if (secondary.isNotBlank()) {
-                            Text(secondary, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText)
+                        Text(row.primary, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.skill.bodyText)
+                        if (row.secondary.isNotBlank()) {
+                            Text(row.secondary, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText)
+                        }
+                    }
+                    if (row.targetEmail != null) {
+                        Spacer(Modifier.width(8.dp))
+                        var showQuickMsg by remember { mutableStateOf(false) }
+                        IconButton(onClick = { showQuickMsg = true }) {
+                            Icon(painterResource(R.drawable.ic_mail), "Send Message", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        }
+                        if (showQuickMsg) {
+                            // We can use a simple quick message dialog right here
+                            var msg by remember { mutableStateOf("Hi ${row.primary.split(" ").first()},\n\nPlease resolve your ${row.secondary}.") }
+                            AlertDialog(
+                                onDismissRequest = { showQuickMsg = false },
+                                title = { Text("Message ${row.primary.split(" ").first()}") },
+                                text = {
+                                    OutlinedTextField(
+                                        value = msg,
+                                        onValueChange = { msg = it },
+                                        modifier = Modifier.fillMaxWidth().height(120.dp),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                },
+                                confirmButton = {
+                                    Button(onClick = { showQuickMsg = false }) { Text("Send") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showQuickMsg = false }) { Text("Cancel") }
+                                },
+                                containerColor = MaterialTheme.skill.cardBg
+                            )
                         }
                     }
                 }

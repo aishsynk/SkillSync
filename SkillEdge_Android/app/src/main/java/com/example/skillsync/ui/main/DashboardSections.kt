@@ -322,10 +322,13 @@ fun ManagerKpiGrid(
     fun c(key: String) = capKpis?.intOrNull(key)
 
     fun namesOf(rows: List<Map<*, *>>) = rows.map {
-        it.str("trainer_name") to listOfNotNull(
-            it.str("designation").takeIf(String::isNotBlank),
-            it.intOrNull("current_utilization")?.let { u -> "$u%" },
-        ).joinToString(" · ")
+        com.example.skillsync.ui.main.DrillRow(
+            it.str("trainer_name"),
+            listOfNotNull(
+                it.str("designation").takeIf(String::isNotBlank),
+                it.intOrNull("current_utilization")?.let { u -> "$u%" },
+            ).joinToString(" · ")
+        )
     }
 
     val stateBy = states.associateBy { it.str("trainer_email").lowercase() }
@@ -349,7 +352,10 @@ fun ManagerKpiGrid(
         Kpi("Active deliveries", figure(n("active_batches")), "running today", sk.royal,
             Drill("Active deliveries", "Currently being delivered",
                 batches.filter { it.str("engagement_state") == "current" }.map {
-                    it.str("course_name") to "${it.str("trainer_name")} · ${it.str("delivery_mode")}"
+                    com.example.skillsync.ui.main.DrillRow(
+                        it.str("course_name"),
+                        "${it.str("trainer_name")} · ${it.str("delivery_mode")}"
+                    )
                 }),
             icon = R.drawable.ic_inbox,
             trend = "${n("upcoming_batches") ?: 0} upcoming",
@@ -360,8 +366,10 @@ fun ManagerKpiGrid(
             utilTint(n("avg_team_utilization"), sk),
             Drill("Utilisation", "Three-month average per trainer",
                 ops.sortedByDescending { it.int("current_utilization") }.map {
-                    it.str("trainer_name") to
-                        (if (it.bool("utilization_available")) "${it.int("current_utilization")}%" else "no data")
+                    com.example.skillsync.ui.main.DrillRow(
+                        it.str("trainer_name"),
+                        if (it.bool("utilization_available")) "${it.int("current_utilization")}%" else "no data"
+                    )
                 }),
             icon = R.drawable.ic_trend,
             trend = kpis?.str("utilization_trend").orEmpty(),
@@ -372,8 +380,10 @@ fun ManagerKpiGrid(
             "${c("ready_trainers") ?: 0} rated Ready", sk.cyan,
             Drill("Readiness", "Qubits, approved catalogue depth and spare capacity",
                 capTrainers.sortedByDescending { it.int("readiness_score") }.map {
-                    it.str("trainer_name") to
+                    com.example.skillsync.ui.main.DrillRow(
+                        it.str("trainer_name"),
                         "${it.intOrNull("readiness_score") ?: "—"} · ${it.str("readiness_bucket")}"
+                    )
                 }),
             icon = R.drawable.ic_check,
             trend = kpis?.str("readiness_trend").orEmpty(),
@@ -384,8 +394,11 @@ fun ManagerKpiGrid(
         Kpi("At risk", "$atRisk", "resources flagged", sk.crit,
             Drill("At-risk resources", "Feedback risk flagged on the operations record",
                 ops.filter { it.str("feedback_risk") == "High" }.map {
-                    it.str("trainer_name") to
-                        "${it.str("designation")} · ${it.str("recommended_action")}"
+                    com.example.skillsync.ui.main.DrillRow(
+                        it.str("trainer_name"),
+                        "${it.str("designation")} · ${it.str("recommended_action")}",
+                        it.str("trainer_email").ifBlank { it.str("email") }
+                    )
                 }),
             icon = R.drawable.ic_alert,
             trend = if (atRisk == 0) "team clear" else "needs review",
@@ -395,7 +408,11 @@ fun ManagerKpiGrid(
         Kpi("Needs action", "$openActions", "decisions waiting on you", sk.warn,
             Drill("Actions requiring attention", "Open manager actions and unallocated demand",
                 ops.filter { it.str("recommended_action").isNotBlank() }.map {
-                    it.str("trainer_name") to it.str("recommended_action")
+                    com.example.skillsync.ui.main.DrillRow(
+                        it.str("trainer_name"),
+                        it.str("recommended_action"),
+                        it.str("trainer_email").ifBlank { it.str("email") }
+                    )
                 }),
             icon = R.drawable.ic_flag,
             trend = "${n("open_demand") ?: 0} unallocated demands",

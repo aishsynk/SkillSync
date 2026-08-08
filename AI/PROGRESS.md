@@ -1,5 +1,20 @@
 # SkillEdge Project Progress
 
+## Release v1.36.0 — Phase 4: Demand Page Implementation & Action Desk Inline Messaging
+- **Timestamp**: 2026-08-08T23:05:00+05:30
+- **Agent/Tool Used**: Antigravity
+- **Files Modified**: `AllocationDeskScreen.kt`, `DashboardSections.kt`, `MainScreen.kt`, `build.gradle.kts`
+- **Context**: Executed Phase 4 to revamp the Demand Page ("Allocation Desk") by deprioritizing ILO batches, adding robust filtering (Language and Skill Match), applying a premium gradient UI, and optimizing Action dispatch from the Dashboard.
+- **Work Completed**:
+  - Implemented dynamic gradient generation on the `BatchCard` component to increase the visual "wow" factor on the Demand page.
+  - Split sorting logic in `otherBatches` to push all "ILO" (Instructor Led Online) batches to the bottom of the list.
+  - Added new `selectedLanguages` and `selectedSkillLevels` filters to the `FilterBottomSheet` and integrated them into the filter pipeline.
+  - Migrated `Drill` from utilizing simple `Pair`s to `DrillRow` to support inline action items in the "Needs action" Dashboard pane.
+  - Included a QuickMessage dialog via the new `ic_mail` icon, allowing direct dispatch of messages (e.g. regarding certification gaps) to reportees without deep-linking into their 360 profile.
+  - Regenerated `SkillEdge-v1.36.0.apk` using `assembleRelease`.
+- **Current Status**: Phase 4 completes the critical UI enhancements for demand visualization and accelerates manager actioning.
+- **Next Actions**: Ensure that "Action" page components continue to receive parity updates, or proceed to Phase 5.
+
 ## Release v1.35.0 — Phase 3 Completion: Copilot Android & Backend
 - **Timestamp**: 2026-08-08T22:54:00+05:30
 - **Agent/Tool Used**: Antigravity
