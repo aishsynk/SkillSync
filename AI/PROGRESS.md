@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T03:09:00+05:30 - Phase 4 completed and production-validated (v1.46.0/code 55)
+- **Tool Used**: Codex (`gh`, GitHub Actions, Render production API probes, SHA-256 comparison)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published commit `dbe0c3181c3bac412b9661bdee4390553df4fcf1`; GitHub Actions run `31279506824` passed and created release `v1.46.0.55` with `SkillEdge-v1.46.0.55.apk` and full release notes. CI APK digest is `17bd3c43abe5e571b32705ad88437dd249154bda89e723501ffa805048f0b930`. Production returned 8 batches strictly ordered `FMAT > ILO×7` with tiers `1,3,3,3,3,3,3,3`; there are currently no ILT/Unknown rows and no matched candidates in Aishwar's live payload, so within-section suitability and the qualifying Aishwar rule are validated by the 13 passing backend tests. Cold fresh Demand took 26.2 s and cached refresh 0.3 s. Repeated fresh Demand GETs left Aishwar's trainer-skill SHA-256 unchanged at `41512972C84CF891BBBF94FF976EAD2643CFF87B9A32493BE6EEB49F8C59A2F3`; no legacy `auto_marked` field is served.
+- **Current Status**: Phase 4 is complete across implementation, tests, CI, signed/versioned APK, GitHub release, Render and live ordering/read-only checks. No known matching/order/write blocker remains. Physical APK install-over-existing remains unexecuted because ADB has no connected device; package/signature/version continuity passed.
+- **Next Actions**: Begin Phase 5 international Demand design: strengthen international FMAT/ILT business hierarchy and premium visibility while preserving accessibility, information density, manager actions, and the now-validated ranking contract; publish only after UI tests/build/production validation.
+
 ## 2026-08-09T03:02:00+05:30 - Phase 4 local release gate passed
 - **Tool Used**: Codex (`unittest`, Gradle, APK Signer, AAPT, ADB audit)
 - **Files Modified**: `backend.py`, `tests/test_demand_safety.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
