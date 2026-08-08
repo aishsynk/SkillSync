@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T04:00:00+05:30 - Phase 6 local release gate passed
+- **Tool Used**: Codex (`unittest`, Gradle, Compose JVM tests, APK Signer)
+- **Files Modified**: `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/ScreenRenderTest.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Corrected a test-only invalid Compose import found by the first gate. Backend tests pass 13/13 and Android tests pass 33/33; both manager-card KPI/action coverage and two-cards-in-one-phone-row regressions pass. v1.48.0/code 57 release APK assembled with SHA-256 `70C5860175476758C08109A170D001FEE9B3EA2EBAF4143CA2F3FE2447CED6BC`; production signer is unchanged.
+- **Current Status**: Phase 6 passed local compile, render, layout assertion, test, release build and signing gates. Publication/CI/live Team-capability-Actions validation remain; physical upgrade install remains unavailable without a connected ADB device.
+- **Next Actions**: Commit/push v1.48.0, verify CI/release and live Team/capability/Actions endpoints, publish notes, close Phase 6, then begin Phase 7 Trainer 360 manager-intelligence redesign.
+
+## 2026-08-09T03:58:00+05:30 - Phase 6 Team command-card redesign implemented locally
+- **Tool Used**: Codex (`apply_patch`)
+- **Files Modified**: `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/TeamTab.kt`, `TeamMemberCard.kt`, `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/ScreenRenderTest.kt`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Forced a two-column trainer grid on phones and tablets. Reworked each compact manager card to surface health, delivery status, utilisation, readiness, certifications held, certification gaps, current assignment, upcoming allocation count/next course, evidence-based future availability, feedback risk, recommended action and real open-action count. Added Compose regressions for the manager KPIs/action badge and for two trainer cards sharing the same phone row. Incremented Android to v1.48.0/code 57.
+- **Current Status**: Phase 6 is implemented locally; Android compile/render tests, release signing, publication and production contract validation remain.
+- **Next Actions**: Run full gates, resolve any compact-layout/Compose failures, publish v1.48.0 only after signing and CI pass, validate Team/capability/Actions production data, then begin Phase 7 Trainer 360 redesign.
+
 ## 2026-08-09T03:50:00+05:30 - Phase 5 completed and production-validated (v1.47.0/code 56)
 - **Tool Used**: Codex (`gh`, GitHub Actions, production Demand probe)
 - **Files Modified**: `AI/PROGRESS.md`

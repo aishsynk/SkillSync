@@ -61,6 +61,9 @@ internal fun TeamMemberCard(
     val gaps = cert?.int("gap_count") ?: 0
     val readiness = capability?.intOrNull("readiness_score")
     val readinessBucket = capability?.str("readiness_bucket").orEmpty()
+    val feedbackRisk = trainer.str("feedback_risk").ifBlank { "Unknown" }
+    val availability = trainer.str("availability_status").ifBlank { "Unverified" }
+    val nextAvailable = trainer.str("next_available_date")
 
     val recommended = trainer.str("recommended_action")
         .takeIf { it.isNotBlank() && it != "Monitor performance" }
@@ -186,32 +189,16 @@ internal fun TeamMemberCard(
 
             Spacer(Modifier.height(7.dp))
 
-            // ── Certificates held vs gaps ───────────────────────────────────
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painterResource(R.drawable.ic_certificate), null,
-                    tint = sk.ice, modifier = Modifier.size(11.dp),
+            // ── Credentials: manager KPIs, not profile-only detail ─────────
+            Row(Modifier.fillMaxWidth()) {
+                MiniMetric(
+                    "CERTS", if (capability == null) "…" else "$held",
+                    if (held > 0) sk.ice else sk.subText, Modifier.weight(1f),
                 )
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    if (capability == null) "certs loading" else "$held held",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.labelText, fontSize = 9.5.sp,
+                MiniMetric(
+                    "GAPS", if (capability == null) "…" else "$gaps",
+                    if (gaps > 0) sk.warn else sk.aqua, Modifier.weight(1f),
                 )
-                if (gaps > 0) {
-                    Spacer(Modifier.width(7.dp))
-                    Box(
-                        Modifier.clip(RoundedCornerShape(4.dp))
-                            .background(sk.warn.copy(alpha = 0.18f))
-                            .padding(horizontal = 5.dp, vertical = 1.dp),
-                    ) {
-                        Text(
-                            "$gaps gap${if (gaps == 1) "" else "s"}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = sk.warn, fontSize = 8.5.sp, fontWeight = FontWeight.Bold,
-                        )
-                    }
-                }
             }
 
             Spacer(Modifier.height(8.dp))
@@ -260,6 +247,48 @@ internal fun TeamMemberCard(
                 )
             }
 
+            Spacer(Modifier.height(5.dp))
+            Text(
+                if (nextAvailable.isNotBlank()) "$availability · ${nextAvailable.shortDate()}" else availability,
+                style = MaterialTheme.typography.labelSmall,
+                color = when (availability.lowercase()) {
+                    "available" -> sk.aqua
+                    "conflict" -> sk.crit
+                    else -> sk.warn
+                },
+                fontSize = 8.5.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+
+            Spacer(Modifier.height(5.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Surface(
+                    color = when (feedbackRisk) {
+                        "High" -> sk.crit.copy(alpha = 0.14f)
+                        "Medium" -> sk.warn.copy(alpha = 0.14f)
+                        else -> sk.aqua.copy(alpha = 0.10f)
+                    },
+                    shape = RoundedCornerShape(5.dp),
+                ) {
+                    Text(
+                        "$feedbackRisk risk", style = MaterialTheme.typography.labelSmall,
+                        color = when (feedbackRisk) { "High" -> sk.crit; "Medium" -> sk.warn; else -> sk.aqua },
+                        fontSize = 7.5.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                    )
+                }
+                if (openActionCount > 0) {
+                    Surface(color = sk.crit.copy(alpha = 0.14f), shape = RoundedCornerShape(5.dp)) {
+                        Text(
+                            "$openActionCount action${if (openActionCount == 1) "" else "s"}",
+                            style = MaterialTheme.typography.labelSmall, color = sk.crit,
+                            fontSize = 7.5.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
+
             // ── Action flag, only when one is genuinely required ────────────
             if (recommended != null) {
                 Spacer(Modifier.height(8.dp))
@@ -283,16 +312,6 @@ internal fun TeamMemberCard(
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
-            }
-            if (openActionCount > 0) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "$openActionCount open manager action${if (openActionCount == 1) "" else "s"}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.crit,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 8.5.sp,
-                )
             }
         }
     }

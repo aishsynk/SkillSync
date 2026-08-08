@@ -57,6 +57,8 @@ class ScreenRenderTest {
         "current_utilization" to util,
         "capacity_bucket" to capacity,
         "feedback_risk" to "Low",
+        "availability_status" to "Available",
+        "next_available_date" to "2026-08-10",
         "negative_count" to 0.0,
         "upcoming_count" to 2.0,
         "recommended_action" to "Monitor performance",
@@ -408,7 +410,13 @@ class ScreenRenderTest {
     fun teamTab_rendersRosterAndFilterControls() {
         compose.setContent {
             SkillSyncTheme {
-                TeamTab(dashboardPayload(), capabilityPayload()) { _, _ -> }
+                TeamTab(
+                    dashboardPayload(), capabilityPayload(),
+                    actions = listOf(mapOf(
+                        "trainer_email" to "abhinav.samant@koenig-solutions.com",
+                        "lifecycle_state" to "open",
+                    )),
+                ) { _, _ -> }
             }
         }
         compose.onNodeWithText("Filters").assertExists()
@@ -417,8 +425,10 @@ class ScreenRenderTest {
         compose.onNodeWithText("Sort: Health").assertExists()
         compose.onNodeWithText("1 of 1 trainers").assertExists()
         compose.onAllNodesWithText("Abhinav Samant").onFirst().assertExists()
-        // Certificates, gap counts and readiness buckets are detail-screen
-        // information now — the roster card answers status/health/action only.
+        listOf("UTIL", "READY", "CERTS", "GAPS", "Low risk", "1 action").forEach {
+            compose.onNodeWithText(it).assertExists()
+        }
+        compose.onNodeWithText("Available", substring = true).assertExists()
     }
 
     @Test
@@ -575,6 +585,23 @@ class ScreenRenderTest {
             compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(label))
             compose.onAllNodesWithText(label).onFirst().assertExists()
         }
+    }
+
+    @Test
+    fun teamTab_placesTwoTrainerCardsInOnePhoneRow() {
+        val data = dashboardPayload().toMutableMap()
+        data["trainer_operations_df"] = listOf(
+            trainerOps(),
+            trainerOps("Beena Rao", "beena.rao@koenig-solutions.com", 64.0, "Balanced"),
+        )
+        compose.setContent {
+            SkillSyncTheme { TeamTab(data, capabilityPayload()) { _, _ -> } }
+        }
+        val firstTop = compose.onAllNodesWithText("Abhinav Samant").onFirst()
+            .fetchSemanticsNode().boundsInRoot.top
+        val secondTop = compose.onNodeWithText("Beena Rao")
+            .fetchSemanticsNode().boundsInRoot.top
+        assertEquals(firstTop, secondTop, 0.5f)
     }
 
     /** Held / missing / recommended — the certification gap analysis in full. */

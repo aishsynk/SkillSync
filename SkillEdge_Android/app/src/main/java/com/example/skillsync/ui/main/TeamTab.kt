@@ -13,7 +13,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -97,7 +96,9 @@ internal fun TeamTab(
     onTrainerClick: (String, String) -> Unit,
 ) {
     val sk = MaterialTheme.skill
-    val columns = if (LocalConfiguration.current.screenWidthDp >= 600) 2 else 1
+    // Manager comparison surface: two trainers must remain visible per row on
+    // phones as well as tablets. Cards own their compact responsive layout.
+    val columns = 2
     val ops = data.rows("trainer_operations_df")
     val stateMap = data.rows("trainer_current_state_df").associateBy { it.str("trainer_email").lowercase() }
     val capMap = (capability?.rows("trainers") ?: emptyList())
@@ -249,9 +250,6 @@ internal fun TeamTab(
                 )
             }
         }
-        // Phones need a full-width command card so names, assignments and the
-        // action signal remain legible. Tablets retain the two-up comparison
-        // surface where each card still has enough physical width.
         val rows = shown.chunked(columns)
         itemsIndexed(rows) { rowIndex, pair ->
             Appear(rowIndex) {
