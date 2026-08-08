@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T03:02:00+05:30 - Phase 4 local release gate passed
+- **Tool Used**: Codex (`unittest`, Gradle, APK Signer, AAPT, ADB audit)
+- **Files Modified**: `backend.py`, `tests/test_demand_safety.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Backend tests pass 13/13 and Android JVM/Compose tests pass 31/31; v1.46.0/code 55 release APK assembled. APK SHA-256 is `332DFCFBB73081873B8E947B9BDCE7CBF75E2C9AC56B522630B2253CF2EA9619`; package is `com.example.skillsync`; signer SHA-256 remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Static audit confirms `addTrainerSkill` remains reachable only from the explicit skill-write POST route, not Demand/recommendation paths.
+- **Current Status**: Phase 4 passed local logic, UI compilation, tests, packaging, version and signature gates. No Android device/emulator is connected, so a literal install-over-existing test could not be executed; package/signature/version continuity passed, but physical upgrade remains an environment validation gap rather than a claimed success.
+- **Next Actions**: Commit/push v1.46.0, verify GitHub Actions/release and Render, validate production FMAT→ILT→ILO→Unknown order, suitability fields, Aishwar recommendation/no-write behavior and latency, then close Phase 4 and start Phase 5.
+
+## 2026-08-09T02:56:00+05:30 - Phase 4 matching and ordering implemented locally
+- **Tool Used**: Codex (`apply_patch`, Python unittest)
+- **Files Modified**: `backend.py`, `tests/test_demand_safety.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Enforced strict mode tiers FMAT 1, ILT 2, ILO 3, Unknown 4; unknown/non-ILO modes are no longer marked priority. Demand sorts by mode then best trainer suitability. Added an explainable weighted candidate score using skill, readiness, verified availability, utilisation, feedback, English/required language, and location suitability, with unknown source states kept neutral and explicit. Candidate utilisation/resume context is prefetched once per trainer per board. The logged-in manager remains in the candidate pool even outside the top five. International FMAT/ILT with Aishwar match >=75% remains read-only and now proposes the first verified conflict-free weekend where RMS evidence permits, with Skill Level 8 and verification reasons. Android cards show suitability and component scores plus verified/unverified recommendation availability. Incremented Android to v1.46.0/code 55.
+- **Current Status**: Phase 4 implementation is local. Backend tests currently pass 13/13; Android build/test, signing, performance, publication and production validation remain.
+- **Next Actions**: Run full backend/Android gates, verify signed APK, publish v1.46.0, validate live ordering/suitability/Aishwar metadata and RMS write protection, then begin Phase 5 international Demand design.
+
 ## 2026-08-09T03:18:00+05:30 - Phase 3 completed and production-validated (v1.45.0/code 54)
 - **Tool Used**: Codex (`gh`, GitHub Actions, Render production API validation)
 - **Files Modified**: `AI/PROGRESS.md`

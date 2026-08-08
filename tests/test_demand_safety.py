@@ -46,6 +46,8 @@ class DemandSafetyTests(unittest.TestCase):
             rms_roles.append(role)
             if role == "reportees":
                 return []
+            if role in {"prevUpcoming", "trainerDetails"}:
+                return None
             raise AssertionError(f"unexpected RMS role from Demand GET: {role}")
 
         with (
@@ -168,6 +170,89 @@ class AvailabilityEvidenceTests(unittest.TestCase):
         self.assertFalse(result["verified"])
         self.assertIsNone(result["available"])
         self.assertEqual(result["status"], "unverified")
+
+    def test_next_available_weekend_skips_assignment_conflict(self):
+        weekend, evidence = backend._next_available_weekend(
+            backend._AISHWAR_EMAIL,
+            sources=([{
+                "StarDate": "15-Aug-2026", "EndDate": "16-Aug-2026",
+                "AssignmentId": "A-1", "Course": "Azure",
+            }], [{"OffEmail": backend._AISHWAR_EMAIL}]),
+            today=date(2026, 8, 9),
+        )
+        self.assertEqual(weekend.isoformat(), "2026-08-22")
+        self.assertTrue(evidence["verified"])
+        self.assertEqual(evidence["status"], "available")
+
+
+class DemandRankingTests(unittest.TestCase):
+    def test_delivery_mode_order_is_strict(self):
+        self.assertEqual(backend._priority_fields("FMAT", "India", 1, "Best Match")["priority_tier"], 1)
+        self.assertEqual(backend._priority_fields("ILT", "India", 1, "Best Match")["priority_tier"], 2)
+        self.assertEqual(backend._priority_fields("ILO", "", 1, "Best Match")["priority_tier"], 3)
+        unknown = backend._priority_fields("Hybrid", "", 1, "Best Match")
+        self.assertEqual(unknown["priority_tier"], 4)
+        self.assertFalse(unknown["is_priority"])
+
+    def test_demand_sort_uses_mode_then_suitability(self):
+        rows = [
+            {"demand_id": "unknown", "priority_tier": 4, "best_suitability_score": 100},
+            {"demand_id": "ilt-low", "priority_tier": 2, "best_suitability_score": 60},
+            {"demand_id": "fmat", "priority_tier": 1, "best_suitability_score": 20},
+            {"demand_id": "ilo", "priority_tier": 3, "best_suitability_score": 99},
+            {"demand_id": "ilt-high", "priority_tier": 2, "best_suitability_score": 90},
+        ]
+        rows.sort(key=backend._demand_sort_key)
+        self.assertEqual(
+            [row["demand_id"] for row in rows],
+            ["fmat", "ilt-high", "ilt-low", "ilo", "unknown"],
+        )
+
+    def test_ranking_uses_all_suitability_components_and_english_preference(self):
+        feedback = {"blocked": False, "blocked_until": None, "recent_negative_6mo": False}
+        caps = [{"course": "AZ-900 Azure Fundamentals", "vendor": "Microsoft", "qubits_score": 80}]
+        team = [
+            ("English Trainer", "english@koenig-solutions.com", caps, feedback, False),
+            ("Other Trainer", "other@koenig-solutions.com", caps, feedback, False),
+        ]
+        sources = {
+            email: ([], [{"OffEmail": email}]) for email in (
+                "english@koenig-solutions.com", "other@koenig-solutions.com"
+            )
+        }
+        context = {
+            "english@koenig-solutions.com": {"utilization": 60, "languages": ["English"]},
+            "other@koenig-solutions.com": {"utilization": 10, "languages": ["Spanish"]},
+        }
+        batch = {
+            "course_name": "AZ-900 Azure Fundamentals", "customer": "Microsoft",
+            "delivery_mode": "ILO", "start_date": "2026-08-20", "end_date": "2026-08-21",
+            "location": "", "language": "English",
+        }
+        _match, candidates, _coverage = backend._rank_batch(
+            batch, team, availability_sources=sources, candidate_context=context
+        )
+        self.assertEqual(candidates[0]["trainer_email"], "english@koenig-solutions.com")
+        self.assertEqual(
+            set(candidates[0]["suitability_components"]),
+            {"skill", "readiness", "availability", "utilization", "feedback", "language", "location"},
+        )
+
+    def test_aishwar_recommendation_carries_verified_weekend_and_level_eight(self):
+        batch = {"delivery_mode_kind": "FMAT", "is_international": True}
+        candidates = [{
+            "trainer_name": "Aishwar (You)", "trainer_email": backend._AISHWAR_EMAIL,
+            "match": 80,
+        }]
+        evidence = {
+            "status": "available", "verified": True, "reason": "No conflicts", "conflicts": [],
+        }
+        result = backend._aishwar_recommendation(
+            batch, candidates, weekend_availability=(date(2026, 8, 22), evidence)
+        )
+        self.assertEqual(result["suggested_skill_level"], 8)
+        self.assertEqual(result["suggested_availability"], "2026-08-22")
+        self.assertTrue(result["availability_verified"])
 
 
 if __name__ == "__main__":

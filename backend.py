@@ -625,15 +625,15 @@ def _delivery_row(ops_row, state_row):
 
 
 def _safe_util(email):
-    """Current utilisation for one address; 0 when nothing is known.
+    """Current utilisation for one address; None when nothing is known.
 
     Ranking-only — a missing value still has to sort somewhere. Display paths
     use _current_util directly so they can distinguish None from 0.
     """
     try:
-        return _current_util(_util_series(_util_row(email))) or 0
+        return _current_util(_util_series(_util_row(email)))
     except Exception:
-        return 0
+        return None
 
 
 def _skills(email):
@@ -967,7 +967,76 @@ def _speaks_english(languages):
     return any("english" in n for n in _language_names(languages))
 
 
-def _rank_batch(batch, team, availability_sources=None):
+def _location_suitability(batch):
+    """Location score without inventing trainer travel/base data RMS lacks."""
+    mode = str(batch.get("delivery_mode_kind", "") or "").upper()
+    if not mode:
+        raw_mode = str(batch.get("delivery_mode", "") or "").upper()
+        mode = ("FMAT" if _re.search(r"\bFMAT\b", raw_mode) else
+                "ILT" if _re.search(r"\bILT\b", raw_mode) else
+                "ILO" if _re.search(r"\bILO\b", raw_mode) else "OTHER")
+    location = str(batch.get("location", "") or "").strip().lower()
+    location_known = batch.get("location_known", bool(location))
+    is_international = batch.get(
+        "is_international",
+        bool(location) and not any(marker in location for marker in _INDIA_MARKERS),
+    )
+    if mode == "ILO":
+        return 100, "Remote delivery is location-compatible", True
+    if not location_known:
+        return 50, "Physical-delivery location is not recorded", False
+    if is_international:
+        return 50, "International travel/visa suitability is not available in RMS", False
+    return 70, "Domestic physical delivery; trainer base/travel time is not available", False
+
+
+def _suitability_components(batch, skill_match, readiness, availability, utilization,
+                            feedback, languages):
+    """Explainable 0-100 allocation score using every approved business signal."""
+    batch_lang = str(batch.get("language", "") or "").strip().lower()
+    trainer_langs = _language_names(languages)
+    english = _speaks_english(languages)
+    if batch_lang and batch_lang != "english":
+        language_score = 100 if any(batch_lang in l for l in trainer_langs) else 0
+        language_reason = (f"Speaks required {batch_lang.title()}" if language_score
+                           else f"Required {batch_lang.title()} not recorded")
+    else:
+        language_score = 100 if english else 40
+        language_reason = "English preferred" if english else "English not recorded"
+
+    availability_score = {
+        "available": 100, "unverified": 45, "conflict": 0,
+    }.get(availability.get("status"), 45)
+    utilization_score = 50 if utilization is None else max(0, min(100, 100 - utilization))
+    feedback_score = 0 if feedback.get("blocked") else (
+        55 if feedback.get("recent_negative_6mo") else 100
+    )
+    location_score, location_reason, location_verified = _location_suitability(batch)
+
+    scores = {
+        "skill": max(0, min(100, int(skill_match or 0))),
+        "readiness": max(0, min(100, int(readiness or 0))),
+        "availability": availability_score,
+        "utilization": round(utilization_score),
+        "feedback": feedback_score,
+        "language": language_score,
+        "location": location_score,
+    }
+    weights = {
+        "skill": 0.40, "readiness": 0.20, "availability": 0.15,
+        "utilization": 0.10, "feedback": 0.05, "language": 0.05,
+        "location": 0.05,
+    }
+    total = round(sum(scores[key] * weights[key] for key in weights))
+    return total, scores, {
+        "language": language_reason,
+        "location": location_reason,
+        "location_verified": location_verified,
+        "utilization_verified": utilization is not None,
+    }
+
+
+def _rank_batch(batch, team, availability_sources=None, candidate_context=None):
     """
     Best team match for one unallocated batch, plus the ranked candidate list.
 
@@ -996,9 +1065,14 @@ def _rank_batch(batch, team, availability_sources=None):
     # Utilisation and language are per-course-RMS-call signals, so they are
     # only fetched for trainers who already matched the course — not the
     # whole team — to keep this proportional to real candidates.
+    context = candidate_context or {}
     with ThreadPoolExecutor(max_workers=8) as pool:
-        utils = list(pool.map(lambda m: _safe_util(m[1]), matched))
-        langs = list(pool.map(lambda m: _resume(m[1]).get("languages", []), matched))
+        utils = list(pool.map(
+            lambda m: context.get(m[1], {}).get("utilization", _UNSET), matched
+        ))
+        langs = list(pool.map(
+            lambda m: context.get(m[1], {}).get("languages", _UNSET), matched
+        ))
         availability = list(pool.map(
             lambda m: _availability_evidence(
                 m[1], batch.get("start_date", ""), batch.get("end_date", ""),
@@ -1006,6 +1080,9 @@ def _rank_batch(batch, team, availability_sources=None):
             ),
             matched,
         ))
+    utils = [_safe_util(m[1]) if value is _UNSET else value for m, value in zip(matched, utils)]
+    langs = [_resume(m[1]).get("languages", []) if value is _UNSET else value
+             for m, value in zip(matched, langs)]
 
     batch_lang = (batch.get("language") or "").strip().lower()
     batch_skill = (batch.get("skill_level") or "").strip().lower()
@@ -1040,6 +1117,9 @@ def _rank_batch(batch, team, availability_sources=None):
             "Available with Upskilling" if best >= 50 else
             "No Coverage"
         )
+        suitability, component_scores, suitability_context = _suitability_components(
+            batch, best, best_q, availability_row, util, feedback, languages
+        )
         candidates.append({
             "trainer_name":  name if not is_self else f"{name} (You)",
             "trainer_email": email,
@@ -1052,6 +1132,10 @@ def _rank_batch(batch, team, availability_sources=None):
             "availability":  availability_row,
             "availability_status": availability_row["status"],
             "availability_verified": availability_row["verified"],
+            "suitability_score": suitability,
+            "suitability_components": component_scores,
+            "suitability_context": suitability_context,
+            "language_preferred": component_scores["language"] == 100,
             "speaks_english": speaks_english,
             "exact":         best >= 92,
             "category":      coverage,
@@ -1069,11 +1153,11 @@ def _rank_batch(batch, team, availability_sources=None):
     availability_rank = {"available": 0, "unverified": 1, "conflict": 2}
     candidates.sort(key=lambda c: (
         c["blocked"],
+        0 if c["language_preferred"] else 1,
+        -c["suitability_score"],
         availability_rank.get(c["availability_status"], 1),
         -c["match"],
-        -c["readiness_score"],
-        0 if c["speaks_english"] else 1,
-        c["utilization"],
+        c["utilization"] if c["utilization"] is not None else 101,
         c["recent_negative_6mo"],
     ))
 
@@ -1090,7 +1174,11 @@ def _rank_batch(batch, team, availability_sources=None):
         rank += 1
 
     top = next((c for c in candidates if not c["blocked"]), candidates[0])
-    return top["match"], candidates[:5], top["coverage"]
+    visible = candidates[:5]
+    manager_candidate = next((c for c in candidates if c.get("is_self")), None)
+    if manager_candidate is not None and manager_candidate not in visible:
+        visible.append(manager_candidate)
+    return top["match"], visible, top["coverage"]
 
 
 # This is an intentionally narrow business rule requested for the manager who
@@ -1105,7 +1193,28 @@ def _next_weekend(today=None):
     return today + timedelta(days=(5 - today.weekday()) % 7)
 
 
-def _aishwar_recommendation(batch, candidates):
+def _next_available_weekend(email, sources=None, today=None):
+    """First verified conflict-free Sat/Sun; otherwise the next unverified one."""
+    saturday = _next_weekend(today)
+    assignments_raw, details_raw = sources or (_UNSET, _UNSET)
+    first_unverified = None
+    for week in range(52):
+        start = saturday + timedelta(days=week * 7)
+        evidence = _availability_evidence(
+            email, start, start + timedelta(days=1), assignments_raw, details_raw
+        )
+        if evidence["status"] == "available":
+            return start, evidence
+        if evidence["status"] == "unverified" and first_unverified is None:
+            first_unverified = (start, evidence)
+    return first_unverified or (saturday, {
+        "status": "conflict", "verified": True, "available": False,
+        "reason": "No conflict-free weekend found in the next 52 weeks",
+        "conflicts": [], "suggested_available_date": "",
+    })
+
+
+def _aishwar_recommendation(batch, candidates, weekend_availability=None):
     """Pure recommendation for a qualifying Aishwar international delivery.
 
     This function must remain side-effect free. Demand is loaded through GET
@@ -1127,6 +1236,13 @@ def _aishwar_recommendation(batch, candidates):
     if not candidate:
         return None
 
+    weekend_date, evidence = weekend_availability or (
+        _next_weekend(), {
+            "status": "unverified", "verified": False,
+            "reason": "Assignment and off-date evidence was not supplied",
+            "conflicts": [],
+        },
+    )
     return {
         "recommended": True,
         "recommendation_type": "manager_delivery",
@@ -1134,14 +1250,21 @@ def _aishwar_recommendation(batch, candidates):
         "trainer_email": _AISHWAR_EMAIL,
         "skill_match": int(candidate.get("match") or 0),
         "suggested_skill_level": 8,
-        "suggested_availability": _iso(_next_weekend()),
-        "availability_verified": False,
+        "suggested_availability": _iso(weekend_date),
+        "availability_verified": bool(evidence.get("verified")),
+        "availability_status": evidence.get("status", "unverified"),
+        "availability_reason": evidence.get("reason", ""),
+        "availability_conflicts": evidence.get("conflicts", []),
         "reasons": [
             "International FMAT/ILT opportunity",
             f"Aishwar skill match is {int(candidate.get('match') or 0)}%",
             "Manager delivery option for a priority engagement",
         ],
-        "verification_note": "Suggested weekend only; assignment and off-date conflicts are not yet verified",
+        "verification_note": (
+            "Next weekend verified against assignments and off-dates"
+            if evidence.get("verified") else
+            "Suggested weekend; RMS could not fully verify assignments and off-dates"
+        ),
     }
 
 
@@ -2910,10 +3033,10 @@ def _priority_fields(mode, location, participants, coverage):
     # online delivery. An unrecognised mode is treated as instructor-led
     # rather than demoted — an unknown mode is a data-quality question, not a
     # reason to bury a batch.
-    is_ilo = "ILO" in m
-    is_fmat = "FMAT" in m
-    is_ilt = "ILT" in m
-    is_instructor_led = not is_ilo
+    is_ilo = bool(_re.search(r"\bILO\b", m))
+    is_fmat = bool(_re.search(r"\bFMAT\b", m))
+    is_ilt = bool(_re.search(r"\bILT\b", m))
+    is_instructor_led = is_fmat or is_ilt
 
     loc = (location or "").strip().lower()
     location_known = bool(loc)
@@ -2944,15 +3067,13 @@ def _priority_fields(mode, location, participants, coverage):
     # FMAT and ILT both outrank ILO whatever the location, and an
     # international engagement raises whichever of the two it applies to.
     if is_fmat:
-        tier, tier_label = (1, "FMAT International") if is_international else (2, "FMAT")
+        tier, tier_label = 1, ("FMAT International" if is_international else "FMAT")
     elif is_ilt:
-        tier, tier_label = (2, "ILT International") if is_international else (3, "ILT")
+        tier, tier_label = 2, ("ILT International" if is_international else "ILT")
     elif is_ilo:
-        tier, tier_label = 4, "ILO"
+        tier, tier_label = 3, "ILO"
     else:
-        # An unrecognised mode is a data-quality question, not a reason to
-        # bury a batch, so it sits with the instructor-led tiers.
-        tier, tier_label = 3, (mode or "Unspecified")
+        tier, tier_label = 4, (mode or "Unknown")
 
     revenue_potential = (
         "High" if pax >= 15 or tier <= 2 else
@@ -2960,7 +3081,7 @@ def _priority_fields(mode, location, participants, coverage):
         "Low"
     )
     priority_score = (
-        (50 if is_fmat else 40 if is_ilt else 10 if is_ilo else 30) +
+        (50 if is_fmat else 40 if is_ilt else 10 if is_ilo else 0) +
         (30 if is_international else 0) +
         min(pax, 30)
     )
@@ -2988,6 +3109,16 @@ def _priority_fields(mode, location, participants, coverage):
         "priority_score":    priority_score,
         "assignment_risk":   assignment_risk,
     }
+
+
+def _demand_sort_key(batch):
+    """FMAT -> ILT -> ILO -> Unknown, then best trainer suitability."""
+    return (
+        int(batch.get("priority_tier") or 4),
+        -int(batch.get("best_suitability_score") or 0),
+        batch.get("start_date") or "9999-12-31",
+        batch.get("demand_id") or "",
+    )
 
 
 @app.route('/api/data/allocation-desk', methods=['GET'])
@@ -3038,10 +3169,22 @@ def allocation_desk():
     with ThreadPoolExecutor(max_workers=8) as pool:
         availability_sources = dict(pool.map(_availability_sources_for, team))
 
+    def _candidate_context_for(candidate):
+        candidate_email = candidate[1]
+        resume = _resume(candidate_email)
+        return candidate_email, {
+            "utilization": _safe_util(candidate_email),
+            "languages": resume.get("languages", []),
+        }
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        candidate_context = dict(pool.map(_candidate_context_for, team))
+
     priority_count = 0
     for b in demand:
         b["relevance"], b["candidates"], coverage = _rank_batch(
-            b, team, availability_sources=availability_sources
+            b, team, availability_sources=availability_sources,
+            candidate_context=candidate_context,
         )
         b["coverage_status"] = coverage
         b["relevance_band"] = (
@@ -3053,7 +3196,14 @@ def allocation_desk():
             b.get("delivery_mode"), b.get("location"), b.get("participants"), coverage,
         ))
         # Pure recommendation only. Loading Demand must never update RMS.
-        manager_recommendation = _aishwar_recommendation(b, b["candidates"])
+        weekend_availability = None
+        if b.get("delivery_mode_kind") in {"FMAT", "ILT"} and b.get("is_international"):
+            weekend_availability = _next_available_weekend(
+                _AISHWAR_EMAIL, availability_sources.get(_AISHWAR_EMAIL)
+            )
+        manager_recommendation = _aishwar_recommendation(
+            b, b["candidates"], weekend_availability=weekend_availability
+        )
         if manager_recommendation:
             b["manager_recommendation"] = manager_recommendation
             for candidate in b["candidates"]:
@@ -3061,6 +3211,16 @@ def allocation_desk():
                     candidate["manager_recommendation"] = manager_recommendation
         if b["is_priority"]:
             priority_count += 1
+
+        b["best_suitability_score"] = max(
+            (int(c.get("suitability_score") or 0) for c in b["candidates"]),
+            default=0,
+        )
+
+    # Business order is absolute; suitability only ranks demand inside its
+    # delivery-mode section. Stable demand id/date tie-breakers make refreshes
+    # deterministic instead of reshuffling equal rows.
+    demand.sort(key=_demand_sort_key)
 
     return jsonify({
         "manager": email,

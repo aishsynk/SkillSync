@@ -862,6 +862,7 @@ internal fun BatchCard(
                                         Text(
                                             listOfNotNull(
                                                 backupRole,
+                                                c.intOrNull("suitability_score")?.let { "$it suitability" },
                                                 c.intOrNull("utilization")?.let { "${it}% utilised" },
                                             ).joinToString(" · "),
                                             style = MaterialTheme.typography.labelSmall,
@@ -885,6 +886,14 @@ internal fun BatchCard(
                                                 else -> sk.warn
                                             },
                                             fontSize = 8.5.sp, maxLines = 1,
+                                        )
+                                    }
+                                    c.obj("suitability_components")?.let { parts ->
+                                        Text(
+                                            "Skill ${parts.int("skill")} · Ready ${parts.int("readiness")} · " +
+                                                "Avail ${parts.int("availability")} · Lang ${parts.int("language")}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = sk.subText, fontSize = 8.sp, maxLines = 1,
                                         )
                                     }
                                 }
@@ -966,9 +975,11 @@ internal fun BatchCard(
                                 maxLines = 2,
                             )
                             Text(
-                                "Suggested ${managerRecommendation.str("suggested_availability").shortDate()} · availability unverified",
+                                "Suggested ${managerRecommendation.str("suggested_availability").shortDate()} · " +
+                                    if (managerRecommendation.bool("availability_verified")) "availability verified" else "availability unverified",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = sk.warn, fontSize = 8.5.sp,
+                                color = if (managerRecommendation.bool("availability_verified")) sk.green else sk.warn,
+                                fontSize = 8.5.sp,
                             )
                         }
                     }
