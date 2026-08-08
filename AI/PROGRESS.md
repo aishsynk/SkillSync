@@ -1,5 +1,15 @@
 # SkillEdge Project Progress
 
+## Release v1.43.0 - Phase 1: Demand read safety
+- **Timestamp**: 2026-08-09T02:30:00+05:30
+- **Tool Used**: Codex, Git, GitHub Actions/Release, Render production probes, Python/Gradle/Android build tools
+- **Files Modified**: `backend.py`, `tests/test_demand_safety.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`, `AI/CONTEXT.md`, `AI/DECISIONS.md`
+- **Work Completed**: Published commit `a27428e4accf7ce61eb77b6a85fea3198a557d5e`. Demand GET/polling is now side-effect free; the previous Aishwar RMS auto-write is removed and replaced by pure recommendation metadata (match, suggested Skill Level 8, suggested weekend, reasons, availability explicitly unverified). Only the explicit POST skill route retains `addTrainerSkill`.
+- **Validation**: 3/3 backend safety tests and 31/31 Android tests pass; lint and release build pass. Render serves `manager_recommendations` and no longer serves legacy `auto_marked`. Two forced production Demand refreshes left the trainer-skill response hash unchanged (`41512972C84CF891BBBF94FF976EAD2643CFF87B9A32493BE6EEB49F8C59A2F3`).
+- **Release**: GitHub Actions run `31276525717` passed. Published [v1.43.0.51](https://github.com/aishsynk/SkillSync/releases/tag/v1.43.0.51), APK SHA-256 `990aaeb47401cbb55719f91a65bc6441d23294032921a780f1d833eb76b39b45`. Package `com.example.skillsync`, version code 51, and established signing certificate verified for in-place upgrade.
+- **Current Status**: Phase 1 is complete and production-validated. Phase 2 may begin.
+- **Next Actions**: Phase 2 — implement real repositories/domain contracts, automatic Team capability/action loading, complete-team visibility, explicit partial-error states, then publish and validate before Phase 3.
+
 ## 2026-08-09T02:22:00+05:30 - Phase 1 local safety gate passed
 - **Tool Used**: Python unittest/compile, Gradle JVM/Compose tests, Android lint, assembleRelease, apksigner, ripgrep
 - **Files Modified**: `AI/PROGRESS.md`
