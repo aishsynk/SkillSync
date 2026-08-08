@@ -869,6 +869,24 @@ internal fun BatchCard(
                                             maxLines = 1,
                                         )
                                     }
+                                    val availability = c.obj("availability")
+                                    val availabilityStatus = c.str("availability_status")
+                                    if (availabilityStatus.isNotBlank()) {
+                                        Text(
+                                            when (availabilityStatus) {
+                                                "available" -> "✓ Available for these dates"
+                                                "conflict" -> "Schedule conflict · ${availability?.str("suggested_available_date")?.shortDate()} next"
+                                                else -> "Availability unverified"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = when (availabilityStatus) {
+                                                "available" -> sk.green
+                                                "conflict" -> sk.red
+                                                else -> sk.warn
+                                            },
+                                            fontSize = 8.5.sp, maxLines = 1,
+                                        )
+                                    }
                                 }
                                 Text(
                                     if (blocked) "Blocked" else c.str("coverage"),

@@ -1324,6 +1324,42 @@ private fun SPOFAndActionsSection(cap: Map<*, *>?, metrics: Map<*, *>?) {
 private fun AvailabilitySection(avail: Map<*, *>?) {
     val sk = MaterialTheme.skill
     SectionCard("Availability", null) {
+        val status = avail?.str("status").orEmpty()
+        val verified = avail?.bool("verified") == true
+        val statusTint = when (status) {
+            "available" -> sk.green
+            "conflict" -> sk.red
+            else -> sk.amber
+        }
+        if (status.isNotBlank()) {
+            Surface(color = statusTint.copy(alpha = 0.11f), shape = RoundedCornerShape(8.dp)) {
+                Column(Modifier.fillMaxWidth().padding(10.dp)) {
+                    Text(
+                        if (verified) status.replaceFirstChar { it.uppercase() } else "Availability unverified",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = statusTint, fontWeight = FontWeight.Bold,
+                    )
+                    Text(avail?.str("reason").orEmpty(), style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                    avail?.str("suggested_available_date")?.takeIf { it.isNotBlank() }?.let {
+                        Text("Next conflict-free date: ${it.shortDate()}", style = MaterialTheme.typography.labelSmall, color = sk.bodyText)
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+        val conflicts = avail?.list("conflicts").orEmpty()
+        if (conflicts.isNotEmpty()) {
+            Label("Conflicts")
+            conflicts.take(5).forEach { conflict ->
+                Text(
+                    listOf(conflict.str("type").replace('_', ' '), conflict.str("course"), conflict.str("start_date").shortDate())
+                        .filter { it.isNotBlank() }.joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall, color = sk.red,
+                    modifier = Modifier.padding(vertical = 2.dp),
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+        }
         val off = avail?.obj("off_dates")
         if (off == null || off.isEmpty()) {
             EmptyNote("RMS exposes no leave or absence endpoint, and no off-dates are recorded for this trainer.")

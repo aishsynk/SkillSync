@@ -680,6 +680,111 @@ def _off_dates(email):
             if row.get(v) not in (None, "", "null")}
 
 
+_UNSET = object()
+
+
+def _availability_evidence(email, start_date, end_date, assignments_raw=_UNSET, details_raw=_UNSET):
+    """Return scheduling evidence for a requested date window.
+
+    Availability is never inferred from utilisation. It is verified only when
+    both the assignment calendar and trainer-detail/off-date source answered.
+    An undecodable off-date value makes the result unverified instead of
+    silently treating the trainer as free.
+    """
+    start = _parse_date(start_date)
+    end = _parse_date(end_date) or start
+    if not email or not start or not end:
+        return {
+            "status": "unverified", "verified": False, "available": None,
+            "reason": "Demand dates are missing or invalid", "conflicts": [],
+            "suggested_available_date": "",
+        }
+
+    if assignments_raw is _UNSET:
+        assignments_raw = _rms("prevUpcoming", {
+            "Startdate": _iso(start - timedelta(days=1)),
+            "Enddate": _iso(end + timedelta(days=90)), "Email": email,
+        })
+    if details_raw is _UNSET:
+        details_raw = _rms("trainerDetails", {"email": email})
+
+    assignments_verified = assignments_raw is not None
+    assignments = [a for a in (assignments_raw if isinstance(assignments_raw, list) else [])
+                   if isinstance(a, dict)]
+    details = (details_raw[0] if isinstance(details_raw, list) and details_raw
+               and isinstance(details_raw[0], dict) else {})
+    details_verified = details_raw is not None and bool(details)
+    off_fields = {
+        "roaming": "RoamingOffDates",
+        "international_roaming": "InternationaRoamingOffDates",
+        "night_il": "NightILOffDates",
+        "morning_il": "MorningILOffDates",
+        "evening_il": "EveningILOffDates",
+    }
+
+    off_dates, undecodable = [], []
+    for kind, field in off_fields.items():
+        raw = str(details.get(field, "") or "").strip()
+        if not raw or raw.lower() == "null":
+            continue
+        parsed_any = False
+        for token in _re.split(r"[,;|\n]+", raw):
+            parsed = _parse_date(token.strip())
+            if parsed:
+                parsed_any = True
+                off_dates.append((parsed, kind))
+        if not parsed_any:
+            undecodable.append(field)
+
+    conflicts = []
+    occupied = []
+    for assignment in assignments:
+        st = _parse_date(assignment.get("StarDate", assignment.get("StartDate", "")))
+        en = _parse_date(assignment.get("EndDate", "")) or st
+        if not st:
+            continue
+        occupied.append((st, en))
+        if st <= end and en >= start:
+            conflicts.append({
+                "type": "assignment", "start_date": _iso(st), "end_date": _iso(en),
+                "assignment_id": str(assignment.get("AssignmentId", "") or ""),
+                "course": str(assignment.get("Course", "") or "").strip(),
+            })
+    for day, kind in off_dates:
+        occupied.append((day, day))
+        if start <= day <= end:
+            conflicts.append({"type": "off_date", "date": _iso(day), "category": kind})
+
+    verified = assignments_verified and details_verified and not undecodable
+    probe = end + timedelta(days=1)
+    for _ in range(366):
+        if not any(st <= probe <= en for st, en in occupied):
+            break
+        probe += timedelta(days=1)
+
+    if conflicts:
+        status, available = "conflict", False
+        reason = f"{len(conflicts)} assignment/off-date conflict(s) in this window"
+    elif verified:
+        status, available = "available", True
+        reason = "No assignment or off-date conflicts found"
+    else:
+        status, available = "unverified", None
+        missing = []
+        if not assignments_verified: missing.append("assignment schedule")
+        if not details_verified: missing.append("off-dates")
+        if undecodable: missing.append("readable off-dates")
+        reason = "Could not verify " + ", ".join(missing or ["availability"])
+
+    return {
+        "status": status, "verified": verified, "available": available,
+        "reason": reason, "conflicts": conflicts,
+        "suggested_available_date": _iso(probe),
+        "assignments_verified": assignments_verified,
+        "off_dates_verified": details_verified and not undecodable,
+    }
+
+
 # ─── Course matching (allocation relevance) ───────────────────────────────────
 
 _STOP = {"the", "and", "for", "with", "using", "to", "in", "of", "on", "a", "an",
@@ -862,7 +967,7 @@ def _speaks_english(languages):
     return any("english" in n for n in _language_names(languages))
 
 
-def _rank_batch(batch, team):
+def _rank_batch(batch, team, availability_sources=None):
     """
     Best team match for one unallocated batch, plus the ranked candidate list.
 
@@ -894,12 +999,19 @@ def _rank_batch(batch, team):
     with ThreadPoolExecutor(max_workers=8) as pool:
         utils = list(pool.map(lambda m: _safe_util(m[1]), matched))
         langs = list(pool.map(lambda m: _resume(m[1]).get("languages", []), matched))
+        availability = list(pool.map(
+            lambda m: _availability_evidence(
+                m[1], batch.get("start_date", ""), batch.get("end_date", ""),
+                *((availability_sources or {}).get(m[1], (_UNSET, _UNSET))),
+            ),
+            matched,
+        ))
 
     batch_lang = (batch.get("language") or "").strip().lower()
     batch_skill = (batch.get("skill_level") or "").strip().lower()
 
     candidates = []
-    for (name, email, best, best_course, best_q, feedback, is_self), util, languages in zip(matched, utils, langs):
+    for (name, email, best, best_course, best_q, feedback, is_self), util, languages, availability_row in zip(matched, utils, langs, availability):
         speaks_english = _speaks_english(languages)
         # _resume() returns languages as [{"language": ..., "level": ...}],
         # not as plain strings. Treating them as strings raised
@@ -937,6 +1049,9 @@ def _rank_batch(batch, team):
             "qubits_score":  best_q,
             "readiness_score": best_q,
             "utilization":   util,
+            "availability":  availability_row,
+            "availability_status": availability_row["status"],
+            "availability_verified": availability_row["verified"],
             "speaks_english": speaks_english,
             "exact":         best >= 92,
             "category":      coverage,
@@ -949,9 +1064,12 @@ def _rank_batch(batch, team):
     # Sort key, in priority order: available before blocked (RMS would not
     # auto-allocate a blocked trainer regardless of anything else) > skill
     # match > readiness (Qubits on the matched course) > English speaker >
-    # lower utilisation (more availability) > clean 6-month feedback record.
+    # verified availability > lower utilisation (workload tie-break only) >
+    # clean 6-month feedback record. Unknown is never presented as available.
+    availability_rank = {"available": 0, "unverified": 1, "conflict": 2}
     candidates.sort(key=lambda c: (
         c["blocked"],
+        availability_rank.get(c["availability_status"], 1),
         -c["match"],
         -c["readiness_score"],
         0 if c["speaks_english"] else 1,
@@ -1614,6 +1732,10 @@ def _build_trainer(r, today):
     assignments_ok = assignments_raw is not None
     assignments = [a for a in (assignments_raw if isinstance(assignments_raw, list) else [])
                    if isinstance(a, dict)]
+    availability = _availability_evidence(
+        t_email, today, today,
+        assignments_raw=assignments_raw if assignments_ok else None,
+    )
     # A utilisation row can exist with no monthly columns in it, so the row
     # alone is not proof of a usable reading — require an actual number.
     util_ok = util is not None
@@ -1738,7 +1860,10 @@ def _build_trainer(r, today):
         # Plain-language readings of the same number, so every screen agrees
         # where the thresholds sit instead of each re-deriving its own.
         "utilization_status":     _utilization_status(util),
-        "availability_status":    _availability_status(util),
+        "availability_status":    availability["status"].replace("_", " ").title(),
+        "availability_verified":  availability["verified"],
+        "next_available_date":    availability["suggested_available_date"],
+        "availability_reason":    availability["reason"],
         "capacity_bucket":        capacity_bucket,
         "readiness_bucket":        capacity_bucket,   # legacy key, v1.4.x clients
         "overall_readiness_score": readiness_score,
@@ -1763,7 +1888,8 @@ def _build_trainer(r, today):
             "Currently on assignment" if current_a else
             (days_label if upcoming_a else "No scheduled assignment")
         ),
-        "data_complete": assignments_ok and util_ok,
+        "data_complete": availability["verified"] and util_ok,
+        "availability": availability,
     }
 
     batch_rows = []
@@ -2597,6 +2723,7 @@ def trainer_360():
     util_now = _current_util(series)
     util_ok  = util_now is not None
     util_3m  = _avg_util(series) if series else None
+    availability = _availability_evidence(email, today, today + timedelta(days=90))
 
     risk_score = _risk_score(neg_total, hr_neg, util_now,
                              has_signal=bool(neg_rows or hr_rows or util_ok))
@@ -2639,7 +2766,8 @@ def trainer_360():
             "current": util_now,
             "avg_3m":  util_3m,
             "status":       _utilization_status(util_now),
-            "availability": _availability_status(util_now),
+            # Compatibility key now reflects schedule evidence, not utilisation.
+            "availability": availability["status"].replace("_", " ").title(),
             "available": util_ok,
             "series":  series,
             "peak":    max((m["utilization"] for m in series), default=0),
@@ -2693,6 +2821,7 @@ def trainer_360():
         "availability": {
             "off_dates": off,
             "leave_data_available": False,
+            **availability,
         },
         "timestamp": datetime.utcnow().isoformat(),
     }), 200
@@ -2887,9 +3016,33 @@ def allocation_desk():
     manager_name = str(_util_row(email).get("TrainerName", "") or "").strip()
     team = _team_capability(reportees, manager_email=email, manager_name=manager_name)
 
+    # Fetch each candidate's scheduling sources once for the whole board. The
+    # earlier per-batch approach multiplied two RMS calls by every
+    # candidate/demand pair and was not safe for a real manager roster.
+    demand_dates = [_parse_date(b.get("start_date")) for b in demand]
+    demand_ends = [_parse_date(b.get("end_date")) for b in demand]
+    range_start = min((d for d in demand_dates if d), default=datetime.utcnow().date())
+    range_end = max((d for d in demand_ends if d), default=range_start + timedelta(days=90))
+
+    def _availability_sources_for(candidate):
+        candidate_email = candidate[1]
+        return candidate_email, (
+            _rms("prevUpcoming", {
+                "Startdate": _iso(range_start - timedelta(days=1)),
+                "Enddate": _iso(range_end + timedelta(days=90)),
+                "Email": candidate_email,
+            }),
+            _rms("trainerDetails", {"email": candidate_email}),
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        availability_sources = dict(pool.map(_availability_sources_for, team))
+
     priority_count = 0
     for b in demand:
-        b["relevance"], b["candidates"], coverage = _rank_batch(b, team)
+        b["relevance"], b["candidates"], coverage = _rank_batch(
+            b, team, availability_sources=availability_sources
+        )
         b["coverage_status"] = coverage
         b["relevance_band"] = (
             "high" if b["relevance"] >= 75 else

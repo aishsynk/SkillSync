@@ -136,5 +136,39 @@ class CompleteTeamTests(unittest.TestCase):
         self.assertEqual(len(response.get_json()["actions"]), 25)
 
 
+class AvailabilityEvidenceTests(unittest.TestCase):
+    def test_assignment_conflict_is_not_available(self):
+        result = backend._availability_evidence(
+            "trainer@koenig-solutions.com", date(2026, 8, 15), date(2026, 8, 16),
+            assignments_raw=[{
+                "StarDate": "15-Aug-2026", "EndDate": "16-Aug-2026",
+                "AssignmentId": "A-1", "Course": "Azure",
+            }],
+            details_raw=[{"OffEmail": "trainer@koenig-solutions.com"}],
+        )
+        self.assertTrue(result["verified"])
+        self.assertFalse(result["available"])
+        self.assertEqual(result["status"], "conflict")
+        self.assertEqual(result["conflicts"][0]["assignment_id"], "A-1")
+
+    def test_empty_verified_sources_are_available(self):
+        result = backend._availability_evidence(
+            "trainer@koenig-solutions.com", "2026-08-15", "2026-08-16",
+            assignments_raw=[], details_raw=[{"OffEmail": "trainer@koenig-solutions.com"}],
+        )
+        self.assertTrue(result["verified"])
+        self.assertTrue(result["available"])
+        self.assertEqual(result["status"], "available")
+
+    def test_source_failure_is_unverified_not_available(self):
+        with patch.object(backend, "_rms", return_value=None):
+            result = backend._availability_evidence(
+                "trainer@koenig-solutions.com", "2026-08-15", "2026-08-16"
+            )
+        self.assertFalse(result["verified"])
+        self.assertIsNone(result["available"])
+        self.assertEqual(result["status"], "unverified")
+
+
 if __name__ == "__main__":
     unittest.main()
