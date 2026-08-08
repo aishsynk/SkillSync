@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T02:59:00+05:30 - Phase 2 completed and production-validated (v1.44.1/code 53)
+- **Tool Used**: Codex (`gh`, GitHub Actions, Render production API checks)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published corrective commit `75bb45ee0a74779076791351f5225ede057f4aa9`; GitHub Actions run `31277973344` passed and created release `v1.44.1.53` with `SkillEdge-v1.44.1.53.apk` plus full release/rollback notes. Production checks passed: health 630 ms, Actions 6.0 s (`1` open action for Aishwar), Team capability 4.4 s, unified dashboard 0.8 s. The production account currently returns zero direct reports, so roster >20 behavior is enforced by the passing 25-trainer endpoint tests rather than live Aishwar data. CI APK digest is `a192cf9d90af7aa2564857019280b23d20cc70c4cf27053189f0eced5308ea69`; package/signing/version-code continuity supports direct upgrade without data removal.
+- **Current Status**: Phase 2 is complete in GitHub, CI, Render, production APIs, and the versioned Android release. No known Phase 2 build/runtime/API blocker remains. CI emitted non-blocking deprecation warnings for `setup-java@v4`/Node 20 actions; migration belongs in release infrastructure work.
+- **Next Actions**: Begin Phase 3 real availability: derive verified availability from assignments, schedules, off-dates, conflicts and future commitments; expose unknown/unverified states explicitly; add backend and Android regression coverage before v1.45.0 publication.
+
 ## 2026-08-09T02:23:00+05:30 - Phase 2 production blocker fixed in v1.44.1
 - **Tool Used**: Codex (`Invoke-RestMethod`, `apply_patch`, `unittest`, Gradle, APK Signer)
 - **Files Modified**: `backend.py`, `tests/test_demand_safety.py`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
