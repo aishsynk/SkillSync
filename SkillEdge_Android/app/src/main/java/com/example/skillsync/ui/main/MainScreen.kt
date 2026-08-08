@@ -101,6 +101,8 @@ fun MainScreen(
     var drill by remember { mutableStateOf<Drill?>(null) }
 
     var bannerMessage by remember { mutableStateOf<String?>(null) }
+    var showLogoutConfirm by remember { mutableStateOf(false) }
+    var showNotificationsSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.notification.collect { (title, message) ->
@@ -111,6 +113,34 @@ fun MainScreen(
             )
             // In-app banner for immediate visibility while the app is open.
             bannerMessage = message
+        }
+    }
+
+    if (showLogoutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirm = false },
+            title = { Text("Confirm Logout") },
+            text = { Text("Are you sure you want to log out of SkillEdge?") },
+            confirmButton = {
+                Button(onClick = { 
+                    showLogoutConfirm = false
+                    onLogout()
+                }) { Text("Logout") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutConfirm = false }) { Text("Cancel") }
+            },
+            containerColor = MaterialTheme.skill.cardBg
+        )
+    }
+
+    if (showNotificationsSheet) {
+        ModalBottomSheet(onDismissRequest = { showNotificationsSheet = false }, containerColor = MaterialTheme.skill.cardBg) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+                Text("Notifications", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.skill.bodyText)
+                Spacer(Modifier.height(14.dp))
+                Text("No recent notifications.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.skill.subText)
+            }
         }
     }
 
@@ -161,8 +191,7 @@ fun MainScreen(
                         )
                     }
                     androidx.compose.material3.TextButton(onClick = {
-                        com.example.skillsync.data.SessionManager.clearSession()
-                        onLogout()
+                        showLogoutConfirm = true
                     }) {
                         Text(
                             "Logout",
@@ -261,10 +290,11 @@ fun MainScreen(
                                 email = email,
                                 onTrainerClick = onTrainerClick,
                                 onOpenProfile = { onTrainerClick(email, profile?.str("name").orEmpty()) },
-                                onLogout = onLogout,
+                                onLogout = { showLogoutConfirm = true },
                                 onDrill = { drill = it },
                                 onLoadCapability = { viewModel.ensureCapability(email, context) },
                                 onOpenTeam = { onTabChange(HomeTab.TEAM) },
+                                onOpenNotifications = { showNotificationsSheet = true }
                             )
                         }
                     }
@@ -481,6 +511,7 @@ internal fun DashboardTab(
     onDrill: (Drill) -> Unit,
     onLoadCapability: () -> Unit = {},
     onOpenTeam: () -> Unit = {},
+    onOpenNotifications: () -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
     val ops = data.rows("trainer_operations_df")
@@ -528,6 +559,7 @@ internal fun DashboardTab(
                 kpis = kpis,
                 capKpis = capKpis,
                 onOpenProfile = onOpenProfile,
+                onOpenNotifications = onOpenNotifications,
             )
         }
 

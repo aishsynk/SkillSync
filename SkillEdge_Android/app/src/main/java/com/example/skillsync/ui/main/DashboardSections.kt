@@ -58,7 +58,7 @@ fun ProfileHeader(
     val name = profile?.str("name").orEmpty()
         .ifBlank { email.substringBefore("@").replace(".", " ").replaceFirstChar { it.uppercase() } }
     val photo = profile?.str("photo_url").orEmpty()
-    val unread = kpis?.intOrNull("unread_notifications") ?: 0
+    val unread = (kpis?.intOrNull("open_actions") ?: 0) + (kpis?.intOrNull("open_demand") ?: 0)
 
     // Identity sits directly on the aurora — no bar, no fill. The old teal
     // header spent a full band of screen on chrome that carried no information.

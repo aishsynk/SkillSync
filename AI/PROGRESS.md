@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## Release v1.37.0 — Phase 5: Alerts and Logout Enhancements
+- **Timestamp**: 2026-08-08T23:25:00+05:30
+- **Agent/Tool Used**: Antigravity
+- **Files Modified**: `DashboardSections.kt`, `MainScreen.kt`, `build.gradle.kts`
+- **Context**: Executed Phase 5 to complete the Alert system and refine the Logout workflow.
+- **Work Completed**:
+  - Wired the Dashboard notification dot to map securely to Open Actions and Open Demand, ensuring it represents actionable items.
+  - Added a responsive Notification Sheet to view local alerts within the dashboard without navigating away.
+  - Implemented a SweetAlert confirmation modal for Logout (so accidental taps don't disrupt session state).
+  - Confirmed the `LocalNotificationService` defaults to `PRIORITY_HIGH` channel settings for mandatory heads-up display when an 'unallocated-assignment' drops.
+  - Regenerated `SkillEdge-v1.37.0.apk` using `assembleRelease`.
+- **Current Status**: Phase 5 enables managers to trust the app for reliable dispatch notifications and secures session end flows.
+- **Next Actions**: Monitor the background task sync stability or proceed to Phase 6 requirements.
+
 ## Release v1.36.0 — Phase 4: Demand Page Implementation & Action Desk Inline Messaging
 - **Timestamp**: 2026-08-08T23:05:00+05:30
 - **Agent/Tool Used**: Antigravity
