@@ -64,28 +64,28 @@ class MainScreenViewModel : ViewModel() {
     private var loadedFor: String? = null
 
     /** First load for [email]; a no-op once that email's data is already on screen. */
-    fun loadData(email: String) {
+    fun loadData(email: String, context: android.content.Context) {
         if (loadedFor == email && _uiState.value is DashboardState.Success) return
         loadedFor = email
         viewModelScope.launch {
             _uiState.value = DashboardState.Loading
-            fetchAll(email, fresh = false)
+            fetchAll(email, context, fresh = false)
         }
     }
 
     /** Pull-to-refresh and screen-resume: keeps current data visible while re-fetching. */
-    fun refresh(email: String) {
+    fun refresh(email: String, context: android.content.Context) {
         viewModelScope.launch {
             _refreshing.value = true
-            fetchAll(email, fresh = true)
+            fetchAll(email, context, fresh = true)
             _refreshing.value = false
         }
     }
 
     /** Loads capability the first time something actually needs it. */
-    fun ensureCapability(email: String) {
+    fun ensureCapability(email: String, context: android.content.Context) {
         if (_capability.value != null || _capabilityLoading.value) return
-        viewModelScope.launch { fetchCapability(email, fresh = false) }
+        viewModelScope.launch { fetchCapability(email, context, fresh = false) }
     }
 
     /**
@@ -94,17 +94,20 @@ class MainScreenViewModel : ViewModel() {
      * calendar, so paying for the full dashboard again would be waste. No-op if
      * capability was never loaded — there is nothing on screen to go stale.
      */
-    fun refreshCapability(email: String) {
+    fun refreshCapability(email: String, context: android.content.Context) {
         if (_capability.value == null) return
-        viewModelScope.launch { fetchCapability(email, fresh = true) }
+        viewModelScope.launch { fetchCapability(email, context, fresh = true) }
     }
 
-    private suspend fun fetchAll(email: String, fresh: Boolean = false) = coroutineScope {
-        val dash = async { fetchDashboard(email, fresh) }
-        val prof = async { fetchProfile(email, fresh) }
+    private suspend fun fetchAll(email: String, context: android.content.Context, fresh: Boolean = false) = coroutineScope {
+        // Sync any offline actions first so subsequent fetches get updated data
+        com.example.skillsync.data.cache.ActionQueueManager.syncPendingActions(context)
+
+        val dash = async { fetchDashboard(email, context, fresh) }
+        val prof = async { fetchProfile(email, context, fresh) }
         // Capability is refreshed rather than fetched: if the manager has never
         // opened anything that needs it, this must not silently pay for it.
-        val cap = async { if (_capability.value != null) fetchCapability(email, fresh) }
+        val cap = async { if (_capability.value != null) fetchCapability(email, context, fresh) }
         dash.await(); prof.await(); cap.await()
     }
 
@@ -115,57 +118,71 @@ class MainScreenViewModel : ViewModel() {
     private fun profileCacheKey(email: String) = "profile_$email"
     private fun capabilityCacheKey(email: String) = "capability_$email"
 
-    private suspend fun fetchDashboard(email: String, fresh: Boolean) {
+    private suspend fun fetchDashboard(email: String, context: android.content.Context, fresh: Boolean) {
+        // 1. Instantly read from LocalCache if not already loaded and no fresh push requested
+        if (!fresh && _uiState.value !is DashboardState.Success) {
+            val cached = LocalCache.loadMap(dashboardCacheKey(email))
+            if (cached != null) {
+                _uiState.value = DashboardState.Success(
+                    cached,
+                    fromCache = true,
+                    cachedAt = LocalCache.savedAt(dashboardCacheKey(email))
+                )
+            }
+        }
+
+        // 2. Network Check
+        if (!RetrofitClient.isNetworkAvailable(context)) {
+            if (_uiState.value !is DashboardState.Success) {
+                _uiState.value = DashboardState.Error("No internet connection")
+            }
+            return
+        }
+
+        // 3. Fetch from API in background
         try {
             val data = RetrofitClient.instance.getTrainerIntelligence(email, flag(fresh))
-            _uiState.value = DashboardState.Success(data)
             LocalCache.saveMap(dashboardCacheKey(email), data)
+            _uiState.value = DashboardState.Success(data)
             com.example.skillsync.data.SessionManager.setLastSyncTime(System.currentTimeMillis())
         } catch (e: Exception) {
-            // A failed refresh must not wipe out data the manager is already reading.
+            // Leave UI in its current state (likely cached Success)
             if (_uiState.value !is DashboardState.Success) {
-                val cached = LocalCache.loadMap(dashboardCacheKey(email))
-                _uiState.value = if (cached != null) {
-                    DashboardState.Success(
-                        cached,
-                        fromCache = true,
-                        cachedAt = LocalCache.savedAt(dashboardCacheKey(email)),
-                    )
-                } else {
-                    DashboardState.Error(e.localizedMessage ?: "Failed to load dashboard data")
-                }
+                _uiState.value = DashboardState.Error(e.localizedMessage ?: "Failed to load dashboard data")
             }
         }
     }
 
-    private suspend fun fetchProfile(email: String, fresh: Boolean) {
+    private suspend fun fetchProfile(email: String, context: android.content.Context, fresh: Boolean) {
+        if (!fresh && _profile.value == null) {
+            _profile.value = LocalCache.loadMap(profileCacheKey(email))
+        }
+
+        if (!RetrofitClient.isNetworkAvailable(context)) return
+
         try {
             val data = RetrofitClient.instance.getManagerProfile(email, flag(fresh))
-            _profile.value = data
             LocalCache.saveMap(profileCacheKey(email), data)
+            _profile.value = data
         } catch (_: Exception) {
-            // Identity is presentation only — the dashboard is still usable
-            // without it. Fall back to whatever was last cached so the header
-            // stays populated instead of degrading to the bare email.
-            if (_profile.value == null) {
-                _profile.value = LocalCache.loadMap(profileCacheKey(email))
-            }
+            // Ignore error
         }
     }
 
-    private suspend fun fetchCapability(email: String, fresh: Boolean) {
+    private suspend fun fetchCapability(email: String, context: android.content.Context, fresh: Boolean) {
+        if (!fresh && _capability.value == null) {
+            _capability.value = LocalCache.loadMap(capabilityCacheKey(email))
+        }
+
+        if (!RetrofitClient.isNetworkAvailable(context)) return
+
         _capabilityLoading.value = true
         try {
             val data = RetrofitClient.instance.getTeamCapability(email, flag(fresh))
-            _capability.value = data
             LocalCache.saveMap(capabilityCacheKey(email), data)
+            _capability.value = data
         } catch (_: Exception) {
-            // Leave the previous value in place; fall back to disk only if this
-            // is the very first attempt, so cert KPIs show something offline
-            // rather than "—" when a prior session already fetched it.
-            if (_capability.value == null) {
-                _capability.value = LocalCache.loadMap(capabilityCacheKey(email))
-            }
+            // Ignore error
         } finally {
             _capabilityLoading.value = false
         }
@@ -184,13 +201,13 @@ class MainScreenViewModel : ViewModel() {
      * [com.example.skillsync.util.SkillSyncNotificationWorker], so an event is
      * only ever reported once regardless of which path notices it first.
      */
-    fun startPolling(email: String) {
+    fun startPolling(email: String, context: android.content.Context) {
         if (pollingJob?.isActive == true) return
         pollingJob = viewModelScope.launch {
             while (true) {
                 kotlinx.coroutines.delay(60000)
                 try {
-                    fetchAll(email, fresh = true)
+                    fetchAll(email, context, fresh = true)
                     val fresh = (_uiState.value as? DashboardState.Success)?.intelligenceData
                     if (fresh != null) checkForNotifications(email, fresh)
                 } catch (e: Exception) {

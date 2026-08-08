@@ -37,8 +37,9 @@ fun Trainer360Screen(
     onBack: () -> Unit,
     viewModel: Trainer360ViewModel = viewModel(),
 ) {
-    LaunchedEffect(trainerEmail, managerEmail) { viewModel.load(trainerEmail, managerEmail) }
-    RefreshOnResume(key = trainerEmail) { viewModel.refresh(trainerEmail, managerEmail) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(trainerEmail, managerEmail) { viewModel.load(trainerEmail, managerEmail, context) }
+    RefreshOnResume(key = trainerEmail) { viewModel.refresh(trainerEmail, managerEmail, context) }
 
     val state by viewModel.state.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
@@ -96,7 +97,7 @@ fun Trainer360Screen(
                     )
                     Spacer(Modifier.height(16.dp))
                     Button(
-                        onClick = { viewModel.refresh(trainerEmail, managerEmail) },
+                        onClick = { viewModel.refresh(trainerEmail, managerEmail, context) },
                         shape = RoundedCornerShape(10.dp),
                     ) { Text("Try again") }
                 }
@@ -117,7 +118,7 @@ fun Trainer360Screen(
                     }
                     PullToRefreshBox(
                         isRefreshing = refreshing,
-                        onRefresh = { viewModel.refresh(trainerEmail, managerEmail) },
+                        onRefresh = { viewModel.refresh(trainerEmail, managerEmail, context) },
                         modifier = Modifier.weight(1f),
                     ) {
                         Trainer360Content(s.data)

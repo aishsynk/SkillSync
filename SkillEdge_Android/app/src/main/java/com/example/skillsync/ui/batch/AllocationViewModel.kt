@@ -66,10 +66,30 @@ class AllocationViewModel : ViewModel() {
         }
     }
 
+    private fun cacheKey(email: String) = "allocation_$email"
+
     private suspend fun fetch(email: String, context: Context, fresh: Boolean) {
+        // 1. Instantly read from LocalCache if not already loaded and no fresh push requested
+        if (!fresh && _state.value !is AllocationState.Success) {
+            val cached = com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))
+            if (cached != null) {
+                _newIds.value = SeenBatches.diffAndRemember(context, email, cached)
+                _state.value = AllocationState.Success(cached)
+            }
+        }
+
+        // 2. Network Check
+        if (!RetrofitClient.isNetworkAvailable(context)) {
+            if (_state.value !is AllocationState.Success) {
+                _state.value = AllocationState.Error("No internet connection")
+            }
+            return
+        }
+
+        // 3. Fetch from API in background
         try {
-            // ?refresh=1 purges the server cache; a plain open reuses it.
             val data = RetrofitClient.instance.getAllocationDesk(email, if (fresh) 1 else null)
+            com.example.skillsync.data.cache.LocalCache.saveMap(cacheKey(email), data)
             _newIds.value = SeenBatches.diffAndRemember(context, email, data)
             _state.value = AllocationState.Success(data)
         } catch (e: Exception) {
@@ -92,6 +112,7 @@ class AllocationViewModel : ViewModel() {
      * refresh against data that really changed.
      */
     fun markSkill(
+        context: android.content.Context,
         courseId: String,
         trainerEmail: String,
         level: Int,
@@ -101,9 +122,33 @@ class AllocationViewModel : ViewModel() {
     ) {
         viewModelScope.launch {
             _mark.value = MarkState.Working
+
+            // OFFLINE QUEUE CHECK
+            if (!RetrofitClient.isNetworkAvailable(context)) {
+                com.example.skillsync.data.cache.ActionQueueManager.enqueueAction(
+                    com.example.skillsync.data.cache.QueuedAction(
+                        payload = com.example.skillsync.data.api.MarkSkillRequest(
+                            course_id = courseId,
+                            trainer_email = trainerEmail,
+                            skill_level = level,
+                            from_date = fromDate,
+                        )
+                    )
+                )
+                // Optimistic success when offline
+                _mark.value = MarkState.Done(
+                    who = who,
+                    level = level,
+                    message = "Action queued for sync when online.",
+                    alreadyHeld = false
+                )
+                onSaved()
+                return@launch
+            }
+
             _mark.value = try {
                 val resp = RetrofitClient.instance.markSkill(
-                    MarkSkillRequest(
+                    com.example.skillsync.data.api.MarkSkillRequest(
                         course_id = courseId,
                         trainer_email = trainerEmail,
                         skill_level = level,
@@ -113,7 +158,7 @@ class AllocationViewModel : ViewModel() {
                 val body = resp.body() ?: runCatching {
                     // Error bodies still carry the reason the write was refused.
                     com.google.gson.Gson().fromJson(
-                        resp.errorBody()?.string().orEmpty(), MarkSkillResponse::class.java
+                        resp.errorBody()?.string().orEmpty(), com.example.skillsync.data.api.MarkSkillResponse::class.java
                     )
                 }.getOrNull()
 

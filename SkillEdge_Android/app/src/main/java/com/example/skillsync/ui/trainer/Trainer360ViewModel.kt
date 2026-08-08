@@ -28,48 +28,59 @@ class Trainer360ViewModel : ViewModel() {
 
     private var loadedFor: String? = null
 
-    fun load(trainerEmail: String, managerEmail: String = "") {
+    fun load(trainerEmail: String, managerEmail: String = "", context: android.content.Context) {
         if (loadedFor == trainerEmail && _state.value is Trainer360State.Success) return
         loadedFor = trainerEmail
         viewModelScope.launch {
             _state.value = Trainer360State.Loading
-            fetch(trainerEmail, managerEmail, fresh = false)
+            fetch(trainerEmail, managerEmail, context, fresh = false)
         }
     }
 
     /** Pull-to-refresh and screen-resume; keeps the profile on screen while re-reading. */
-    fun refresh(trainerEmail: String, managerEmail: String = "") {
+    fun refresh(trainerEmail: String, managerEmail: String = "", context: android.content.Context) {
         viewModelScope.launch {
             _refreshing.value = true
-            fetch(trainerEmail, managerEmail, fresh = true)
+            fetch(trainerEmail, managerEmail, context, fresh = true)
             _refreshing.value = false
         }
     }
 
     private fun cacheKey(trainerEmail: String) = "trainer360_$trainerEmail"
 
-    private suspend fun fetch(trainerEmail: String, managerEmail: String, fresh: Boolean) {
+    private suspend fun fetch(trainerEmail: String, managerEmail: String, context: android.content.Context, fresh: Boolean) {
+        // 1. Instantly read from LocalCache if not already loaded and no fresh push requested
+        if (!fresh && _state.value !is Trainer360State.Success) {
+            val cached = LocalCache.loadMap(cacheKey(trainerEmail))
+            if (cached != null) {
+                _state.value = Trainer360State.Success(
+                    cached,
+                    fromCache = true,
+                    cachedAt = LocalCache.savedAt(cacheKey(trainerEmail))
+                )
+            }
+        }
+
+        // 2. Network Check
+        if (!RetrofitClient.isNetworkAvailable(context)) {
+            if (_state.value !is Trainer360State.Success) {
+                _state.value = Trainer360State.Error("No internet connection")
+            }
+            return
+        }
+
+        // 3. Fetch from API in background
         try {
             val data = RetrofitClient.instance.getTrainer360(
                 email = trainerEmail,
                 manager = managerEmail.takeIf { it.isNotBlank() },
                 refresh = if (fresh) 1 else null,
             )
-            _state.value = Trainer360State.Success(data)
             LocalCache.saveMap(cacheKey(trainerEmail), data)
+            _state.value = Trainer360State.Success(data)
         } catch (e: Exception) {
-            // A failed refresh must not blank a profile the manager is reading.
             if (_state.value !is Trainer360State.Success) {
-                val cached = LocalCache.loadMap(cacheKey(trainerEmail))
-                _state.value = if (cached != null) {
-                    Trainer360State.Success(
-                        cached,
-                        fromCache = true,
-                        cachedAt = LocalCache.savedAt(cacheKey(trainerEmail)),
-                    )
-                } else {
-                    Trainer360State.Error(e.localizedMessage ?: "Could not load this trainer's profile")
-                }
+                _state.value = Trainer360State.Error(e.localizedMessage ?: "Failed to load trainer profile")
             }
         }
     }

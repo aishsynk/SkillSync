@@ -62,11 +62,15 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
 
+    DisposableEffect(email) {
+        viewModel.startPolling(email, context)
+        onDispose { viewModel.stopPolling() }
+    }
 
     LaunchedEffect(email, tab) {
-        viewModel.loadData(email)
+        viewModel.loadData(email, context)
         if (tab == HomeTab.DEMAND) allocationViewModel.load(email, context)
-        if (tab == HomeTab.COURSES) viewModel.ensureCapability(email)
+        if (tab == HomeTab.COURSES) viewModel.ensureCapability(email, context)
         
         // In-app polling for the Unallocated Batch Intelligence Center
         if (tab == HomeTab.DEMAND) {
@@ -79,7 +83,7 @@ fun MainScreen(
     // Coming back to the app re-reads everything, so the manager is never acting
     // on numbers that went stale while the phone was in their pocket.
     RefreshOnResume(key = email) {
-        viewModel.refresh(email)
+        viewModel.refresh(email, context)
         if (tab == HomeTab.DEMAND) allocationViewModel.refresh(email, context)
     }
 
@@ -146,7 +150,7 @@ fun MainScreen(
                     // Manual fallback next to pull-to-refresh, for anyone who
                     // does not think to drag a screen that is already at the top.
                     IconButton(onClick = {
-                        viewModel.refresh(email)
+                        viewModel.refresh(email, context)
                         if (tab == HomeTab.DEMAND) allocationViewModel.refresh(email, context)
                     }) {
                         Icon(
@@ -201,6 +205,7 @@ fun MainScreen(
                     val syncMsg = when {
                         dashSuccess?.fromCache == true -> "Offline — showing data from ${relativeAge(dashSuccess.cachedAt)}"
                         !hasNetwork -> "Offline Mode - Showing Cached Data"
+                        refreshing -> "Syncing..."
                         else -> {
                             val diff = System.currentTimeMillis() - lastSync
                             val mins = java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(diff)
@@ -232,17 +237,17 @@ fun MainScreen(
 
                 HomeTab.COURSES -> PullToRefreshBox(
                     isRefreshing = refreshing,
-                    onRefresh = { viewModel.refresh(email) },
+                    onRefresh = { viewModel.refresh(email, context) },
                 ) {
                     CoursesTab(capability, capLoading, onTrainerClick)
                 }
 
                 else -> when (val s = state) {
                     is DashboardState.Loading -> DashboardSkeleton()
-                    is DashboardState.Error -> DashErrorView(s.message) { viewModel.refresh(email) }
+                    is DashboardState.Error -> DashErrorView(s.message) { viewModel.refresh(email, context) }
                     is DashboardState.Success -> PullToRefreshBox(
                         isRefreshing = refreshing,
-                        onRefresh = { viewModel.refresh(email) },
+                        onRefresh = { viewModel.refresh(email, context) },
                     ) {
                         val d = s.intelligenceData
                         when (tab) {
@@ -258,7 +263,7 @@ fun MainScreen(
                                 onOpenProfile = { onTrainerClick(email, profile?.str("name").orEmpty()) },
                                 onLogout = onLogout,
                                 onDrill = { drill = it },
-                                onLoadCapability = { viewModel.ensureCapability(email) },
+                                onLoadCapability = { viewModel.ensureCapability(email, context) },
                                 onOpenTeam = { onTabChange(HomeTab.TEAM) },
                             )
                         }

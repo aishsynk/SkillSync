@@ -66,9 +66,9 @@ fun MainNavigation() {
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 if (current is Main) {
                     val email = (current as Main).email
-                    mainViewModel.refresh(email)
+                    mainViewModel.refresh(email, context)
                     allocationViewModel.refresh(email, context)
-                    mainViewModel.startPolling(email)
+                    mainViewModel.startPolling(email, context)
                 }
             } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
                 mainViewModel.stopPolling()
@@ -169,9 +169,9 @@ fun MainNavigation() {
                         markState = markState,
                         onMarkSkill = { courseId, trainerEmail, level, date, who ->
                             allocationViewModel.markSkill(
-                                courseId, trainerEmail, level, date, who,
+                                context, courseId, trainerEmail, level, date, who,
                                 onSaved = { 
-                                    mainViewModel.refreshCapability(screen.email)
+                                    mainViewModel.refreshCapability(screen.email, context)
                                     allocationViewModel.refresh(screen.email, context)
                                 },
                             )

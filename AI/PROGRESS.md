@@ -1,5 +1,31 @@
 # SkillEdge Project Progress
 
+## Release v1.34.0 — Phase 2 Completion: Offline Writes & Background Sync
+- **Timestamp**: 2026-08-08T22:35:00+05:30
+- **Agent/Tool Used**: Antigravity
+- **Files Modified**: `ActionQueueManager.kt` (new), `AllocationViewModel.kt`, `Navigation.kt`, `MainScreenViewModel.kt`, `build.gradle.kts`
+- **Context**: Completed Phase 2 by enabling true offline mutation capabilities (offline writes). Previously, marking a skill or escalating an action would fail if the device lost connection.
+- **Work Completed**:
+  - Implemented `ActionQueueManager` to serialize failed or offline mutation requests into a persistent JSON queue on disk.
+  - Updated `AllocationViewModel` to intercept `markSkill` actions. If offline, the action is queued immediately and the UI is updated with an optimistic success state ("Queued Offline").
+  - Modified `Navigation.kt` to ensure context is passed down to mutation functions correctly.
+  - Integrated `ActionQueueManager.syncPendingActions(context)` into `MainScreenViewModel`'s polling cycle. Whenever the app resumes or polls (and the network is restored), the background queue flushes transparently.
+  - Successfully generated `SkillEdge-v1.34.0.apk` with matching release keys to support in-place updates.
+- **Current Status**: Phase 2 is fully complete. The app now handles both offline reads and offline writes seamlessly.
+- **Next Actions**: Investigate Copilot UI on Android (Phase 3) provided the backend agent APIs can be created, or proceed to Phase 4 Polish.
+
+## Phase 2 In Progress — Offline-First Caching Architecture
+- **Timestamp**: 2026-08-08T22:25:00+05:30
+- **Agent/Tool Used**: Antigravity
+- **Files Modified**: `MainScreenViewModel.kt`, `Trainer360ViewModel.kt`, `AllocationViewModel.kt`, `MainScreen.kt`, `Trainer360Screen.kt`, `Navigation.kt`
+- **Context**: Re-architecting the Android app to behave with a WhatsApp-style offline-first approach where data loads immediately from cache, and network requests only fire when connected, instead of timing out.
+- **Work Completed**:
+  - Rewrote data fetching logic across all ViewModels to emit `LocalCache` values synchronously upon load.
+  - Added strict `RetrofitClient.isNetworkAvailable` checks to skip network entirely when offline.
+  - Updated UI in `MainScreen` and `Trainer360Screen` to cleanly reflect background syncing status ("Syncing...") vs true offline state ("Offline Mode - Showing Cached Data").
+  - Modified method signatures down to `MainScreenViewModel`, `Trainer360ViewModel`, `AllocationViewModel` to pass `Context` safely from Composables.
+  - Build successfully verified via `assembleDebug`.
+
 ## Release v1.32.0 — Gap-analysis Phase 1: remove fabricated data, fix utilisation, wire real exam policy
 - **Timestamp**: 2026-08-08T10:30:00+05:30
 - **Agent/Tool Used**: Claude Code (Opus 5)
