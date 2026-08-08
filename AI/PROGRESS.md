@@ -1,5 +1,26 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T08:20:00+05:30 - v1.52.0 local release gate passed
+- **Tool Used**: Codex (Gradle release/lint, AAPT, APK Signer)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: v1.52.0/code 63 release/lint passes. APK SHA-256 is `8E8B842D12016F69F112FDDFCBC7DF1C83931C4A8D9785D6F1204FC300736A4E`; package and production signer are unchanged.
+- **Current Status**: Searchable team propagation is ready for publication. Physical upgrade remains unavailable without ADB; verified RMS removal remains externally blocked.
+- **Next Actions**: Commit/push, verify CI/release, re-probe production read contracts, publish final factual status and request the delete-skill API contract.
+
+## 2026-08-09T08:13:00+05:30 - Courses searchable team propagation gate passed; v1.52.0 assigned
+- **Tool Used**: Codex (`unittest`, Gradle/Compose JVM tests, `apply_patch`)
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Backend tests pass 16/16 and Android tests pass 33/33 with searchable team-member multi-select and exact workflow labels. Assigned v1.52.0/code 63 because the manager-facing skill propagation interaction materially changed.
+- **Current Status**: UI refinement passes functional gates. Release/signing, publication and final read-only production stability rechecks remain. Skill removal remains blocked by the absent RMS delete contract.
+- **Next Actions**: Build/sign/publish v1.52.0; validate DP-700 search and warm/cold Demand; provide factual completion/partial/broken report and the exact RMS removal dependency.
+
+## 2026-08-09T08:05:00+05:30 - Post-Phase-9 user gap re-audit and Courses workflow alignment
+- **Tool Used**: Codex (repository/RMS catalogue audit, production mark-skill probe, `apply_patch`)
+- **Files Modified**: `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/CoursesTab.kt`, `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/ScreenRenderTest.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Re-tested deployed mark-skill with Aishwar's existing course 17997: verified HTTP success in 4.72 s, unchanged/already-held, so the current backend does not reproduce the reported 502 and created no mapping. Audited RMS integration files: only Get Trainer Skills (217) and Add Trainer Skill (255) exist; no remove/unmap endpoint or credential exists, making real deletion externally blocked rather than partially coded. Aligned Courses wording with the requested workflows (`Assign skill by course name`, `Assign to Team Members`) and added searchable multi-selection across trainer name/email while preserving single/bulk selection, level and per-trainer verification.
+- **Current Status**: Skill marking, propagation, direct search, matching and international design exist in current code; searchable multi-select refinement is local/unpublished. Skill removal is not implementable against current RMS authority. A transient DP-700 probe connection closure and a cold Demand loading response were observed during this audit; both require recheck before publication.
+- **Next Actions**: Run gates and production read-only stability probes, publish the Courses refinement if clean, and request the RMS delete-skill API contract (endpoint/key, auth role, required IDs, response and read-back semantics) before implementing verified removal.
+
 ## 2026-08-09T07:45:00+05:30 - Phase 9 completed and production-validated (v1.51.2/code 62)
 - **Tool Used**: Codex (`git`, `gh`, GitHub Actions, production cold/warm Demand and course-search probes)
 - **Files Modified**: `AI/PROGRESS.md`

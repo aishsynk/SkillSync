@@ -128,7 +128,7 @@ internal fun CoursesTab(
             CatalogueSummary(kpis, courses)
             Spacer(Modifier.height(8.dp))
             Button(onClick = { assignmentCourse = null; showAssignment = true }, modifier = Modifier.fillMaxWidth()) {
-                Text("Assign or transfer skill")
+                Text("Assign skill by course name")
             }
         }
 
@@ -419,7 +419,7 @@ private fun CourseCard(course: Map<*, *>, onTrainerClick: (String, String) -> Un
                     }
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(onClick = onTransfer, modifier = Modifier.fillMaxWidth()) {
-                        Text("Transfer this skill to trainers")
+                        Text("Assign to Team Members")
                     }
                 }
             }
@@ -448,6 +448,7 @@ internal fun SkillAssignmentDialog(
         )
     }
     val selectedPeople = remember { mutableStateListOf<Pair<String, String>>() }
+    var trainerQuery by remember { mutableStateOf("") }
     var level by remember { mutableStateOf(4) }
     val today = remember { Calendar.getInstance() }
     val date = remember { "%04d-%02d-%02d".format(today.get(Calendar.YEAR), today.get(Calendar.MONTH) + 1, today.get(Calendar.DAY_OF_MONTH)) }
@@ -483,9 +484,20 @@ internal fun SkillAssignmentDialog(
                         }
                     }
                 }
-                Text("TRAINERS (${selectedPeople.size} SELECTED)", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)
+                Text("TEAM MEMBERS (${selectedPeople.size} SELECTED)", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)
+                OutlinedTextField(
+                    value = trainerQuery,
+                    onValueChange = { trainerQuery = it },
+                    label = { Text("Search and select trainers") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                val visiblePeople = people.filter {
+                    trainerQuery.isBlank() || it.first.contains(trainerQuery, ignoreCase = true) ||
+                        it.second.contains(trainerQuery, ignoreCase = true)
+                }
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 150.dp)) {
-                    itemsIndexed(people) { _, person ->
+                    itemsIndexed(visiblePeople) { _, person ->
                         val checked = person in selectedPeople
                         Row(
                             Modifier.fillMaxWidth().clickable {
@@ -497,6 +509,9 @@ internal fun SkillAssignmentDialog(
                             Text(person.first, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
                         }
                     }
+                }
+                if (visiblePeople.isEmpty()) {
+                    Text("No team member matches this search.", style = MaterialTheme.typography.labelSmall, color = sk.subText)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Skill level", style = MaterialTheme.typography.labelSmall, color = sk.subText)

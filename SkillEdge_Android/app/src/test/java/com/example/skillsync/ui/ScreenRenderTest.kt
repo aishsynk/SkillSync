@@ -452,7 +452,7 @@ class ScreenRenderTest {
             SkillSyncTheme { CoursesTab(capabilityPayload(), false, onTrainerClick = { _, _ -> }) }
         }
         compose.onNodeWithText("Course catalogue").assertExists()
-        compose.onNodeWithText("Assign or transfer skill").assertExists()
+        compose.onNodeWithText("Assign skill by course name").assertExists()
         compose.onNodeWithText(
             "PL-300T00: Design and Manage Analytics Solutions Using Power BI"
         ).assertExists()
