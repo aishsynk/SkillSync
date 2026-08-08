@@ -2,6 +2,26 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-08 — v1.32.0: No invented data, ever; "current" utilisation means current
+
+- **Decision:** Deleted the synthetic fallback team and demand, the hardcoded notification feed, and every hardcoded KPI fallback (`avg_team_utilization` 76, `utilization_trend` "+4.2%", `utilization_history` [68,71,74,72,76], `readiness_trend` "+2.4%", `open_actions or 2`, `completion_rate` 95, `deployable_pct` 90).
+- **Rationale:** These were not graceful degradation, they were fiction indistinguishable from measurement. An account with no reportees — which `aishwar_v@koenig-solutions.com` genuinely is — rendered ten invented trainers with names, utilisation figures, current batches and locations, plus three "CRITICAL" alerts about them. There is no framing in which a manager staffing a batch against "Subhash Verma, 92% utilised, London" is acceptable when that person does not exist. An empty state that says "no reportees returned" is strictly better than a plausible lie, and the app already had one.
+
+- **Decision:** `current_utilization` now means the most recent month that carried load; the three-month average moved to `utilization_avg_3m`.
+- **Rationale:** RMS reports a rolling window, so the trailing months of someone just off bench are zeros. Averaging them reported the live test team at 39% and 26% when they were actually at 23% and 7% — both far more available than the app claimed. The offline project already made this distinction (`parse_utilization` returns `current` and `avg_3m` separately); Android had collapsed the two and kept the wrong label.
+
+- **Decision:** `None` is preserved end-to-end for missing utilisation rather than defaulting to 0.
+- **Rationale:** "RMS knows nothing about this trainer" and "this trainer is idle" are different facts with opposite staffing implications, and team averages that count the former as 0% skew low.
+
+- **Decision:** Implemented `delivery_intelligence_df` in the backend rather than deleting the UI that reads it.
+- **Rationale:** The roster card's readiness/capacity/risk branches were written against the offline payload and had been dead since authored. The information is genuinely useful to a manager and the inputs were already fetched, so emitting it costs nothing and recovers UI that was already built and paid for. Thresholds copied from `shared/delivery_intelligence.py` so a trainer reads identically on both products.
+
+- **Decision:** Certification gaps now driven by RMS key 213 (`courseWithoutExam`) across all 438 vendors, while `_CERT_CATALOG` is retained only to *name* the specific Microsoft exams it knows.
+- **Rationale:** The hardcoded 30-entry map meant every Cisco, AWS, Oracle, RedHat and SAP course a trainer delivered was invisible to the gap analysis. Key 213 answers "does this course require an exam" for the whole catalogue and is live-verified. Key 215, which would give the specific exam code, returns 403 for our credentials — so vendor-wide gaps are reported honestly as "«Vendor» certification" with no code, rather than either inventing one or continuing to hide the gap.
+
+- **Decision:** Live-probe every RMS API before planning against it, and record the failures as durable findings.
+- **Rationale:** The documented schemas in `trainer_portal_api_details/` are null-filled placeholders that describe nothing. Probing found three usable APIs, eight 403s, and one (key 205) that returns *misaligned* data — ".NET MAUI" mapped to the "Salesforce" domain — which is worse than an error because it would have been shipped as fact. The 403 on key 171 (`freeSchedule`) also invalidates the Phase 3 "real availability" plan until access is provisioned.
+
 ## 2026-08-08 — v1.31.0: Demand order is RMS order; matching gets skill→readiness→availability→language
 
 - **Decision:** `allocation-desk` no longer re-sorts unallocated batches by match%; the order RMS returns is the order the app shows.

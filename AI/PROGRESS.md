@@ -1,5 +1,54 @@
 # SkillEdge Project Progress
 
+## Release v1.32.0 — Gap-analysis Phase 1: remove fabricated data, fix utilisation, wire real exam policy
+- **Timestamp**: 2026-08-08T10:30:00+05:30
+- **Agent/Tool Used**: Claude Code (Opus 5)
+- **Files Modified**: `backend.py` (extensive), both `build.gradle.kts`
+- **Context**: Executing Phase 1 of the offline-vs-Android gap analysis, plus the achievable part of Phase 2, using the credentials in `trainer_portal_api_details/`.
+
+### RMS API probe (37 documented APIs, live-verified 2026-08-08)
+Per the standing rule that the instruction files are unreliable, every candidate API was called live rather than trusted. The documented response schemas are null-filled placeholders and told us nothing.
+
+**Verified working and now usable:**
+- **key 213 `courseWithoutExam`** — 10,934 rows, 438 vendors. Fields: `Courseid`, `CName`, `Exam Required or Not`, `CourseStatus`, `Vendor`. **Now wired in.**
+- **key 164 `Course_List`** — 12,035 rows: `Course`, `Courseid`, `vendor_name`, `vendor_id`, `course_url`. Available, not yet consumed.
+- **key 114 `Course_&_Technology_List`** — 19,766 rows: `technology_name`, `course_name`, `course_id`, `technology_id`. Available, not yet consumed.
+
+**Verified BROKEN or inaccessible — do not plan against these:**
+- **403 Forbidden** (credentials in the docs lack access): key 215 `Exam_Course_Linked`, 39 `Trainer_Last_3_Months_Utilization`, **171 `Get_Trainer_Free_Schedule`**, 248 `Course_Syllabus_TOC`, 70 `Get_Course_Name`, 156 `Course_Content_URL`, 246 `Course_Schedule`, 111 `Check_Course_Availability`.
+- **key 205 `Get_Course_and_Domain` returns misaligned data.** It does filter by `TechName` (row counts differ per technology) but `DomainName` is joined wrong: ".NET MAUI" → "Salesforce", "ISO 56001 Lead Auditor" → "EC-Council", "Oracle Fusion Cloud HCM" → "Red Hat". **Unusable until RMS fixes the underlying procedure.**
+- **200-but-empty regardless of parameters**: key 72 `Unique_Certifications_Count`, 157 `Inhouse_and_FL_Trainers` (rejects every `TrainerType` value tried), 172 `Latest_Version_Of_Courses`.
+
+**Roadmap impact:** key 171 being 403 blocks the Phase 3 "real availability instead of utilisation-as-proxy" item, and key 215 being 403 means a specific certification still cannot be named for non-Microsoft courses. Both need RMS access provisioning before they can be planned.
+
+### Fabricated data removed (the significant part of this release)
+- **Deleted the synthetic fallback team and demand.** When RMS returned no reportees, `unified_intelligence` invented **ten trainers** ("Subhash Verma", 92% utilised, teaching AZ-305 in London; "Priya Sharma"; "Rajesh Mishra"…) and **eight demands**, and nothing in the payload or on screen distinguished them from real people. A manager on an account with no reportees — verified: `aishwar_v@koenig-solutions.com` is such an account — was making staffing decisions against a fictional team. Now returns empty, and the app's existing empty state says so.
+- **Deleted the hardcoded notification feed.** Three CRITICAL/WARNING/INFO alerts about those same fictional trainers. Replaced with notifications derived from the real roster: high feedback risk, over-capacity (>85%), unknown assignment status, and open unallocated demand — severity-sorted. Verified dynamic against live RMS (an alert appeared for a trainer whose assignment fetch transiently failed, and cleared on the next call).
+- **Removed hardcoded KPI values**: `avg_team_utilization` fell back to **76**; `utilization_trend` was **"+4.2%"**; `utilization_history` was **[68,71,74,72,76]**; `readiness_trend` was **"+2.4%"**; `open_actions` reported **2** when there were none (making "all clear" unreachable); `completion_rate` was **95** with nothing behind it; `deployable_pct` fell back to **90**.
+- `utilization_history` and `utilization_trend` are now computed from the team's real monthly series. For the live test team this yields `[3, 9, 17, 43, 41, 15]` and `-26%` — the team's utilisation actually **fell sharply**, where the hardcoded sparkline showed a healthy rise.
+
+### Utilisation correctness (behaviour change, verified against live RMS)
+`current_utilization` was the **three-month average** wearing the name "current". Now split:
+- `current_utilization` = most recent month that carried load (new `_current_util`)
+- `utilization_avg_3m` = the trend (existing `_avg_util`)
+- New `utilization_status` (Overloaded/Healthy/Underutilized) and `availability_status` (Available/Limited/Booked), matching offline thresholds.
+
+Measured impact on the live team: Abhinav Samant reads **23%** current against **39%** averaged; Niharika **7%** against **26%**. Both were being shown as materially busier than they are — a manager hunting for spare capacity would have skipped them. `None` is now preserved throughout instead of collapsing to 0, so "no data" and "idle" are distinguishable.
+
+### `delivery_intelligence_df` implemented (was dead UI code)
+`TeamTab.kt` and `TrainerCard` have always branched on `delivery_readiness_label`, `delivery_capacity_status` and `delivery_risk_level`, but the backend never emitted the key, so every branch was dead and the card silently fell through to its capacity fallback. Now built per trainer using the offline project's exact thresholds (`shared/delivery_intelligence.py`). Verified: 2 rows returned for the live team.
+
+### Certification gaps now cover all vendors
+`_cert_intelligence` only saw courses matching the hand-written 30-entry, Microsoft-only `_CERT_CATALOG`. New `_exam_policy()` reads RMS key 213 (cached 6h, fetched once per request not per trainer) and adds every course RMS marks "Exam Required" as a gap, with its vendor, even when no exam code can be named. Verified on the live team: detected gaps rose **2 → 5**.
+
+This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as its denominator while `missing` grew, driving coverage **negative** (`avg_trainer_coverage_pct: -25`). Denominator is now every course requiring a certificate; the same trainer reads 7 required / 5 gaps / **29%** covered.
+
+### Build & Test
+`assembleRelease` succeeds, signature verified against the rotated release key. **31/31 unit tests pass** (one CrashTest failure was a 503 from the sleeping Render instance, not a regression — passed after waking it). All endpoints re-verified live: `unified-manager-intelligence`, `team-capability`, `trainer-360`, `allocation-desk`.
+
+### Still outstanding
+- **Blueprint alignment on the dashboard was reverted and never reapplied.** The hero sub-figures, "TEAM READINESS" eyebrow, 6-tile grid, `NeedsYouTodayCard` and single-line section headers were rolled back during a compile failure earlier in the session and are still not in the build.
+- Phase 1 remainder: action lifecycle (close/escalate/reassign), filters on the Actions tab, retiring the `batch-details` and `approve-skill` stubs, peer rank in Trainer 360.
 ## Release v1.31.0 — Demand tab rebuilt as a Demand Intelligence & Resource Allocation Center
 - **Timestamp**: 2026-08-08T09:00:00+05:30
 - **Agent/Tool Used**: Claude Code (Sonnet 5)

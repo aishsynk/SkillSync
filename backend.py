@@ -135,6 +135,17 @@ _APIS = {
         "role": "Unallocated Assignment",
         "key":  "190",
     },
+    # Course-level exam policy for the whole catalogue. Verified live
+    # 2026-08-08: 10,934 rows across 438 vendors, fields Courseid / CName /
+    # "Exam Required or Not" / CourseStatus / Vendor. This is what lets the
+    # certification gap cover Cisco, AWS, RedHat, Oracle and the rest instead
+    # of only the Microsoft codes in _CERT_CATALOG.
+    "courseWithoutExam": {
+        "user": "AISHWAR_CourseWhitoutEx",
+        "pass": "V9n82gfmC$$W",
+        "role": "Course Whitout Exam",
+        "key":  "213",
+    },
     "assignment": {
         "user": "AISHWAR_AssignmentAPI",
         "pass": "4PV6aCe6Sc8!",
@@ -267,6 +278,7 @@ _CACHE_TTL = {
     "assignmentPax":     600,   # roster can still change until the batch starts
     "prevUpcoming":      600,   # assignment calendar
     "unallocated":       180,   # demand turns over during the day
+    "courseWithoutExam": 21600,  # catalogue-wide exam policy; changes rarely
     # "trainerSkills" intentionally omitted — see above.
     # "addTrainerSkill" is a write and must never be served from cache.
 }
@@ -492,14 +504,119 @@ def _util_series(row):
 
 
 def _avg_util(series):
-    """Average of the trailing three months, which is what the web dashboard shows."""
+    """Average of the trailing three months. A trend read, not a current one."""
     recent = [m["utilization"] for m in series][-3:]
     return max(0, min(100, round(sum(recent) / len(recent)))) if recent else 0
 
 
+def _current_util(series):
+    """
+    Utilisation *right now*: the most recent month that actually carried load.
+
+    Deliberately not the three-month average. RMS reports a rolling window, so
+    the trailing months of someone who has just come off bench are zeros —
+    averaging those in reports a trainer who is busy today as under-utilised,
+    and the reverse for someone who just finished a heavy run. The last
+    non-zero month is what a manager means by "how busy are they".
+
+    Returns None when RMS carried no usable reading, which is a different
+    fact from a measured 0% and must not be collapsed into one.
+    """
+    if not series:
+        return None
+    nonzero = [m["utilization"] for m in series if m["utilization"] > 0]
+    value = nonzero[-1] if nonzero else series[-1]["utilization"]
+    return max(0, min(100, round(value)))
+
+
+def _utilization_status(util):
+    """Offline parity: how loaded this trainer is, in words."""
+    if util is None:
+        return ""
+    return "Overloaded" if util >= 85 else ("Healthy" if util >= 40 else "Underutilized")
+
+
+def _availability_status(util):
+    """Offline parity: how much room there is to give them more work."""
+    if util is None:
+        return ""
+    return "Available" if util < 40 else ("Limited" if util < 85 else "Booked")
+
+
+# ─── Delivery intelligence ────────────────────────────────────────────────────
+#
+# Thresholds mirror the offline project's shared/delivery_intelligence.py so a
+# trainer reads the same on both products. The Android UI has always branched
+# on these three fields (TrainerCard reads delivery_readiness_label,
+# delivery_capacity_status and delivery_risk_level) but the backend never
+# emitted them, so every one of those branches was dead and the card silently
+# fell through to its capacity-bucket fallback.
+
+def _delivery_label(score):
+    if score >= 80:
+        return "Ready"
+    if score >= 65:
+        return "Ready with Prep"
+    if score >= 45:
+        return "Needs Mentoring"
+    return "Hold"
+
+
+def _delivery_risk_label(score):
+    return "High" if score >= 70 else ("Medium" if score >= 35 else "Low")
+
+
+def _delivery_capacity_status(util):
+    if util is None:
+        return "Unknown"
+    if util >= 85:
+        return "Overloaded"
+    if util < 40:
+        return "Underutilized"
+    return "Balanced"
+
+
+def _delivery_row(ops_row, state_row):
+    """One delivery-readiness verdict per trainer, from data already fetched."""
+    util = ops_row.get("current_utilization")
+    neg = ops_row.get("negative_count") or 0
+    risk_pts = min(60, neg * 20)
+    if util is not None and util > 95:
+        risk_pts += 15
+    if state_row.get("current_status") == "unknown":
+        risk_pts += 20          # cannot vouch for someone RMS will not describe
+
+    # Readiness here is capacity-and-conduct, not capability: the dashboard
+    # path deliberately avoids the two extra RMS calls per trainer that real
+    # capability scoring needs (see _readiness_score, used in trainer-360).
+    score = 100
+    score -= min(50, neg * 25)
+    if util is None:
+        score -= 20
+    elif util >= 85:
+        score -= 15
+    if state_row.get("current_status") == "unknown":
+        score -= 20
+    score = max(0, min(100, score))
+
+    return {
+        "trainer_email":            ops_row.get("official_email", ""),
+        "trainer_name":             ops_row.get("trainer_name", ""),
+        "delivery_readiness_score": score,
+        "delivery_readiness_label": _delivery_label(score),
+        "delivery_capacity_status": _delivery_capacity_status(util),
+        "delivery_risk_level":      _delivery_risk_label(min(100, risk_pts)),
+    }
+
+
 def _safe_util(email):
+    """Current utilisation for one address; 0 when nothing is known.
+
+    Ranking-only — a missing value still has to sort somewhere. Display paths
+    use _current_util directly so they can distinguish None from 0.
+    """
     try:
-        return _avg_util(_util_series(_util_row(email)))
+        return _current_util(_util_series(_util_row(email))) or 0
     except Exception:
         return 0
 
@@ -1062,7 +1179,46 @@ def _cert_code_for_title(title):
     return ""
 
 
-def _cert_intelligence(courses, held_certs, accreditations):
+def _exam_policy():
+    """
+    {normalised course name: {"required": bool, "vendor": str}} for the whole
+    RMS catalogue.
+
+    Answers "does this course carry a certification exam at all", which
+    _CERT_CATALOG cannot: that map holds 30 hand-written Microsoft codes, so
+    every Cisco, AWS, Oracle, RedHat or SAP course a trainer delivers was
+    invisible to the certification gap. RMS knows the answer for all 438
+    vendors and this reads it.
+
+    Note this endpoint gives the exam *requirement*, not the exam *code* —
+    the course-to-exam linkage (RMS key 215) returns 403 for the credentials
+    in this integration, so a specific certification can still only be named
+    for courses _CERT_CATALOG recognises. Gaps found here are reported
+    honestly as "certification required" without inventing a code.
+    """
+    rows = _rms("courseWithoutExam", {})
+    if not isinstance(rows, list):
+        return {}
+    out = {}
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        name = _norm_course(r.get("CName"))
+        if not name:
+            continue
+        out[name] = {
+            "required": "not required" not in str(r.get("Exam Required or Not", "")).lower(),
+            "vendor":   str(r.get("Vendor") or "").strip(),
+        }
+    return out
+
+
+def _norm_course(name):
+    """Loose key for matching a capability row against the RMS catalogue."""
+    return _re.sub(r"[^a-z0-9]+", " ", str(name or "").lower()).strip()
+
+
+def _cert_intelligence(courses, held_certs, accreditations, exam_policy=None):
     """
     Held / missing / recommended for one trainer.
 
@@ -1111,6 +1267,35 @@ def _cert_intelligence(courses, held_certs, accreditations):
         })
     missing.sort(key=lambda m: (m["priority"] != "high", -m["delivered"], m["code"]))
 
+    # ── Vendor-wide gaps (RMS exam policy, all 438 vendors) ──────────────
+    # A course RMS marks "Exam Required" that this trainer teaches without a
+    # recognised certification is a real gap even when _CERT_CATALOG has no
+    # code for it. Reported without a code rather than not reported at all.
+    policy = exam_policy or {}
+    vendor_required = set()
+    coded_courses = {str(c.get("course", "")) for c in taught.values()}
+    for c in courses:
+        title = str(c.get("course", ""))
+        if title in coded_courses:
+            continue                     # already reported above, with a code
+        p = policy.get(_norm_course(title))
+        if not p or not p["required"]:
+            continue
+        vendor = (p["vendor"] or str(c.get("vendor", "")) or "").strip()
+        if c.get("approved") and "red hat" in vendor.lower().replace("redhat", "red hat"):
+            continue                     # same AutoTall precedent as above
+        vendor_required.add(title)
+        missing.append({
+            "code":         "",          # RMS key 215 is 403; no code to give
+            "name":         (vendor + " certification") if vendor else "Vendor certification",
+            "because":      title,
+            "qubits_score": c.get("qubits_score", 0),
+            "delivered":    c.get("delivered", 0),
+            "vendor":       vendor,
+            "priority":     "high" if c.get("delivered", 0) > 0 else "medium",
+        })
+    missing.sort(key=lambda m: (m["priority"] != "high", -m["delivered"], m["because"]))
+
     seeds = held_codes | set(taught)
     rec_codes = set()
     for s in seeds:
@@ -1128,7 +1313,12 @@ def _cert_intelligence(courses, held_certs, accreditations):
         for code in sorted(rec_codes)
     ]
 
-    covered = len(taught) - len(missing)
+    # Denominator is every course this trainer teaches that requires a
+    # certificate — the coded ones plus the vendor-wide ones RMS flagged.
+    # Using only the coded set here drove coverage negative as soon as
+    # vendor-wide gaps started being reported.
+    required_total = len(taught) + len(vendor_required)
+    covered = max(0, required_total - len(missing))
     return {
         "held":        held_certs,
         "held_codes":  sorted(held_codes),
@@ -1136,7 +1326,8 @@ def _cert_intelligence(courses, held_certs, accreditations):
         "missing":     missing,
         "recommended": recommended,
         "taught_codes": sorted(taught),
-        "coverage_pct": round(100 * covered / len(taught)) if taught else None,
+        "coverage_pct": round(100 * covered / required_total) if required_total else None,
+        "cert_required_count": required_total,
         "gap_count":   len(missing),
     }
 
@@ -1287,7 +1478,13 @@ def _build_trainer(r, today):
     # ── Parallel sub-fetches (sequential within this worker) ────────────
     u_row  = _util_row(t_email) if t_email else {}
     series = _util_series(u_row)
-    util   = _avg_util(series)
+    # Two different readings, kept apart on purpose: `util` is how busy this
+    # trainer is now (last month that carried load), `util_3m` is the trend.
+    # These used to be the same number — the three-month average wearing the
+    # name "current_utilization" — which under-reported anyone just back from
+    # bench and over-reported anyone just off a heavy run.
+    util    = _current_util(series)
+    util_3m = _avg_util(series)
 
     neg_count = 0
     try:
@@ -1309,7 +1506,9 @@ def _build_trainer(r, today):
     assignments_ok = assignments_raw is not None
     assignments = [a for a in (assignments_raw if isinstance(assignments_raw, list) else [])
                    if isinstance(a, dict)]
-    util_ok = bool(u_row)
+    # A utilisation row can exist with no monthly columns in it, so the row
+    # alone is not proof of a usable reading — require an actual number.
+    util_ok = util is not None
 
     # ── Determine current status ─────────────────────────────────────────
     current_a = None
@@ -1354,7 +1553,7 @@ def _build_trainer(r, today):
         "Light" if util >= 30 else
         "On Bench"
     )
-    readiness_score = util
+    readiness_score = util if util is not None else 0
 
     feedback_risk = "High" if neg_count > 2 else ("Medium" if neg_count > 0 else "Low")
 
@@ -1364,7 +1563,7 @@ def _build_trainer(r, today):
         recommended = "Follow up on feedback"
     elif status == "free":
         recommended = "Consider new allocation"
-    elif util < 40:
+    elif util is not None and util < 40:
         recommended = "Check availability"
     else:
         recommended = "Monitor performance"
@@ -1418,15 +1617,20 @@ def _build_trainer(r, today):
         "designation":            desig,
         "direct_or_indirect":     t_type,
         "trainer_plus":           is_plus,
+        # How busy they are now (last month that carried load).
         "current_utilization":    util,
         "utilization_current":    util,
+        # The trend behind it. Equal to `current` only by coincidence.
+        "utilization_avg_3m":     util_3m,
         "utilization_series":     series,
-        # RMS returned no utilization row at all for this trainer, so `util`
-        # above is a default 0, not a measured 0% — indistinguishable from a
-        # genuinely idle trainer unless this flag is checked. Without it,
-        # team-wide averages silently count "no data" as "0% utilized" and
-        # skew low. See _avg_util(series) — an empty series also returns 0.
+        # RMS returned no usable utilisation reading, so `util` above is None,
+        # not 0 — a genuinely idle trainer and one RMS knows nothing about are
+        # different facts, and collapsing them makes team averages skew low.
         "utilization_available":  util_ok,
+        # Plain-language readings of the same number, so every screen agrees
+        # where the thresholds sit instead of each re-deriving its own.
+        "utilization_status":     _utilization_status(util),
+        "availability_status":    _availability_status(util),
         "capacity_bucket":        capacity_bucket,
         "readiness_bucket":        capacity_bucket,   # legacy key, v1.4.x clients
         "overall_readiness_score": readiness_score,
@@ -1675,87 +1879,44 @@ def unified_intelligence():
         if action:
             actions.append(action)
 
-    # ── Fallback Enterprise Intelligence (resilient to RMS outages/empty reportees) ──
-    if not trainer_ops:
-        fallback_trainers = [
-            ("EMP101", "Subhash Verma", "subhash.v@koenig-solutions.com", "Cloud & Kubernetes Lead", 92, "Optimal", "Low", 5, "Kubernetes / CKA", "teaching_now", "AZ-305 Azure Solutions", "London, UK"),
-            ("EMP102", "Amit Kumar", "amit.k@koenig-solutions.com", "CyberSecurity Specialist", 88, "Optimal", "Low", 4, "CISSP / Security+", "preparing", "CISSP Security Suite", "Dubai, UAE"),
-            ("EMP103", "Priya Sharma", "priya.s@koenig-solutions.com", "AWS Solutions Architect", 95, "Stretched", "Low", 6, "AWS DevOps Professional", "teaching_now", "AWS Architect Master", "New York, USA"),
-            ("EMP104", "Rajesh Mishra", "rajesh.m@koenig-solutions.com", "Azure & DevOps Engineer", 45, "On Bench", "Low", 3, "Azure DevOps AZ-400", "free", "Available", "Delhi, India"),
-            ("EMP105", "Vikram Rao", "vikram.r@koenig-solutions.com", "AI & Machine Learning Specialist", 78, "Optimal", "Low", 4, "Python AI/ML", "scheduled_today", "AI-102 Azure AI", "Singapore"),
-            ("EMP106", "Ananya Das", "ananya.d@koenig-solutions.com", "Java FullStack Lead", 85, "Optimal", "Low", 3, "Java Spring Boot", "teaching_now", "FullStack Enterprise", "Sydney, Australia"),
-            ("EMP107", "Neha Kapoor", "neha.k@koenig-solutions.com", "Cisco Networking Specialist", 30, "On Bench", "High", 2, "CCNA / CCNP", "free", "Review Pending Feedback", "Frankfurt, Germany"),
-            ("EMP108", "Sunil Patel", "sunil.p@koenig-solutions.com", "RedHat Linux Engineer", 82, "Optimal", "Low", 5, "RHCSA / RHCE", "preparing", "RedHat Enterprise 9", "Mumbai, India"),
-            ("EMP109", "Manish Gupta", "manish.g@koenig-solutions.com", "Data Engineering Lead", 90, "Stretched", "Low", 4, "Databricks & Spark", "teaching_now", "DP-203 Data Engineering", "Chicago, USA"),
-            ("EMP110", "Deepa Reddie", "deepa.r@koenig-solutions.com", "Frontend & UI/UX Specialist", 70, "Optimal", "Low", 3, "Angular / React", "free", "Available", "Bangalore, India"),
-        ]
+    delivery_rows = [_delivery_row(o, st) for o, st in zip(trainer_ops, trainer_states)]
 
-        for emp_code, name, email_addr, desig, util, cap, risk, certs, skill, status, assign, loc in fallback_trainers:
-            ops_item = {
-                "emp_code": emp_code,
-                "emp_id": emp_code,
-                "trainer_name": name,
-                "off_email": email_addr,
-                "trainer_plus": "Yes" if certs > 3 else "No",
-                "is_direct_reportee": "Yes",
-                "designation": desig,
-                "current_utilization": util,
-                "utilization_available": True,
-                "capacity_bucket": cap,
-                "feedback_risk": risk,
-                "vendor_cert_count": certs,
-                "primary_skill": skill,
-                "recommended_action": "Optimal Allocation" if cap == "Optimal" else ("Review Feedback" if risk == "High" else "Assign Pending Demand")
-            }
-            state_item = {
-                "emp_code": emp_code,
-                "trainer_name": name,
-                "current_status": status,
-                "current_assignment": assign,
-                "location": loc
-            }
-            trainer_ops.append(ops_item)
-            trainer_states.append(state_item)
-
-    if not demand_df:
-        fallback_demand = [
-            ("DEM-501", "AZ-305 Designing Azure Infrastructure", "2026-08-17", "2026-08-21", "ILT", "Microsoft Partner", "London, UK", "18", True, "GB", "🇬🇧", [], False, 95, 110),
-            ("DEM-502", "AWS Certified Solutions Architect", "2026-08-24", "2026-08-28", "ILO", "Amazon Enterprise", "New York, USA", "24", True, "US", "🇺🇸", [], False, 92, 105),
-            ("DEM-503", "Cisco CCNA Implementing Network Fundamentals", "2026-09-01", "2026-09-05", "Onsite", "Cisco Global", "Dubai, UAE", "12", True, "AE", "🇦🇪", ["Accrediting Body Certification Verification Required", "International Travel & Visa Clearance Required (AE)"], True, 65, 80),
-            ("DEM-504", "Certified Information Systems Security Professional (CISSP)", "2026-09-07", "2026-09-11", "FMAT", "CyberCorp Global", "Singapore", "15", True, "SG", "🇸🇬", [], False, 90, 100),
-            ("DEM-505", "RedHat Certified System Administrator (RHCSA)", "2026-09-14", "2026-09-18", "ILT", "RedHat Enterprise", "Sydney, Australia", "20", True, "AU", "🇦🇺", [], False, 88, 95),
-            ("DEM-506", "Kubernetes Administrator (CKA)", "2026-09-21", "2026-09-25", "Onsite", "Cloud Native Corp", "Frankfurt, Germany", "10", True, "EU", "🇪🇺", ["Language Requirement: Frankfurt Local Language Needed"], True, 60, 75),
-            ("DEM-507", "Python for Data Science & Machine Learning", "2026-09-28", "2026-10-02", "ILO", "Tech Academy", "Mumbai, India", "30", False, "IN", "🇮🇳", [], False, 85, 70),
-            ("DEM-508", "CompTIA Security+ Certification", "2026-10-05", "2026-10-09", "FMAT", "Global Security", "Chicago, USA", "16", True, "US", "🇺🇸", [], False, 94, 98),
-        ]
-
-        for dem_id, course, s_date, e_date, mode, cust, loc, pax, is_int, cc, flag, mismatches, is_ex, suit, prio in fallback_demand:
-            item = {
-                "demand_id": dem_id,
-                "course_name": course,
-                "start_date": s_date,
-                "end_date": e_date,
-                "delivery_mode": mode,
-                "customer": cust,
-                "location": loc,
-                "participants": pax,
-                "is_international": is_int,
-                "country_code": cc,
-                "flag_emoji": flag,
-                "mismatch_constraints": mismatches,
-                "is_exception": is_ex,
-                "suitability_score": suit,
-                "priority_score": prio
-            }
-            demand_df.append(item)
-            if is_ex:
-                allocation_exceptions.append(item)
-            else:
-                primary_opps.append(item)
+    # No synthetic fallback. A manager with no reportees, or an RMS that did
+    # not answer, gets an empty result and the app's own empty state, which
+    # says so plainly. This block used to invent ten trainers ("Subhash
+    # Verma", 92% utilised, teaching AZ-305 in London) and eight demands
+    # whenever RMS was quiet, and nothing on screen distinguished them from
+    # real people. Staffing decisions were reachable against data that did
+    # not exist; an honest blank is the only safe answer.
 
     # ── KPI summary ──────────────────────────────────────────────────────
-    util_vals   = [t["current_utilization"] for t in trainer_ops if t.get("utilization_available")]
-    avg_util    = round(sum(util_vals) / len(util_vals)) if util_vals else 76
+    # Only trainers RMS actually returned a reading for. A missing utilisation
+    # is not 0% and must not be averaged in, or the team number skews low.
+    util_vals   = [t["current_utilization"] for t in trainer_ops
+                   if t.get("utilization_available") and t.get("current_utilization") is not None]
+    # None, not a fallback figure. This used to default to a hardcoded 76,
+    # which put an invented number on the dashboard whenever RMS was quiet —
+    # indistinguishable, to the manager reading it, from a measured one.
+    avg_util    = round(sum(util_vals) / len(util_vals)) if util_vals else None
+
+    # Real team utilisation history: the mean across everyone with a reading
+    # for each month, in calendar order. This drives the dashboard sparkline,
+    # which previously plotted a hardcoded [68,71,74,72,76] and a hardcoded
+    # "+4.2%" trend — a five-point invention that moved for nobody.
+    _month_totals = {}
+    for _t in trainer_ops:
+        for _m in (_t.get("utilization_series") or []):
+            _label, _value = _m.get("month"), _m.get("utilization")
+            if _label and isinstance(_value, (int, float)):
+                _month_totals.setdefault(_label, []).append(_value)
+    _ordered = sorted(_month_totals.items(),
+                      key=lambda kv: _parse_date("01 " + kv[0], default=date.min))
+    util_history = [round(sum(v) / len(v)) for _, v in _ordered if v][-6:]
+    if len(util_history) >= 2:
+        _delta = util_history[-1] - util_history[-2]
+        util_trend = ("+" if _delta >= 0 else "") + str(_delta) + "%"
+    else:
+        util_trend = ""
     active_cnt  = sum(1 for s in trainer_states if s["current_status"] != "unknown")
     mgr_name    = email.split("@")[0].replace(".", " ").title()
 
@@ -1794,37 +1955,61 @@ def unified_intelligence():
         )
         deployable_pct = round(100 * deployable / len(trainer_ops))
     else:
-        deployable_pct = 90
+        # No team, so no deployable share. None, not an optimistic 90.
+        deployable_pct = None
 
-    notifications = [
-        {
-            "id": "NOTIF-101",
-            "severity": "CRITICAL",
-            "category": "CERTIFICATION",
-            "title": "Vendor Certification Expiration Alert",
-            "message": "Subhash Verma's CKA certification expires in 14 days. Re-certification required before London UK batch.",
-            "timestamp": "10m ago",
-            "read": False
-        },
-        {
-            "id": "NOTIF-102",
-            "severity": "WARNING",
-            "category": "CAPACITY",
-            "title": "Utilization Anomaly Detected",
-            "message": "Priya Sharma utilization reached 95% (Stretched Capacity). Re-allocation lock recommended.",
-            "timestamp": "1h ago",
-            "read": False
-        },
-        {
-            "id": "NOTIF-103",
-            "severity": "INFO",
-            "category": "SKILL_APPROVAL",
-            "title": "New IDP Skill Approval Request",
-            "message": "IDP skill addition request for 'AZ-400 Azure DevOps' from Rajesh Mishra awaits manager sign-off.",
-            "timestamp": "3h ago",
-            "read": False
-        }
-    ]
+    # Notifications derived from this manager's own roster and demand — not a
+    # fixed list. Three hardcoded alerts used to live here naming trainers
+    # ("Subhash Verma's CKA certification expires in 14 days") who existed
+    # only in the deleted fallback block above, so the alert bell reported
+    # urgent problems about people the manager does not employ.
+    notifications = []
+
+    for _t, _s in zip(trainer_ops, trainer_states):
+        _name = _t.get("trainer_name") or "A trainer"
+        if _t.get("feedback_risk") == "High":
+            notifications.append({
+                "id": "FB-" + str(_t.get("official_email") or _name),
+                "severity": "CRITICAL", "category": "FEEDBACK",
+                "title": "Repeated negative feedback",
+                "message": "%s has %d negative feedback records on file and is not "
+                           "auto-allocatable until reviewed." % (_name, _t.get("negative_count") or 0),
+                "trainer_email": _t.get("official_email", ""),
+                "read": False,
+            })
+        _u = _t.get("current_utilization")
+        if isinstance(_u, (int, float)) and _u > 85:
+            notifications.append({
+                "id": "CAP-" + str(_t.get("official_email") or _name),
+                "severity": "WARNING", "category": "CAPACITY",
+                "title": "Trainer over capacity",
+                "message": "%s is at %d%% utilisation. Consider re-allocating "
+                           "upcoming work." % (_name, round(_u)),
+                "trainer_email": _t.get("official_email", ""),
+                "read": False,
+            })
+        if _s.get("current_status") == "unknown":
+            notifications.append({
+                "id": "UNK-" + str(_t.get("official_email") or _name),
+                "severity": "WARNING", "category": "DATA",
+                "title": "Assignment status unavailable",
+                "message": "RMS did not return assignment data for %s, so their "
+                           "current status is unknown." % _name,
+                "trainer_email": _t.get("official_email", ""),
+                "read": False,
+            })
+
+    if demand_df:
+        notifications.append({
+            "id": "DEM-open", "severity": "INFO", "category": "DEMAND",
+            "title": "Unallocated demand waiting",
+            "message": "%d unallocated batch%s need a trainer assigned."
+                       % (len(demand_df), "" if len(demand_df) == 1 else "es"),
+            "trainer_email": "", "read": False,
+        })
+
+    _sev_rank = {"CRITICAL": 0, "WARNING": 1, "INFO": 2}
+    notifications.sort(key=lambda n: _sev_rank.get(n["severity"], 3))
 
     manager_kpis = {
         "total_team_members":   len(trainer_ops),
@@ -1834,20 +2019,27 @@ def unified_intelligence():
         "upcoming_batches":     upcoming_batches,
         "training_days_delivered": days_delivered,
         "training_days_window_label": "last 30 days",
-        "avg_team_utilization": avg_util if util_vals else 76,
-        "utilization_sample":   len(util_vals) or len(trainer_ops),
-        "utilization_trend":    "+4.2%",
-        "utilization_history":  [68, 71, 74, 72, 76],
+        "avg_team_utilization": avg_util,
+        # How many trainers that average is actually based on. Reporting the
+        # whole team here when only some had data overstated the sample.
+        "utilization_sample":   len(util_vals),
+        "utilization_trend":    util_trend,
+        "utilization_history":  util_history,
         "high_risk_trainers":   high_risk,
         "stretched_trainers":   stretched,
         "bench_trainers":       on_bench,
         "optimal_trainers":     optimal,
         "deployable_pct":       deployable_pct,
         "unknown_status":       unknown_state,
-        "open_actions":         len(actions) or 2,
+        # An empty queue is a real, good answer. This used to report 2 when
+        # there were none, so "all clear" was unreachable by construction.
+        "open_actions":         len(actions),
         "open_demand":          len(demand_df),
         "team_readiness_score": readiness_score,
-        "readiness_trend":      "+2.4%",
+        # No readiness history is retained anywhere, so there is no trend to
+        # report. Blank, rather than the hardcoded "+2.4%" that used to sit
+        # here and always pointed up regardless of what the team was doing.
+        "readiness_trend":      "",
         "cert_coverage_pct":    cert_coverage,
         "international_batches": int_batch_count,
         "domestic_batches":     dom_batch_count,
@@ -1861,6 +2053,7 @@ def unified_intelligence():
         "notifications":            notifications,
         "trainer_operations_df":    trainer_ops,
         "trainer_current_state_df": trainer_states,
+        "delivery_intelligence_df": delivery_rows,
         "batch_engagement_df":      all_batches,
         "unallocated_demand_df":    demand_df,
         "primary_opportunities":    primary_opps,
@@ -1882,11 +2075,13 @@ def unified_intelligence():
             "email": email,
             "role":  "Delivery Manager",
         },
+        # Legacy alias block for older clients. `completion_rate` used to sit
+        # here as a hardcoded 95 with nothing behind it; no client reads it,
+        # so it is gone rather than left as a number someone might trust.
         "kpis": {
             "active_trainers": len(trainer_ops),
             "avg_utilization": avg_util,
             "pending_actions": len(actions),
-            "completion_rate": 95,
         },
         "trainers": [
             {
@@ -1966,7 +2161,7 @@ def manager_profile():
         "summary":      resume.get("summary", "")[:600],
         "certifications": resume.get("certifications", []),
         "clients_count": len(resume.get("clients", [])),
-        "own_utilization": _avg_util(series) if series else None,
+        "own_utilization": _current_util(series),
         "team": {
             "size":      len(reportees),
             "direct":    direct,
@@ -1978,8 +2173,13 @@ def manager_profile():
     }), 200
 
 
-def _capability_for(r):
-    """Per-trainer capability + certification picture. One worker's share."""
+def _capability_for(r, policy=None):
+    """Per-trainer capability + certification picture. One worker's share.
+
+    [policy] is the catalogue-wide exam map, fetched once per request by the
+    caller rather than per trainer — it is 10,934 rows and identical for
+    everyone.
+    """
     email = str(r.get("OffEmail", "")).strip().lower()
     name  = _re.sub(r"\s+", " ", str(r.get("TrainerName", ""))).strip()
     if not email:
@@ -1994,8 +2194,8 @@ def _capability_for(r):
         certs  = f_certs.result()
         series = _util_series(f_util.result())
 
-    util = _avg_util(series) if series else None
-    intel = _cert_intelligence(caps, resume.get("certifications", []), certs["held"])
+    util = _current_util(series)
+    intel = _cert_intelligence(caps, resume.get("certifications", []), certs["held"], exam_policy=policy)
     # Same scoring functions trainer-360 uses, so a profile that reads "Ready"
     # cannot show up as something else in the team roll-up.
     risk = _risk_score(0, 0, util, has_signal=bool(series))
@@ -2040,7 +2240,9 @@ def team_capability():
     rows = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)][:20]
 
     with ThreadPoolExecutor(max_workers=6) as pool:
-        team = [t for t in pool.map(_capability_for, rows) if t]
+        # One catalogue fetch for the whole team, not one per trainer.
+        _policy = _exam_policy()
+        team = [t for t in pool.map(lambda r: _capability_for(r, _policy), rows) if t]
 
     # ── Course catalogue: one entry per course, with everyone who can teach it ──
     catalogue = {}
@@ -2259,7 +2461,8 @@ def trainer_360():
     future   = [s for s in skills if s["future_skill"]]
     avg_qubits = round(sum(s["qubits_score"] for s in skills) / len(skills)) if skills else 0
 
-    cert_intel = _cert_intelligence(skills, resume.get("certifications", []), certs["held"])
+    cert_intel = _cert_intelligence(skills, resume.get("certifications", []), certs["held"],
+                                    exam_policy=_exam_policy())
 
     # ── Peer context: designation, reporting line and ranking within the team ──
     peer_rows = [p for p in (peers if isinstance(peers, list) else []) if isinstance(p, dict)]
@@ -2280,8 +2483,9 @@ def trainer_360():
         if mine is not None and len(peer_utils) > 1:
             team_rank = 1 + sum(1 for v in peer_utils.values() if v > mine)
 
-    util_ok  = bool(series)
-    util_now = _avg_util(series) if util_ok else None
+    util_now = _current_util(series)
+    util_ok  = util_now is not None
+    util_3m  = _avg_util(series) if series else None
 
     risk_score = _risk_score(neg_total, hr_neg, util_now,
                              has_signal=bool(neg_rows or hr_rows or util_ok))
@@ -2321,7 +2525,10 @@ def trainer_360():
             "avg_qubits":       avg_qubits,
         },
         "utilization": {
-            "current": util_now if util_ok else None,
+            "current": util_now,
+            "avg_3m":  util_3m,
+            "status":       _utilization_status(util_now),
+            "availability": _availability_status(util_now),
             "available": util_ok,
             "series":  series,
             "peak":    max((m["utilization"] for m in series), default=0),
@@ -2350,6 +2557,9 @@ def trainer_360():
             "recommended":    cert_intel["recommended"],
             "coverage_pct":   cert_intel["coverage_pct"],
             "gap_count":      cert_intel["gap_count"],
+            # How many of this trainer's courses require a certificate at all
+            # (RMS exam policy, all vendors) — the denominator behind coverage.
+            "cert_required_count": cert_intel.get("cert_required_count"),
             "taught_codes":   cert_intel["taught_codes"],
         },
         "delivery": {
