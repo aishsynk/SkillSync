@@ -195,28 +195,31 @@ fun BatchDetailScreen(
                         Spacer(Modifier.height(12.dp))
                         HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f), thickness = 0.5.dp)
                         Spacer(Modifier.height(10.dp))
-                        Fact("Mode", batch.str("delivery_mode"))
-                        Fact("Vendor", batch.str("customer"))
-                        Fact("Participants", batch.intOrNull("participants")?.toString() ?: "—")
-                        Fact("Daily time", batch.str("session_time"))
-                        Fact("Language", batch.str("language"))
-                        Fact("Location", batch.str("location"))
-                        Fact("Courseware", batch.str("courseware"))
-                        Fact("Allocation for", batch.str("allocation_for"))
-                        Fact("Course id", courseId)
-                        batch.str("remarks").takeIf { it.isNotBlank() }?.let { Fact("Remarks", it) }
-                        batch.str("schedule").takeIf { it.isNotBlank() }?.let {
-                            Spacer(Modifier.height(8.dp))
-                            Text("SESSION SCHEDULE", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.1.em)
-                            Spacer(Modifier.height(3.dp))
-                            Text(it, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
-                        }
-                        batch.str("scid").takeIf { it.isNotBlank() }?.let {
-                            Spacer(Modifier.height(8.dp))
-                            Text("STUDENT CARD", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.1.em)
-                            Spacer(Modifier.height(3.dp))
-                            Text(it, style = MaterialTheme.typography.labelSmall, color = sk.subText)
-                        }
+                        // Mode through Remarks, two per row. Short facts pair
+                        // up; anything long (remarks, a wordy location) takes a
+                        // full row so it is not truncated to fit a column.
+                        FactGrid(
+                            listOf(
+                                "Mode" to batch.str("delivery_mode"),
+                                "Vendor" to batch.str("customer"),
+                                "Participants" to (batch.intOrNull("participants")?.toString() ?: ""),
+                                "Daily time" to batch.str("session_time"),
+                                "Language" to batch.str("language"),
+                                "Location" to batch.str("location"),
+                                "Courseware" to batch.str("courseware"),
+                                "Allocation for" to batch.str("allocation_for"),
+                                "Course id" to courseId,
+                                "Student card" to batch.str("scid"),
+                                "Remarks" to batch.str("remarks"),
+                            )
+                        )
+                        // The raw `schedule` blob is deliberately not rendered.
+                        // RMS repeats the same window once per delivery day
+                        // ("24 Aug / 09:00-17:00 / 25 Aug / 09:00-17:00 / ..."),
+                        // so printing it restated the dates already shown above
+                        // and the daily time already shown in the grid. The
+                        // window is extracted once, server-side, as
+                        // `session_time`.
                     }
                 }
 
@@ -429,6 +432,64 @@ private fun DetailStat(label: String, value: String, tint: Color) {
             color = MaterialTheme.skill.labelText, fontSize = 8.sp,
             fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
         )
+    }
+}
+
+/**
+ * Facts laid out two per row, so the detail page reads at a glance instead of
+ * as one long column the manager has to scroll.
+ *
+ * Blank values are dropped before pairing, so an absent field closes the gap
+ * rather than leaving a hole in the grid. A value long enough to be truncated
+ * in half-width takes a full row instead.
+ */
+@Composable
+private fun FactGrid(facts: List<Pair<String, String>>) {
+    val present = facts.filter { it.second.isNotBlank() && it.second != "—" }
+    if (present.isEmpty()) return
+
+    // Greedy pairing: walk the list and pair two short facts, or emit one long
+    // fact on its own row.
+    val rows = remember(present) {
+        val out = mutableListOf<List<Pair<String, String>>>()
+        var i = 0
+        while (i < present.size) {
+            val a = present[i]
+            val aLong = a.second.length > 28
+            val b = present.getOrNull(i + 1)
+            if (!aLong && b != null && b.second.length <= 28) {
+                out.add(listOf(a, b)); i += 2
+            } else {
+                out.add(listOf(a)); i += 1
+            }
+        }
+        out
+    }
+
+    Column(Modifier.fillMaxWidth()) {
+        rows.forEach { row ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+                row.forEach { (label, value) ->
+                    Column(Modifier.weight(1f).padding(end = 10.dp)) {
+                        Text(
+                            label.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.skill.ice,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.09.em,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            value,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.skill.frost,
+                        )
+                    }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
     }
 }
 

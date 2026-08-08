@@ -1,5 +1,65 @@
 # SkillEdge Project Progress
 
+## Release v1.41.0 - FMAT/ILT/ILO separated, demand detail de-duplicated, PDF export
+- **Timestamp**: 2026-08-09T04:00:00+05:30
+- **Agent/Tool Used**: Claude Code (Opus 5)
+
+### Delivery modes are three products, not two tiers
+Corrected by the user: FMAT and ILT are not the same kind of delivery. The
+board had been grouping them into one "instructor-led" band with ILO beneath.
+Now each mode is its own tier and its own section, because a manager staffs
+them differently:
+
+- **FMAT** - the trainer travels to the customer. Highest delivery cost, the
+  only mode carrying travel/visa exposure, needs the earliest decision and the
+  most experienced person. Tier 1 international / 2 domestic, score base 50.
+- **ILT** - classroom delivery at a Koenig site. Instructor present, high
+  value, no travel commitment. Tier 2 international / 3 domestic, base 40.
+- **ILO** - online delivery, the volume tier. Tier 4, base 10.
+
+FMAT and ILT both lead ILO whatever their location. International is flagged
+per card and per section header ("2 abroad") rather than given its own band,
+so the mode grouping stays legible. Verified live: 1 FMAT / 7 ILO / 0 ILT.
+
+Also fixed a counter that had silently zeroed: `summary.online` counted
+`priority_tier == 3`, which stopped matching ILO when the tiers were re-laddered.
+Summary now counts on `delivery_mode_kind` directly, which cannot drift.
+
+### Demand detail: schedule de-duplicated, two-column layout
+The raw `schedule` blob is no longer rendered. RMS repeats the same window once
+per delivery day ("24 Aug / 09:00-17:00 / 25 Aug / 09:00-17:00 / ..."), so
+printing it restated the dates already shown in the header and the daily time
+already shown in the facts. The window is extracted once, server-side, as
+`session_time`.
+
+Mode through Remarks now lay out two per row via a new `FactGrid`: blank values
+are dropped before pairing so an absent field closes the gap instead of leaving
+a hole, and a value too long for half-width takes a full row rather than being
+truncated.
+
+### Trainer 360: export to PDF
+New `TrainerReport` renders the profile through WebView + the system
+PrintManager, so the framework owns pagination and the save/share sheet and the
+manager gets the standard Android print dialog - including Save as PDF and
+sending to Drive or email. Built from the same trainer-360 payload the screen
+renders, so a published PDF cannot disagree with what was on screen. Fields RMS
+did not return are omitted rather than printed as blanks. Export is offered only
+once the profile has loaded. New `ic_export_pdf` drawable (a document with a
+down arrow, not a share graph - this saves a file, it does not send one).
+
+### Stubs already retired
+`/api/data/batch-details` and `/api/action/approve-skill` were removed in an
+earlier commit this session. Confirmed absent; 20 routes remain, all real.
+
+### Build & Test
+31/31 unit tests pass. `assembleRelease` verified against the release key. All
+five endpoints re-verified live.
+
+### Still outstanding
+Trainer-360's 12 sections are still one flat scroll - the PDF export landed but
+the grouping/hierarchy redesign did not. Also open: what "send a message" should
+mean (no messaging API exists; `BatchShare` only composes to clipboard).
+
 ## Release v1.40.0 - Actions become a real inbox; Team goes 2-up; Demand 500 fixed
 - **Timestamp**: 2026-08-09T02:00:00+05:30
 - **Agent/Tool Used**: Claude Code (Opus 5)

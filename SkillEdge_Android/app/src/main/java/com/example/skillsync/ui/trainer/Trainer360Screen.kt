@@ -71,6 +71,20 @@ fun Trainer360Screen(
                         )
                     }
                 },
+                actions = {
+                    // Export is offered only once the profile has loaded —
+                    // publishing a half-fetched payload would produce a PDF
+                    // that disagrees with the screen it was exported from.
+                    (state as? Trainer360State.Success)?.let { loaded ->
+                        IconButton(onClick = { TrainerReport.export(context, loaded.data) }) {
+                            Icon(
+                                painterResource(R.drawable.ic_export_pdf),
+                                contentDescription = "Export profile as PDF",
+                                tint = Color.White,
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                 ),

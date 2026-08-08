@@ -2721,22 +2721,62 @@ def _priority_fields(mode, location, participants, coverage):
     `assignment_risk` comes from how well the team currently covers it.
     """
     m = (mode or "").upper()
-    is_priority_mode = "ILT" in m or "FMAT" in m
+    # The three delivery modes RMS actually uses. FMAT and ILT are
+    # instructor-present engagements and are the higher-value tier; ILO is
+    # online delivery. An unrecognised mode is treated as instructor-led
+    # rather than demoted — an unknown mode is a data-quality question, not a
+    # reason to bury a batch.
+    is_ilo = "ILO" in m
+    is_fmat = "FMAT" in m
+    is_ilt = "ILT" in m
+    is_instructor_led = not is_ilo
+
     loc = (location or "").strip().lower()
-    is_international = bool(loc) and not any(marker in loc for marker in _INDIA_MARKERS)
+    location_known = bool(loc)
+    # Only a location that names India (or an Indian city) counts as domestic.
+    # A blank location is genuinely unknown and is reported as such rather
+    # than being silently counted as either — 7 of 8 live rows carry no
+    # location at all, so guessing either way would misrepresent most of the
+    # board.
+    is_domestic = location_known and any(marker in loc for marker in _INDIA_MARKERS)
+    is_international = location_known and not is_domestic
 
     try:
         pax = int(participants or 0)
     except (TypeError, ValueError):
         pax = 0
 
+    # FMAT, ILT and ILO are three different products, not one "instructor-led"
+    # bucket with ILO underneath:
+    #
+    #   FMAT — the trainer travels to the customer. Highest delivery cost and
+    #          the only mode carrying travel, visa and lead-time exposure, so
+    #          it needs the most experienced resource and the earliest
+    #          decision.
+    #   ILT  — classroom delivery at a Koenig site. Instructor-present and
+    #          high value, but without the travel commitment FMAT carries.
+    #   ILO  — online delivery. The volume tier.
+    #
+    # FMAT and ILT both outrank ILO whatever the location, and an
+    # international engagement raises whichever of the two it applies to.
+    if is_fmat:
+        tier, tier_label = (1, "FMAT International") if is_international else (2, "FMAT")
+    elif is_ilt:
+        tier, tier_label = (2, "ILT International") if is_international else (3, "ILT")
+    elif is_ilo:
+        tier, tier_label = 4, "ILO"
+    else:
+        # An unrecognised mode is a data-quality question, not a reason to
+        # bury a batch, so it sits with the instructor-led tiers.
+        tier, tier_label = 3, (mode or "Unspecified")
+
     revenue_potential = (
-        "High" if pax >= 15 or (is_priority_mode and is_international) else
-        "Medium" if pax >= 6 or is_priority_mode else
+        "High" if pax >= 15 or tier <= 2 else
+        "Medium" if pax >= 6 or tier == 3 else
         "Low"
     )
     priority_score = (
-        (40 if is_priority_mode else 10) +
+        (50 if is_fmat else 40 if is_ilt else 10 if is_ilo else 30) +
         (30 if is_international else 0) +
         min(pax, 30)
     )
@@ -2746,8 +2786,20 @@ def _priority_fields(mode, location, participants, coverage):
         "Low"
     )
     return {
-        "is_priority":       is_priority_mode and is_international,
+        # Everything instructor-led earns priority placement, not just the
+        # international subset — requiring both put a domestic ILT below an
+        # online batch.
+        "is_priority":       is_instructor_led,
+        # Which of the three products this is. The UI groups on this rather
+        # than on `is_priority`, so FMAT and ILT stay visibly distinct instead
+        # of collapsing into one "instructor-led" band.
+        "delivery_mode_kind": "FMAT" if is_fmat else ("ILT" if is_ilt else ("ILO" if is_ilo else "OTHER")),
+        "priority_tier":     tier,
+        "priority_label":    tier_label,
+        "delivery_family":   "FMAT" if is_fmat else ("ILT" if is_ilt else ("ILO" if is_ilo else "Other")),
         "is_international":  is_international,
+        "is_domestic":       is_domestic,
+        "location_known":    location_known,
         "revenue_potential": revenue_potential,
         "priority_score":    priority_score,
         "assignment_risk":   assignment_risk,
@@ -2805,6 +2857,14 @@ def allocation_desk():
             "medium": sum(1 for b in demand if b["relevance_band"] == "medium"),
             "unmatched": sum(1 for b in demand if b["relevance"] == 0),
             "priority": priority_count,
+            # Counted on the mode itself rather than on tier numbers, which
+            # shift whenever the tier ladder is retuned (ILO moved 3 -> 4 when
+            # FMAT and ILT were split apart, silently zeroing this counter).
+            "fmat":  sum(1 for b in demand if b.get("delivery_mode_kind") == "FMAT"),
+            "ilt":   sum(1 for b in demand if b.get("delivery_mode_kind") == "ILT"),
+            "ilo":   sum(1 for b in demand if b.get("delivery_mode_kind") == "ILO"),
+            "international": sum(1 for b in demand if b.get("is_international")),
+            "instructor_led": sum(1 for b in demand if b.get("is_priority")),
             "at_risk": sum(1 for b in demand if b["assignment_risk"] == "High"),
         },
         "timestamp": datetime.utcnow().isoformat(),

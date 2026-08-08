@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
@@ -86,7 +87,9 @@ internal fun AllocationDeskContent(
     var selectedLanguages by remember { mutableStateOf(setOf<String>()) }
     var selectedSkillLevels by remember { mutableStateOf(setOf<String>()) }
     var showFilters by remember { mutableStateOf(false) }
-    var priorityExpanded by remember { mutableStateOf(true) }
+    var fmatExpanded by remember { mutableStateOf(true) }
+    var iltExpanded by remember { mutableStateOf(true) }
+    var iloExpanded by remember { mutableStateOf(true) }
     var otherExpanded by remember { mutableStateOf(true) }
     
     var globalSearchCourse by remember { mutableStateOf<String?>(null) }
@@ -123,17 +126,26 @@ internal fun AllocationDeskContent(
         }
     }
 
-    // Priority Demand: ILT/FMAT delivered outside India, flagged server-side
-    // (is_priority) as the higher-business-value tier that earns dedicated,
-    // premium visual treatment. Everything else keeps its RMS arrival order.
-    val (priorityBatches, otherBatches) = remember(filtered) {
-        val (prio, others) = filtered.partition { it.bool("is_priority") }
-        // Deprioritize ILO by pushing them to the bottom
-        val (ilo, nonIlo) = others.partition { 
-            val mode = it.str("delivery_mode").lowercase()
-            mode.contains("ilo") || mode.contains("instructor led online")
-        }
-        prio to (nonIlo + ilo)
+    // Grouped by delivery mode, because FMAT, ILT and ILO are three different
+    // products and a manager staffs them differently:
+    //
+    //   FMAT — the trainer travels to the customer. Highest delivery cost,
+    //          the only mode carrying travel and visa exposure, and the one
+    //          needing the earliest decision and the most experienced person.
+    //   ILT  — classroom delivery at a Koenig site. Instructor-present and
+    //          high value, without the travel commitment.
+    //   ILO  — online delivery. The volume tier.
+    //
+    // FMAT and ILT both lead ILO whatever their location; an international
+    // engagement is flagged on the card rather than given its own section, so
+    // the mode grouping stays legible. Within each group RMS arrival order is
+    // preserved — the grouping carries business priority, the order inside it
+    // is how demand actually arrives.
+    val fmatBatches = remember(filtered) { filtered.filter { it.str("delivery_mode_kind") == "FMAT" } }
+    val iltBatches = remember(filtered) { filtered.filter { it.str("delivery_mode_kind") == "ILT" } }
+    val iloBatches = remember(filtered) { filtered.filter { it.str("delivery_mode_kind") == "ILO" } }
+    val otherModeBatches = remember(filtered) {
+        filtered.filter { it.str("delivery_mode_kind") !in listOf("FMAT", "ILT", "ILO") }
     }
 
     val activeFilterCount = selectedModes.size + selectedLanguages.size + selectedSkillLevels.size + (if (matchBand != MatchBand.ALL) 1 else 0)
@@ -283,60 +295,62 @@ internal fun AllocationDeskContent(
             }
         }
 
-        if (priorityBatches.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(4.dp))
-                SectionHeader(
-                    title = "Priority Demand — ILT/FMAT · International",
-                    count = priorityBatches.size,
-                    tint = sk.teal,
-                    expanded = priorityExpanded,
-                    onToggle = { priorityExpanded = !priorityExpanded },
-                )
-            }
-        }
-        if (priorityExpanded) {
-            // Within the priority tier, RMS arrival order is preserved — no
-            // secondary sort by match or date. Business priority already put
-            // these batches here; arrival order is how a manager works them.
-            itemsIndexed(priorityBatches, key = { _, b -> "p_" + b.str("demand_id") }) { i, b ->
-                Appear(i) {
-                    BatchCard(
-                        b, isNew = b.str("demand_id") in newIds, isPriority = true,
-                        onGlobalSearch = { course ->
-                            globalSearchCourse = course
-                            onGlobalSearch(course)
-                        },
-                    ) { onBatchClick(b) }
-                }
-            }
-        }
+        // FMAT first: trainer travel means the longest lead time.
+        modeSection(
+            batches = fmatBatches,
+            title = "FMAT — Trainer travels to customer",
+            subtitle = "Highest delivery cost · travel and visa lead time",
+            tint = sk.teal,
+            expanded = fmatExpanded,
+            onToggle = { fmatExpanded = !fmatExpanded },
+            keyPrefix = "fmat_",
+            newIds = newIds,
+            isPriority = true,
+            onGlobalSearch = { course -> globalSearchCourse = course; onGlobalSearch(course) },
+            onBatchClick = onBatchClick,
+        )
 
-        if (otherBatches.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(4.dp))
-                SectionHeader(
-                    title = "All Other Demand",
-                    count = otherBatches.size,
-                    tint = sk.subText,
-                    expanded = otherExpanded,
-                    onToggle = { otherExpanded = !otherExpanded },
-                )
-            }
-        }
-        if (otherExpanded) {
-            itemsIndexed(otherBatches, key = { _, b -> "o_" + b.str("demand_id") }) { i, b ->
-                Appear(i) {
-                    BatchCard(
-                        b, isNew = b.str("demand_id") in newIds, isPriority = false,
-                        onGlobalSearch = { course ->
-                            globalSearchCourse = course
-                            onGlobalSearch(course)
-                        },
-                    ) { onBatchClick(b) }
-                }
-            }
-        }
+        modeSection(
+            batches = iltBatches,
+            title = "ILT — Classroom delivery",
+            subtitle = "Instructor present on site",
+            tint = sk.sky,
+            expanded = iltExpanded,
+            onToggle = { iltExpanded = !iltExpanded },
+            keyPrefix = "ilt_",
+            newIds = newIds,
+            isPriority = true,
+            onGlobalSearch = { course -> globalSearchCourse = course; onGlobalSearch(course) },
+            onBatchClick = onBatchClick,
+        )
+
+        modeSection(
+            batches = otherModeBatches,
+            title = "Unspecified delivery mode",
+            subtitle = "RMS did not state a mode — worth checking",
+            tint = sk.warn,
+            expanded = otherExpanded,
+            onToggle = { otherExpanded = !otherExpanded },
+            keyPrefix = "oth_",
+            newIds = newIds,
+            isPriority = true,
+            onGlobalSearch = { course -> globalSearchCourse = course; onGlobalSearch(course) },
+            onBatchClick = onBatchClick,
+        )
+
+        modeSection(
+            batches = iloBatches,
+            title = "ILO — Online delivery",
+            subtitle = "Remote instructor-led",
+            tint = sk.subText,
+            expanded = iloExpanded,
+            onToggle = { iloExpanded = !iloExpanded },
+            keyPrefix = "ilo_",
+            newIds = newIds,
+            isPriority = false,
+            onGlobalSearch = { course -> globalSearchCourse = course; onGlobalSearch(course) },
+            onBatchClick = onBatchClick,
+        )
 
         item { Spacer(Modifier.height(20.dp)) }
     }
@@ -906,5 +920,125 @@ internal fun BatchCard(
                 }
             }
         }
+    }
+}
+
+
+/**
+ * One delivery-mode band on the demand board.
+ *
+ * A `LazyListScope` extension rather than a composable so each batch stays its
+ * own lazy item — wrapping a whole mode in a single item would compose every
+ * card in it at once and lose recycling on a long board.
+ */
+private fun LazyListScope.modeSection(
+    batches: List<Map<*, *>>,
+    title: String,
+    subtitle: String,
+    tint: Color,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    keyPrefix: String,
+    newIds: Set<String>,
+    isPriority: Boolean,
+    onGlobalSearch: (String) -> Unit,
+    onBatchClick: (Map<*, *>) -> Unit,
+) {
+    if (batches.isEmpty()) return
+
+    item(key = keyPrefix + "header") {
+        Spacer(Modifier.height(4.dp))
+        ModeSectionHeader(
+            title = title,
+            subtitle = subtitle,
+            count = batches.size,
+            internationalCount = batches.count { it.bool("is_international") },
+            tint = tint,
+            expanded = expanded,
+            onToggle = onToggle,
+        )
+    }
+    if (expanded) {
+        itemsIndexed(batches, key = { _, b -> keyPrefix + b.str("demand_id") }) { i, b ->
+            Appear(i) {
+                BatchCard(
+                    b,
+                    isNew = b.str("demand_id") in newIds,
+                    isPriority = isPriority,
+                    onGlobalSearch = onGlobalSearch,
+                ) { onBatchClick(b) }
+            }
+        }
+    }
+}
+
+/** Mode band header: what the mode is, how many, and how many are abroad. */
+@Composable
+private fun ModeSectionHeader(
+    title: String,
+    subtitle: String,
+    count: Int,
+    internationalCount: Int,
+    tint: Color,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    val rotation by animateFloatAsStateCompat(if (expanded) 90f else 0f)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onToggle)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(4.dp).height(30.dp).clip(RoundedCornerShape(2.dp)).background(tint))
+        Spacer(Modifier.width(9.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = sk.frost,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = sk.labelText,
+                fontSize = 9.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (internationalCount > 0) {
+            Surface(color = sk.indigo.copy(alpha = 0.18f), shape = RoundedCornerShape(10.dp)) {
+                Text(
+                    "$internationalCount abroad",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.indigo,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                )
+            }
+            Spacer(Modifier.width(6.dp))
+        }
+        Surface(color = tint.copy(alpha = 0.16f), shape = RoundedCornerShape(10.dp)) {
+            Text(
+                "$count",
+                style = MaterialTheme.typography.labelSmall,
+                color = tint,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+        }
+        Spacer(Modifier.width(6.dp))
+        Icon(
+            painterResource(R.drawable.ic_chevron), null, tint = sk.subText,
+            modifier = Modifier.size(14.dp).rotate(rotation),
+        )
     }
 }
