@@ -45,6 +45,11 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
+    # Secrets rotated 2026-08-08 to SkillEdge_Android/keystore/skillsync-release.jks
+    # (alias skillsync-release). The keystore the repo used to ship as a
+    # committed file (release.jks, added in 93bde7d) was never wired into this
+    # workflow and is public in git history — treated as compromised and
+    # retired rather than reused. See keystore/README.md.
     - name: Decode Keystore
       env:
         ENCODED_STRING: ${{ secrets.KEYSTORE_B64 }}

@@ -1,5 +1,22 @@
 # SkillEdge Project Progress
 
+## Release infrastructure — dedicated release keystore, CI signing rotated
+- **Timestamp**: 2026-08-08T08:35:00+05:30
+- **Agent/Tool Used**: Claude Code (Sonnet 5)
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `app/build.gradle.kts` (versionCode/Name only), `SkillEdge_Android/.gitignore`, `SkillEdge_Android/keystore/README.md` (new), `.github/workflows/android-release.yml`; `SkillEdge_Android/release.jks` deleted; GitHub secrets `KEYSTORE_B64`/`KEYSTORE_PASSWORD`/`KEY_ALIAS`/`KEY_PASSWORD` rotated
+- **What triggered this**: The user asked that every future APK be fully update-in-place installable — no uninstall step. Investigating why that wasn't guaranteed surfaced two problems: (1) the last two releases (v1.28.0, v1.29.0) were built locally with `assembleDebug` and published directly via `gh release create`, bypassing the project's actual CI/CD pipeline (`.github/workflows/android-release.yml`) entirely — a hard violation of the durable release policy, which exists specifically because CI is the only path that produces a consistently-signed, update-compatible, traceable release. (2) The repo's `release.jks` had been committed to git in cleartext (commit `93bde7d`) due to a corrupted `.gitignore` entry — the line `release.jks` had been saved with UTF-16 encoding (`r\x00e\x00l\x00e\x00a\x00s\x00e...`), so git never actually matched the ignore pattern.
+- **Work Completed**:
+  - Generated a new dedicated release keystore (`skillsync-release.jks`, alias `skillsync-release`, PKCS12, valid to 2053) and retired the compromised committed one rather than reuse it — a keystore that has been on a public remote should be treated as compromised regardless of whether the password ever leaked.
+  - Wired `signingConfigs` into `app/build.gradle.kts`, reading credentials from `keystore.properties` (git-ignored, local-only) so `assembleRelease` on a dev machine produces a properly-signed APK for **verification only** — never for distribution, per the existing hard rule.
+  - Fixed the corrupted `.gitignore` (rewrote it clean, UTF-8) and added `*.jks`/`*.keystore`/`keystore.properties` patterns.
+  - **Rotated all four GitHub Actions secrets** (`KEYSTORE_B64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) to the new keystore, so the CI pipeline — the only path that should ever publish a release — now signs with the same key `assembleRelease` uses locally for verification.
+  - Verified locally with `apksigner verify --print-certs`: the SHA-256 of the built APK's signer matches the new keystore exactly.
+  - Wrote `keystore/README.md` documenting the key, why it exists, and the history of the compromised predecessor.
+- **Consequence for existing installs**: This is a one-time break. Anyone with v1.27.0 (CI-signed, old key) or v1.28.0/v1.29.0 (locally debug-signed) installed will need to uninstall once to take v1.30.0. Every release from v1.30.0 onward, built by CI with the rotated secrets, will share one signature and install as an update over the previous one with no uninstall step.
+- **Policy correction going forward**: Releases are pushed to `main` and built/published exclusively by GitHub Actions. `assembleRelease`/`assembleDebug` locally is for compile and signature verification only — never `gh release create` with a local build. This was already the documented rule; it was not followed for v1.28.0/v1.29.0, and this entry corrects that.
+- **Build & Test Status**: `assembleRelease` succeeds and produces a correctly-signed APK; `apksigner verify` passes; **30/30 unit tests pass**.
+- **Next Actions**: Push to `main`, let Actions build and publish v1.30.0 (the version bump already reflects this — versionCode 39, versionName "1.30.0"). Confirm the Actions run succeeds and the release asset is signed with the rotated key before telling the user it's ready.
+
 ## Release v1.29.0 — Team roster rebuilt as a manager decision surface
 - **Timestamp**: 2026-08-08T08:15:00+05:30
 - **Agent/Tool Used**: Claude Code (Sonnet 5)

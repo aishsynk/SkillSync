@@ -14,8 +14,8 @@ android {
         applicationId = "com.koenig.skilledge"
         minSdk = 21
         targetSdk = 34
-        versionCode = 38
-        versionName = "1.29.0"
+        versionCode = 39
+        versionName = "1.30.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

@@ -2,6 +2,17 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-08 — Release keystore rotated; local `gh release create` was a policy violation
+
+- **Decision:** Generated a new release keystore (`skillsync-release.jks`) and rotated the four CI signing secrets to it, retiring the previously-committed `release.jks`.
+- **Rationale:** The old `release.jks` was committed to git in commit `93bde7d` because `.gitignore` had a UTF-16-encoded entry for it that git silently never matched. A keystore that has been on a public GitHub remote must be treated as compromised — reusing it for production signing regardless of whether the password ever leaked would be indefensible.
+
+- **Decision:** Every release from v1.30.0 onward goes through `.github/workflows/android-release.yml` only. Local `assembleRelease`/`assembleDebug` is verification-only and is never attached to a GitHub Release.
+- **Rationale:** v1.28.0 and v1.29.0 were built locally with `assembleDebug` and pushed straight to a GitHub Release via `gh release create`, which is exactly what [[feedback_workflow_and_release_policy]] already prohibited — a locally-built APK is debug-signed, has no CI provenance, and cannot update over a CI-signed install. That rule existed before this session; it just wasn't followed for two releases. Fixed by using the actual pipeline going forward.
+
+- **Decision:** `app/build.gradle.kts` gained a `signingConfigs` block that reads `keystore.properties` (git-ignored) if present, and no-ops if absent.
+- **Rationale:** Lets a developer machine produce a real release-signed APK for local verification (confirming the signature matches what CI will produce) without ever touching the CI secrets or requiring the properties file to exist in the repo. CI itself doesn't use this block at all — it signs via AGP's `-Pandroid.injected.signing.*` flags, which is untouched by this change.
+
 ## 2026-08-08 — v1.29.0: Roster card answers four questions, not a stat wall
 
 - **Decision:** Replaced the trainer roster card's five separate badges (cert count, cert gap count, feedback risk, delivery risk, readiness bucket) with one `trainerHealth()` score (0–100) and a Healthy/Watchlist/Needs Attention/High Risk category.

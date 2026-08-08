@@ -1,7 +1,20 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
+}
+
+// Release signing: a fixed key so every published APK carries the same
+// certificate and Android will always offer "update" over the previously
+// installed build instead of demanding an uninstall first. Credentials live
+// in keystore.properties (git-ignored) — see keystore/README.md.
+val keystoreProps = Properties()
+run {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) FileInputStream(f).use { keystoreProps.load(it) }
 }
 
 android {
@@ -11,14 +24,28 @@ android {
         applicationId = "com.example.skillsync"
         minSdk = 24
         targetSdk = 34
-        versionCode = 38
-        versionName = "1.29.0"
+        versionCode = 39
+        versionName = "1.30.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystoreProps.containsKey("storeFile")) {
+                storeFile = rootProject.file(keystoreProps["storeFile"] as String)
+                storePassword = keystoreProps["storePassword"] as String
+                keyAlias = keystoreProps["keyAlias"] as String
+                keyPassword = keystoreProps["keyPassword"] as String
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (keystoreProps.containsKey("storeFile")) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
