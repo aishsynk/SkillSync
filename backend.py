@@ -2916,79 +2916,21 @@ def mark_skill():
     return jsonify(payload), 409
 
 
-@app.route('/api/data/batch-details', methods=['GET'])
-@app.route('/data/batch-details', methods=['GET'])
-def get_batch_details():
-    """
-    Returns modern accordion data for Batch Details screen.
-    Includes Pax Roster (key 209), Logistics, Financials, and Recording link (key 254).
-    """
-    assignment_id = request.args.get('assignment_id', '').strip()
-    if not assignment_id:
-        return jsonify({"error": "assignment_id required"}), 400
+@app.route('/api/actions', methods=['GET'])
+def get_actions():
+    return jsonify([]), 200
 
-    # 1. Pax Roster
-    pax_raw = _rms("assignmentPax", {"AssignmentId": assignment_id}) or []
-    pax_list = []
-    for p in (pax_raw if isinstance(pax_raw, list) else []):
-        if isinstance(p, dict):
-            pax_list.append({
-                "student_name":  str(p.get("StudentName", p.get("student_name", "Student"))),
-                "student_email": str(p.get("StudentEmail", p.get("student_email", "")))
-            })
+@app.route('/api/actions/<action_id>/close', methods=['POST'])
+def close_action(action_id):
+    return jsonify({"actionId": action_id, "newState": "closed", "updatedAt": int(time.time() * 1000)}), 200
 
-    # 2. Recording Details
-    rec_raw = _rms("getRecordingDetails", {"AssignmentId": assignment_id}) or []
-    rec_link = ""
-    if isinstance(rec_raw, list) and len(rec_raw) > 0 and isinstance(rec_raw[0], dict):
-        rec_link = str(rec_raw[0].get("downloadable_link", ""))
+@app.route('/api/actions/<action_id>/escalate', methods=['POST'])
+def escalate_action(action_id):
+    return jsonify({"actionId": action_id, "newState": "escalated", "updatedAt": int(time.time() * 1000)}), 200
 
-    # 3. Active SC Fee Details
-    sc_raw = _rms("getActiveScDate", {"PageNumber": "1", "PageSize": "50"}) or []
-    total_fee = "₹ 1,50,000"
-    currency = "INR"
-    csm_name = "Delivery Operations"
-    if isinstance(sc_raw, list):
-        for item in sc_raw:
-            if isinstance(item, dict) and str(item.get("AssignmentId", "")) == assignment_id:
-                total_fee = f"{item.get('Currency', 'INR')} {item.get('Total Fee', '150000')}"
-                currency = str(item.get('Currency', 'INR'))
-                csm_name = str(item.get('CSM', 'Delivery Operations'))
-                break
-
-    return jsonify({
-        "assignment_id":  assignment_id,
-        "pax_count":      len(pax_list) if pax_list else 12,
-        "pax_roster":     pax_list,
-        "recording_link": rec_link,
-        "total_fee":      total_fee,
-        "currency":       currency,
-        "csm_name":       csm_name,
-        "scid":           f"SC-{assignment_id[-5:] if len(assignment_id)>=5 else '99823'}",
-        "location":       "London, UK (Virtual / ILT)",
-        "start_time":     "09:00 AM",
-        "end_time":       "05:00 PM",
-        "toc_url":        "https://www.koenig-solutions.com/course-toc"
-    }), 200
-
-
-@app.route('/api/action/approve-skill', methods=['POST'])
-def approve_skill():
-    """
-    Manager action endpoint to approve or decline a trainer's skill request.
-    """
-    data = request.get_json(silent=True) or {}
-    action_id = str(data.get("action_id", "")).strip()
-    status = str(data.get("status", "Approved")).strip()
-    manager_email = str(data.get("manager_email", "")).strip()
-
-    return jsonify({
-        "success": True,
-        "action_id": action_id,
-        "status": status,
-        "manager_email": manager_email,
-        "message": f"Skill request successfully updated to '{status}' by manager."
-    }), 200
+@app.route('/api/actions/<action_id>/reassign', methods=['POST'])
+def reassign_action(action_id):
+    return jsonify({"actionId": action_id, "newState": "reassigned", "updatedAt": int(time.time() * 1000)}), 200
 
 
 @app.errorhandler(404)

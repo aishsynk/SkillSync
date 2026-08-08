@@ -5,9 +5,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -541,7 +543,7 @@ internal fun DashboardTab(
             } else {
                 itemsIndexed(attention) { i, (t, reason) ->
                     Appear(i + 3) {
-                        AttentionRow(
+                        NeedsYouTodayCard(
                             trainer = t,
                             reason = reason,
                             capability = capMap[t.str("official_email").lowercase()],
@@ -630,7 +632,7 @@ private fun rankByAttention(
 }
 
 @Composable
-private fun AttentionRow(
+private fun NeedsYouTodayCard(
     trainer: Map<*, *>,
     reason: String,
     capability: Map<*, *>?,
@@ -822,36 +824,68 @@ internal fun ActionsTab(
     onTrainerClick: (String, String) -> Unit,
 ) {
     val sk = MaterialTheme.skill
-    val actions = data.rows("manager_action_objects").filter { it.str("lifecycle_state") != "closed" }
-    val gapTrainers = capability?.rows("trainers").orEmpty()
+    var selectedFilter by remember { mutableStateOf("All") }
+    
+    val allActions = data.rows("manager_action_objects").filter { it.str("lifecycle_state") != "closed" }
+    val allGapTrainers = capability?.rows("trainers").orEmpty()
         .filter { (it.obj("certification")?.int("gap_count") ?: 0) > 0 }
+        
+    val actions = when (selectedFilter) {
+        "Actions" -> allActions
+        "Gaps" -> emptyList()
+        else -> allActions
+    }
+    val gapTrainers = when (selectedFilter) {
+        "Actions" -> emptyList()
+        "Gaps" -> allGapTrainers
+        else -> allGapTrainers
+    }
 
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        if (actions.isEmpty() && gapTrainers.isEmpty()) {
-            item { EmptyStateCard("No open manager actions. Everything on the roster is signed off.") }
-        }
-        itemsIndexed(actions) { i, a -> Appear(i) { AttentionCard(a) } }
-
-        if (gapTrainers.isNotEmpty()) {
-            item {
-                DashSectionHeader(
-                    "Certification gaps",
-                    "Courses being taught without the matching certification",
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("All", "Actions", "Gaps").forEach { filter ->
+                FilterChip(
+                    selected = selectedFilter == filter,
+                    onClick = { selectedFilter = filter },
+                    label = { Text(filter) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = Color.White
+                    )
                 )
             }
-            itemsIndexed(gapTrainers) { i, t ->
-                Appear(i) {
-                    CertGapActionCard(t) {
-                        onTrainerClick(t.str("trainer_email"), t.str("trainer_name"))
+        }
+        
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (actions.isEmpty() && gapTrainers.isEmpty()) {
+                item { EmptyStateCard("No open manager actions. Everything on the roster is signed off.") }
+            }
+            itemsIndexed(actions) { i, a -> Appear(i) { AttentionCard(a) } }
+
+            if (gapTrainers.isNotEmpty()) {
+                item {
+                    DashSectionHeader(
+                        "Certification gaps",
+                        "Courses being taught without the matching certification",
+                    )
+                }
+                itemsIndexed(gapTrainers) { i, t ->
+                    Appear(i) {
+                        CertGapActionCard(t) {
+                            onTrainerClick(t.str("trainer_email"), t.str("trainer_name"))
+                        }
                     }
                 }
             }
+            item { Spacer(Modifier.height(16.dp)) }
         }
-        item { Spacer(Modifier.height(16.dp)) }
     }
 }
 

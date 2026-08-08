@@ -160,7 +160,7 @@ fun CommandHero(kpis: Map<*, *>?, capKpis: Map<*, *>?) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "READINESS SCORE",
+                        "TEAM READINESS",
                         style = MaterialTheme.typography.labelSmall,
                         color = sk.ice,
                         fontSize = 10.sp,
@@ -189,22 +189,15 @@ fun CommandHero(kpis: Map<*, *>?, capKpis: Map<*, *>?) {
                 ReadinessRing(score = readiness, innerValue = deployable, size = 74.dp)
             }
 
-            // Deliberately no sub-figures here: strength, active trainers and
-            // utilisation each own a tile in the grid immediately below, and
-            // repeating them in the hero made the same number appear twice on
-            // one screen. The hero states the score and what it is derived from.
             Spacer(Modifier.height(Space.md))
-            Text(
-                buildString {
-                    append(strength?.let { "$it reportees" } ?: "Team")
-                    active?.let { append(" · $it deployed") }
-                    util?.let { append(" · $it% utilised") }
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = sk.ice,
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Medium,
-            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                SummaryFigure("TEAM", strength?.toString() ?: "—")
+                SummaryFigure("DEPLOYED", active?.toString() ?: "—")
+                SummaryFigure("UTILISED", util?.let { "$it%" } ?: "—")
+            }
         }
     }
 }
@@ -304,30 +297,14 @@ data class Kpi(
     val tint: Color,
     val drill: Drill? = null,
     val pending: Boolean = false,
-    /** Needs team-capability, which is not fetched until something asks for it. */
     val needsCapability: Boolean = false,
-    /** Icon drawn in the tile's slot. */
     val icon: Int = R.drawable.ic_trend,
-    /** Signed delta shown under the value, e.g. "+4.2%". Blank hides the row. */
     val trend: String = "",
-    /** Direction of [trend]: +1 good, -1 bad, 0 neutral. */
     val trendDir: Int = 0,
-    /** Inline history; drawn as a sparkline when it has two or more points. */
     val spark: List<Int> = emptyList(),
-    /** Critical tiles take a rose fill instead of the neutral glass. */
     val critical: Boolean = false,
 )
 
-/**
- * The twelve manager-level numbers, every one counted from a live RMS response.
- *
- * Four of them — certified trainers, certification gaps, readiness and skill
- * coverage — come from `team-capability`, which costs three RMS round-trips per
- * trainer and is therefore not fetched on open. Those cards read "Tap to load"
- * and fetch on demand. They never render 0 for "not fetched yet": a dashboard
- * that shows a confident zero where it simply has not looked is worse than one
- * that admits it does not know.
- */
 @Composable
 fun ManagerKpiGrid(
     kpis: Map<*, *>?,
@@ -369,13 +346,6 @@ fun ManagerKpiGrid(
             trend = if (bench > 0) "$bench on bench" else "fully engaged",
             trendDir = if (bench > 0) 0 else 1),
 
-        Kpi("Active trainers", figure(n("active_trainers")), "delivering or scheduled", sk.aqua,
-            Drill("Active trainers", "Delivering, scheduled or preparing",
-                namesOf(opsWithStatus("teaching_now", "scheduled_today", "preparing"))),
-            icon = R.drawable.ic_award,
-            trend = "${n("unallocated_trainers") ?: 0} free now",
-            trendDir = 0),
-
         Kpi("Active deliveries", figure(n("active_batches")), "running today", sk.royal,
             Drill("Active deliveries", "Currently being delivered",
                 batches.filter { it.str("engagement_state") == "current" }.map {
@@ -408,20 +378,8 @@ fun ManagerKpiGrid(
             icon = R.drawable.ic_check,
             trend = kpis?.str("readiness_trend").orEmpty(),
             trendDir = if (kpis?.str("readiness_trend").orEmpty().startsWith("-")) -1 else 1,
-            // Falls back to the dashboard's own score, so this tile shows a real
-            // number on open rather than "Tap to load".
             pending = capabilityLoading && n("team_readiness_score") == null,
             needsCapability = false),
-
-        Kpi("Cert coverage", n("cert_coverage_pct")?.let { "$it%" } ?: "—",
-            "of the team holds a vendor cert", sk.sky,
-            Drill("Certification coverage", "Vendor certifications held per trainer",
-                ops.sortedByDescending { it.int("vendor_cert_count") }.map {
-                    it.str("trainer_name") to "${it.int("vendor_cert_count")} certification(s)"
-                }),
-            icon = R.drawable.ic_certificate,
-            trend = c("certification_gap_count")?.let { "$it gaps open" } ?: "",
-            trendDir = if ((c("certification_gap_count") ?: 0) > 0) -1 else 1),
 
         Kpi("At risk", "$atRisk", "resources flagged", sk.crit,
             Drill("At-risk resources", "Feedback risk flagged on the operations record",
@@ -445,9 +403,7 @@ fun ManagerKpiGrid(
             critical = false),
     )
 
-    // Two per row: a KPI carrying an icon, a value, a trend and a sparkline
-    // cannot breathe in a third of a phone's width — the previous 3-up grid is
-    // what forced 8sp captions and clipped labels.
+    // Two per row for a 6-tile grid
     Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         items.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
