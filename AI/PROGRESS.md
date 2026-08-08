@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T07:31:00+05:30 - Phase 9 production cold/warm Demand contract validated; Android poll window aligned
+- **Tool Used**: Codex (production cold/warm allocation probes, `apply_patch`)
+- **Files Modified**: `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationViewModel.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Production now returns immediately instead of 502: one worker served a complete 8-batch board in 0.83 s; a cold/refresh worker returned bounded loading in 0.48 s and completed its background build after approximately 30 s (three bounded loading polls, then 8 batches). Increased Android's bounded poll window from 24 to 36 seconds to cover the observed rebuild without showing a false error. This change was made before the in-progress v1.51.2 CI run created a release; the superseding push retains code 62 and will cancel/rebuild that unreleased artifact.
+- **Current Status**: Backend architecture is production-proven for bounded cold and fast warm behavior. Final superseding CI/release and complete payload order/component capture remain.
+- **Next Actions**: Push the poll-window alignment, verify superseding v1.51.2 CI/release, capture warm board order/components and close Phase 9.
+
 ## 2026-08-09T07:20:00+05:30 - Phase 9 v1.51.2 local release gate passed
 - **Tool Used**: Codex (Gradle release/lint, AAPT, APK Signer)
 - **Files Modified**: `AI/PROGRESS.md`

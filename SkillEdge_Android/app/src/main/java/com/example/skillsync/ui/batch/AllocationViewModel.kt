@@ -136,7 +136,7 @@ class AllocationViewModel(
             // A cold backend prepares the expensive RMS board in the background
             // and answers 202 immediately, avoiding a proxy 502. Poll briefly
             // while keeping any existing board visible.
-            repeat(8) {
+            repeat(12) {
                 if (data["loading"] != true) return@repeat
                 delay(3_000)
                 result = repository.allocation(email, fresh = false)
