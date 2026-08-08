@@ -45,6 +45,7 @@ fun Trainer360Screen(
     val refreshing by viewModel.refreshing.collectAsState()
     val utilHistory by viewModel.utilHistory.collectAsState()
     val syllabus by viewModel.syllabus.collectAsState()
+    val actions by viewModel.actions.collectAsState()
     var showCopilot by remember { mutableStateOf(false) }
     StatusBarIcons(lightIcons = true)
 
@@ -158,6 +159,7 @@ fun Trainer360Screen(
                             data = s.data,
                             utilHistory = utilHistory,
                             syllabus = syllabus,
+                            actions = actions,
                             onCourseTap = { viewModel.fetchSyllabus(it) },
                         )
                     }
@@ -175,6 +177,7 @@ internal fun Trainer360Content(
     // secondary lookups this screen needs.
     utilHistory: Map<String, Any>? = null,
     syllabus: Map<String, Any>? = null,
+    actions: List<Map<String, Any>> = emptyList(),
     onCourseTap: (String) -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
@@ -201,7 +204,7 @@ internal fun Trainer360Content(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item { Appear(0) { IdentityCard(identity, util, cap, certs) } }
-        item { Appear(1) { ProfileOverview(metrics, util, delivery, certs) } }
+        item { Appear(1) { ProfileOverview(metrics, util, delivery, certs, avail, actions) } }
 
         item { ProfileGroupHeader("Profile", "Identity, experience and working context", sk.sky) }
         item { Appear(2) { PersonalDetails(identity) } }
@@ -221,8 +224,8 @@ internal fun Trainer360Content(
         item { Appear(10) { FeedbackSection(feedback) } }
         item { Appear(11) { AvailabilitySection(avail) } }
 
-        item { ProfileGroupHeader("Manager decisions", "Succession risk and recommended action", sk.warn) }
-        item { Appear(12) { SPOFAndActionsSection(cap, metrics) } }
+        item { ProfileGroupHeader("Manager decisions", "Real open actions requiring attention", sk.warn) }
+        item { Appear(12) { ManagerActionsSection(actions) } }
         item { Spacer(Modifier.height(20.dp)) }
     }
 }
@@ -233,22 +236,59 @@ private fun ProfileOverview(
     util: Map<*, *>?,
     delivery: Map<*, *>?,
     certs: Map<*, *>?,
+    availability: Map<*, *>?,
+    actions: List<Map<String, Any>>,
 ) {
     val sk = MaterialTheme.skill
+    val readiness = metrics?.intOrNull("delivery_readiness_score") ?: metrics?.intOrNull("readiness_score")
+    val risk = metrics?.str("risk_bucket")?.ifBlank { metrics.str("risk_level") }.orEmpty()
+    val gaps = certs?.intOrNull("gap_count") ?: certs?.list("gaps")?.size ?: 0
+    val assignments = delivery?.list("assignments").orEmpty()
+    val current = assignments.firstOrNull { it.str("status").ifBlank { it.str("state") }.lowercase() in setOf("current", "active", "in progress", "ongoing") }
+    val upcoming = assignments.filter { it.str("status").ifBlank { it.str("state") }.lowercase() in setOf("upcoming", "planned", "scheduled", "confirmed") }
+    val health = when {
+        risk.lowercase() in setOf("high", "critical") || actions.any { it.str("priority").lowercase() in setOf("high", "critical") } -> "Attention"
+        readiness != null && readiness >= 80 && gaps == 0 -> "Healthy"
+        else -> "Watch"
+    }
+    val healthTint = when (health) { "Healthy" -> sk.green; "Attention" -> sk.red; else -> sk.amber }
+    val availabilityText = when {
+        availability?.bool("verified") != true -> "Unverified"
+        availability.str("status").isNotBlank() -> availability.str("status").replaceFirstChar { it.uppercase() }
+        else -> "Unverified"
+    }
     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(sk.cardBg)) {
         Column(Modifier.padding(14.dp)) {
             Text(
-                "AT A GLANCE", style = MaterialTheme.typography.labelSmall,
+                "MANAGER DECISION COCKPIT", style = MaterialTheme.typography.labelSmall,
                 color = sk.labelText, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
             )
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                OverviewMetric("Readiness", metrics?.intOrNull("readiness_score")?.toString() ?: "—", sk.teal)
+                OverviewMetric("Health", health, healthTint)
+                OverviewMetric("Readiness", readiness?.let { "$it%" } ?: "—", sk.teal)
                 OverviewMetric("Utilisation", util?.intOrNull("current")?.let { "$it%" } ?: "—", sk.sky)
-                OverviewMetric("Upcoming", "${delivery?.int("upcoming") ?: 0}", sk.aqua)
-                OverviewMetric("Certificates", "${certs?.int("count") ?: 0}", sk.indigo)
+                OverviewMetric("Cert gaps", "$gaps", if (gaps > 0) sk.amber else sk.green)
             }
+            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(color = sk.cardBorder)
+            Spacer(Modifier.height(8.dp))
+            DecisionLine("Current assignment", current?.str("course_name")?.ifBlank { current.str("course") }?.ifBlank { current.str("title") } ?: "None reported", sk.sky)
+            DecisionLine("Upcoming allocations", if (upcoming.isEmpty()) "None reported" else "${upcoming.size} · ${upcoming.first().str("course_name").ifBlank { upcoming.first().str("course") }.ifBlank { upcoming.first().str("title") }}", sk.aqua)
+            DecisionLine("Future availability", availabilityText + availability?.str("suggested_available_date")?.takeIf { it.isNotBlank() }?.let { " · ${it.shortDate()}" }.orEmpty(), sk.teal)
+            DecisionLine("Manager attention", if (actions.isEmpty()) "No open Actions assigned" else "${actions.size} open · ${actions.first().str("title")}", if (actions.isEmpty()) sk.green else sk.warn)
+            if (risk.isNotBlank()) DecisionLine("Delivery risk", risk.replaceFirstChar { it.uppercase() }, if (risk.lowercase() in setOf("high", "critical")) sk.red else sk.amber)
         }
+    }
+}
+
+@Composable
+private fun DecisionLine(label: String, value: String, tint: Color) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(tint))
+        Spacer(Modifier.width(8.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText, modifier = Modifier.width(112.dp))
+        Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.skill.bodyText, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -1205,115 +1245,28 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
 }
 
 @Composable
-private fun SPOFAndActionsSection(cap: Map<*, *>?, metrics: Map<*, *>?) {
+private fun ManagerActionsSection(actions: List<Map<String, Any>>) {
     val sk = MaterialTheme.skill
-    val courses = cap?.list("courses").orEmpty()
-    val readinessScore = metrics?.intOrNull("delivery_readiness_score")
-        ?: metrics?.intOrNull("readiness_score") ?: 0
-
-    // Identify courses where this trainer might be the only expert
-    val criticalCourses = courses.filter { course ->
-        val level = course.str("skill_level").lowercase()
-        level.contains("advanced") || level.contains("architect") || level.contains("expert")
-    }.take(3)
-
-    SectionCard("Strategic Impact & Actions", "Succession planning & key-person risk") {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            // SPOF Risk Indicator
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (criticalCourses.isNotEmpty()) sk.red.copy(alpha = 0.09f) else sk.green.copy(alpha = 0.09f))
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column {
-                    Text(
-                        if (criticalCourses.isNotEmpty()) "⚠️ Critical Skill Owner" else "✓ Good Coverage",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (criticalCourses.isNotEmpty()) sk.red else sk.green,
-                    )
-                    Text(
-                        "${criticalCourses.size} advanced courses",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = sk.subText, fontSize = 9.sp,
-                    )
-                }
-                if (criticalCourses.isNotEmpty()) {
-                    Surface(
-                        Modifier.weight(1f),
-                        color = sk.red.copy(alpha = 0.14f),
-                        shape = RoundedCornerShape(6.dp),
-                    ) {
-                        Text(
-                            "Plan succession",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = sk.red,
-                            fontWeight = FontWeight.Bold, fontSize = 9.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        )
+    SectionCard("Open manager actions", "Loaded from Actions — no generated suggestions") {
+        if (actions.isEmpty()) {
+            Text("No open Actions are assigned to this trainer.", style = MaterialTheme.typography.bodySmall, color = sk.subText)
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                actions.forEach { action ->
+                    val priority = action.str("priority").ifBlank { "normal" }
+                    val tint = if (priority.lowercase() in setOf("high", "critical")) sk.red else sk.amber
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(tint.copy(alpha = 0.08f)).padding(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(action.str("title").ifBlank { "Manager action" }, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                            Text(priority.uppercase(), style = MaterialTheme.typography.labelSmall, color = tint, fontWeight = FontWeight.Bold)
+                        }
+                        action.str("detail").takeIf { it.isNotBlank() }?.let {
+                            Spacer(Modifier.height(3.dp))
+                            Text(it, style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                        }
+                        val context = listOf(action.str("category"), action.str("lifecycle_state")).filter { it.isNotBlank() }.joinToString(" · ")
+                        if (context.isNotBlank()) Text(context, style = MaterialTheme.typography.labelSmall, color = tint, fontSize = 9.sp)
                     }
-                }
-            }
-
-            if (criticalCourses.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
-                HorizontalDivider(color = sk.cardBorder)
-                Spacer(Modifier.height(8.dp))
-                Label("Critical Courses (Advanced Level)")
-                Spacer(Modifier.height(6.dp))
-                criticalCourses.forEach { course ->
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.ic_alert), null,
-                            tint = sk.red, modifier = Modifier.size(13.dp),
-                        )
-                        Spacer(Modifier.width(7.dp))
-                        Text(
-                            course.str("course_name"),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = sk.bodyText,
-                        )
-                    }
-                }
-            }
-
-            // Recommended Actions
-            Spacer(Modifier.height(8.dp))
-            HorizontalDivider(color = sk.cardBorder)
-            Spacer(Modifier.height(8.dp))
-            Label("Recommended Actions")
-            Spacer(Modifier.height(8.dp))
-            val actions = buildList {
-                if (criticalCourses.isNotEmpty()) {
-                    add("Develop backup trainer for advanced courses")
-                }
-                if (readinessScore >= 80) {
-                    add("Consider for mentoring / knowledge transfer")
-                }
-                add("Quarterly skill validation & career planning")
-            }
-            actions.forEach { action ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(sk.teal.copy(alpha = 0.06f))
-                        .padding(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        painterResource(R.drawable.ic_check), null,
-                        tint = sk.teal, modifier = Modifier.size(13.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(action, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
                 }
             }
         }

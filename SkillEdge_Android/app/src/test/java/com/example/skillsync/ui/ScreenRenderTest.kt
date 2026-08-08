@@ -573,9 +573,19 @@ class ScreenRenderTest {
 
     @Test
     fun trainer360_rendersEverySection() {
-        compose.setContent { SkillSyncTheme { Trainer360Content(trainer360Payload()) } }
+        val realActions = listOf(mapOf<String, Any>(
+            "title" to "Close AI-102 certification gap",
+            "detail" to "Certification evidence is required before allocation.",
+            "priority" to "high",
+            "category" to "Certification",
+            "lifecycle_state" to "open",
+        ))
+        compose.setContent { SkillSyncTheme { Trainer360Content(trainer360Payload(), actions = realActions) } }
         compose.onAllNodesWithText("Abhinav Samant").onFirst().assertExists()
         compose.onNodeWithText("Corporate Trainer").assertExists()
+        compose.onNodeWithText("MANAGER DECISION COCKPIT").assertExists()
+        compose.onNodeWithText("Current assignment").assertExists()
+        compose.onNodeWithText("Future availability").assertExists()
         listOf(
             "Profile", "Performance", "Credentials & capability", "Delivery record", "Manager decisions",
             "Personal details", "Utilisation", "Capability metrics",
@@ -585,6 +595,10 @@ class ScreenRenderTest {
             compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(label))
             compose.onAllNodesWithText(label).onFirst().assertExists()
         }
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Close AI-102 certification gap"))
+        compose.onNodeWithText("Close AI-102 certification gap").assertExists()
+        compose.onNodeWithText("Quarterly skill validation & career planning").assertDoesNotExist()
+        compose.onNodeWithText("Develop backup trainer for advanced courses").assertDoesNotExist()
     }
 
     @Test
@@ -636,6 +650,9 @@ class ScreenRenderTest {
     @Test
     fun trainer360_distinguishesNoDataFromCleanRecord() {
         compose.setContent { SkillSyncTheme { Trainer360Content(trainer360Payload()) } }
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(
+            hasText("RMS returned no feedback records", substring = true),
+        )
         compose.onNodeWithText(
             "RMS returned no feedback records", substring = true,
         ).assertExists()

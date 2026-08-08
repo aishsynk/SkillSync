@@ -38,6 +38,9 @@ class Trainer360ViewModel(
      *  in flight so the sheet can distinguish loading from "no syllabus". */
     val syllabus = MutableStateFlow<Map<String, Any>?>(null)
 
+    /** Real open manager Actions for this trainer; never generated in the UI. */
+    val actions = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+
     fun load(trainerEmail: String, managerEmail: String = "", context: android.content.Context) {
         if (loadedFor == trainerEmail && _state.value is Trainer360State.Success) return
         loadedFor = trainerEmail
@@ -46,6 +49,7 @@ class Trainer360ViewModel(
             fetch(trainerEmail, managerEmail, context, fresh = false)
         }
         fetchUtilHistory(trainerEmail)
+        fetchActions(managerEmail, trainerEmail)
     }
 
     /** Pull-to-refresh and screen-resume; keeps the profile on screen while re-reading. */
@@ -54,6 +58,7 @@ class Trainer360ViewModel(
             _refreshing.value = true
             fetch(trainerEmail, managerEmail, context, fresh = true)
             fetchUtilHistory(trainerEmail)
+            fetchActions(managerEmail, trainerEmail)
             _refreshing.value = false
         }
     }
@@ -64,6 +69,20 @@ class Trainer360ViewModel(
                 utilHistory.value = repository.utilizationHistory(email)
             } catch (e: Exception) {
                 // Ignore failure for secondary data
+            }
+        }
+    }
+
+    private fun fetchActions(managerEmail: String, trainerEmail: String) {
+        if (managerEmail.isBlank()) {
+            actions.value = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            val result = repository.actions(managerEmail)
+            actions.value = result.data.orEmpty().filter { action ->
+                action["trainer_email"]?.toString()?.trim()?.lowercase() == trainerEmail.lowercase() &&
+                    action["lifecycle_state"]?.toString()?.lowercase() !in setOf("closed", "resolved")
             }
         }
     }
