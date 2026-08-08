@@ -169,7 +169,7 @@ class AllocationViewModel(
             }
 
             _mark.value = try {
-                val resp = RetrofitClient.instance.markSkill(
+                val resp = repository.markSkill(
                     com.example.skillsync.data.api.MarkSkillRequest(
                         course_id = courseId,
                         trainer_email = trainerEmail,
@@ -185,7 +185,7 @@ class AllocationViewModel(
                 }.getOrNull()
 
                 when {
-                    body == null -> MarkState.Failed("Server returned an unreadable response (HTTP ${resp.code()})")
+                    body == null -> MarkState.Failed("Skill service returned an unreadable response. Please retry; no success was assumed.")
                     body.success == true && body.verified == true -> {
                         // Only re-read dependent screens when something actually
                         // changed; a no-op re-assert leaves the data identical.
@@ -204,7 +204,7 @@ class AllocationViewModel(
                     else -> MarkState.Failed(body.error ?: "RMS rejected the request")
                 }
             } catch (e: Exception) {
-                MarkState.Failed(e.localizedMessage ?: "Could not reach the server")
+                MarkState.Failed("Skill marking could not be completed. Check connectivity and retry; no success was assumed.")
             }
         }
     }

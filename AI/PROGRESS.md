@@ -1,5 +1,33 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T05:31:00+05:30 - Phase 8 local release gate passed (v1.50.0/code 59)
+- **Tool Used**: Codex (Gradle release/lint, AAPT, APK Signer)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Release build and lint pass. APK identity is `com.example.skillsync` v1.50.0/code 59; SHA-256 is `BB892FE8EB44720ABB19BB191913D6C023D224542B1EEB6A4D2FD75E52C91C9D`, and production signer SHA-256 remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`.
+- **Current Status**: Phase 8 passed all local backend, Android, lint, release, package and signer gates. Physical upgrade remains unavailable without an ADB device. Publication, CI, backend deployment and controlled production no-op verification remain.
+- **Next Actions**: Commit/push Phase 8, wait for CI/release/backend deployment, verify an already-held Aishwar skill returns a bounded confirmed/no-change response, document results, then start Phase 9.
+
+## 2026-08-09T05:25:00+05:30 - Phase 8 Android gate passed; v1.50.0 assigned
+- **Tool Used**: Codex (Gradle/Compose JVM tests, `apply_patch`)
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: All 33 Android tests pass with the repository-owned skill write and safe failure messaging. Assigned v1.50.0/code 59 because this phase changes production write reliability, timeout semantics, API ownership, and CI infrastructure; the increment preserves direct upgrades.
+- **Current Status**: Backend 15/15 and Android 33/33 gates pass locally. Release assembly/signing, publication, deployment and controlled existing-skill production verification remain.
+- **Next Actions**: Assemble and inspect signed v1.50.0 APK, commit/push, verify backend/Android CI and release, then run the controlled no-op production mark and close Phase 8 before beginning Phase 9.
+
+## 2026-08-09T05:18:00+05:30 - Phase 8 integration boundary and CI maintenance completed locally
+- **Tool Used**: Codex (`unittest`, `apply_patch`)
+- **Files Modified**: `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/DataRepository.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationViewModel.kt`, `.github/workflows/android-release.yml`, `AI/PROGRESS.md`
+- **Work Completed**: Backend suite now passes 15/15 including bounded mark-skill timeout/verification regressions. Moved the online skill-write call from the ViewModel's direct Retrofit access behind `ManagerRepository`, replaced raw transport exception text with a safe actionable message that never claims success, and upgraded checkout/setup-java CI actions to v5 to address release-run deprecation warnings.
+- **Current Status**: Phase 8 code is complete locally. Android regression/release/signing gates, version bump, publication, live deployment, and controlled no-op write verification remain.
+- **Next Actions**: Run Android tests, bump Phase 8 release version, assemble/sign/inspect APK, publish, confirm backend deployment and execute one controlled existing-skill verification that cannot add a new trainer skill.
+
+## 2026-08-09T05:12:00+05:30 - Phase 8 skill-marking 502 root cause fixed locally
+- **Tool Used**: Codex (`rg`, production read-only trainer-skills probe, `apply_patch`)
+- **Files Modified**: `backend.py`, `tests/test_skill_marking.py`, `AI/PROGRESS.md`
+- **Work Completed**: Traced Demand Detail through Android/Retrofit to `/api/action/mark-skill` and RMS keys 255/217. Confirmed the backend performed three sequential RMS calls with 30-second waits, allowing the hosting gateway to return 502 before Flask could respond. Reworked the write to one bounded 6-second RMS write plus one bounded 6-second authoritative read-back, removed the redundant pre-read, preserved cache invalidation and structured verification, and added regressions proving two bounded calls and an explicit 503 timeout body rather than an upstream 502. Production trainer-skills read-only probe succeeded for Aishwar in 4.6 s with 262 skills.
+- **Current Status**: Phase 8 fix is implemented locally but not yet validated or published. No production write has been attempted. Android already parses structured non-2xx bodies, but repository ownership/error copy and CI action upgrades remain in this phase.
+- **Next Actions**: Run backend tests, move mark-skill transport behind the repository, improve user-facing timeout text, update CI actions, run Android/release gates, then publish and perform a controlled existing-skill no-op production verification.
+
 ## 2026-08-09T04:53:00+05:30 - Phase 7 completed and production-validated (v1.49.0/code 58)
 - **Tool Used**: Codex (`git`, `gh`, GitHub Actions, production Trainer 360/Actions read-only probes)
 - **Files Modified**: `AI/PROGRESS.md`

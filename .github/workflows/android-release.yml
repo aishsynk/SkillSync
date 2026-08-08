@@ -36,10 +36,10 @@ jobs:
     steps:
     # v3 actions run on the retired Node 16 runtime and are the ones that hit
     # "Failed to resolve action download info" on 2026-08-06.
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: set up JDK 17
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v5
       with:
         java-version: '17'
         distribution: 'temurin'

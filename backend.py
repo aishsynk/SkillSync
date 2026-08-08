@@ -367,7 +367,7 @@ def _rms_post(path, body, timeout=_TIMEOUT):
         return json.loads(r.read().decode())
 
 
-def _token(api_name):
+def _token(api_name, timeout=_TIMEOUT):
     if api_name in _token_cache:
         return _token_cache[api_name]
     cfg = _APIS[api_name]
@@ -375,13 +375,13 @@ def _token(api_name):
         "userName": cfg["user"],
         "userPassword": cfg["pass"],
         "userRole": cfg["role"],
-    })
+    }, timeout=timeout)
     tok = js.get("content") or {}
     _token_cache[api_name] = tok
     return tok
 
 
-def _rms(api_name, body):
+def _rms(api_name, body, timeout=_TIMEOUT, attempts=2):
     """
     Call RMS and return list/dict content. Returns None on network failure.
 
@@ -393,12 +393,12 @@ def _rms(api_name, body):
         return cached
     try:
         cfg = _APIS[api_name]
-        for attempt in range(2):
-            tok = _token(api_name)
+        for attempt in range(attempts):
+            tok = _token(api_name, timeout=timeout)
             at = urllib.parse.quote(str(tok.get("accessToken", "")), safe="")
             dt = urllib.parse.quote(str(tok.get("deviceToken", "")), safe="")
             qs = f"?apikey={cfg['key']}&accessToken={at}&deviceToken={dt}"
-            js = _rms_post(_DATA_EP + qs, body)
+            js = _rms_post(_DATA_EP + qs, body, timeout=timeout)
             code = js.get("statuscode", js.get("statusCode", 200))
             if code in (401, 403) and attempt == 0:
                 _token_cache.pop(api_name, None)
@@ -1784,16 +1784,8 @@ def _write_status(result):
     return "", ""
 
 
-def _skill_register(emp_code):
-    """
-    [{course_id, course_name, duplicate, discontinued}] or None if RMS failed.
-
-    Ids come back as int for one trainer and str for another, so both ends of
-    every comparison are normalised to str.
-    """
-    if not emp_code:
-        return []
-    rows = _rms("trainerSkills", {"employee_id": str(emp_code)})
+def _normalise_skill_register(rows):
+    """Normalise an already-fetched RMS trainer-skill response."""
     if rows is None:
         return None
     out = []
@@ -1808,6 +1800,21 @@ def _skill_register(emp_code):
         })
     out.sort(key=lambda s: s["course_name"])
     return out
+
+
+def _skill_register(emp_code):
+    """
+    [{course_id, course_name, duplicate, discontinued}] or None if RMS failed.
+
+    Ids come back as int for one trainer and str for another, so both ends of
+    every comparison are normalised to str.
+    """
+    if not emp_code:
+        return []
+    rows = _rms("trainerSkills", {"employee_id": str(emp_code)})
+    if rows is None:
+        return None
+    return _normalise_skill_register(rows)
 
 
 # ─── Per-trainer build (runs in ThreadPoolExecutor) ───────────────────────────
@@ -3316,20 +3323,23 @@ def mark_skill():
         return jsonify({"success": False, "error": "skill_level must be between 1 and 10"}), 400
 
     emp = _emp_code(trainer_email)
-    before = _skill_register(emp) if emp else None
-    already = bool(before) and any(s["course_id"] == course_id for s in before)
 
+    # Keep this user-facing write inside the hosting gateway window. The old
+    # flow did a register read + write + register read, each allowed to wait
+    # 30 seconds, so the proxy could return 502 before Flask had a response.
+    # RMS normally answers in 2-5 seconds; one 6-second attempt per operation
+    # gives us a bounded response and still preserves authoritative read-back.
     result = _rms("addTrainerSkill", {
         "CourseId":           course_id,
         "TrainerEmail":       trainer_email,
         "SkillLevel":         str(level),
         "OfficiallyApproved": approved,
         "FromDate":           _iso(_parse_date(from_date)),
-    })
+    }, timeout=6, attempts=1)
     if result is None:
         return jsonify({
             "success": False, "verified": False,
-            "error": "RMS unreachable — skill not recorded",
+            "error": "RMS did not answer in time. No success was assumed; check the trainer skill register before retrying.",
         }), 503
 
     status, rms_message = _write_status(result)
@@ -3340,8 +3350,11 @@ def mark_skill():
     if not refused:
         _cache_purge(trainer_email)
 
-    after = _skill_register(emp) if emp else None
+    after_rows = (_rms("trainerSkills", {"employee_id": str(emp)}, timeout=6, attempts=1)
+                  if emp else [])
+    after = _normalise_skill_register(after_rows) if after_rows is not None else None
     present = bool(after) and any(s["course_id"] == course_id for s in after)
+    already = refused and present
     course_name = ""
     if after:
         course_name = next(

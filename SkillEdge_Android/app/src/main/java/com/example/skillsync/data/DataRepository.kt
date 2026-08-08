@@ -2,6 +2,8 @@ package com.example.skillsync.data
 
 import com.example.skillsync.data.api.RetrofitClient
 import com.example.skillsync.data.api.SkillEdgeApi
+import com.example.skillsync.data.api.MarkSkillRequest
+import com.example.skillsync.data.api.MarkSkillResponse
 import com.example.skillsync.data.cache.LocalCache
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -54,6 +56,10 @@ class ManagerRepository(
     suspend fun utilizationHistory(email: String) = api.getTrainerUtilizationHistory(email)
 
     suspend fun syllabus(courseName: String) = api.getCourseSyllabus(courseName)
+
+    /** Production skill writes share the repository boundary with all reads. */
+    suspend fun markSkill(request: MarkSkillRequest): retrofit2.Response<MarkSkillResponse> =
+        api.markSkill(request)
 
     suspend fun actions(email: String): RepositoryResult<List<Map<String, Any>>> = try {
         val body = api.getActions(email)
