@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T07:20:00+05:30 - Phase 9 v1.51.2 local release gate passed
+- **Tool Used**: Codex (Gradle release/lint, AAPT, APK Signer)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: v1.51.2/code 62 release/lint passes. APK SHA-256 is `E5E4AFA9335E108E658030D90EDA80AEFB5E32B79584BE604605698A85A8C8B1`; package `com.example.skillsync` and production signer remain unchanged.
+- **Current Status**: All local gates pass for the final Demand reliability design. Publication, deployment and production cold/warm proof remain the only Phase 9 blockers.
+- **Next Actions**: Publish v1.51.2, verify CI/release/backend, then validate bounded 202/200 preparation, cached refresh, strict order and suitability keys before final closure.
+
+## 2026-08-09T07:15:00+05:30 - Phase 9 Demand stale-while-revalidate architecture implemented locally
+- **Tool Used**: Codex (production timeout probes, `apply_patch`, Python compile/unittest, Gradle)
+- **Files Modified**: `backend.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationViewModel.kt`, `tests/test_demand_safety.py`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Parallel reads alone did not eliminate production 502s under slow RMS conditions. Replaced synchronous cold Demand requests with a stale-while-revalidate contract: the backend immediately returns the last complete board, starts one background rebuild per manager, or returns structured HTTP 202/loading on a cold process; Android polls that bounded preparation state for up to 24 seconds while retaining any existing board. This removes the gateway from the long RMS rebuild path without claiming empty demand. Python compile, backend 16/16, and Android 33/33 pass. Assigned v1.51.2/code 62 because v1.51.1/code 61 was already published before this final architecture correction.
+- **Current Status**: Final Phase 9 reliability architecture passes functional tests locally. A new release build/signing, publication, deployment and two-step cold/warm production validation remain.
+- **Next Actions**: Build/sign/publish v1.51.2; verify cold request returns bounded 202 or cached 200, poll until complete 200, verify refresh returns cached 200 while rebuilding, and validate order/component keys.
+
 ## 2026-08-09T06:55:00+05:30 - Phase 9 v1.51.1 local patch gate passed
 - **Tool Used**: Codex (combined Gradle Android tests/release/lint, AAPT, APK Signer)
 - **Files Modified**: `AI/PROGRESS.md`

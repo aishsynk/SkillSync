@@ -58,7 +58,7 @@ class DemandSafetyTests(unittest.TestCase):
             patch.object(backend, "_rank_batch", return_value=(80, [candidate], "Available with Upskilling")),
         ):
             response = backend.app.test_client().get(
-                "/api/data/allocation-desk?email=aishwar_v@koenig-solutions.com"
+                "/api/data/allocation-desk?email=aishwar_v@koenig-solutions.com&_build=1"
             )
 
         self.assertEqual(response.status_code, 200)

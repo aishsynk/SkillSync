@@ -10,6 +10,7 @@ import com.example.skillsync.data.ManagerRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 sealed class AllocationState {
     object Loading : AllocationState()
@@ -130,8 +131,23 @@ class AllocationViewModel(
 
         // 3. Fetch from API in background
         try {
-            val result = repository.allocation(email, fresh)
-            val data = result.data ?: throw IllegalStateException(result.error ?: "Could not load demand")
+            var result = repository.allocation(email, fresh)
+            var data = result.data ?: throw IllegalStateException(result.error ?: "Could not load demand")
+            // A cold backend prepares the expensive RMS board in the background
+            // and answers 202 immediately, avoiding a proxy 502. Poll briefly
+            // while keeping any existing board visible.
+            repeat(8) {
+                if (data["loading"] != true) return@repeat
+                delay(3_000)
+                result = repository.allocation(email, fresh = false)
+                data = result.data ?: data
+            }
+            if (data["loading"] == true) {
+                if (_state.value !is AllocationState.Success) {
+                    _state.value = AllocationState.Error("Demand intelligence is still preparing. Pull to refresh shortly.")
+                }
+                return
+            }
             _newIds.value = SeenBatches.diffAndRemember(context, email, data)
             _state.value = AllocationState.Success(data)
         } catch (e: Exception) {

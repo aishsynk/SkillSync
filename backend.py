@@ -3145,6 +3145,24 @@ def _demand_sort_key(batch):
     )
 
 
+_allocation_payload_cache = {}
+_allocation_building = set()
+_allocation_lock = threading.Lock()
+
+
+def _warm_allocation(email, fresh):
+    """Build outside the gateway request and retain the last complete board."""
+    try:
+        suffix = "&refresh=1" if fresh else ""
+        with app.test_request_context(
+            f"/api/data/allocation-desk?email={urllib.parse.quote(email)}&_build=1{suffix}"
+        ):
+            allocation_desk()
+    finally:
+        with _allocation_lock:
+            _allocation_building.discard(email)
+
+
 @app.route('/api/data/allocation-desk', methods=['GET'])
 def allocation_desk():
     """
@@ -3159,6 +3177,26 @@ def allocation_desk():
     email = request.args.get('email', '').strip().lower()
     if not email:
         return jsonify({"error": "email query param required"}), 400
+
+    internal_build = request.args.get("_build") == "1"
+    if not internal_build:
+        fresh = _wants_fresh()
+        with _allocation_lock:
+            cached = _allocation_payload_cache.get(email)
+            start_build = email not in _allocation_building
+            if start_build:
+                _allocation_building.add(email)
+        if start_build:
+            threading.Thread(target=_warm_allocation, args=(email, fresh), daemon=True).start()
+        if cached:
+            payload = dict(cached)
+            payload["refresh_in_progress"] = start_build
+            return jsonify(payload), 200
+        return jsonify({
+            "manager": email, "batches": [], "summary": {},
+            "loading": True, "refresh_in_progress": True,
+            "note": "Demand intelligence is being prepared from RMS. Retry shortly.",
+        }), 202
 
     if _wants_fresh():
         _cache_purge(email)
@@ -3252,7 +3290,7 @@ def allocation_desk():
     # deterministic instead of reshuffling equal rows.
     demand.sort(key=_demand_sort_key)
 
-    return jsonify({
+    payload = {
         "manager": email,
         "team_size": len(team),
         "batches": demand,
@@ -3274,7 +3312,10 @@ def allocation_desk():
             "manager_recommendations": sum(1 for b in demand if b.get("manager_recommendation")),
         },
         "timestamp": datetime.utcnow().isoformat(),
-    }), 200
+    }
+    with _allocation_lock:
+        _allocation_payload_cache[email] = payload
+    return jsonify(payload), 200
 
 
 @app.route('/api/data/trainer-skills', methods=['GET'])
