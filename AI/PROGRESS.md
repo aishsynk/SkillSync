@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T03:50:00+05:30 - Phase 5 completed and production-validated (v1.47.0/code 56)
+- **Tool Used**: Codex (`gh`, GitHub Actions, production Demand probe)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published commit `519ef22aaf2b8e571c296bcba9b6d2b7cec49886`; GitHub Actions run `31280103209` passed and created release `v1.47.0.56` with `SkillEdge-v1.47.0.56.apk` plus full notes. CI APK digest is `77ac7ac81146a523a88ec6d57c69b8c84db8081188800db15f397941b733c1cb`. Production Demand returned 8 batches in 20.1 s with the validated `FMAT > ILO×7` order and tiers `1,3,3,3,3,3,3,3`. The live feed currently has zero named international rows, so the premium international treatment is validated by the passing Compose render test rather than a production card.
+- **Current Status**: Phase 5 is complete across implementation, 32 Android tests, CI, signed/versioned APK, GitHub release, and production contract validation. No known Demand UI/build/API regression remains. Physical upgrade install is still unavailable without a connected device.
+- **Next Actions**: Begin Phase 6 Team manager-command redesign: force two columns on phones, make each compact card surface utilisation, certifications, gaps, readiness, current assignment, future availability, risk and real action count, then publish through the same gated process.
+
 ## 2026-08-09T03:22:00+05:30 - Phase 5 local release gate passed
 - **Tool Used**: Codex (`unittest`, Gradle, Compose JVM tests, APK Signer, AAPT)
 - **Files Modified**: `AI/PROGRESS.md`
