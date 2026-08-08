@@ -913,8 +913,15 @@ def _team_capability(reportees, manager_email=None, manager_name=""):
     today = datetime.utcnow().date()
 
     def one(email, name):
-        caps = _skills(email) if email else []
-        emp_code = _certifications(email)["emp_code"] if email else ""
+        if not email:
+            return name, email, [], _allocation_block_status(None, today)
+        # These are independent RMS sources. Running them serially added three
+        # full network waits per trainer to every Demand rebuild.
+        with ThreadPoolExecutor(max_workers=2) as inner:
+            caps_future = inner.submit(_skills, email)
+            cert_future = inner.submit(_certifications, email)
+            caps = caps_future.result()
+            emp_code = cert_future.result()["emp_code"]
         recent_negative = _feedback_recency(emp_code) if emp_code else None
         return name, email, caps, _allocation_block_status(recent_negative, today)
 
@@ -3172,31 +3179,36 @@ def allocation_desk():
     range_start = min((d for d in demand_dates if d), default=datetime.utcnow().date())
     range_end = max((d for d in demand_ends if d), default=range_start + timedelta(days=90))
 
-    def _availability_sources_for(candidate):
-        candidate_email = candidate[1]
-        return candidate_email, (
-            _rms("prevUpcoming", {
+    # Scheduling, skills/profile language/certification, and utilisation are
+    # independent. Fetch all candidate sources in one wave instead of four
+    # serial waves; this keeps a fresh Demand rebuild below the proxy window.
+    with ThreadPoolExecutor(max_workers=min(16, max(4, len(team) * 4))) as pool:
+        futures = {}
+        for candidate in team:
+            candidate_email = candidate[1]
+            futures[(candidate_email, "assignments")] = pool.submit(_rms, "prevUpcoming", {
                 "Startdate": _iso(range_start - timedelta(days=1)),
                 "Enddate": _iso(range_end + timedelta(days=90)),
                 "Email": candidate_email,
-            }),
-            _rms("trainerDetails", {"email": candidate_email}),
-        )
+            })
+            futures[(candidate_email, "details")] = pool.submit(_rms, "trainerDetails", {"email": candidate_email})
+            futures[(candidate_email, "resume")] = pool.submit(_resume, candidate_email)
+            futures[(candidate_email, "utilization")] = pool.submit(_safe_util, candidate_email)
 
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        availability_sources = dict(pool.map(_availability_sources_for, team))
-
-    def _candidate_context_for(candidate):
-        candidate_email = candidate[1]
-        resume = _resume(candidate_email)
-        return candidate_email, {
-            "utilization": _safe_util(candidate_email),
-            "languages": resume.get("languages", []),
-            "certification_codes": [c.get("code") for c in resume.get("certifications", []) if isinstance(c, dict)],
-        }
-
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        candidate_context = dict(pool.map(_candidate_context_for, team))
+        availability_sources = {}
+        candidate_context = {}
+        for candidate in team:
+            candidate_email = candidate[1]
+            resume = futures[(candidate_email, "resume")].result()
+            availability_sources[candidate_email] = (
+                futures[(candidate_email, "assignments")].result(),
+                futures[(candidate_email, "details")].result(),
+            )
+            candidate_context[candidate_email] = {
+                "utilization": futures[(candidate_email, "utilization")].result(),
+                "languages": resume.get("languages", []),
+                "certification_codes": [c.get("code") for c in resume.get("certifications", []) if isinstance(c, dict)],
+            }
 
     priority_count = 0
     for b in demand:

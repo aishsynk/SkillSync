@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T06:55:00+05:30 - Phase 9 v1.51.1 local patch gate passed
+- **Tool Used**: Codex (combined Gradle Android tests/release/lint, AAPT, APK Signer)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Android 33/33 plus release/lint pass after the backend parallelization. v1.51.1/code 61 APK SHA-256 is `DEC40F83EE1A297ADAD2BAE6DCD516F7334E243487CB823E661AA64966ED4284`; package and production signer are unchanged.
+- **Current Status**: Patch passes all local gates. Publication, CI, backend deployment and the decisive production Demand latency/contract recheck remain.
+- **Next Actions**: Publish v1.51.1, verify release/deployment, require a successful sub-gateway Demand response with strict mode order and all eight suitability components, then close Phase 9.
+
+## 2026-08-09T06:48:00+05:30 - Phase 9 production Demand timeout corrected locally; patch release required
+- **Tool Used**: Codex (production allocation probe, `apply_patch`, `unittest`)
+- **Files Modified**: `backend.py`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Production course search and v1.51.0 CI succeeded, but a fresh and then normal Allocation Desk probe exposed 502 responses beyond 30 seconds. Root cause was serial per-candidate RMS source collection. Refactored team capability source reads and all assignment/details/resume/utilisation reads into parallel waves while retaining identical evidence semantics. Backend tests remain 16/16. Assigned patch v1.51.1/code 61 because v1.51.0/code 60 is already published and the timeout correction must create its own traceable release.
+- **Current Status**: Phase 9 feature release exists, but phase remains open until v1.51.1 release/build/deployment proves Demand returns within the gateway window with correct mode order and all suitability components.
+- **Next Actions**: Run Android/release gates for code 61, publish patch, wait for deployment, re-probe Demand and course search, then close Phase 9 only if production succeeds.
+
 ## 2026-08-09T06:30:00+05:30 - Phase 9 local release gate passed (v1.51.0/code 60)
 - **Tool Used**: Codex (Gradle release/lint, AAPT, APK Signer)
 - **Files Modified**: `AI/PROGRESS.md`
