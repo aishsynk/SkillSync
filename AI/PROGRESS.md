@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T02:22:00+05:30 - Phase 1 local safety gate passed
+- **Tool Used**: Python unittest/compile, Gradle JVM/Compose tests, Android lint, assembleRelease, apksigner, ripgrep
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: All 3 new backend Demand safety tests pass; all 31 Android tests pass; release lint and assembly pass; APK signature matches the established release certificate. Static call-site audit confirms `addTrainerSkill` is now invoked only by the explicit POST skill-write route, never by Demand or its recommendation helper. No legacy `auto_skill` or `_auto_mark_aishwar_skill` call remains.
+- **Current Status**: Phase 1 is locally validated and ready to publish as v1.43.0/code 51.
+- **Next Actions**: Commit/push Phase 1, verify Render deployment and GitHub release, compare the production skill register across repeated Demand GET requests, then close Phase 1 and begin Phase 2.
+
+## 2026-08-09T02:15:00+05:30 - Phase 1 implemented: Demand GET is read-only
+- **Tool Used**: Codex (`apply_patch`)
+- **Files Modified**: `backend.py`, `tests/test_demand_safety.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`, `AI/CONTEXT.md`, `AI/DECISIONS.md`
+- **Work Completed**: Removed the complete Aishwar RMS auto-write/read-back path from Demand loading. Replaced it with a pure `manager_recommendation` carrying match percentage, suggested Skill Level 8, suggested weekend, reasons, and an explicit unverified-availability note. Updated Android Demand cards to present a recommendation rather than a write result. Added committed regression tests that fail if recommendation evaluation calls RMS or if Demand GET reaches `addTrainerSkill`. Incremented Android to v1.43.0/code 51 for the Phase 1 safety release.
+- **Current Status**: Phase 1 is implemented locally; validation, commit, push, deployment, and release verification remain.
+- **Next Actions**: Run backend and Android suites, verify the signed APK, publish Phase 1, prove production GET refresh does not change the skill register, then begin Phase 2 only after the gate passes.
+
 ## Release v1.42.0 - Trainer 360 hierarchy, responsive Team cards, guarded international demand automation
 - **Timestamp**: 2026-08-09T01:47:00+05:30
 - **Tool Used**: Codex, Git, GitHub Actions/Release, Render production probes, Android build tools

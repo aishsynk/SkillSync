@@ -2,6 +2,10 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-09 - Demand recommendations must never write to RMS
+- **Decision:** All Demand GET paths are read-only. The Aishwar international FMAT/ILT rule produces recommendation metadata only; Skill Level 8 and suggested weekend are decision-support values, not persisted skill records. The earlier v1.42.0 auto-write decision is superseded.
+- **Rationale:** Page loading and polling must be safe and repeatable. A staffing recommendation is not authorization to alter the production skill register.
+
 ## 2026-08-09 - Automatic RMS skill writes are exact-account and idempotent
 - **Decision:** Automatic skill marking applies only to `aishwar_v@koenig-solutions.com`, only for explicitly international FMAT/ILT demand, and only when that trainer's course match is at least 75%. The record uses skill level 8 and the next Saturday on or after the current date. The backend reads the RMS skill register before writing and never rewrites an existing skill; every write is read back and surfaced as verified/unverified.
 - **Rationale:** The requested automation changes production RMS data. Exact identity, narrow delivery/location/match gates, idempotency, and verification prevent the rule from silently expanding to reportees, domestic work, weaker matches, or duplicate records.

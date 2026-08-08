@@ -709,7 +709,7 @@ internal fun BatchCard(
     val risk = b.str("assignment_risk")
     val riskTint = when (risk) { "High" -> sk.crit; "Medium" -> sk.warn; else -> sk.aqua }
     val international = b.bool("is_international") && b.str("delivery_mode_kind") in listOf("FMAT", "ILT")
-    val autoSkill = b.obj("auto_skill")
+    val managerRecommendation = b.obj("manager_recommendation")
 
     Box(
         Modifier
@@ -929,7 +929,7 @@ internal fun BatchCard(
                     }
                 }
 
-                if (autoSkill != null) {
+                if (managerRecommendation != null) {
                     Spacer(Modifier.height(9.dp))
                     Row(
                         Modifier.fillMaxWidth()
@@ -938,17 +938,21 @@ internal fun BatchCard(
                             .padding(horizontal = 9.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("✓", color = if (autoSkill.bool("verified")) sk.aqua else sk.warn, fontWeight = FontWeight.Bold)
+                        Text("★", color = sk.aqua, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.width(7.dp))
-                        Text(
-                            if (autoSkill.bool("verified"))
-                                "Aishwar · skill level 8 · ${autoSkill.str("from_date").shortDate()}"
-                            else "Aishwar qualifies for level 8 · ${autoSkill.str("reason")}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (autoSkill.bool("verified")) sk.aqua else sk.warn,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 2,
-                        )
+                        Column {
+                            Text(
+                                "Recommend Aishwar · ${managerRecommendation.int("skill_match")}% match · Level ${managerRecommendation.int("suggested_skill_level")}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = sk.aqua, fontWeight = FontWeight.SemiBold,
+                                maxLines = 2,
+                            )
+                            Text(
+                                "Suggested ${managerRecommendation.str("suggested_availability").shortDate()} · availability unverified",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = sk.warn, fontSize = 8.5.sp,
+                            )
+                        }
                     }
                 }
             }
