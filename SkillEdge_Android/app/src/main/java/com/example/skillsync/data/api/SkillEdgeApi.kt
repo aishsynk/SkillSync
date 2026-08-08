@@ -90,6 +90,10 @@ interface SkillEdgeApi {
     @GET("api/data/course-syllabus")
     suspend fun getCourseSyllabus(@Query("courseName") courseName: String): Map<String, Any>
 
+    /** Full RMS catalogue search, including courses not mapped to this team. */
+    @GET("api/data/course-search")
+    suspend fun searchCourses(@Query("q") query: String): Map<String, Any>
+
     /** Wider trainer network for a course. Returns { available, trainers }.
      *  `available` is false while RMS rejects every TrainerType value — that
      *  is "cannot ask", not "nobody found". */

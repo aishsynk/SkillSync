@@ -899,7 +899,7 @@ internal fun BatchCard(
                                     c.obj("suitability_components")?.let { parts ->
                                         Text(
                                             "Skill ${parts.int("skill")} · Ready ${parts.int("readiness")} · " +
-                                                "Avail ${parts.int("availability")} · Lang ${parts.int("language")}",
+                                                "Avail ${parts.int("availability")} · Cert ${parts.int("certification")} · Lang ${parts.int("language")}",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = sk.subText, fontSize = 8.sp, maxLines = 1,
                                         )
@@ -1018,7 +1018,7 @@ private fun InternationalBadge() {
             )
             Spacer(Modifier.width(3.dp))
             Text(
-                "INTERNATIONAL", color = sk.sky, fontSize = 8.sp,
+                "GLOBAL OPPORTUNITY", color = sk.sky, fontSize = 8.sp,
                 fontWeight = FontWeight.Bold, letterSpacing = 0.05.em,
             )
         }
@@ -1068,9 +1068,9 @@ private fun InternationalOpportunityBanner(batch: Map<*, *>) {
                 )
                 Text(
                     if (batch.str("delivery_mode_kind") == "FMAT")
-                        "Travel, visa and schedule readiness require manager review"
+                        "TRAVEL REQUIRED · Visa and schedule readiness require manager review"
                     else
-                        "Confirm classroom location, schedule and trainer readiness",
+                        "INTERNATIONAL CLASSROOM · Confirm travel, location and trainer readiness",
                     style = MaterialTheme.typography.labelSmall,
                     color = sk.subText, fontSize = 8.5.sp, maxLines = 2,
                 )

@@ -25,6 +25,8 @@ import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
+import com.example.skillsync.ui.batch.MarkState
+import java.util.Calendar
 
 private enum class CourseSort(val label: String) {
     COVERAGE("Coverage"), QUBITS("Qubits"), DELIVERED("Delivered"), NAME("Name")
@@ -43,6 +45,13 @@ internal fun CoursesTab(
     capability: Map<String, Any>?,
     loading: Boolean,
     onTrainerClick: (String, String) -> Unit,
+    people: List<Pair<String, String>> = emptyList(),
+    markState: MarkState = MarkState.Idle,
+    courseSearchResults: List<Map<String, Any>> = emptyList(),
+    courseSearchLoading: Boolean = false,
+    onSearchCourses: (String) -> Unit = {},
+    onAssign: (String, List<Pair<String, String>>, Int, String) -> Unit = { _, _, _, _ -> },
+    onClearMark: () -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
 
@@ -74,6 +83,8 @@ internal fun CoursesTab(
     var uncertifiedOnly by remember { mutableStateOf(false) }
     var futureOnly by remember { mutableStateOf(false) }
     var vendor by remember { mutableStateOf<String?>(null) }
+    var assignmentCourse by remember { mutableStateOf<Map<*, *>?>(null) }
+    var showAssignment by remember { mutableStateOf(false) }
 
     val vendors = remember(courses) {
         courses.map { it.str("vendor") }.filter { it.isNotBlank() }.distinct().sorted()
@@ -113,7 +124,13 @@ internal fun CoursesTab(
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item { CatalogueSummary(kpis, courses) }
+        item {
+            CatalogueSummary(kpis, courses)
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = { assignmentCourse = null; showAssignment = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("Assign or transfer skill")
+            }
+        }
 
         item {
             Column {
@@ -164,9 +181,22 @@ internal fun CoursesTab(
             }
         }
         itemsIndexed(shown) { i, c ->
-            Appear(i) { CourseCard(c, onTrainerClick) }
+            Appear(i) { CourseCard(c, onTrainerClick) { assignmentCourse = c; showAssignment = true } }
         }
         item { Spacer(Modifier.height(16.dp)) }
+    }
+
+    if (showAssignment) {
+        SkillAssignmentDialog(
+            initialCourse = assignmentCourse,
+            people = people,
+            results = courseSearchResults,
+            searching = courseSearchLoading,
+            markState = markState,
+            onSearch = onSearchCourses,
+            onDismiss = { showAssignment = false; onClearMark() },
+            onAssign = onAssign,
+        )
     }
 }
 
@@ -222,7 +252,7 @@ private fun CatalogueFigure(label: String, value: String, tint: Color) {
 }
 
 @Composable
-private fun CourseCard(course: Map<*, *>, onTrainerClick: (String, String) -> Unit) {
+private fun CourseCard(course: Map<*, *>, onTrainerClick: (String, String) -> Unit, onTransfer: () -> Unit) {
     val sk = MaterialTheme.skill
     val owners = course.list("owners")
     val single = course.str("coverage") == "single"
@@ -387,10 +417,109 @@ private fun CourseCard(course: Map<*, *>, onTrainerClick: (String, String) -> Un
                             )
                         }
                     }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = onTransfer, modifier = Modifier.fillMaxWidth()) {
+                        Text("Transfer this skill to trainers")
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+internal fun SkillAssignmentDialog(
+    initialCourse: Map<*, *>?,
+    people: List<Pair<String, String>>,
+    results: List<Map<String, Any>>,
+    searching: Boolean,
+    markState: MarkState,
+    onSearch: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onAssign: (String, List<Pair<String, String>>, Int, String) -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    var query by remember(initialCourse) { mutableStateOf(initialCourse?.str("course").orEmpty()) }
+    var selectedCourse by remember(initialCourse) {
+        mutableStateOf<Map<*, *>?>(
+            initialCourse?.let {
+                mapOf("course_id" to it.str("course_id"), "course_name" to it.str("course"))
+            }?.takeIf { it.str("course_id").isNotBlank() }
+        )
+    }
+    val selectedPeople = remember { mutableStateListOf<Pair<String, String>>() }
+    var level by remember { mutableStateOf(4) }
+    val today = remember { Calendar.getInstance() }
+    val date = remember { "%04d-%02d-%02d".format(today.get(Calendar.YEAR), today.get(Calendar.MONTH) + 1, today.get(Calendar.DAY_OF_MONTH)) }
+    val working = markState is MarkState.Working
+
+    AlertDialog(
+        onDismissRequest = { if (!working) onDismiss() },
+        title = { Text(if (initialCourse == null) "Assign skill" else "Transfer skill") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Text("Search the full RMS catalogue, then select one or more trainers.", style = MaterialTheme.typography.bodySmall, color = sk.subText)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = query, onValueChange = { query = it; selectedCourse = null },
+                        label = { Text("Skill or course name") }, singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { onSearch(query) }, enabled = query.trim().length >= 2 && !searching) {
+                        Text(if (searching) "Searching…" else "Search")
+                    }
+                }
+                selectedCourse?.let { Tag("Selected: ${it.str("course_name")}", sk.teal) }
+                if (selectedCourse == null && results.isNotEmpty()) {
+                    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 130.dp)) {
+                        itemsIndexed(results) { _, course ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable { selectedCourse = course; query = course.str("course_name") }.padding(vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(course.str("course_name"), style = MaterialTheme.typography.bodySmall, color = sk.bodyText, modifier = Modifier.weight(1f), maxLines = 2)
+                                Text("Select", style = MaterialTheme.typography.labelSmall, color = sk.teal)
+                            }
+                        }
+                    }
+                }
+                Text("TRAINERS (${selectedPeople.size} SELECTED)", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 150.dp)) {
+                    itemsIndexed(people) { _, person ->
+                        val checked = person in selectedPeople
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                if (checked) selectedPeople.remove(person) else selectedPeople.add(person)
+                            }.padding(vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = checked, onCheckedChange = { yes -> if (yes) selectedPeople.add(person) else selectedPeople.remove(person) })
+                            Text(person.first, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
+                        }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Skill level", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                    Slider(value = level.toFloat(), onValueChange = { level = it.toInt().coerceIn(1, 10) }, valueRange = 1f..10f, steps = 8, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
+                    Text("$level", color = sk.teal, fontWeight = FontWeight.Bold)
+                }
+                Text("Effective $date · This writes to RMS for every selected trainer.", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                when (markState) {
+                    is MarkState.Done -> Text(markState.message, color = sk.green, style = MaterialTheme.typography.bodySmall)
+                    is MarkState.Unconfirmed -> Text(markState.message, color = sk.amber, style = MaterialTheme.typography.bodySmall)
+                    is MarkState.Failed -> Text(markState.message, color = sk.red, style = MaterialTheme.typography.bodySmall)
+                    else -> Unit
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { selectedCourse?.str("course_id")?.let { onAssign(it, selectedPeople.toList(), level, date) } },
+                enabled = !working && selectedCourse != null && selectedPeople.isNotEmpty(),
+            ) { if (working) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) else Text("Mark skill for ${selectedPeople.size}") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !working) { Text(if (markState is MarkState.Idle) "Cancel" else "Close") } },
+    )
 }
 
 @Composable

@@ -101,6 +101,9 @@ fun MainScreen(
     val allocState by allocationViewModel.state.collectAsState()
     val allocRefreshing by allocationViewModel.refreshing.collectAsState()
     val newIds by allocationViewModel.newIds.collectAsState()
+    val skillMarkState by allocationViewModel.mark.collectAsState()
+    val courseSearchResults by allocationViewModel.courseSearchResults.collectAsState()
+    val courseSearchLoading by allocationViewModel.courseSearchLoading.collectAsState()
     val inboxActions by actionsViewModel.actions.collectAsState()
     val inboxLoading by actionsViewModel.initialLoading.collectAsState()
     val inboxError by actionsViewModel.error.collectAsState()
@@ -284,7 +287,31 @@ fun MainScreen(
                     isRefreshing = refreshing,
                     onRefresh = { viewModel.refresh(email, context) },
                 ) {
-                    CoursesTab(capability, capLoading, onTrainerClick)
+                    val dashboard = (state as? DashboardState.Success)?.intelligenceData
+                    val coursePeople = buildList {
+                        add("Aishwar (You)" to email)
+                        dashboard?.rows("trainer_operations_df").orEmpty().forEach { trainer ->
+                            val trainerEmail = trainer.str("trainer_email")
+                            if (trainerEmail.isNotBlank() && trainerEmail.lowercase() != email.lowercase()) {
+                                add(trainer.str("trainer_name").ifBlank { trainerEmail } to trainerEmail)
+                            }
+                        }
+                    }.distinctBy { it.second.lowercase() }
+                    CoursesTab(
+                        capability, capLoading, onTrainerClick,
+                        people = coursePeople,
+                        markState = skillMarkState,
+                        courseSearchResults = courseSearchResults,
+                        courseSearchLoading = courseSearchLoading,
+                        onSearchCourses = allocationViewModel::searchCourses,
+                        onAssign = { courseId, trainers, level, date ->
+                            allocationViewModel.markSkillBatch(
+                                context, courseId, trainers, level, date,
+                                onSaved = { viewModel.refreshCapability(email, context) },
+                            )
+                        },
+                        onClearMark = allocationViewModel::clearMark,
+                    )
                 }
 
                 else -> when (val s = state) {

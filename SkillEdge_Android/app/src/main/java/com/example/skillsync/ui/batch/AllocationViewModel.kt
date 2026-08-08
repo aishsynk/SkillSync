@@ -60,6 +60,26 @@ class AllocationViewModel(
      */
     val globalSearchData = MutableStateFlow<Map<String, Any>?>(null)
 
+    val courseSearchResults = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+    val courseSearchLoading = MutableStateFlow(false)
+
+    fun searchCourses(query: String) {
+        if (query.trim().length < 2) {
+            courseSearchResults.value = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            courseSearchLoading.value = true
+            courseSearchResults.value = try {
+                @Suppress("UNCHECKED_CAST")
+                (repository.searchCourses(query.trim())["courses"] as? List<Map<String, Any>>).orEmpty()
+            } catch (_: Exception) {
+                emptyList()
+            }
+            courseSearchLoading.value = false
+        }
+    }
+
     fun load(email: String, context: Context) {
         if (loadedFor == email && _state.value is AllocationState.Success) return
         loadedFor = email
@@ -211,5 +231,43 @@ class AllocationViewModel(
 
     fun clearMark() {
         _mark.value = MarkState.Idle
+    }
+
+    /** Assign one selected course to one or more trainers, reporting partial failure honestly. */
+    fun markSkillBatch(
+        context: Context,
+        courseId: String,
+        trainers: List<Pair<String, String>>,
+        level: Int,
+        fromDate: String,
+        onSaved: () -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            if (!RetrofitClient.isNetworkAvailable(context)) {
+                _mark.value = MarkState.Failed("Multi-trainer assignment requires a live connection; nothing was queued.")
+                return@launch
+            }
+            _mark.value = MarkState.Working
+            var verified = 0
+            val failures = mutableListOf<String>()
+            for ((name, email) in trainers) {
+                try {
+                    val response = repository.markSkill(MarkSkillRequest(courseId, email, level, fromDate))
+                    val body = response.body() ?: runCatching {
+                        com.google.gson.Gson().fromJson(response.errorBody()?.string().orEmpty(), MarkSkillResponse::class.java)
+                    }.getOrNull()
+                    if (body?.success == true && body.verified == true) verified++
+                    else failures += "$name: ${body?.error ?: body?.message ?: "not confirmed"}"
+                } catch (_: Exception) {
+                    failures += "$name: service unavailable"
+                }
+            }
+            if (verified > 0) onSaved()
+            _mark.value = when {
+                failures.isEmpty() -> MarkState.Done("$verified trainers", level, "Skill confirmed for all $verified selected trainers.", false)
+                verified > 0 -> MarkState.Unconfirmed("$verified of ${trainers.size} trainers", "Confirmed $verified; ${failures.joinToString(" · ")}")
+                else -> MarkState.Failed(failures.joinToString(" · ").ifBlank { "No skill assignments were confirmed." })
+            }
+        }
     }
 }

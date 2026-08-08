@@ -991,7 +991,7 @@ def _location_suitability(batch):
 
 
 def _suitability_components(batch, skill_match, readiness, availability, utilization,
-                            feedback, languages):
+                            feedback, languages, certification_codes=None):
     """Explainable 0-100 allocation score using every approved business signal."""
     batch_lang = str(batch.get("language", "") or "").strip().lower()
     trainer_langs = _language_names(languages)
@@ -1012,6 +1012,9 @@ def _suitability_components(batch, skill_match, readiness, availability, utiliza
         55 if feedback.get("recent_negative_6mo") else 100
     )
     location_score, location_reason, location_verified = _location_suitability(batch)
+    required_cert = _exam_code(batch.get("course_name", ""))
+    held_codes = {str(code).upper() for code in (certification_codes or []) if code}
+    certification_score = 70 if not required_cert else (100 if required_cert in held_codes else 20)
 
     scores = {
         "skill": max(0, min(100, int(skill_match or 0))),
@@ -1021,11 +1024,12 @@ def _suitability_components(batch, skill_match, readiness, availability, utiliza
         "feedback": feedback_score,
         "language": language_score,
         "location": location_score,
+        "certification": certification_score,
     }
     weights = {
-        "skill": 0.40, "readiness": 0.20, "availability": 0.15,
+        "skill": 0.35, "readiness": 0.15, "availability": 0.15,
         "utilization": 0.10, "feedback": 0.05, "language": 0.05,
-        "location": 0.05,
+        "location": 0.05, "certification": 0.10,
     }
     total = round(sum(scores[key] * weights[key] for key in weights))
     return total, scores, {
@@ -1033,6 +1037,9 @@ def _suitability_components(batch, skill_match, readiness, availability, utiliza
         "location": location_reason,
         "location_verified": location_verified,
         "utilization_verified": utilization is not None,
+        "certification": ("No mapped certification requirement" if not required_cert else
+                          f"Holds {required_cert}" if required_cert in held_codes else
+                          f"Does not hold {required_cert}"),
     }
 
 
@@ -1118,7 +1125,8 @@ def _rank_batch(batch, team, availability_sources=None, candidate_context=None):
             "No Coverage"
         )
         suitability, component_scores, suitability_context = _suitability_components(
-            batch, best, best_q, availability_row, util, feedback, languages
+            batch, best, best_q, availability_row, util, feedback, languages,
+            context.get(email, {}).get("certification_codes", []),
         )
         candidates.append({
             "trainer_name":  name if not is_self else f"{name} (You)",
@@ -1135,6 +1143,7 @@ def _rank_batch(batch, team, availability_sources=None, candidate_context=None):
             "suitability_score": suitability,
             "suitability_components": component_scores,
             "suitability_context": suitability_context,
+            "certification_covered": component_scores["certification"] == 100,
             "language_preferred": component_scores["language"] == 100,
             "speaks_english": speaks_english,
             "exact":         best >= 92,
@@ -2618,6 +2627,7 @@ def team_capability():
             key = _norm(c["course"]) or c["course"]
             entry = catalogue.setdefault(key, {
                 "course":       c["course"],
+                "course_id":    c.get("course_id", ""),
                 "vendor":       c["vendor"],
                 "exam_code":    _exam_code(c["course"]),
                 "future_skill": False,
@@ -3182,6 +3192,7 @@ def allocation_desk():
         return candidate_email, {
             "utilization": _safe_util(candidate_email),
             "languages": resume.get("languages", []),
+            "certification_codes": [c.get("code") for c in resume.get("certifications", []) if isinstance(c, dict)],
         }
 
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -3523,6 +3534,30 @@ def get_course_syllabus():
         "syllabus_url": hit["url"],
         "found":        True,
     }), 200
+
+
+@app.route('/api/data/course-search', methods=['GET'])
+def search_courses():
+    """Search the full RMS syllabus catalogue, including courses no trainer owns."""
+    query = str(request.args.get("q", "")).strip()
+    if len(query) < 2:
+        return jsonify({"query": query, "courses": [], "count": 0}), 200
+    index = _syllabus_index()
+    if not index:
+        return jsonify({"error": "Cannot reach RMS — please retry"}), 503
+    needle = _norm_course(query)
+    hits = []
+    for normalised, course in index.items():
+        if needle in normalised:
+            hits.append({
+                "course_id": str(course.get("course_id") or ""),
+                "course_name": course.get("course_name") or "",
+                "syllabus_url": course.get("url") or "",
+            })
+    hits.sort(key=lambda row: (0 if _norm_course(row["course_name"]).startswith(needle) else 1,
+                               len(row["course_name"]), row["course_name"]))
+    hits = hits[:25]
+    return jsonify({"query": query, "courses": hits, "count": len(hits), "available": True}), 200
 
 
 @app.route('/api/data/alternative-trainers', methods=['GET'])

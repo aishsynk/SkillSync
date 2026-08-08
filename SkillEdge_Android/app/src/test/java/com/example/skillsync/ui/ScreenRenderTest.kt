@@ -449,9 +449,10 @@ class ScreenRenderTest {
     @Test
     fun coursesTab_showsOwnershipAndCertificationMapping() {
         compose.setContent {
-            SkillSyncTheme { CoursesTab(capabilityPayload(), false) { _, _ -> } }
+            SkillSyncTheme { CoursesTab(capabilityPayload(), false, onTrainerClick = { _, _ -> }) }
         }
         compose.onNodeWithText("Course catalogue").assertExists()
+        compose.onNodeWithText("Assign or transfer skill").assertExists()
         compose.onNodeWithText(
             "PL-300T00: Design and Manage Analytics Solutions Using Power BI"
         ).assertExists()
@@ -466,7 +467,7 @@ class ScreenRenderTest {
     @Test
     fun coursesTab_filtersToSingleOwnerCourses() {
         compose.setContent {
-            SkillSyncTheme { CoursesTab(capabilityPayload(), false) { _, _ -> } }
+            SkillSyncTheme { CoursesTab(capabilityPayload(), false, onTrainerClick = { _, _ -> }) }
         }
         compose.onNodeWithText("2 of 2 courses").assertExists()
         compose.onNodeWithText("Single owner only").performClick()
@@ -686,7 +687,9 @@ class ScreenRenderTest {
             }
         }
         compose.onNodeWithText("INTERNATIONAL FMAT OPPORTUNITY").assertExists()
+        compose.onNodeWithText("GLOBAL OPPORTUNITY").assertExists()
+        compose.onNodeWithText("TRAVEL REQUIRED", substring = true).assertExists()
         compose.onNodeWithText("London, United Kingdom").assertExists()
-        compose.onNodeWithText("Travel, visa and schedule readiness", substring = true).assertExists()
+        compose.onNodeWithText("Visa and schedule readiness", substring = true).assertExists()
     }
 }

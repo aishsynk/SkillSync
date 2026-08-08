@@ -235,7 +235,7 @@ class DemandRankingTests(unittest.TestCase):
         self.assertEqual(candidates[0]["trainer_email"], "english@koenig-solutions.com")
         self.assertEqual(
             set(candidates[0]["suitability_components"]),
-            {"skill", "readiness", "availability", "utilization", "feedback", "language", "location"},
+            {"skill", "readiness", "availability", "utilization", "feedback", "language", "location", "certification"},
         )
 
     def test_aishwar_recommendation_carries_verified_weekend_and_level_eight(self):

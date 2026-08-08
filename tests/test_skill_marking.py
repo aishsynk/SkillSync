@@ -44,6 +44,22 @@ class SkillMarkingReliabilityTests(unittest.TestCase):
         self.assertFalse(body["verified"])
         self.assertIn("did not answer in time", body["error"])
 
+    @patch.object(backend, "_syllabus_index")
+    def test_course_search_includes_unowned_rms_catalogue_courses(self, syllabus):
+        syllabus.return_value = {
+            "dp 700 microsoft fabric data engineer": {
+                "course_id": 22001,
+                "course_name": "DP-700 Microsoft Fabric Data Engineer",
+                "url": "https://example.test/dp700.pdf",
+            },
+            "other course": {"course_id": 2, "course_name": "Other Course", "url": ""},
+        }
+        response = self.client.get("/api/data/course-search?q=DP-700")
+        self.assertEqual(200, response.status_code)
+        body = response.get_json()
+        self.assertEqual(1, body["count"])
+        self.assertEqual("22001", body["courses"][0]["course_id"])
+
 
 if __name__ == "__main__":
     unittest.main()

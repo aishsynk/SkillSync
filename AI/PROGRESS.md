@@ -1,5 +1,26 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T06:30:00+05:30 - Phase 9 local release gate passed (v1.51.0/code 60)
+- **Tool Used**: Codex (Gradle release/lint, AAPT, APK Signer)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: v1.51.0 release build and lint pass. APK package is `com.example.skillsync`, code 60, SHA-256 `3B404FD972670D391AA105F42BCD63322C67AF5003BAE4D77CEA4093BCCED5B0`; production signer remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`.
+- **Current Status**: Phase 9 passed local backend, Android UI, lint, release, identity and signing gates. No ADB device is connected, so physical upgrade remains unavailable. Publication/CI/backend deployment and production read-only validation remain.
+- **Next Actions**: Commit/push v1.51.0, verify CI/release and backend deployment, probe `/api/data/course-search?q=DP-700` and Demand ordering/component coverage, document the exact shipped status, then close Phase 9.
+
+## 2026-08-09T06:22:00+05:30 - Phase 9 functional gates passed; v1.51.0 assigned
+- **Tool Used**: Codex (`unittest`, Gradle/Compose JVM tests, live RMS catalogue read-only probe)
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Backend tests pass 16/16 and Android tests pass 33/33. Real RMS catalogue search for `DP-700` returned 2 unmapped-capable catalogue results in 1.27 s, led by course ID 18768 `DP-700 Exam Prep`, proving direct skill selection does not depend on an existing trainer mapping. International list-card regression now asserts the global badge and travel callout; course screen regression asserts the assign/transfer entry point. Assigned v1.51.0/code 60 for the new multi-trainer write workflow, catalogue endpoint, and changed Demand scoring model.
+- **Current Status**: Phase 9 functional/backend/UI gates pass locally. Release build/signing, publication, backend deployment and production read-only Demand/course-search validation remain. Bulk RMS writes will not be used as a test because they would create real trainer mappings.
+- **Next Actions**: Assemble/sign/inspect v1.51.0, commit/push, verify CI/release/deployment, validate course search and full Demand component/order contracts read-only, then close Phase 9 with remaining physical-device limitation documented.
+
+## 2026-08-09T06:05:00+05:30 - Phase 9 skill management and complete suitability implemented locally
+- **Tool Used**: Codex (RMS catalogue read-only probe, `apply_patch`)
+- **Files Modified**: `backend.py`, `tests/test_demand_safety.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt`, `DataRepository.kt`, `ui/batch/AllocationViewModel.kt`, `ui/main/MainScreen.kt`, `ui/main/CoursesTab.kt`, `ui/batch/AllocationDeskScreen.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Added full RMS catalogue search over the 12,125-course syllabus index so direct assignment can find courses not owned by any current trainer; preserved course IDs in Team capability; added a Courses workflow for either direct search or transfer of an existing course to multiple selected trainers with one shared level/effective date and honest per-trainer results. Added certification coverage as an explicit weighted Demand suitability component alongside skill, English/language, readiness, availability, utilisation, feedback restrictions and location; existing assignments remain enforced through availability conflicts and the logged-in manager remains eligible. Strengthened international FMAT/ILT list cards with `GLOBAL OPPORTUNITY`, explicit travel/classroom indicators, animated globe and premium banner.
+- **Current Status**: Phase 9 implementation is local and unvalidated. No Phase 9 write has been executed. Compile/test failures, if any, remain to be resolved before versioning or publication.
+- **Next Actions**: Add backend course-search and Android render regressions, run all suites, resolve UI/type issues, then version, build, sign, publish and production-validate the read/search/ranking contracts without bulk-mutating RMS.
+
 ## 2026-08-09T05:42:00+05:30 - Phase 8 completed and production-validated (v1.50.0/code 59)
 - **Tool Used**: Codex (`git`, `gh`, GitHub Actions, controlled production RMS verification)
 - **Files Modified**: `AI/PROGRESS.md`

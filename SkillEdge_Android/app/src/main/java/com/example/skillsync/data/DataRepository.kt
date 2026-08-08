@@ -57,6 +57,8 @@ class ManagerRepository(
 
     suspend fun syllabus(courseName: String) = api.getCourseSyllabus(courseName)
 
+    suspend fun searchCourses(query: String) = api.searchCourses(query)
+
     /** Production skill writes share the repository boundary with all reads. */
     suspend fun markSkill(request: MarkSkillRequest): retrofit2.Response<MarkSkillResponse> =
         api.markSkill(request)
