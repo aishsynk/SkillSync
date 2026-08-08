@@ -30,6 +30,7 @@ import com.example.skillsync.ui.components.*
 // ── Filter model ──────────────────────────────────────────────────────────────
 
 enum class TeamSort(val label: String) {
+    HEALTH("Health"),
     UTILISATION("Utilisation"),
     READINESS("Readiness"),
     RISK("Risk"),
@@ -53,7 +54,7 @@ enum class RiskBand(val label: String) { HIGH("High"), MEDIUM("Medium"), LOW("Lo
 
 data class TeamFilters(
     val query: String = "",
-    val sort: TeamSort = TeamSort.UTILISATION,
+    val sort: TeamSort = TeamSort.HEALTH,
     val status: String? = null,
     val util: UtilBand? = null,
     val readiness: ReadinessBand? = null,
@@ -157,6 +158,10 @@ internal fun TeamTab(
                 matchesReadiness && matchesRisk && matchesSkill && matchesCert && matchesGaps
         }.let { list ->
             when (f.sort) {
+                TeamSort.HEALTH -> list.sortedBy { t ->
+                    val email = t.str("official_email").lowercase()
+                    trainerHealth(t, capMap[email], deliveryMap[email]).first
+                }
                 TeamSort.UTILISATION -> list.sortedByDescending { it.int("current_utilization") }
                 TeamSort.NAME -> list.sortedBy { it.str("trainer_name") }
                 TeamSort.STATUS -> list.sortedBy {

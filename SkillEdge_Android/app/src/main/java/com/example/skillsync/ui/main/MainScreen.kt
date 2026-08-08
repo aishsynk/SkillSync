@@ -998,6 +998,64 @@ private fun DashErrorView(message: String, onRetry: () -> Unit) {
 
 // ── Cards ─────────────────────────────────────────────────────────────────────
 
+/**
+ * A single 0–100 health score standing in for utilisation, feedback, delivery
+ * risk, readiness and certification gaps — so the roster can be scanned and
+ * sorted on one number instead of five separately-coloured badges.
+ *
+ * Weights: feedback incidents dominate (a real, reported problem) over
+ * utilisation extremes (which are often just a scheduling gap, not a risk),
+ * with delivery risk, readiness and cert gaps as smaller deductions.
+ */
+internal fun trainerHealth(
+    trainer: Map<*, *>,
+    capability: Map<*, *>?,
+    delivery: Map<*, *>?,
+): Pair<Int, String> {
+    var score = 100
+    val util = trainer.intOrNull("current_utilization")
+    val feedbackRisk = trainer.str("feedback_risk")
+    val deliveryRisk = delivery?.str("delivery_risk_level").orEmpty()
+    val readiness = capability?.str("readiness_bucket").orEmpty()
+    val gaps = capability?.obj("certification")?.int("gap_count") ?: 0
+
+    score -= when (feedbackRisk) {
+        "High" -> 35
+        "Medium" -> 15
+        else -> 0
+    }
+    if (deliveryRisk == "High") score -= 20
+    score -= when {
+        util == null -> 5
+        util > 92 -> 18
+        util > 85 -> 10
+        util < 15 -> 12
+        else -> 0
+    }
+    score -= when (readiness) {
+        "Needs support" -> 15
+        "Developing" -> 6
+        else -> 0
+    }
+    score -= (gaps * 4).coerceAtMost(15)
+    score = score.coerceIn(0, 100)
+
+    val bucket = when {
+        score >= 80 -> "Healthy"
+        score >= 60 -> "Watchlist"
+        score >= 40 -> "Needs Attention"
+        else -> "High Risk"
+    }
+    return score to bucket
+}
+
+/**
+ * The roster card, redesigned around four questions a manager actually asks:
+ * what is this trainer doing right now, how healthy are they overall, is
+ * there risk, and does anything need my action. Certificates, qubit scores
+ * and multi-badge stat walls answer none of those — they moved to the
+ * trainer-360 detail screen, which is what the profile deep-dive is for.
+ */
 @Composable
 internal fun TrainerCard(
     trainer: Map<*, *>,
@@ -1009,32 +1067,19 @@ internal fun TrainerCard(
 ) {
     val sk = MaterialTheme.skill
     val name = trainer.str("trainer_name")
-    val desig = trainer.str("designation").ifBlank { trainer.str("direct_or_indirect") }
     val utilRaw = trainer.intOrNull("current_utilization")
-    val capacity = trainer.str("capacity_bucket").ifBlank { trainer.str("readiness_bucket") }
-    val negCount = trainer.int("negative_count")
+    val availableCapacity = utilRaw?.let { (100 - it).coerceIn(0, 100) }
     val upcoming = trainer.int("upcoming_count")
 
     val status = state?.str("current_status") ?: "unknown"
     val statusLabel = state?.str("status_label") ?: "Unknown"
-    val confidence = state?.int("confidence") ?: 0
-    val reason = state?.str("reason").orEmpty()
     val cur = state?.obj("current_batch")
     val nxt = state?.obj("next_batch")
 
-    val cert = capability?.obj("certification")
-    val gaps = cert?.int("gap_count") ?: 0
-    val certCount = cert?.list("held")?.size ?: 0
-    val readiness = capability?.str("readiness_bucket").orEmpty()
+    val recommendedAction = trainer.str("recommended_action")
+        .takeIf { it.isNotBlank() && it != "Monitor performance" }
 
-    // Delivery readiness — from delivery_intelligence_df (always in main payload)
-    val deliveryLabel    = delivery?.str("delivery_readiness_label").orEmpty()
-    val deliveryCapacity = delivery?.str("delivery_capacity_status").orEmpty()
-    val deliveryRisk     = delivery?.str("delivery_risk_level").orEmpty()
-
-    // Feedback risk — from trainer_operations_df
-    val feedbackRisk = trainer.str("feedback_risk").orEmpty()
-    val feedbackCount = trainer.int("negative_count")
+    val (health, healthBucket) = trainerHealth(trainer, capability, delivery)
 
     val statusColor = when (status) {
         "teaching_now" -> sk.cyan
@@ -1044,28 +1089,22 @@ internal fun TrainerCard(
         "blocked" -> sk.crit
         else -> sk.labelText
     }
-    val utilColor = when {
-        utilRaw == null || utilRaw == 0 -> sk.subText
-        utilRaw > 85 -> sk.crit
-        utilRaw >= 60 -> sk.aqua
-        utilRaw >= 30 -> sk.warn
-        else -> sk.subText
+    val healthColor = when (healthBucket) {
+        "Healthy" -> sk.aqua
+        "Watchlist" -> sk.sky
+        "Needs Attention" -> sk.warn
+        else -> sk.crit
     }
-    val utilProgress by animateProgressFromZero((utilRaw ?: 0) / 100f)
-    val barColor by animateColorAsState(utilColor, tween(Motion.NORMAL), label = "bar")
+    val healthProgress by animateProgressFromZero(health / 100f)
+    val barColor by animateColorAsState(healthColor, tween(Motion.NORMAL), label = "bar")
 
-    // Severity edge: the card's left border carries the reading that decides
-    // whether the manager needs to stop on this row at all.
-    val edge = when {
-        feedbackRisk == "High" || deliveryRisk == "High" -> sk.crit
-        utilRaw != null && utilRaw > 85 -> sk.warn
-        else -> statusColor
-    }
+    // Severity edge: whichever reading decides if the manager needs to stop here.
+    val edge = if (healthBucket == "High Risk" || healthBucket == "Needs Attention") healthColor else statusColor
 
     Box(
         Modifier
             .fillMaxWidth()
-            .accentGlass(edge, RoundedCornerShape(Radii.card), strong = edge == sk.crit)
+            .accentGlass(edge, RoundedCornerShape(Radii.card), strong = healthBucket == "High Risk")
             .clickable(onClick = onClick),
     ) {
         Box(
@@ -1075,146 +1114,101 @@ internal fun TrainerCard(
                 .background(Brush.verticalGradient(listOf(edge, edge.copy(alpha = 0.2f))))
         )
         Column(Modifier.padding(start = 15.dp, top = 13.dp, end = 13.dp, bottom = 13.dp)) {
+            // ── Who, and what are they doing right now ──────────────────────
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Avatar(name, capability?.str("photo_url"), 38.dp)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(name, style = MaterialTheme.typography.titleMedium, color = sk.bodyText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (desig.isNotBlank()) {
-                        Text(desig, style = MaterialTheme.typography.labelSmall, color = sk.subText, maxLines = 1)
-                    }
+                    Text(
+                        statusLabel.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = statusColor,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.5.sp,
+                        letterSpacing = 0.08.em,
+                        maxLines = 1,
+                    )
                 }
                 Spacer(Modifier.width(6.dp))
-                Chip(statusLabel, statusColor)
+                HealthBadge(health, healthColor)
                 Icon(
                     painterResource(R.drawable.ic_chevron), null,
-                    tint = sk.subText, modifier = Modifier.size(15.dp).padding(start = 2.dp),
+                    tint = sk.subText, modifier = Modifier.size(15.dp).padding(start = 4.dp),
                 )
             }
 
-            // The batch the trainer is actually in — tinted by engagement.
-            BatchBanner(cur, nxt, status, statusColor, reason)
+            // The batch the trainer is actually in, and when it ends.
+            BatchBanner(cur, nxt, status, statusColor, state?.str("reason").orEmpty())
 
             Spacer(Modifier.height(10.dp))
 
+            // ── Available capacity and upcoming demand ───────────────────────
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Util", style = MaterialTheme.typography.labelSmall, color = sk.subText, modifier = Modifier.width(26.dp))
+                Text("Free", style = MaterialTheme.typography.labelSmall, color = sk.subText, modifier = Modifier.width(28.dp))
                 LinearProgressIndicator(
-                    progress = { utilProgress },
+                    progress = { healthProgress },
                     modifier = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)),
                     color = barColor, trackColor = sk.track,
                     gapSize = 0.dp, drawStopIndicator = {},
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    if (utilRaw == null || utilRaw == 0) "—" else "$utilRaw%",
+                    availableCapacity?.let { "$it%" } ?: "—",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold, color = barColor,
                 )
-            }
-
-            Spacer(Modifier.height(9.dp))
-            HorizontalDivider(color = sk.cardBorder)
-            Spacer(Modifier.height(8.dp))
-
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                // —— Delivery Readiness Badge (from delivery_intelligence_df) ——
-                // Always shown when available; no extra API call required.
-                if (deliveryLabel.isNotBlank()) {
-                    // Status is carried by the chip's own colour and border, so
-                    // the emoji that used to prefix these labels is gone — it
-                    // duplicated the colour and broke the typographic scale.
-                    val (rdLabel, rdColor) = when (deliveryLabel) {
-                        "Ready"            -> "Ready"          to sk.aqua
-                        "Ready with Prep"  -> "Ready w/ prep"  to sk.cyan
-                        "Needs Mentoring"  -> "Needs mentoring" to sk.warn
-                        else               -> "Hold"           to sk.crit
-                    }
-                    Chip(rdLabel, rdColor)
-                    Spacer(Modifier.width(5.dp))
-                } else {
-                    // Fallback to capability-based readiness if delivery data not yet available
-                    Chip(capacity.ifBlank { "Unknown" }, if (capacity == "Unknown" || capacity.isBlank()) sk.subText else utilColor)
-                    if (readiness.isNotBlank() && readiness != "Unknown") {
-                        Spacer(Modifier.width(5.dp))
-                        Chip(
-                            readiness,
-                            when (readiness) {
-                                "Ready"      -> sk.green
-                                "Developing" -> sk.amber
-                                else         -> sk.red
-                            },
-                        )
-                    }
-                }
-
-                // —— Capacity Badge (from delivery_intelligence_df) ——
-                if (deliveryCapacity.isNotBlank()) {
-                    val capColor = when (deliveryCapacity) {
-                        "Overloaded"   -> sk.red
-                        "Balanced"     -> sk.teal
-                        "Underutilized" -> sk.green
-                        else           -> sk.subText
-                    }
-                    Chip(deliveryCapacity, capColor)
-                    Spacer(Modifier.width(5.dp))
-                }
-
-                // —— Delivery Risk Indicator ——
-                if (deliveryRisk == "High") {
-                    Chip("Delivery risk", sk.crit)
-                    Spacer(Modifier.width(5.dp))
-                }
-
-                // —— Feedback Risk Indicator ——
-                if (feedbackRisk.isNotBlank() && feedbackRisk != "Low") {
-                    val (riskLabel, riskColor) = when (feedbackRisk) {
-                        "High"   -> "Feedback issues" to sk.crit
-                        "Medium" -> "Feedback alert" to sk.warn
-                        else     -> null to null
-                    }
-                    if (riskColor != null) {
-                        Chip(riskLabel!!, riskColor!!)
-                        Spacer(Modifier.width(5.dp))
-                    }
-                }
-
-                if (certCount > 0) {
-                    Chip("$certCount cert", sk.indigo)
-                    Spacer(Modifier.width(5.dp))
-                }
-                if (gaps > 0) {
-                    Chip("$gaps gap", sk.amber)
-                    Spacer(Modifier.width(5.dp))
-                }
-                if (upcoming > 0) {
-                    Chip("$upcoming upcoming", sk.blue)
-                    Spacer(Modifier.width(5.dp))
-                }
-                if (negCount > 0) {
-                    Spacer(Modifier.width(5.dp))
-                    Chip("$negCount neg", sk.red)
-                }
-                Spacer(Modifier.weight(1f))
-                if (confidence > 0) {
-                    Text("$confidence%", style = MaterialTheme.typography.labelSmall, color = sk.subText)
-                }
-            }
-
-            // Backend already computes a specific next step per trainer
-            // ("Urgent: Review feedback incidents", "Check availability" …);
-            // previously fetched but never shown anywhere in the app.
-            val recommendedAction = trainer.str("recommended_action")
-            if (recommendedAction.isNotBlank() && recommendedAction != "Monitor performance") {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.width(10.dp))
                 Text(
-                    "→ $recommendedAction",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (recommendedAction.startsWith("Urgent")) sk.red else sk.subText,
-                    fontWeight = if (recommendedAction.startsWith("Urgent")) FontWeight.Bold else FontWeight.Normal,
+                    "$upcoming upcoming",
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
                 )
             }
+
+            // ── Action, only when one is actually required ────────────────────
+            if (recommendedAction != null) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(healthColor.copy(alpha = 0.1f))
+                        .padding(horizontal = 9.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_flag), null,
+                        tint = healthColor, modifier = Modifier.size(13.dp),
+                    )
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        recommendedAction,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = healthColor,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
+    }
+}
+
+/** Score + bucket, the one figure a manager needs to triage the whole roster. */
+@Composable
+private fun HealthBadge(score: Int, color: Color) {
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(color.copy(alpha = 0.14f))
+            .padding(horizontal = 9.dp, vertical = 5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("$score", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = color)
+        Text(
+            "HEALTH", style = MaterialTheme.typography.labelSmall, color = color,
+            fontSize = 7.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.1.em,
+        )
     }
 }
 

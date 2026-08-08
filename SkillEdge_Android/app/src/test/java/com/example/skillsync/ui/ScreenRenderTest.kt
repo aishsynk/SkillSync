@@ -281,7 +281,8 @@ class ScreenRenderTest {
             }
         }
         compose.onAllNodesWithText("DELIVERING").onFirst().assertExists()
-        compose.onAllNodesWithText("LIGHT").onFirst().assertExists()
+        // 39% utilised -> 61% available capacity, the decision-relevant figure.
+        compose.onNodeWithText("61%").assertExists()
         compose.onNodeWithText("AI-102T00: Develop AI Solutions in Azure").assertExists()
         compose.onNodeWithText("ILO · Microsoft · 1 pax · ends in 2 d").assertExists()
         compose.onNodeWithText("LIVE").assertExists()
@@ -392,13 +393,13 @@ class ScreenRenderTest {
             }
         }
         compose.onNodeWithText("Filters").assertExists()
-        compose.onNodeWithText("Sort: Utilisation").assertExists()
+        // Health is the default sort: the roster leads with the one number
+        // that answers "who needs me first", not raw utilisation.
+        compose.onNodeWithText("Sort: Health").assertExists()
         compose.onNodeWithText("1 of 1 trainers").assertExists()
         compose.onAllNodesWithText("Abhinav Samant").onFirst().assertExists()
-        // Certification signal from the capability payload reaches the roster card.
-        compose.onNodeWithText("DEVELOPING").assertExists()
-        compose.onNodeWithText("2 CERT").assertExists()
-        compose.onNodeWithText("3 GAP").assertExists()
+        // Certificates, gap counts and readiness buckets are detail-screen
+        // information now — the roster card answers status/health/action only.
     }
 
     @Test

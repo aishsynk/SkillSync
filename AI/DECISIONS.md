@@ -2,6 +2,20 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-08 — v1.29.0: Roster card answers four questions, not a stat wall
+
+- **Decision:** Replaced the trainer roster card's five separate badges (cert count, cert gap count, feedback risk, delivery risk, readiness bucket) with one `trainerHealth()` score (0–100) and a Healthy/Watchlist/Needs Attention/High Risk category.
+- **Rationale:** The manager's own framing: "the card should focus on decision-making rather than statistics." A manager scanning 20+ rows cannot compare five independently-coloured labels per row; one ranked number lets the whole roster sort itself by urgency. Certificates and gap counts still exist — they moved to `trainer-360`, the detail screen.
+
+- **Decision:** The roster's headline capacity figure is now "available capacity" (100 − utilisation), not raw utilisation.
+- **Rationale:** A manager opens the roster to find who can take the next assignment. "24% available" answers that directly; "76% utilised" makes the manager do the subtraction themselves, every row, every time.
+
+- **Decision:** The action row only renders when `recommended_action` is a real, non-default value.
+- **Rationale:** A permanently-visible "action needed" affordance on every card — even ones with nothing to do — trains managers to ignore it. Making it conditional means its presence is itself the signal.
+
+- **Decision:** Roster default sort changed from Utilisation to the new Health score.
+- **Rationale:** Utilisation ranks by how busy someone is, not by how much they need the manager's attention. A benched trainer with no risk factors and an overloaded trainer with no risk factors both used to sort near each other under utilisation; health sorts by actual urgency.
+
 ## 2026-08-07 — v1.28.0: Redesign starts at the token layer, and the app commits to one dark identity
 
 - **Decision:** Rewrote `theme/Color.kt` and `theme/Theme.kt` rather than restyling cards again.

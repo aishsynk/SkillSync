@@ -1,5 +1,22 @@
 # SkillEdge Project Progress
 
+## Release v1.29.0 — Team roster rebuilt as a manager decision surface
+- **Timestamp**: 2026-08-08T08:15:00+05:30
+- **Agent/Tool Used**: Claude Code (Sonnet 5)
+- **Files Modified**: `ui/main/MainScreen.kt` (`TrainerCard`, new `trainerHealth`/`HealthBadge`), `ui/main/TeamTab.kt` (sort), `app/src/test/.../ScreenRenderTest.kt`, both `build.gradle.kts`
+- **Root Cause / Brief**: The manager asked for the roster card to stop being a trainer-profile stat wall (certificates, badges, percentages, multiple labels) and instead answer four questions per card: what is this trainer doing right now, how healthy are they, is there risk, does anything need my action.
+- **Work Completed**:
+  - Added `trainerHealth()`: a single 0–100 score from feedback risk (dominant weight — a reported incident outweighs a scheduling gap), delivery risk, utilisation extremes, readiness bucket and certification gap count. Mapped to Healthy / Watchlist / Needs Attention / High Risk.
+  - Rebuilt `TrainerCard`: name + live status label up top, a `HealthBadge` (score + category) replacing the five separate chips (cert count, gap count, feedback risk, delivery risk, readiness bucket) that used to run along the bottom row.
+  - Available capacity (100 − utilisation) replaces the raw utilisation bar as the headline figure — "24% available" is the decision-relevant framing, not "76% utilised".
+  - Current assignment and its end date stay front and centre (already correct in the prior design; kept as-is).
+  - A single action row appears only when the backend actually recommends one (`recommended_action` present and not the default "Monitor performance") — no more permanently-visible action affordance for trainers who need none.
+  - `TeamSort` gained `HEALTH` and it is now the roster's default sort, replacing utilisation — the roster now opens sorted by who needs the manager first.
+  - Certificates, gap counts and readiness buckets did not disappear from the app — they moved to `trainer-360`, the detail screen, which is what a profile deep-dive is for.
+- **Backend Impact**: **None.** `trainerHealth()` is a pure client-side function over fields the payload already carries (`feedback_risk`, `current_utilization`, `delivery_risk_level`, `readiness_bucket`, `certification.gap_count`). No endpoint, repository or RMS call changed.
+- **Build & Test Status**: `BUILD SUCCESSFUL`; **30/30 unit tests pass**. Updated three `ScreenRenderTest` assertions that pinned the old badge layout and default sort to the new decision-first card.
+- **Next Actions**: Publish `SkillEdge-v1.29.0.apk` via GitHub Releases; verify roster on device.
+
 ## Release v1.28.0 — Command Centre Visual Redesign (token-layer rebuild)
 - **Timestamp**: 2026-08-07T21:00:00+05:30
 - **Agent/Tool Used**: Claude Code (Opus 5)
