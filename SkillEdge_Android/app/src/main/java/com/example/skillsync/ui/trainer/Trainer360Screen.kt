@@ -43,6 +43,7 @@ fun Trainer360Screen(
 
     val state by viewModel.state.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
+    var showCopilot by remember { mutableStateOf(false) }
     StatusBarIcons(lightIcons = true)
 
     Scaffold(
@@ -73,7 +74,23 @@ fun Trainer360Screen(
                 ),
             )
         },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { showCopilot = true },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White
+            ) {
+                Text("✨", fontSize = 24.sp)
+            }
+        }
     ) { pv ->
+        if (showCopilot) {
+            CopilotChatSheet(
+                managerEmail = managerEmail,
+                targetEmail = trainerEmail,
+                onDismiss = { showCopilot = false }
+            )
+        }
         Box(Modifier.fillMaxSize().padding(pv)) {
             when (val s = state) {
                 is Trainer360State.Loading -> Column(

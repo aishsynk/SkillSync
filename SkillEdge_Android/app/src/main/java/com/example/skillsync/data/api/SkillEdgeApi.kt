@@ -78,6 +78,12 @@ interface SkillEdgeApi {
      */
     @POST("api/action/mark-skill")
     suspend fun markSkill(@Body request: MarkSkillRequest): retrofit2.Response<MarkSkillResponse>
+
+    /** Ask Copilot a question */
+    @POST("api/agent/ask")
+    suspend fun agentAsk(
+        @Body request: AgentAskRequest
+    ): AgentAskResponse
 }
 
 data class MarkSkillRequest(
@@ -112,5 +118,20 @@ data class MarkSkillResponse(
     val rms_status: String?,
     val rms_message: String?,
     val message: String?,
+    val error: String?,
+)
+
+data class AgentAskRequest(
+    val manager_email: String,
+    val target_email: String,
+    val question_key: String,
+)
+
+data class AgentAskResponse(
+    val answer: String,
+    val evidence: String?,
+    val source: List<String>?,
+    val confidence: String?,
+    val decisionVersion: String?,
     val error: String?,
 )
