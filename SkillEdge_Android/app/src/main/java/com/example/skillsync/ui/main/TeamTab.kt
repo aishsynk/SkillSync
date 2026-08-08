@@ -91,6 +91,9 @@ private val STATUS_OPTIONS = listOf(
 internal fun TeamTab(
     data: Map<String, Any>,
     capability: Map<String, Any>?,
+    actions: List<Map<String, Any>> = emptyList(),
+    loading: Boolean = false,
+    dataError: String? = null,
     onTrainerClick: (String, String) -> Unit,
 ) {
     val sk = MaterialTheme.skill
@@ -102,6 +105,9 @@ internal fun TeamTab(
     // Delivery readiness — always in the unified payload, no extra API call.
     val deliveryMap = data.rows("delivery_intelligence_df")
         .associateBy { it.str("trainer_email").lowercase() }
+    val actionsByTrainer = actions
+        .filter { it.str("lifecycle_state") !in listOf("closed", "resolved") }
+        .groupBy { it.str("trainer_email").lowercase() }
 
     var filters by remember { mutableStateOf(TeamFilters()) }
     var sheetOpen by remember { mutableStateOf(false) }
@@ -190,6 +196,20 @@ internal fun TeamTab(
     ) {
         item {
             Column {
+                if (dataError != null) {
+                    Surface(
+                        color = sk.warn.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(9.dp),
+                    ) {
+                        Text(
+                            dataError,
+                            modifier = Modifier.fillMaxWidth().padding(10.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.warn,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
                 SearchField(
                     value = filters.query,
                     onValueChange = { filters = filters.copy(query = it) },
@@ -215,7 +235,7 @@ internal fun TeamTab(
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "${shown.size} of ${ops.size} trainers",
+                    "${shown.size} of ${ops.size} trainers" + if (loading) " · loading intelligence…" else "",
                     style = MaterialTheme.typography.labelSmall, color = sk.subText,
                 )
             }
@@ -246,6 +266,7 @@ internal fun TeamTab(
                                 state = stateMap[t.str("official_email").lowercase()],
                                 capability = capMap[t.str("official_email").lowercase()],
                                 delivery = deliveryMap[t.str("official_email").lowercase()],
+                                openActionCount = actionsByTrainer[t.str("official_email").lowercase()]?.size ?: 0,
                             ) {
                                 onTrainerClick(t.str("official_email"), t.str("trainer_name"))
                             }

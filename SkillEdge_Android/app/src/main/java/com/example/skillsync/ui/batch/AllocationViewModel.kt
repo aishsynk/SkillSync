@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.skillsync.data.api.MarkSkillRequest
 import com.example.skillsync.data.api.MarkSkillResponse
 import com.example.skillsync.data.api.RetrofitClient
+import com.example.skillsync.data.ManagerRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -32,7 +33,9 @@ sealed class MarkState {
     data class Failed(val message: String) : MarkState()
 }
 
-class AllocationViewModel : ViewModel() {
+class AllocationViewModel(
+    private val repository: ManagerRepository = ManagerRepository(),
+) : ViewModel() {
 
     private val _state = MutableStateFlow<AllocationState>(AllocationState.Loading)
     val state: StateFlow<AllocationState> = _state
@@ -107,8 +110,8 @@ class AllocationViewModel : ViewModel() {
 
         // 3. Fetch from API in background
         try {
-            val data = RetrofitClient.instance.getAllocationDesk(email, if (fresh) 1 else null)
-            com.example.skillsync.data.cache.LocalCache.saveMap(cacheKey(email), data)
+            val result = repository.allocation(email, fresh)
+            val data = result.data ?: throw IllegalStateException(result.error ?: "Could not load demand")
             _newIds.value = SeenBatches.diffAndRemember(context, email, data)
             _state.value = AllocationState.Success(data)
         } catch (e: Exception) {

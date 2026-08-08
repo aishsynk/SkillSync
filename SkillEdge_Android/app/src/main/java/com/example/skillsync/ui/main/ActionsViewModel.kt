@@ -3,6 +3,7 @@ package com.example.skillsync.ui.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.skillsync.data.api.RetrofitClient
+import com.example.skillsync.data.ManagerRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -19,7 +20,9 @@ import kotlinx.coroutines.launch
  * A refresh never clears [actions] — the previous list stays on screen while
  * the new one is fetched, and is replaced only once real data arrives.
  */
-class ActionsViewModel : ViewModel() {
+class ActionsViewModel(
+    private val repository: ManagerRepository = ManagerRepository(),
+) : ViewModel() {
 
     private val _actions = MutableStateFlow<List<Map<String, Any>>>(emptyList())
     val actions: StateFlow<List<Map<String, Any>>> = _actions
@@ -56,9 +59,8 @@ class ActionsViewModel : ViewModel() {
 
     private suspend fun fetch(managerEmail: String) {
         try {
-            val body = RetrofitClient.instance.getActions(managerEmail)
-            @Suppress("UNCHECKED_CAST")
-            val rows = (body["actions"] as? List<Map<String, Any>>).orEmpty()
+            val result = repository.actions(managerEmail)
+            val rows = result.data ?: throw IllegalStateException(result.error ?: "Could not load actions")
             // Only replace on success. A failed refresh leaves the existing
             // inbox on screen rather than emptying it.
             _actions.value = rows

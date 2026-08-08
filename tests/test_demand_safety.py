@@ -70,5 +70,41 @@ class DemandSafetyTests(unittest.TestCase):
         self.assertEqual(backend._next_weekend(date(2026, 8, 9)).isoformat(), "2026-08-15")
 
 
+class CompleteTeamTests(unittest.TestCase):
+    def test_team_capability_does_not_truncate_after_twenty(self):
+        reportees = [
+            {"OffEmail": f"trainer{i}@koenig-solutions.com", "TrainerName": f"Trainer {i}"}
+            for i in range(25)
+        ]
+
+        def capability(row, _policy):
+            return {
+                "trainer_name": row["TrainerName"],
+                "trainer_email": row["OffEmail"],
+                "courses": [],
+                "readiness_score": 70,
+                "readiness_bucket": "Ready",
+                "certification": {
+                    "gap_count": 0,
+                    "held": [],
+                    "taught_codes": [],
+                    "held_codes": [],
+                    "coverage_pct": None,
+                },
+            }
+
+        with (
+            patch.object(backend, "_rms", return_value=reportees),
+            patch.object(backend, "_exam_policy", return_value={}),
+            patch.object(backend, "_capability_for", side_effect=capability),
+        ):
+            response = backend.app.test_client().get(
+                "/api/data/team-capability?email=manager@koenig-solutions.com"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["team_size"], 25)
+
+
 if __name__ == "__main__":
     unittest.main()

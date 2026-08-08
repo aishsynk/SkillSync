@@ -2,6 +2,8 @@ package com.example.skillsync.ui.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.skillsync.data.DataSource
+import com.example.skillsync.data.ManagerRepository
 import com.example.skillsync.data.api.RetrofitClient
 import com.example.skillsync.data.cache.LocalCache
 import kotlinx.coroutines.async
@@ -43,7 +45,9 @@ sealed class DashboardState {
  * the one query that grows with team size, so it loads when the Courses tab is
  * opened, or when the manager taps one of the certification KPIs that needs it.
  */
-class MainScreenViewModel : ViewModel() {
+class MainScreenViewModel(
+    private val repository: ManagerRepository = ManagerRepository(),
+) : ViewModel() {
     private val _uiState = MutableStateFlow<DashboardState>(DashboardState.Loading)
     val uiState: StateFlow<DashboardState> = _uiState
 
@@ -57,6 +61,12 @@ class MainScreenViewModel : ViewModel() {
     /** True while capability is in flight, so cert KPIs can show a placeholder. */
     private val _capabilityLoading = MutableStateFlow(false)
     val capabilityLoading: StateFlow<Boolean> = _capabilityLoading
+
+    private val _teamActions = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+    val teamActions: StateFlow<List<Map<String, Any>>> = _teamActions
+
+    private val _teamDataError = MutableStateFlow<String?>(null)
+    val teamDataError: StateFlow<String?> = _teamDataError
 
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing
@@ -105,6 +115,27 @@ class MainScreenViewModel : ViewModel() {
     fun ensureCapability(email: String, context: android.content.Context) {
         if (_capability.value != null || _capabilityLoading.value) return
         viewModelScope.launch { fetchCapability(email, context, fresh = false) }
+    }
+
+    /** Team requires capability and real action counts immediately on entry. */
+    fun ensureTeamIntelligence(email: String, context: android.content.Context) {
+        if (_capabilityLoading.value) return
+        viewModelScope.launch {
+            if (!com.example.skillsync.data.api.RetrofitClient.isNetworkAvailable(context)) {
+                if (_capability.value == null) {
+                    _capability.value = LocalCache.loadMap(capabilityCacheKey(email))
+                }
+                _teamDataError.value = "Offline — team intelligence may be stale"
+                return@launch
+            }
+            _capabilityLoading.value = true
+            val result = repository.teamIntelligence(email, fresh = false)
+            if (result.capability != null) _capability.value = result.capability
+            _teamActions.value = result.actions
+            _teamDataError.value = listOfNotNull(result.capabilityError, result.actionsError)
+                .distinct().joinToString(" · ").takeIf { it.isNotBlank() }
+            _capabilityLoading.value = false
+        }
     }
 
     /**
@@ -160,14 +191,18 @@ class MainScreenViewModel : ViewModel() {
 
         // 3. Fetch from API in background
         try {
-            val data = RetrofitClient.instance.getTrainerIntelligence(email, flag(fresh))
-            LocalCache.saveMap(dashboardCacheKey(email), data)
+            val result = repository.dashboard(email, fresh)
+            val data = result.data ?: throw IllegalStateException(result.error ?: "Failed to load dashboard")
             // Swap only on a real change. Re-emitting an identical payload
             // recomposes every card and chart for nothing, which is what the
             // visible flicker on each poll actually was.
             val prev = (_uiState.value as? DashboardState.Success)?.intelligenceData
             if (prev != data) {
-                _uiState.value = DashboardState.Success(data)
+                _uiState.value = DashboardState.Success(
+                    data,
+                    fromCache = result.source == DataSource.CACHE,
+                    cachedAt = result.cachedAt,
+                )
             }
             com.example.skillsync.data.SessionManager.setLastSyncTime(System.currentTimeMillis())
         } catch (e: Exception) {
@@ -186,9 +221,8 @@ class MainScreenViewModel : ViewModel() {
         if (!RetrofitClient.isNetworkAvailable(context)) return
 
         try {
-            val data = RetrofitClient.instance.getManagerProfile(email, flag(fresh))
-            LocalCache.saveMap(profileCacheKey(email), data)
-            _profile.value = data
+            val result = repository.managerProfile(email, fresh)
+            if (result.data != null) _profile.value = result.data
         } catch (_: Exception) {
             // Ignore error
         }
@@ -203,11 +237,13 @@ class MainScreenViewModel : ViewModel() {
 
         _capabilityLoading.value = true
         try {
-            val data = RetrofitClient.instance.getTeamCapability(email, flag(fresh))
-            LocalCache.saveMap(capabilityCacheKey(email), data)
-            _capability.value = data
-        } catch (_: Exception) {
-            // Ignore error
+            val result = repository.teamIntelligence(email, fresh)
+            if (result.capability != null) _capability.value = result.capability
+            _teamActions.value = result.actions
+            _teamDataError.value = listOfNotNull(result.capabilityError, result.actionsError)
+                .distinct().joinToString(" · ").takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            _teamDataError.value = e.localizedMessage ?: "Could not load team intelligence"
         } finally {
             _capabilityLoading.value = false
         }

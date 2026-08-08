@@ -40,6 +40,7 @@ internal fun TeamMemberCard(
     state: Map<*, *>?,
     capability: Map<*, *>? = null,
     delivery: Map<*, *>? = null,
+    openActionCount: Int = 0,
     onClick: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
@@ -282,6 +283,16 @@ internal fun TeamMemberCard(
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
+            }
+            if (openActionCount > 0) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "$openActionCount open manager action${if (openActionCount == 1) "" else "s"}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.crit,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 8.5.sp,
+                )
             }
         }
     }

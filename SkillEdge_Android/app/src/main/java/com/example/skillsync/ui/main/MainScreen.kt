@@ -72,6 +72,7 @@ fun MainScreen(
         viewModel.loadData(email, context)
         if (tab == HomeTab.DEMAND) allocationViewModel.load(email, context)
         if (tab == HomeTab.COURSES) viewModel.ensureCapability(email, context)
+        if (tab == HomeTab.TEAM) viewModel.ensureTeamIntelligence(email, context)
         if (tab == HomeTab.ACTIONS) actionsViewModel.load(email)
         
         // In-app polling for the Unallocated Batch Intelligence Center
@@ -95,6 +96,8 @@ fun MainScreen(
     val profile by viewModel.profile.collectAsState()
     val capability by viewModel.capability.collectAsState()
     val capLoading by viewModel.capabilityLoading.collectAsState()
+    val teamActions by viewModel.teamActions.collectAsState()
+    val teamDataError by viewModel.teamDataError.collectAsState()
     val allocState by allocationViewModel.state.collectAsState()
     val allocRefreshing by allocationViewModel.refreshing.collectAsState()
     val newIds by allocationViewModel.newIds.collectAsState()
@@ -293,7 +296,14 @@ fun MainScreen(
                     ) {
                         val d = s.intelligenceData
                         when (tab) {
-                            HomeTab.TEAM -> TeamTab(d, capability, onTrainerClick)
+                            HomeTab.TEAM -> TeamTab(
+                                data = d,
+                                capability = capability,
+                                actions = teamActions,
+                                loading = capLoading,
+                                dataError = teamDataError,
+                                onTrainerClick = onTrainerClick,
+                            )
                             HomeTab.ACTIONS -> ActionsInbox(
                                 managerEmail = email,
                                 actions = inboxActions,

@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T02:13:00+05:30 - Phase 2 local validation passed
+- **Tool Used**: Codex (`unittest`, Gradle, APK Signer)
+- **Files Modified**: `tests/test_demand_safety.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/DataRepository.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/MainScreenViewModel.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Corrected the 25-trainer fixture to the real certification contract, restored explicit mutation-client access while keeping reads repository-controlled, and made the repository API client lazy so ViewModels remain unit-testable before app initialization. Backend tests pass 4/4; Android tests pass 31/31; release APK v1.44.0/code 52 assembled. APK SHA-256 is `C35B02DA7D0FAC027609D7F7AF2C69612E44458A69CB067C8E22EEDE81ABAF8F`; signer SHA-256 remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`.
+- **Current Status**: Phase 2 passed local code, test, build, and signing gates. It is not yet published; production API latency/behavior and release publication remain required.
+- **Next Actions**: Review the final diff, commit/push v1.44.0, wait for CI and Render, validate production endpoints and RMS read-only behavior, publish the versioned APK/release notes, then begin Phase 3.
+
+## 2026-08-09T02:42:00+05:30 - Phase 2 data foundation implemented
+- **Tool Used**: Codex (`apply_patch`)
+- **Files Modified**: `backend.py`, `tests/test_demand_safety.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/DataRepository.kt`, `MainScreenViewModel.kt`, `ActionsViewModel.kt`, `AllocationViewModel.kt`, `Trainer360ViewModel.kt`, `MainScreen.kt`, `TeamTab.kt`, `TeamMemberCard.kt`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Replaced the placeholder repository with a real manager data boundary and typed repository results/team aggregate. Refactored dashboard, profile, Trainer 360, Demand, capability and Actions reads through repositories with cache/partial-error handling. Team now automatically loads capability plus real Actions on entry, exposes partial-data errors, and shows per-trainer open-action counts. Removed the silent 20-trainer truncation from unified intelligence and team capability. Added a regression test proving 25 reportees remain visible. Incremented Android to v1.44.0/code 52.
+- **Current Status**: Phase 2 is implemented locally and awaiting compilation/test/performance validation.
+- **Next Actions**: Run backend/Android suites, validate complete-team API latency and partial failures, publish Phase 2 only if the gate passes, then proceed to Phase 3 availability.
+
 ## Release v1.43.0 - Phase 1: Demand read safety
 - **Timestamp**: 2026-08-09T02:30:00+05:30
 - **Tool Used**: Codex, Git, GitHub Actions/Release, Render production probes, Python/Gradle/Android build tools

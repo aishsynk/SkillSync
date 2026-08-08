@@ -1881,8 +1881,10 @@ def unified_intelligence():
 
     # ── Step 1: reportees ────────────────────────────────────────────────
     reportees    = _rms("reportees", {"email": email}) or []
+    # Complete manager scope. The previous [:20] silently removed every trainer
+    # after the twentieth from Team, KPIs, risks and action counts.
     trainer_rows = [r for r in (reportees if isinstance(reportees, list) else [])
-                    if isinstance(r, dict)][:20]
+                    if isinstance(r, dict)]
 
     # ── Step 2: unallocated demand (global) ──────────────────────────────
     unallocated_raw = _rms("unallocated", {}) or []
@@ -2345,7 +2347,8 @@ def team_capability():
     reps = _rms("reportees", {"email": email})
     if reps is None:
         return jsonify({"error": "Cannot reach RMS — please retry"}), 503
-    rows = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)][:20]
+    # Capability must cover the same complete roster as the Team page.
+    rows = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)]
 
     with ThreadPoolExecutor(max_workers=6) as pool:
         # One catalogue fetch for the whole team, not one per trainer.

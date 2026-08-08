@@ -3,6 +3,7 @@ package com.example.skillsync.ui.trainer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.skillsync.data.api.RetrofitClient
+import com.example.skillsync.data.ManagerRepository
 import com.example.skillsync.data.cache.LocalCache
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +20,9 @@ sealed class Trainer360State {
     data class Error(val message: String) : Trainer360State()
 }
 
-class Trainer360ViewModel : ViewModel() {
+class Trainer360ViewModel(
+    private val repository: ManagerRepository = ManagerRepository(),
+) : ViewModel() {
     private val _state = MutableStateFlow<Trainer360State>(Trainer360State.Loading)
     val state: StateFlow<Trainer360State> = _state
 
@@ -58,7 +61,7 @@ class Trainer360ViewModel : ViewModel() {
     private fun fetchUtilHistory(email: String) {
         viewModelScope.launch {
             try {
-                utilHistory.value = RetrofitClient.instance.getTrainerUtilizationHistory(email)
+                utilHistory.value = repository.utilizationHistory(email)
             } catch (e: Exception) {
                 // Ignore failure for secondary data
             }
@@ -69,7 +72,7 @@ class Trainer360ViewModel : ViewModel() {
         viewModelScope.launch {
             syllabus.value = null // reset while loading
             try {
-                syllabus.value = RetrofitClient.instance.getCourseSyllabus(courseName)
+                syllabus.value = repository.syllabus(courseName)
             } catch (e: Exception) {
                 // Ignore
             }
@@ -101,13 +104,13 @@ class Trainer360ViewModel : ViewModel() {
 
         // 3. Fetch from API in background
         try {
-            val data = RetrofitClient.instance.getTrainer360(
-                email = trainerEmail,
-                manager = managerEmail.takeIf { it.isNotBlank() },
-                refresh = if (fresh) 1 else null,
+            val result = repository.trainer360(trainerEmail, managerEmail, fresh)
+            val data = result.data ?: throw IllegalStateException(result.error ?: "Failed to load trainer profile")
+            _state.value = Trainer360State.Success(
+                data,
+                fromCache = result.source == com.example.skillsync.data.DataSource.CACHE,
+                cachedAt = result.cachedAt,
             )
-            LocalCache.saveMap(cacheKey(trainerEmail), data)
-            _state.value = Trainer360State.Success(data)
         } catch (e: Exception) {
             if (_state.value !is Trainer360State.Success) {
                 _state.value = Trainer360State.Error(e.localizedMessage ?: "Failed to load trainer profile")
