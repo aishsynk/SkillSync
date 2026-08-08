@@ -2,6 +2,26 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-08 — v1.31.0: Demand order is RMS order; matching gets skill→readiness→availability→language
+
+- **Decision:** `allocation-desk` no longer re-sorts unallocated batches by match%; the order RMS returns is the order the app shows.
+- **Rationale:** The manager's own framing: business priority and arrival order are how demand is actually worked, and a match%-sorted list hid a high-priority, low-coverage batch at the bottom exactly when it most needed attention. Coverage is now a per-card signal (tri-state + risk), not a reordering key.
+
+- **Decision:** Trainer-candidate ranking is (1) skill match, (2) readiness — the Qubits score of the matched course, (3) English-speaking class before non-English, (4) utilisation ascending (more available first), (5) clean 6-month feedback tie-break — with blocked trainers always last regardless of the rest.
+- **Rationale:** Direct instruction, in that order. "Readiness" is defined as the matched course's own Qubits score rather than a generic trainer-level number, because that's the one readiness signal tied to the specific course being staffed rather than the trainer's whole catalogue.
+
+- **Decision:** A trainer with no recorded language on their resume is treated as English-capable, not unknown.
+- **Rationale:** English is the default working language across the pool; most resumes never bother listing it because it's assumed. Treating "not listed" as "can't speak English" would silently demote every trainer with an incomplete profile below one who happened to type "English: Fluent" — a data-completeness artifact, not a real signal.
+
+- **Decision:** The signed-in manager is added as a matching candidate on every batch, unless they'd somehow already be their own reportee.
+- **Rationale:** Direct instruction — managers deliver strategic, premium, escalated or specialized batches themselves, and a matching engine that only ever looks at reportees made the manager invisible as an option.
+
+- **Decision:** `is_priority` = ILT/FMAT delivery mode **and** international location (an India-marker heuristic on the location string — no external country database). `revenue_potential` is a High/Medium/Low band from participants + mode + international, not a fabricated currency figure.
+- **Rationale:** No RMS field in this integration carries reliable revenue/fee data — `batch-details`'s `total_fee` fallback is literally hardcoded mock data ("₹ 1,50,000") elsewhere in this codebase, which is exactly the kind of dishonest placeholder this project has been actively removing. A qualitative band from real signals is truthful; a fake number is not, no matter how it's labeled.
+
+- **Decision:** Coverage is shown as a three-state read (Best Match / Available with Upskilling / No Coverage) with an icon, not a raw percentage, as the primary card signal. The percentage is still available as a detail-page stat.
+- **Rationale:** Direct instruction — "Instead of simply showing Match %, show: Best Match / Available with Upskilling / No Coverage." A percentage forces a manager to interpret a number under time pressure; three states are a decision, not a reading.
+
 ## 2026-08-08 — Release keystore rotated; local `gh release create` was a policy violation
 
 - **Decision:** Generated a new release keystore (`skillsync-release.jks`) and rotated the four CI signing secrets to it, retiring the previously-committed `release.jks`.

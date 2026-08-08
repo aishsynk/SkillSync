@@ -21,6 +21,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
 import com.example.skillsync.theme.Radii
@@ -41,18 +42,15 @@ internal fun relevanceColor(relevance: Int): Color {
     }
 }
 
-// ── Delivery-mode priority ───────────────────────────────────────────────────
-
-/**
- * ILT and FMAT together are the priority tier a manager needs to staff first;
- * ILO is deliberately kept below regardless of date. Anything else RMS
- * returns (a mode we haven't seen, or a typo in the source data) defaults to
- * the priority tier rather than being silently buried — an unrecognised mode
- * is a data-quality question, not a reason to demote it.
- */
-private fun isDeprioritisedMode(mode: String): Boolean {
-    val m = mode.uppercase()
-    return m.contains("ILO")
+/** Coverage tri-state -> (label, colour, glyph). Backend already returns the label. */
+@Composable
+internal fun coverageStyle(coverage: String): Triple<String, Color, Int> {
+    val sk = MaterialTheme.skill
+    return when (coverage) {
+        "Best Match" -> Triple("Best Match", sk.aqua, R.drawable.ic_check)
+        "Available with Upskilling" -> Triple("Available with Upskilling", sk.warn, R.drawable.ic_flag)
+        else -> Triple("No Coverage", sk.crit, R.drawable.ic_alert)
+    }
 }
 
 private enum class MatchBand(val label: String) {
@@ -88,6 +86,10 @@ internal fun AllocationDeskContent(
         batches.map { it.str("delivery_mode") }.filter { it.isNotBlank() }.distinct().sorted()
     }
 
+    // Filtering narrows the set; it never reorders it. The list a manager sees
+    // is either the untouched RMS order or a subset of it — arrival order is
+    // how demand is actually worked, and re-sorting by match% (the previous
+    // behaviour) buried high-priority batches the team can't yet cover.
     val filtered = remember(batches, query, matchBand, selectedModes) {
         batches.filter { b ->
             val q = query.trim().lowercase()
@@ -102,10 +104,11 @@ internal fun AllocationDeskContent(
         }
     }
 
-    // Segregated by priority, each tier sorted by delivery date descending.
+    // Priority Demand: ILT/FMAT delivered outside India, flagged server-side
+    // (is_priority) as the higher-business-value tier that earns dedicated,
+    // premium visual treatment. Everything else keeps its RMS arrival order.
     val (priorityBatches, otherBatches) = remember(filtered) {
-        val sorted = filtered.sortedByDescending { it.str("start_date") }
-        sorted.partition { !isDeprioritisedMode(it.str("delivery_mode")) }
+        filtered.partition { it.bool("is_priority") }
     }
 
     val activeFilterCount = selectedModes.size + (if (matchBand != MatchBand.ALL) 1 else 0)
@@ -137,11 +140,13 @@ internal fun AllocationDeskContent(
                 val unmatched = summary?.int("unmatched") ?: 0
                 val total = summary?.int("total") ?: batches.size
                 val partial = (total - high - medium - unmatched).coerceAtLeast(0)
+                val priorityCount = summary?.int("priority") ?: 0
+                val atRisk = summary?.int("at_risk") ?: 0
 
                 Box(Modifier.fillMaxWidth().glassSurface()) {
                     Column(Modifier.padding(16.dp)) {
                         Text(
-                            "Coverage by fit",
+                            "Demand Intelligence",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = sk.frost,
@@ -153,7 +158,13 @@ internal fun AllocationDeskContent(
                             color = sk.labelText,
                             fontSize = 10.sp,
                         )
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(14.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            StatFigure("$priorityCount", "PRIORITY", sk.teal, Modifier.weight(1f))
+                            StatFigure("$atRisk", "AT RISK", if (atRisk > 0) sk.crit else sk.aqua, Modifier.weight(1f))
+                            StatFigure("$high", "BEST MATCH", sk.aqua, Modifier.weight(1f))
+                        }
+                        Spacer(Modifier.height(14.dp))
                         DistributionBar(
                             slices = listOf(
                                 Slice("Strong fit", high, sk.aqua),
@@ -234,7 +245,7 @@ internal fun AllocationDeskContent(
             item {
                 Spacer(Modifier.height(4.dp))
                 SectionHeader(
-                    title = "Priority — ILT + FMAT",
+                    title = "Priority Demand — ILT/FMAT · International",
                     count = priorityBatches.size,
                     tint = sk.teal,
                     expanded = priorityExpanded,
@@ -243,6 +254,9 @@ internal fun AllocationDeskContent(
             }
         }
         if (priorityExpanded) {
+            // Within the priority tier, RMS arrival order is preserved — no
+            // secondary sort by match or date. Business priority already put
+            // these batches here; arrival order is how a manager works them.
             itemsIndexed(priorityBatches, key = { _, b -> "p_" + b.str("demand_id") }) { i, b ->
                 Appear(i) {
                     BatchCard(b, isNew = b.str("demand_id") in newIds, isPriority = true) { onBatchClick(b) }
@@ -254,7 +268,7 @@ internal fun AllocationDeskContent(
             item {
                 Spacer(Modifier.height(4.dp))
                 SectionHeader(
-                    title = "Other Delivery Modes (ILO)",
+                    title = "All Other Demand",
                     count = otherBatches.size,
                     tint = sk.subText,
                     expanded = otherExpanded,
@@ -333,10 +347,6 @@ private fun FilterBottomSheet(
                             })
                             Spacer(Modifier.width(4.dp))
                             Text(mode, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
-                            if (isDeprioritisedMode(mode)) {
-                                Spacer(Modifier.width(6.dp))
-                                MiniTag("below priority", sk.subText)
-                            }
                         }
                     }
                 }
@@ -349,23 +359,6 @@ private fun FilterBottomSheet(
                 shape = RoundedCornerShape(12.dp),
             ) { Text("Show results") }
         }
-    }
-}
-
-/**
- * Small tinted label, same visual language as the app-wide `Chip` in
- * ui.main.MainScreen.kt — redeclared locally because BatchDetailScreen.kt
- * (same package) already owns the name `Chip` as a file-private composable,
- * and Kotlin resolves an unqualified same-package name before a wildcard
- * import from a different package.
- */
-@Composable
-private fun MiniTag(text: String, tint: Color) {
-    Surface(color = tint.copy(alpha = 0.14f), shape = RoundedCornerShape(12.dp)) {
-        Text(
-            text, style = MaterialTheme.typography.labelSmall, color = tint,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-        )
     }
 }
 
@@ -445,18 +438,28 @@ private fun NewBatchBanner(count: Int) {
 }
 
 @Composable
-private fun SummaryPill(icon: Int, label: String, value: Int, tint: Color) {
-    Row(
-        Modifier.clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.skill.cardBg).padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(14.dp))
-        Spacer(Modifier.width(6.dp))
-        Column {
-            Text("$value", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = tint)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText, fontSize = 9.sp)
-        }
+private fun StatFigure(value: String, label: String, tint: Color, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = tint)
+        Text(
+            label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.labelText,
+            fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
+        )
+    }
+}
+
+@Composable
+private fun MiniStat(label: String, value: String, tint: Color) {
+    Column {
+        Text(
+            value, style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold, color = tint, fontSize = 11.5.sp,
+        )
+        Text(
+            label.uppercase(), style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.skill.labelText, fontSize = 8.sp,
+            fontWeight = FontWeight.Bold, letterSpacing = 0.06.em,
+        )
     }
 }
 
@@ -465,25 +468,27 @@ private fun SummaryPill(icon: Int, label: String, value: Int, tint: Color) {
 @Composable
 internal fun BatchCard(b: Map<*, *>, isNew: Boolean, isPriority: Boolean = true, onClick: () -> Unit) {
     val sk = MaterialTheme.skill
-    val relevance = b.int("relevance")
-    val tint = relevanceColor(relevance)
     val candidates = b.list("candidates")
     val mode = b.str("delivery_mode")
+    val (coverageLabel, coverageTint, coverageIcon) = coverageStyle(b.str("coverage_status"))
+    val risk = b.str("assignment_risk")
+    val riskTint = when (risk) { "High" -> sk.crit; "Medium" -> sk.warn; else -> sk.aqua }
 
     Box(
         Modifier
             .fillMaxWidth()
             .animateContentSize()
-            .accentGlass(tint, RoundedCornerShape(Radii.card), strong = isPriority)
+            .accentGlass(coverageTint, RoundedCornerShape(Radii.card), strong = isPriority)
             .clickable(onClick = onClick),
     ) {
         Row {
-            // Relevance is the primary scan signal, so it owns the leading edge.
+            // Coverage is the primary scan signal — can my team even do this —
+            // so it owns the leading edge, same convention as the roster card.
             Box(
                 Modifier.width(3.dp).fillMaxHeight()
                     .background(
                         androidx.compose.ui.graphics.Brush.verticalGradient(
-                            listOf(tint, tint.copy(alpha = 0.2f))
+                            listOf(coverageTint, coverageTint.copy(alpha = 0.2f))
                         )
                     )
             )
@@ -501,6 +506,16 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, isPriority: Boolean = true,
                                 }
                                 Spacer(Modifier.width(6.dp))
                             }
+                            if (isPriority) {
+                                Surface(color = sk.teal, shape = RoundedCornerShape(4.dp)) {
+                                    Text(
+                                        "★ PRIORITY", style = MaterialTheme.typography.labelSmall,
+                                        color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                    )
+                                }
+                                Spacer(Modifier.width(6.dp))
+                            }
                             if (mode.isNotBlank()) {
                                 Surface(
                                     color = (if (isPriority) sk.teal else sk.subText).copy(alpha = 0.14f),
@@ -513,7 +528,6 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, isPriority: Boolean = true,
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
                                     )
                                 }
-                                Spacer(Modifier.width(6.dp))
                             }
                         }
                         Spacer(Modifier.height(4.dp))
@@ -522,42 +536,58 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, isPriority: Boolean = true,
                             style = MaterialTheme.typography.titleSmall, color = sk.bodyText,
                             maxLines = 2, overflow = TextOverflow.Ellipsis,
                         )
+                        Spacer(Modifier.height(2.dp))
+                        // Vendor first — the customer relationship, not a demand-id.
+                        Text(
+                            b.str("customer").ifBlank { "Vendor not specified" },
+                            style = MaterialTheme.typography.labelSmall, color = sk.labelText,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
                         Spacer(Modifier.height(3.dp))
+                        // Start -> End on one row, plus pax — the two facts a
+                        // manager needs before anything else about timing.
                         Text(
                             listOfNotNull(
-                                b.str("start_date").takeIf { it.isNotBlank() }?.shortDate(),
-                                b.intOrNull("days")?.let { "${it}d" },
+                                listOfNotNull(
+                                    b.str("start_date").takeIf { it.isNotBlank() }?.shortDate(),
+                                    b.str("end_date").takeIf { it.isNotBlank() }?.shortDate(),
+                                ).joinToString(" → ").takeIf { it.isNotBlank() },
                                 b.intOrNull("participants")?.takeIf { it > 0 }?.let { "$it pax" },
-                                b.str("customer").takeIf { it.isNotBlank() },
                             ).joinToString(" · "),
                             style = MaterialTheme.typography.labelSmall, color = sk.subText,
                         )
-                        val badges = listOfNotNull(
-                            b.str("customer_priority").takeIf { it.isNotBlank() }?.let { "Priority: $it" },
-                            b.str("revenue_impact").takeIf { it.isNotBlank() }?.let { "Rev: $it" },
-                        )
-                        if (badges.isNotEmpty()) {
-                            Spacer(Modifier.height(4.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                badges.forEach { MiniTag(it, sk.indigo) }
-                            }
-                        }
                     }
                     Spacer(Modifier.width(8.dp))
                     Column(horizontalAlignment = Alignment.End) {
+                        Icon(painterResource(coverageIcon), null, tint = coverageTint, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.height(2.dp))
                         Text(
-                            "$relevance%",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold, color = tint,
+                            coverageLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = coverageTint, fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                            modifier = Modifier.widthIn(max = 88.dp),
                         )
-                        Text("match", style = MaterialTheme.typography.labelSmall, color = sk.subText)
                     }
                 }
 
+                Spacer(Modifier.height(9.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    MiniStat("Revenue", b.str("revenue_potential").ifBlank { "—" }, sk.indigo)
+                    MiniStat("Priority", "${b.intOrNull("priority_score") ?: 0}", sk.teal)
+                    MiniStat("Risk", risk.ifBlank { "—" }, riskTint)
+                }
+
                 if (candidates.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(9.dp))
                     HorizontalDivider(color = sk.cardBorder)
                     Spacer(Modifier.height(7.dp))
+                    Text(
+                        "RECOMMENDED TRAINERS",
+                        style = MaterialTheme.typography.labelSmall, color = sk.labelText,
+                        fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
+                    )
+                    Spacer(Modifier.height(5.dp))
                     candidates.take(3).forEach { c ->
                         // RMS AutoTall parity: a trainer inside their 3-14 day
                         // negative-feedback window won't actually be
@@ -575,12 +605,6 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, isPriority: Boolean = true,
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(dotTint))
                                 Spacer(Modifier.width(7.dp))
-                                Text(
-                                    if (blocked) "Blocked" else c.str("category"),
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = dotTint,
-                                    modifier = Modifier.weight(0.4f),
-                                )
                                 Column(Modifier.weight(1f)) {
                                     Text(
                                         c.str("trainer_name"),
@@ -595,38 +619,39 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, isPriority: Boolean = true,
                                     val backupRole = c.str("backup_role")
                                     if (!blocked && backupRole.isNotBlank()) {
                                         Text(
-                                            backupRole,
+                                            listOfNotNull(
+                                                backupRole,
+                                                c.intOrNull("utilization")?.let { "${it}% utilised" },
+                                            ).joinToString(" · "),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = sk.subText, fontSize = 9.sp,
                                             maxLines = 1,
                                         )
                                     }
                                 }
-                                if (!blocked) {
-                                    Text(
-                                        "${c.int("match")}%",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = dotTint,
-                                    )
-                                }
+                                Text(
+                                    if (blocked) "Blocked" else c.str("coverage"),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = dotTint, fontSize = 9.5.sp,
+                                )
                             }
 
                             val missing = c.list("missing_skills").joinToString(", ")
                             when {
                                 blocked -> Text(
-                                    "🚫 Negative feedback — not auto-allocated until ${c.str("blocked_until").shortDate()}",
+                                    "Negative feedback — not auto-allocated until ${c.str("blocked_until").shortDate()}",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = sk.red,
                                     modifier = Modifier.padding(start = 13.dp, top = 2.dp)
                                 )
                                 missing.isNotBlank() -> Text(
-                                    "⚠ Missing: $missing",
+                                    "Missing: $missing",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = sk.amber,
                                     modifier = Modifier.padding(start = 13.dp, top = 2.dp)
                                 )
                                 c.int("match") < 75 -> Text(
-                                    "⚠ Upskilling Required",
+                                    "Upskilling required",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = sk.amber,
                                     modifier = Modifier.padding(start = 13.dp, top = 2.dp)

@@ -17,9 +17,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
+import com.example.skillsync.theme.AuroraBackground
+import com.example.skillsync.theme.IconSlot
+import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.StatusBarIcons
+import com.example.skillsync.theme.accentGlass
+import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
 
@@ -96,171 +102,209 @@ fun BatchDetailScreen(
         }
     }
 
-    Scaffold(
-        containerColor = sk.pageBg,
-        snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Batch detail", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
-                        Text(
-                            "Ref ${batch.str("demand_id")}",
-                            fontSize = 9.5.sp, color = Color.White.copy(alpha = 0.78f),
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_back), "Back", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary),
-            )
-        },
-    ) { pv ->
-        Column(
-            Modifier.fillMaxSize().padding(pv).verticalScroll(rememberScrollState()).padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            // Headline
-            Card(
-                Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp),
-                colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-            ) {
-                Column(Modifier.padding(14.dp)) {
-                    Text(
-                        courseName.ifBlank { "Course not specified" },
-                        style = MaterialTheme.typography.headlineSmall, color = sk.bodyText,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier.clip(RoundedCornerShape(8.dp))
-                                .background(relevanceColor(relevance).copy(alpha = 0.15f))
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
+    val (coverageLabel, coverageTint, coverageIcon) = coverageStyle(batch.str("coverage_status"))
+    val risk = batch.str("assignment_risk")
+    val riskTint = when (risk) { "High" -> sk.crit; "Medium" -> sk.warn; else -> sk.aqua }
+
+    Box(Modifier.fillMaxSize()) {
+        AuroraBackground()
+        Scaffold(
+            containerColor = Color.Transparent,
+            snackbarHost = { SnackbarHost(snackbar) },
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text("Demand detail", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = sk.frost)
                             Text(
-                                "$relevance% team match",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold, color = relevanceColor(relevance),
+                                "Ref ${batch.str("demand_id")}",
+                                fontSize = 9.5.sp, color = sk.labelText,
                             )
                         }
-                        if (batch.str("tentative").equals("Yes", true)) {
-                            Spacer(Modifier.width(6.dp))
-                            Chip("Tentative", sk.amber)
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(painterResource(R.drawable.ic_back), "Back", tint = sk.frost)
                         }
-                        if (batch.str("third_party").equals("Yes", true)) {
-                            Spacer(Modifier.width(6.dp))
-                            Chip("Third party", sk.indigo)
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                )
+            },
+        ) { pv ->
+            Column(
+                Modifier.fillMaxSize().padding(pv).verticalScroll(rememberScrollState()).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                // Headline: course, coverage, and the three business-priority
+                // figures a manager needs before reading anything else — no
+                // separate cards, one glass block.
+                Box(Modifier.fillMaxWidth().glassSurface()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Text(
+                                courseName.ifBlank { "Course not specified" },
+                                style = MaterialTheme.typography.titleLarge, color = sk.frost,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            IconSlot(tint = coverageTint, size = 34.dp) {
+                                Icon(painterResource(coverageIcon), null, tint = coverageTint, modifier = Modifier.size(17.dp))
+                            }
+                        }
+                        Text(
+                            coverageLabel, style = MaterialTheme.typography.labelSmall,
+                            color = coverageTint, fontWeight = FontWeight.Bold, fontSize = 11.sp,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (batch.bool("is_priority")) { Chip("★ Priority", sk.teal); Spacer(Modifier.width(6.dp)) }
+                            if (batch.str("tentative").equals("Yes", true)) { Chip("Tentative", sk.amber); Spacer(Modifier.width(6.dp)) }
+                            if (batch.str("third_party").equals("Yes", true)) { Chip("Third party", sk.indigo) }
+                        }
+                        Spacer(Modifier.height(14.dp))
+                        HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f), thickness = 0.5.dp)
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                            DetailStat("Revenue", batch.str("revenue_potential").ifBlank { "—" }, sk.indigo)
+                            DetailStat("Priority", "${batch.intOrNull("priority_score") ?: 0}", sk.teal)
+                            DetailStat("Risk", risk.ifBlank { "—" }, riskTint)
+                            DetailStat("Coverage", "$relevance%", relevanceColor(relevance))
                         }
                     }
                 }
-            }
 
-            // Delivery facts
-            DetailCard("Delivery") {
-                Fact("Dates", listOfNotNull(
-                    batch.str("start_date").takeIf { it.isNotBlank() }?.shortDate(),
-                    batch.str("end_date").takeIf { it.isNotBlank() }?.shortDate(),
-                ).joinToString(" to ").ifBlank { "Not set" })
-                batch.intOrNull("days")?.let { Fact("Duration", "$it day${if (it == 1) "" else "s"}") }
-                Fact("Daily time", batch.str("session_time"))
-                Fact("Mode", batch.str("delivery_mode"))
-                Fact("Participants", batch.intOrNull("participants")?.toString() ?: "—")
-                Fact("Vendor", batch.str("customer"))
-                Fact("Language", batch.str("language"))
-                Fact("Location", batch.str("location"))
-                Fact("Courseware", batch.str("courseware"))
-                Fact("Allocation for", batch.str("allocation_for"))
-                Fact("Course id", courseId)
-                batch.str("remarks").takeIf { it.isNotBlank() }?.let { Fact("Remarks", it) }
-            }
-
-            batch.str("schedule").takeIf { it.isNotBlank() }?.let {
-                DetailCard("Session schedule") {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
-                }
-            }
-
-            batch.str("scid").takeIf { it.isNotBlank() }?.let {
-                DetailCard("Student card") {
-                    Text(it, style = MaterialTheme.typography.labelSmall, color = sk.subText)
-                }
-            }
-
-            // Candidates
-            DetailCard("Who on your team can deliver this") {
-                if (candidates.isEmpty()) {
-                    Text(
-                        "No one on your team maps to this course.",
-                        style = MaterialTheme.typography.bodySmall, color = sk.subText,
-                    )
-                } else {
-                    candidates.forEach { c ->
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
+                // Start -> End on a single row, then everything else the
+                // manager needs before deciding, all in one dense block.
+                Box(Modifier.fillMaxWidth().glassSurface()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(
-                                    c.str("trainer_name"),
-                                    style = MaterialTheme.typography.titleSmall, color = sk.bodyText,
-                                )
-                                Text(
-                                    "via ${c.str("via_course")}",
-                                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                )
-                                val category = c.str("category")
-                                if (category.isNotBlank()) {
+                                Text("START", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.1.em)
+                                Text(batch.str("start_date").takeIf { it.isNotBlank() }?.shortDate() ?: "—", style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.SemiBold)
+                            }
+                            Icon(painterResource(R.drawable.ic_chevron), null, tint = sk.subText, modifier = Modifier.size(16.dp))
+                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                                Text("END", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.1.em)
+                                Text(batch.str("end_date").takeIf { it.isNotBlank() }?.shortDate() ?: "—", style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.SemiBold)
+                            }
+                            batch.intOrNull("days")?.let {
+                                Spacer(Modifier.width(14.dp))
+                                Chip("${it}d", sk.sky)
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f), thickness = 0.5.dp)
+                        Spacer(Modifier.height(10.dp))
+                        Fact("Mode", batch.str("delivery_mode"))
+                        Fact("Vendor", batch.str("customer"))
+                        Fact("Participants", batch.intOrNull("participants")?.toString() ?: "—")
+                        Fact("Daily time", batch.str("session_time"))
+                        Fact("Language", batch.str("language"))
+                        Fact("Location", batch.str("location"))
+                        Fact("Courseware", batch.str("courseware"))
+                        Fact("Allocation for", batch.str("allocation_for"))
+                        Fact("Course id", courseId)
+                        batch.str("remarks").takeIf { it.isNotBlank() }?.let { Fact("Remarks", it) }
+                        batch.str("schedule").takeIf { it.isNotBlank() }?.let {
+                            Spacer(Modifier.height(8.dp))
+                            Text("SESSION SCHEDULE", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.1.em)
+                            Spacer(Modifier.height(3.dp))
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
+                        }
+                        batch.str("scid").takeIf { it.isNotBlank() }?.let {
+                            Spacer(Modifier.height(8.dp))
+                            Text("STUDENT CARD", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.1.em)
+                            Spacer(Modifier.height(3.dp))
+                            Text(it, style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                        }
+                    }
+                }
+
+                // Recommended allocation
+                Box(Modifier.fillMaxWidth().glassSurface()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(
+                            "Recommended allocation", style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold, color = sk.frost,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "Ranked by skill fit, readiness, availability and language — includes you",
+                            style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontSize = 10.sp,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        if (candidates.isEmpty()) {
+                            Text(
+                                "No one on your team maps to this course.",
+                                style = MaterialTheme.typography.bodySmall, color = sk.subText,
+                            )
+                        } else {
+                            candidates.forEachIndexed { i, c ->
+                                if (i > 0) {
                                     Spacer(Modifier.height(2.dp))
-                                    Text(
-                                        category,
-                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = relevanceColor(c.int("match")),
-                                    )
+                                    HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.4f), thickness = 0.5.dp)
+                                    Spacer(Modifier.height(2.dp))
                                 }
-                                val backupRole = c.str("backup_role")
-                                if (backupRole.isNotBlank()) {
-                                    Spacer(Modifier.height(2.dp))
-                                    Text(
-                                        backupRole,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = relevanceColor(c.int("match")),
-                                    )
+                                Row(
+                                    Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            c.str("trainer_name"),
+                                            style = MaterialTheme.typography.titleSmall, color = sk.frost,
+                                        )
+                                        Text(
+                                            "via ${c.str("via_course")}",
+                                            style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        )
+                                        val coverage = c.str("coverage")
+                                        if (coverage.isNotBlank()) {
+                                            Spacer(Modifier.height(2.dp))
+                                            Text(
+                                                listOfNotNull(
+                                                    coverage,
+                                                    c.str("backup_role").takeIf { it.isNotBlank() },
+                                                    c.intOrNull("utilization")?.let { "${it}% utilised" },
+                                                    if (!c.bool("speaks_english")) "non-English" else null,
+                                                ).joinToString(" · "),
+                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = relevanceColor(c.int("match")),
+                                            )
+                                        }
+                                    }
+                                    Chip("${c.int("match")}%", relevanceColor(c.int("match")))
+                                    // Addresses the message to this trainer by name rather
+                                    // than sending an unaddressed team broadcast.
+                                    TextButton(onClick = {
+                                        shareTarget = c.str("trainer_name") to c.str("trainer_email")
+                                        showMessagePreview = true
+                                    }) { Text("Message", fontSize = 11.sp, color = sk.sky) }
                                 }
                             }
-                            Chip("${c.int("match")}%", relevanceColor(c.int("match")))
-                            // Addresses the message to this trainer by name rather
-                            // than sending an unaddressed team broadcast.
-                            TextButton(onClick = {
-                                shareTarget = c.str("trainer_name") to c.str("trainer_email")
-                                showMessagePreview = true
-                            }) { Text("Message", fontSize = 11.sp) }
                         }
                     }
                 }
+
+                // Actions — one compact row rather than four full-width buttons,
+                // which took a third of the screen and pushed the batch facts off it.
+                ActionBar(
+                    actions = listOf(
+                        ActionItem("Outline", R.drawable.ic_book, sk.blue) {
+                            BatchShare.openUrl(context, batch.str("toc_url"))
+                        },
+                        ActionItem("My skill", R.drawable.ic_check, sk.teal) { showMine = true },
+                        ActionItem("Reportee", R.drawable.ic_people, sk.indigo) { showReportee = true },
+                        ActionItem("Message", R.drawable.ic_mail, sk.green) {
+                            shareTarget = null
+                            showMessagePreview = true
+                        },
+                    ),
+                )
+
+                Spacer(Modifier.height(24.dp))
             }
-
-            // Actions — one compact row rather than four full-width buttons,
-            // which took a third of the screen and pushed the batch facts off it.
-            Spacer(Modifier.height(2.dp))
-            ActionBar(
-                actions = listOf(
-                    ActionItem("Outline", R.drawable.ic_book, sk.blue) {
-                        BatchShare.openUrl(context, batch.str("toc_url"))
-                    },
-                    ActionItem("My skill", R.drawable.ic_check, sk.teal) { showMine = true },
-                    ActionItem("Reportee", R.drawable.ic_people, sk.indigo) { showReportee = true },
-                    ActionItem("Message", R.drawable.ic_mail, sk.green) {
-                        shareTarget = null
-                        showMessagePreview = true
-                    },
-                ),
-            )
-
-            Spacer(Modifier.height(24.dp))
         }
     }
 
@@ -377,38 +421,36 @@ private fun MessagePreviewDialog(
 }
 
 @Composable
-private fun DetailCard(title: String, body: @Composable ColumnScope.() -> Unit) {
-    Card(
-        Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.skill.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
-    ) {
-        Column(Modifier.padding(14.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.skill.bodyText)
-            Spacer(Modifier.height(8.dp))
-            body()
-        }
+private fun DetailStat(label: String, value: String, tint: Color) {
+    Column {
+        Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = tint)
+        Text(
+            label.uppercase(), style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.skill.labelText, fontSize = 8.sp,
+            fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
+        )
     }
 }
 
-/** Skips itself when the value is blank, so the card never shows empty rows. */
+/** Skips itself when the value is blank, so the block never shows empty rows. */
 @Composable
 private fun Fact(label: String, value: String) {
     if (value.isBlank() || value == "—") return
     Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
         Text(
             label, style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.skill.subText, modifier = Modifier.width(104.dp),
+            color = MaterialTheme.skill.labelText, modifier = Modifier.width(104.dp),
         )
-        Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.skill.bodyText)
+        Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.skill.frost)
     }
 }
 
 @Composable
 private fun Chip(text: String, tint: Color) {
-    Surface(color = tint.copy(alpha = 0.14f), shape = RoundedCornerShape(10.dp)) {
+    Surface(color = tint.copy(alpha = 0.16f), shape = RoundedCornerShape(10.dp)) {
         Text(
             text, style = MaterialTheme.typography.labelSmall, color = tint,
+            fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
         )
     }
@@ -432,12 +474,7 @@ internal data class ActionItem(
 @Composable
 private fun ActionBar(actions: List<ActionItem>) {
     val sk = MaterialTheme.skill
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
-    ) {
+    Box(Modifier.fillMaxWidth().glassSurface(RoundedCornerShape(14.dp))) {
         Row(Modifier.fillMaxWidth().height(74.dp), verticalAlignment = Alignment.CenterVertically) {
             actions.forEach { a ->
                 Column(
@@ -463,7 +500,7 @@ private fun ActionBar(actions: List<ActionItem>) {
                     Text(
                         a.label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = sk.subText, fontSize = 9.5.sp, maxLines = 1,
+                        color = sk.labelText, fontSize = 9.5.sp, maxLines = 1,
                     )
                 }
             }

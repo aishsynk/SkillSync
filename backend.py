@@ -662,50 +662,129 @@ def _allocation_block_status(most_recent_negative, today):
     }
 
 
-def _team_capability(reportees):
-    """[(trainer_name, email, [capability rows], feedback_status)] for the manager's roster."""
+def _team_capability(reportees, manager_email=None, manager_name=""):
+    """
+    [(trainer_name, email, [capability rows], feedback_status, is_self)] for the
+    manager's roster.
+
+    The signed-in manager is appended as a candidate too (unless already a
+    reportee of themselves, which cannot happen, or already present in the
+    list for some other reason). Managers routinely deliver strategic,
+    premium or escalated batches themselves — a matching engine that only
+    ever suggests reportees misses that entirely.
+    """
     today = datetime.utcnow().date()
 
-    def one(r):
-        email = str(r.get("OffEmail", "")).strip().lower()
-        name = _re.sub(r"\s+", " ", str(r.get("TrainerName", ""))).strip()
+    def one(email, name):
         caps = _skills(email) if email else []
         emp_code = _certifications(email)["emp_code"] if email else ""
         recent_negative = _feedback_recency(emp_code) if emp_code else None
         return name, email, caps, _allocation_block_status(recent_negative, today)
 
     rows = [r for r in (reportees if isinstance(reportees, list) else []) if isinstance(r, dict)]
+    targets = [
+        (str(r.get("OffEmail", "")).strip().lower(),
+         _re.sub(r"\s+", " ", str(r.get("TrainerName", ""))).strip())
+        for r in rows
+    ]
+    reportee_emails = {e for e, _ in targets if e}
+    if manager_email and manager_email not in reportee_emails:
+        targets.append((manager_email, manager_name or "You"))
+
     with ThreadPoolExecutor(max_workers=8) as pool:
-        return list(pool.map(one, rows))
+        results = list(pool.map(lambda t: one(*t), targets))
+
+    return [
+        (name, email, caps, feedback, email == manager_email)
+        for name, email, caps, feedback in results
+    ]
+
+
+# English is the default working language across the trainer pool, so it is
+# the one language a course can always be assumed deliverable in unless a
+# trainer's own profile says otherwise. Absence of a recorded language on
+# the resume is treated as English (most resumes never list it explicitly
+# precisely because it is the default), not as "unknown" — an unknown that
+# silently demoted every trainer with an incomplete profile below trainers
+# who happened to fill in "English: Fluent" would be a data-completeness
+# artifact wearing a language-mismatch costume.
+def _speaks_english(languages):
+    if not languages:
+        return True
+    return any("english" in str(l.get("language", "")).lower() for l in languages)
 
 
 def _rank_batch(batch, team):
-    """Best team match for one unallocated batch, plus the ranked candidate list."""
+    """
+    Best team match for one unallocated batch, plus the ranked candidate list.
+
+    Ranking order, in priority: (1) skill alignment via _match_score, (2)
+    trainer readiness — the Qubits score of the matched course, a real
+    per-trainer-per-course signal rather than a generic profile number, (3)
+    current utilisation/availability — a less-utilised trainer has more room
+    to take this on, (4) English-speaking trainers are preferred as a class;
+    non-English speakers are only surfaced ahead of them when no English
+    speaker matches the course at all.
+    """
     course, vendor = batch.get("course_name", ""), batch.get("customer", "")
-    candidates = []
-    for name, email, caps, feedback in team:
+    matched = []
+    for name, email, caps, feedback, is_self in team:
         best, best_course, best_q = 0, "", 0
         for c in caps:
             s = _match_score(course, vendor, c["course"], c["vendor"])
             if s > best:
                 best, best_course, best_q = s, c["course"], c["qubits_score"]
         if best > 0:
-            candidates.append({
-                "trainer_name":  name,
-                "trainer_email": email,
-                "match":         best,
-                "via_course":    best_course,
-                "qubits_score":  best_q,
-                "exact":         best >= 92,
-                "category":      "Best Match" if best >= 90 else "Alternate Match" if best >= 75 else "Risky Assignment",
-                "blocked":             feedback["blocked"],
-                "blocked_until":       feedback["blocked_until"],
-                "recent_negative_6mo": feedback["recent_negative_6mo"],
-            })
-    # Available trainers before blocked ones (RMS would not auto-allocate a
-    # blocked trainer regardless of match score), then by match, then a clean
-    # 6-month feedback record breaks ties. No Qubits tie-break — see header.
-    candidates.sort(key=lambda c: (c["blocked"], -c["match"], c["recent_negative_6mo"]))
+            matched.append((name, email, best, best_course, best_q, feedback, is_self))
+
+    if not matched:
+        return 0, [], "No Coverage"
+
+    # Utilisation and language are per-course-RMS-call signals, so they are
+    # only fetched for trainers who already matched the course — not the
+    # whole team — to keep this proportional to real candidates.
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        utils = list(pool.map(lambda m: _safe_util(m[1]), matched))
+        langs = list(pool.map(lambda m: _resume(m[1]).get("languages", []), matched))
+
+    candidates = []
+    for (name, email, best, best_course, best_q, feedback, is_self), util, languages in zip(matched, utils, langs):
+        speaks_english = _speaks_english(languages)
+        coverage = (
+            "Best Match" if best >= 90 else
+            "Available with Upskilling" if best >= 50 else
+            "No Coverage"
+        )
+        candidates.append({
+            "trainer_name":  name if not is_self else f"{name} (You)",
+            "trainer_email": email,
+            "is_self":       is_self,
+            "match":         best,
+            "via_course":    best_course,
+            "qubits_score":  best_q,
+            "readiness_score": best_q,
+            "utilization":   util,
+            "speaks_english": speaks_english,
+            "exact":         best >= 92,
+            "category":      coverage,
+            "coverage":      coverage,
+            "blocked":             feedback["blocked"],
+            "blocked_until":       feedback["blocked_until"],
+            "recent_negative_6mo": feedback["recent_negative_6mo"],
+        })
+
+    # Sort key, in priority order: available before blocked (RMS would not
+    # auto-allocate a blocked trainer regardless of anything else) > skill
+    # match > readiness (Qubits on the matched course) > English speaker >
+    # lower utilisation (more availability) > clean 6-month feedback record.
+    candidates.sort(key=lambda c: (
+        c["blocked"],
+        -c["match"],
+        -c["readiness_score"],
+        0 if c["speaks_english"] else 1,
+        c["utilization"],
+        c["recent_negative_6mo"],
+    ))
 
     rank = 0
     for c in candidates:
@@ -719,7 +798,8 @@ def _rank_batch(batch, team):
         )
         rank += 1
 
-    return (candidates[0]["match"] if candidates else 0), candidates[:5]
+    top = next((c for c in candidates if not c["blocked"]), candidates[0])
+    return top["match"], candidates[:5], top["coverage"]
 
 
 def _certifications(email):
@@ -2356,12 +2436,68 @@ def _session_time(schedule):
     return unique[0] if len(unique) == 1 else " / ".join(unique[:3])
 
 
+# A blank location is common on ILO/virtual batches and is not evidence of
+# anything; only a location that explicitly names India/an Indian city counts
+# as domestic. Everything else — named international, or genuinely unknown —
+# is treated as potentially international, which is the safer direction for a
+# "surface this prominently" signal: under-flagging a real international
+# premium batch is a worse failure than over-flagging an ambiguous one.
+_INDIA_MARKERS = ("india", "bharat", "delhi", "mumbai", "bangalore", "bengaluru",
+                  "hyderabad", "chennai", "pune", "gurgaon", "gurugram", "noida")
+
+
+def _priority_fields(mode, location, participants, coverage):
+    """
+    Business-priority signals for one demand row, computed from what RMS
+    actually returns — no fabricated currency figures. `revenue_potential`
+    and `priority_score` are bands/scores derived from delivery mode,
+    international reach and headcount, the only real signals available;
+    `assignment_risk` comes from how well the team currently covers it.
+    """
+    m = (mode or "").upper()
+    is_priority_mode = "ILT" in m or "FMAT" in m
+    loc = (location or "").strip().lower()
+    is_international = bool(loc) and not any(marker in loc for marker in _INDIA_MARKERS)
+
+    try:
+        pax = int(participants or 0)
+    except (TypeError, ValueError):
+        pax = 0
+
+    revenue_potential = (
+        "High" if pax >= 15 or (is_priority_mode and is_international) else
+        "Medium" if pax >= 6 or is_priority_mode else
+        "Low"
+    )
+    priority_score = (
+        (40 if is_priority_mode else 10) +
+        (30 if is_international else 0) +
+        min(pax, 30)
+    )
+    assignment_risk = (
+        "High" if coverage == "No Coverage" else
+        "Medium" if coverage == "Available with Upskilling" else
+        "Low"
+    )
+    return {
+        "is_priority":       is_priority_mode and is_international,
+        "is_international":  is_international,
+        "revenue_potential": revenue_potential,
+        "priority_score":    priority_score,
+        "assignment_risk":   assignment_risk,
+    }
+
+
 @app.route('/api/data/allocation-desk', methods=['GET'])
 def allocation_desk():
     """
-    Unallocated batches ranked by how well the manager's own team can cover them.
-    Relevance is computed against real capability rows (course + Qubits per
-    trainer), not guessed from the course title alone.
+    Unallocated batches with team-coverage and business-priority intelligence
+    attached to each one — a Demand Intelligence Center, not a re-sorted list.
+
+    Order is left exactly as RMS returns it. Managers plan against arrival
+    order and business priority, not against how well their own team happens
+    to match a course; re-sorting by match% (the previous behaviour) made a
+    high-priority batch the team can't yet cover invisible at the bottom.
     """
     email = request.args.get('email', '').strip().lower()
     if not email:
@@ -2375,16 +2511,23 @@ def allocation_desk():
         return jsonify({"error": "Cannot reach RMS — please retry"}), 503
 
     reportees = _rms("reportees", {"email": email}) or []
-    team = _team_capability(reportees)
+    manager_name = str(_util_row(email).get("TrainerName", "") or "").strip()
+    team = _team_capability(reportees, manager_email=email, manager_name=manager_name)
 
+    priority_count = 0
     for b in demand:
-        b["relevance"], b["candidates"] = _rank_batch(b, team)
+        b["relevance"], b["candidates"], coverage = _rank_batch(b, team)
+        b["coverage_status"] = coverage
         b["relevance_band"] = (
             "high" if b["relevance"] >= 75 else
             "medium" if b["relevance"] >= 50 else
             "low" if b["relevance"] > 0 else "none"
         )
-    demand.sort(key=lambda b: (-b["relevance"], b["start_date"] or ""))
+        b.update(_priority_fields(
+            b.get("delivery_mode"), b.get("location"), b.get("participants"), coverage,
+        ))
+        if b["is_priority"]:
+            priority_count += 1
 
     return jsonify({
         "manager": email,
@@ -2395,6 +2538,8 @@ def allocation_desk():
             "high": sum(1 for b in demand if b["relevance_band"] == "high"),
             "medium": sum(1 for b in demand if b["relevance_band"] == "medium"),
             "unmatched": sum(1 for b in demand if b["relevance"] == 0),
+            "priority": priority_count,
+            "at_risk": sum(1 for b in demand if b["assignment_risk"] == "High"),
         },
         "timestamp": datetime.utcnow().isoformat(),
     }), 200

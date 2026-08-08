@@ -1,5 +1,26 @@
 # SkillEdge Project Progress
 
+## Release v1.31.0 — Demand tab rebuilt as a Demand Intelligence & Resource Allocation Center
+- **Timestamp**: 2026-08-08T09:00:00+05:30
+- **Agent/Tool Used**: Claude Code (Sonnet 5)
+- **Files Modified**: `backend.py` (`_team_capability`, `_rank_batch`, new `_speaks_english`/`_priority_fields`, `allocation_desk`), `ui/batch/AllocationDeskScreen.kt`, `ui/batch/BatchDetailScreen.kt`, both `build.gradle.kts`
+- **Brief**: The Demand tab was a list of unallocated courses ranked by match% with the order rewritten on every load. The manager asked for a Demand Intelligence Center instead — original RMS order preserved, redesigned trainer matching (skill → readiness → utilisation/availability, English-first, manager included as a candidate), a dedicated Priority Demand section for ILT/FMAT international deliveries, richer card fields, and a three-tier coverage read (Best Match / Available with Upskilling / No Coverage) instead of a raw percentage.
+- **Backend Work**:
+  - `allocation_desk()` no longer sorts by `-relevance`. `_demand_rows()` was already unsorted (straight from `_rms("unallocated", {})`); the endpoint now returns that order untouched.
+  - `_team_capability()` now takes `manager_email`/`manager_name` and appends the signed-in manager as a candidate (labelled "(You)" in the UI) unless they're somehow already their own reportee — managers deliver strategic/escalated batches themselves and were invisible to the matching engine before.
+  - `_rank_batch()` rewritten: candidates are now sorted by (available-before-blocked, skill match desc, readiness desc — the Qubits score of the matched course, English-speaking class before non-English, utilisation ascending as an availability proxy, clean-feedback tie-break). Utilisation and language are fetched only for trainers who already matched the course (`_safe_util`, `_resume(...).languages`), not the whole team, to keep the extra RMS calls proportional to real candidates.
+  - New `_speaks_english()`: a trainer with no recorded language is treated as English-capable (most resumes never bother listing the default), not as unknown/penalised.
+  - New `_priority_fields()`: computes `is_priority` (ILT/FMAT **and** international, via an India-marker heuristic on location — no fabricated country database), `revenue_potential` (High/Medium/Low band from pax + mode + international — no invented currency figures; RMS carries no reliable fee data), `priority_score` (numeric, mode + international + pax), `assignment_risk` (from coverage: No Coverage → High, Upskilling → Medium, else Low).
+  - `_rank_batch()` also now returns a per-batch `coverage_status` (Best Match / Available with Upskilling / No Coverage) from the top non-blocked candidate.
+  - `summary` in the response gained `priority` and `at_risk` counts.
+- **Android Work**:
+  - `AllocationDeskContent`: filtering narrows the list, never reorders it. Priority Demand section now partitions on the backend's `is_priority` flag (was: mode string alone). Summary card gained Priority/At Risk/Best Match stat figures above the coverage distribution bar.
+  - `BatchCard`: leading edge and headline indicator now key off `coverage_status` (tri-state icon + label) instead of a raw match% figure. Card shows Vendor on its own line, Start → End on one row, pax, then Revenue/Priority/Risk mini-stats, then the recommended-trainers list (now shows utilisation and an English-speaking flag per candidate).
+  - `BatchDetailScreen`: rebuilt from flat `Card`s on `sk.pageBg` to the app's glass design system (`AuroraBackground`, `glassSurface`, `IconSlot`) for visual consistency with the rest of the app. Start/End dates collapsed to one row (was two stacked `Fact` rows). Headline block leads with coverage + the four business stats (Revenue, Priority, Risk, Coverage%). "Recommended allocation" section replaces "Who on your team can deliver this", shows the manager-as-candidate row and the new utilisation/language detail per candidate.
+  - Removed now-dead code: `isDeprioritisedMode()`, `MiniTag`, `SummaryPill` (all unused after the rewrite).
+- **Build & Test Status**: `assembleRelease` succeeds, signature verified against the rotated release key (see the prior entry); **30/30 unit tests pass** unchanged — no test exercised these screens' internals directly, so nothing needed updating there.
+- **Next Actions**: Push to `main`, let CI build and publish v1.31.0. Watch the Actions run, verify the release asset's signature, then confirm on device that the Demand tab actually renders the new fields against a live team (the backend changes add per-candidate RMS calls for utilisation/language that have not been exercised against production RMS yet — worth watching response times on a real roster).
+
 ## Release infrastructure — dedicated release keystore, CI signing rotated
 - **Timestamp**: 2026-08-08T08:35:00+05:30
 - **Agent/Tool Used**: Claude Code (Sonnet 5)
