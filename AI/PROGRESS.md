@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T07:45:00+05:30 - Phase 9 completed and production-validated (v1.51.2/code 62)
+- **Tool Used**: Codex (`git`, `gh`, GitHub Actions, production cold/warm Demand and course-search probes)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Final release commit is `b7cb522e160d7ee44cd6cd9b9f6c1de5281eb310`; CI run `31284024747` passed and release `v1.51.2.62` contains `SkillEdge-v1.51.2.62.apk` digest `baabc4b2da773f5e4607713b70c06a679dae20d1e3cadc5c999cc6c1a07ec8ec` with complete notes. Production cold Demand returned bounded loading responses and completed an 8-batch background board without 502; warm Demand responded in 0.95 s with order `FMAT > ILO×7`, tiers `1,3,3,3,3,3,3,3`, all eight requested suitability components (`skill,language,readiness,availability,utilization,certification,feedback,location`), and Aishwar visible in 7 candidate lists. The live feed has no ILT or named international row today, so strict ILT position and international visuals remain regression-tested rather than live-row demonstrated. Production DP-700 search returns 2 RMS catalogue results including ID 18768. No bulk skill write was used for validation.
+- **Current Status**: Phases 8 and 9 are complete. Skill-marking 502 root cause is fixed and controlled no-op verified; Courses supports existing-skill transfer and direct full-catalogue multi-trainer assignment; Demand uses all requested evidence, strict mode priority, manager eligibility and premium international treatment; cold/warm backend delivery no longer exposes long RMS rebuilds to the gateway. Backend 16/16 and Android 33/33 pass. Physical APK upgrade/user-data retention remains unexecuted because no ADB device is connected; package/signing/version invariants pass.
+- **Next Actions**: Connect a physical device to execute install-over-existing/user-data verification. When live RMS supplies an ILT or named international FMAT/ILT, capture an on-device production visual check. Consider replacing `softprops/action-gh-release@v2` when a Node-24-compatible release exists.
+
 ## 2026-08-09T07:31:00+05:30 - Phase 9 production cold/warm Demand contract validated; Android poll window aligned
 - **Tool Used**: Codex (production cold/warm allocation probes, `apply_patch`)
 - **Files Modified**: `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationViewModel.kt`, `AI/PROGRESS.md`
