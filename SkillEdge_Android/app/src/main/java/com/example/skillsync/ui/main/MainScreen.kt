@@ -1288,8 +1288,36 @@ internal fun TrainerCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = healthColor,
                         fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
+                    
+                    var showMsg by remember { mutableStateOf(false) }
+                    IconButton(onClick = { showMsg = true }, modifier = Modifier.size(20.dp)) {
+                        Icon(painterResource(R.drawable.ic_mail), "Message", tint = healthColor, modifier = Modifier.size(14.dp))
+                    }
+                    
+                    if (showMsg) {
+                        var msg by remember { mutableStateOf("Hi ${name.split(" ").first()},\n\nPlease review your action item: $recommendedAction.") }
+                        AlertDialog(
+                            onDismissRequest = { showMsg = false },
+                            title = { Text("Message ${name.split(" ").first()}", fontSize = 16.sp) },
+                            text = {
+                                OutlinedTextField(
+                                    value = msg,
+                                    onValueChange = { msg = it },
+                                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                            },
+                            confirmButton = {
+                                Button(onClick = { showMsg = false }, shape = RoundedCornerShape(8.dp)) { Text("Send") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showMsg = false }) { Text("Cancel") }
+                            }
+                        )
+                    }
                 }
             }
         }

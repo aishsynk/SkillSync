@@ -864,9 +864,29 @@ def _rank_batch(batch, team):
         utils = list(pool.map(lambda m: _safe_util(m[1]), matched))
         langs = list(pool.map(lambda m: _resume(m[1]).get("languages", []), matched))
 
+    batch_lang = (batch.get("language") or "").strip().lower()
+    batch_skill = (batch.get("skill_level") or "").strip().lower()
+
     candidates = []
     for (name, email, best, best_course, best_q, feedback, is_self), util, languages in zip(matched, utils, langs):
         speaks_english = _speaks_english(languages)
+        trainer_langs = [l.strip().lower() for l in languages]
+
+        # 1. Language Constraint: Drop to 0 if the trainer does not speak the requested language.
+        if batch_lang and batch_lang != "english":
+            if not any(batch_lang in l for l in trainer_langs):
+                best = 0
+                best_q = 0
+
+        # 2. Skill Level Constraint: Penalise heavily if the trainer is not qualified enough
+        if best > 0 and batch_skill:
+            if "expert" in batch_skill and best_q < 75:
+                best = max(0, best - 50)
+            elif "advanced" in batch_skill and best_q < 50:
+                best = max(0, best - 50)
+            elif "intermediate" in batch_skill and best_q < 25:
+                best = max(0, best - 50)
+
         coverage = (
             "Best Match" if best >= 90 else
             "Available with Upskilling" if best >= 50 else

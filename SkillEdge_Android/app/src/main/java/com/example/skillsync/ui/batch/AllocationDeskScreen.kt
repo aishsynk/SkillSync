@@ -566,22 +566,11 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, isPriority: Boolean = true,
     val risk = b.str("assignment_risk")
     val riskTint = when (risk) { "High" -> sk.crit; "Medium" -> sk.warn; else -> sk.aqua }
 
-    val gradientColors = if (isPriority) {
-        listOf(sk.cardBg, sk.teal.copy(alpha = 0.05f))
-    } else {
-        listOf(sk.cardBg, sk.cardBg)
-    }
-
     Box(
         Modifier
             .fillMaxWidth()
             .animateContentSize()
-            .background(
-                brush = androidx.compose.ui.graphics.Brush.linearGradient(gradientColors),
-                shape = RoundedCornerShape(Radii.card)
-            )
-            .border(1.dp, sk.cardBorder.copy(alpha = 0.5f), RoundedCornerShape(Radii.card))
-            .clip(RoundedCornerShape(Radii.card))
+            .accentGlass(if (isPriority) sk.teal else sk.subText.copy(alpha = 0.3f), RoundedCornerShape(Radii.card), strong = isPriority)
             .clickable(onClick = onClick),
     ) {
         Row {
