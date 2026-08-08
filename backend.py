@@ -75,6 +75,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, date, timedelta
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+import hashlib
 import json
 import os
 import re as _re
@@ -839,10 +840,26 @@ def _team_capability(reportees, manager_email=None, manager_name=""):
 # silently demoted every trainer with an incomplete profile below trainers
 # who happened to fill in "English: Fluent" would be a data-completeness
 # artifact wearing a language-mismatch costume.
+def _language_names(languages):
+    """Language names as lowercase strings, whatever shape RMS returned.
+
+    _resume() parses them into [{"language": ..., "level": ...}], but the
+    field has arrived as bare strings before. Accepting both keeps a
+    normaliser change from taking down allocation ranking again.
+    """
+    out = []
+    for l in (languages or []):
+        name = l.get("language", "") if isinstance(l, dict) else l
+        name = str(name or "").strip().lower()
+        if name:
+            out.append(name)
+    return out
+
+
 def _speaks_english(languages):
     if not languages:
         return True
-    return any("english" in str(l.get("language", "")).lower() for l in languages)
+    return any("english" in n for n in _language_names(languages))
 
 
 def _rank_batch(batch, team):
@@ -884,7 +901,12 @@ def _rank_batch(batch, team):
     candidates = []
     for (name, email, best, best_course, best_q, feedback, is_self), util, languages in zip(matched, utils, langs):
         speaks_english = _speaks_english(languages)
-        trainer_langs = [l.strip().lower() for l in languages]
+        # _resume() returns languages as [{"language": ..., "level": ...}],
+        # not as plain strings. Treating them as strings raised
+        # AttributeError on every request and took the whole Demand endpoint
+        # to a 500. Handle both shapes so a future normaliser change cannot
+        # break it the same way again.
+        trainer_langs = _language_names(languages)
 
         # 1. Language Constraint: Drop to 0 if the trainer does not speak the requested language.
         if batch_lang and batch_lang != "english":
@@ -3090,21 +3112,302 @@ def get_alternative_trainers():
     return jsonify({"course": course, "trainers": usable, "available": True}), 200
 
 
+# ─── Manager action lifecycle ─────────────────────────────────────────────────
+#
+# Two kinds of action share one inbox and one lifecycle:
+#
+#   derived  — computed from RMS on every refresh (a certification gap, repeated
+#              negative feedback, a benched trainer). They are rebuilt each
+#              time, so their identity has to be stable across refreshes or a
+#              manager's "closed" would be forgotten the moment data reloads.
+#              _action_id() hashes the durable parts (trainer + category +
+#              subject) rather than anything positional.
+#   raised   — created by the manager by hand, for anything RMS cannot infer.
+#
+# State, notes and follow-up dates live in a JSON store keyed by action id and
+# are overlaid onto the derived list on every read, so a decision survives a
+# cache miss or a full RMS re-read.
+#
+# STORAGE CAVEAT: this writes to local disk. On Render's ephemeral filesystem
+# the file does not survive a restart or redeploy, so lifecycle state is
+# session-durable rather than permanent. Moving it to a real datastore is a
+# prerequisite for relying on it across deploys.
+
+_ACTION_STORE = os.path.join(os.getenv("SKILLEDGE_STATE_DIR", "."), "action_state.json")
+_action_lock = threading.Lock()
+
+VALID_ACTION_STATES = ("open", "in_progress", "closed", "escalated", "reassigned")
+
+
+def _action_id(trainer_email, category, subject):
+    """Stable id for a derived action, independent of list position."""
+    raw = "|".join([
+        str(trainer_email or "").strip().lower(),
+        str(category or "").strip().lower(),
+        str(subject or "").strip().lower(),
+    ])
+    return "act_" + hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def _action_store_load():
+    try:
+        with open(_ACTION_STORE, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        data = {}
+    data.setdefault("states", {})
+    data.setdefault("raised", {})
+    return data
+
+
+def _action_store_save(data):
+    tmp = _ACTION_STORE + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2, default=str)
+        os.replace(tmp, _ACTION_STORE)
+    except OSError:
+        pass          # a read-only filesystem must not break the request
+
+
+def _action_apply_overlay(actions):
+    """Annotate derived actions with any stored lifecycle state and notes."""
+    if not isinstance(actions, list):
+        return actions
+    with _action_lock:
+        states = _action_store_load()["states"]
+    for a in actions:
+        if not isinstance(a, dict):
+            continue
+        rec = states.get(a.get("id"))
+        if rec:
+            a["lifecycle_state"] = rec.get("state", "open")
+            a["notes"] = rec.get("notes", [])
+            a["due_date"] = rec.get("due_date", "")
+            a["assignee"] = rec.get("assignee", "")
+            a["updated_at"] = rec.get("updated_at", "")
+            a["history"] = rec.get("history", [])
+        else:
+            a.setdefault("lifecycle_state", "open")
+            a.setdefault("notes", [])
+    return actions
+
+
+def _derive_actions(trainer_ops, trainer_states, capability_trainers, demand_rows):
+    """
+    Everything currently asking for a manager decision, as one typed list.
+
+    Certification gaps are first-class actions here rather than a separate
+    board: a gap is a decision waiting on the manager in exactly the same sense
+    as a feedback incident, and splitting them across two screens meant half
+    the queue was invisible from the inbox.
+    """
+    out = []
+    state_by = {str(s.get("trainer_email", "")).lower(): s for s in (trainer_states or [])}
+
+    for t in (trainer_ops or []):
+        email = str(t.get("official_email", "")).lower()
+        name = t.get("trainer_name", "")
+        st = state_by.get(email, {})
+
+        neg = t.get("negative_count") or 0
+        if neg > 0:
+            out.append({
+                "id": _action_id(email, "feedback", "negative-feedback"),
+                "source": "derived", "category": "Feedback",
+                "title": "Review negative feedback",
+                "detail": "%d negative feedback record%s on file." % (neg, "" if neg == 1 else "s"),
+                "trainer_name": name, "trainer_email": email,
+                "priority": "high" if neg > 2 else "medium",
+            })
+
+        util = t.get("current_utilization")
+        if st.get("current_status") == "free" and (util is None or util < 40):
+            out.append({
+                "id": _action_id(email, "allocation", "bench"),
+                "source": "derived", "category": "Allocation",
+                "title": "Trainer available for allocation",
+                "detail": "No current assignment%s."
+                          % ("" if util is None else " and %d%% utilised" % util),
+                "trainer_name": name, "trainer_email": email,
+                "priority": "medium",
+            })
+
+        if isinstance(util, (int, float)) and util > 85:
+            out.append({
+                "id": _action_id(email, "capacity", "overloaded"),
+                "source": "derived", "category": "Capacity",
+                "title": "Trainer over capacity",
+                "detail": "%d%% utilised - consider redistributing upcoming work." % util,
+                "trainer_name": name, "trainer_email": email,
+                "priority": "medium",
+            })
+
+    # Certification gaps - one action per trainer, naming the courses.
+    for c in (capability_trainers or []):
+        cert = c.get("certification") or {}
+        missing = cert.get("missing") or []
+        if not missing:
+            continue
+        email = str(c.get("trainer_email", "")).lower()
+        courses = ", ".join(str(m.get("because", "")).strip()
+                            for m in missing[:3] if m.get("because"))
+        out.append({
+            "id": _action_id(email, "certification", "gap"),
+            "source": "derived", "category": "Certification",
+            "title": "%d certification gap%s" % (len(missing), "" if len(missing) == 1 else "s"),
+            "detail": ("Teaching without the matching certificate: %s%s"
+                       % (courses, "..." if len(missing) > 3 else ""))
+                      if courses else "Courses taught without a matching certificate.",
+            "trainer_name": c.get("trainer_name", ""), "trainer_email": email,
+            "priority": "high" if any(m.get("priority") == "high" for m in missing) else "medium",
+            "gap_count": len(missing),
+        })
+
+    if demand_rows:
+        out.append({
+            "id": _action_id("", "demand", "unallocated"),
+            "source": "derived", "category": "Demand",
+            "title": "%d unallocated batch%s" % (len(demand_rows), "" if len(demand_rows) == 1 else "es"),
+            "detail": "Demand waiting for a trainer assignment.",
+            "trainer_name": "", "trainer_email": "",
+            "priority": "high" if len(demand_rows) > 5 else "medium",
+        })
+
+    rank = {"high": 0, "medium": 1, "low": 2}
+    out.sort(key=lambda a: (rank.get(a.get("priority"), 3), a.get("category", "")))
+    return out
+
+
 @app.route('/api/actions', methods=['GET'])
 def get_actions():
-    return jsonify([]), 200
+    """The manager's full inbox: derived actions plus anything raised by hand."""
+    email = str(request.args.get("email", "")).strip().lower()
+    if not email:
+        return jsonify({"error": "email query param required"}), 400
 
-@app.route('/api/actions/<action_id>/close', methods=['POST'])
-def close_action(action_id):
-    return jsonify({"actionId": action_id, "newState": "closed", "updatedAt": int(time.time() * 1000)}), 200
+    reportees = _rms("reportees", {"email": email}) or []
+    rows = [r for r in reportees if isinstance(r, dict)][:20]
+    today = datetime.utcnow().date()
 
-@app.route('/api/actions/<action_id>/escalate', methods=['POST'])
-def escalate_action(action_id):
-    return jsonify({"actionId": action_id, "newState": "escalated", "updatedAt": int(time.time() * 1000)}), 200
+    def _one(r):
+        try:
+            return _build_trainer(r, today)
+        except Exception:
+            return None
 
-@app.route('/api/actions/<action_id>/reassign', methods=['POST'])
-def reassign_action(action_id):
-    return jsonify({"actionId": action_id, "newState": "reassigned", "updatedAt": int(time.time() * 1000)}), 200
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        built = [b for b in pool.map(_one, rows) if b]
+    trainer_ops = [b[0] for b in built]
+    trainer_states = [b[1] for b in built]
+
+    demand = _demand_rows() or []
+    derived = _derive_actions(trainer_ops, trainer_states, [], demand)
+    _action_apply_overlay(derived)
+
+    with _action_lock:
+        raised = list(_action_store_load()["raised"].values())
+    for r in raised:
+        r.setdefault("lifecycle_state", "open")
+
+    actions = derived + [r for r in raised if r.get("manager_email") == email]
+    return jsonify({
+        "manager": email,
+        "actions": actions,
+        "open": sum(1 for a in actions if a.get("lifecycle_state") == "open"),
+        "closed": sum(1 for a in actions if a.get("lifecycle_state") == "closed"),
+        "timestamp": datetime.utcnow().isoformat(),
+    }), 200
+
+
+@app.route('/api/actions', methods=['POST'])
+def raise_action():
+    """Create a manager-raised action (anything RMS cannot infer)."""
+    body = request.get_json(silent=True) or {}
+    title = str(body.get("title", "")).strip()
+    manager_email = str(body.get("manager_email", "")).strip().lower()
+    if not title:
+        return jsonify({"error": "title is required"}), 400
+    if not manager_email:
+        return jsonify({"error": "manager_email is required"}), 400
+
+    now = datetime.utcnow().isoformat()
+    action_id = "act_m_" + hashlib.sha1((manager_email + title + now).encode()).hexdigest()[:14]
+    record = {
+        "id": action_id, "source": "raised",
+        "category": str(body.get("category", "Other")).strip() or "Other",
+        "title": title,
+        "detail": str(body.get("detail", "")).strip(),
+        "trainer_name": str(body.get("trainer_name", "")).strip(),
+        "trainer_email": str(body.get("trainer_email", "")).strip().lower(),
+        "priority": str(body.get("priority", "medium")).strip() or "medium",
+        "due_date": str(body.get("due_date", "")).strip(),
+        "manager_email": manager_email,
+        "lifecycle_state": "open",
+        "notes": [], "history": [],
+        "created_at": now, "updated_at": now,
+    }
+    with _action_lock:
+        data = _action_store_load()
+        data["raised"][action_id] = record
+        _action_store_save(data)
+    return jsonify(record), 201
+
+
+@app.route('/api/actions/<action_id>/state', methods=['POST'])
+def set_action_state(action_id):
+    """Move one action through its lifecycle, with an audit trail."""
+    body = request.get_json(silent=True) or {}
+    state = str(body.get("state", "")).strip().lower()
+    if state not in VALID_ACTION_STATES:
+        return jsonify({"error": "state must be one of %s" % (VALID_ACTION_STATES,)}), 400
+
+    now = datetime.utcnow().isoformat()
+    entry = {
+        "state": state, "note": str(body.get("note", "")).strip(),
+        "assignee": str(body.get("assignee", "")).strip(),
+        "by": str(body.get("manager_email", "")).strip().lower(), "at": now,
+    }
+    with _action_lock:
+        data = _action_store_load()
+        # A raised action carries its own record; a derived one only has state.
+        if action_id in data["raised"]:
+            rec = data["raised"][action_id]
+        else:
+            rec = data["states"].setdefault(action_id, {"notes": [], "history": []})
+        rec["state"] = state
+        rec["assignee"] = entry["assignee"] or rec.get("assignee", "")
+        rec["due_date"] = str(body.get("due_date", "")).strip() or rec.get("due_date", "")
+        rec["updated_at"] = now
+        rec.setdefault("history", []).append(entry)
+        if entry["note"]:
+            rec.setdefault("notes", []).append(
+                {"text": entry["note"], "by": entry["by"], "at": now})
+        if action_id in data["raised"]:
+            rec["lifecycle_state"] = state
+        _action_store_save(data)
+    return jsonify({"id": action_id, "state": state, "updated_at": now,
+                    "notes": rec.get("notes", []),
+                    "history": rec.get("history", [])}), 200
+
+
+@app.route('/api/actions/<action_id>/note', methods=['POST'])
+def add_action_note(action_id):
+    """Append a follow-up note without changing the action's state."""
+    body = request.get_json(silent=True) or {}
+    text = str(body.get("note", "")).strip()
+    if not text:
+        return jsonify({"error": "note is required"}), 400
+    now = datetime.utcnow().isoformat()
+    note = {"text": text, "by": str(body.get("manager_email", "")).strip().lower(), "at": now}
+    with _action_lock:
+        data = _action_store_load()
+        rec = data["raised"].get(action_id) or data["states"].setdefault(
+            action_id, {"state": "open", "notes": [], "history": []})
+        rec.setdefault("notes", []).append(note)
+        rec["updated_at"] = now
+        _action_store_save(data)
+    return jsonify({"id": action_id, "notes": rec.get("notes", [])}), 200
 
 
 @app.errorhandler(404)

@@ -59,6 +59,7 @@ fun MainScreen(
     modifier: Modifier = Modifier,
     viewModel: MainScreenViewModel = viewModel(),
     allocationViewModel: AllocationViewModel = viewModel(),
+    actionsViewModel: ActionsViewModel = viewModel(),
 ) {
     val context = LocalContext.current
 
@@ -71,6 +72,7 @@ fun MainScreen(
         viewModel.loadData(email, context)
         if (tab == HomeTab.DEMAND) allocationViewModel.load(email, context)
         if (tab == HomeTab.COURSES) viewModel.ensureCapability(email, context)
+        if (tab == HomeTab.ACTIONS) actionsViewModel.load(email)
         
         // In-app polling for the Unallocated Batch Intelligence Center
         if (tab == HomeTab.DEMAND) {
@@ -85,6 +87,7 @@ fun MainScreen(
     RefreshOnResume(key = email) {
         viewModel.refresh(email, context)
         if (tab == HomeTab.DEMAND) allocationViewModel.refresh(email, context)
+        if (tab == HomeTab.ACTIONS) actionsViewModel.refresh(email)
     }
 
     val state by viewModel.uiState.collectAsState()
@@ -95,6 +98,9 @@ fun MainScreen(
     val allocState by allocationViewModel.state.collectAsState()
     val allocRefreshing by allocationViewModel.refreshing.collectAsState()
     val newIds by allocationViewModel.newIds.collectAsState()
+    val inboxActions by actionsViewModel.actions.collectAsState()
+    val inboxLoading by actionsViewModel.initialLoading.collectAsState()
+    val inboxError by actionsViewModel.error.collectAsState()
     StatusBarIcons(lightIcons = true)
 
     // Which KPI the manager tapped; drives the drill-down sheet.
@@ -288,7 +294,26 @@ fun MainScreen(
                         val d = s.intelligenceData
                         when (tab) {
                             HomeTab.TEAM -> TeamTab(d, capability, onTrainerClick)
-                            HomeTab.ACTIONS -> ActionsTab(d, capability, onTrainerClick)
+                            HomeTab.ACTIONS -> ActionsInbox(
+                                managerEmail = email,
+                                actions = inboxActions,
+                                initialLoading = inboxLoading,
+                                error = inboxError,
+                                onSetState = { id, st, note ->
+                                    actionsViewModel.setState(email, id, st, note)
+                                },
+                                onAddNote = { id, note ->
+                                    actionsViewModel.addNote(email, id, note)
+                                },
+                                onRaise = { title, detail, cat, prio ->
+                                    actionsViewModel.raise(
+                                        managerEmail = email, title = title, detail = detail,
+                                        category = cat, priority = prio,
+                                    )
+                                },
+                                onTrainerClick = onTrainerClick,
+                                onDismissError = { actionsViewModel.clearError() },
+                            )
                             else -> DashboardTab(
                                 data = d,
                                 profile = profile,

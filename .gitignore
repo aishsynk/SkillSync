@@ -46,3 +46,7 @@ SkillEdge_Local/runtime/
 
 # Local tool/launch config, machine-specific
 .claude/launch.json
+
+# Manager action lifecycle store (runtime state, not source)
+action_state.json
+action_state.json.tmp

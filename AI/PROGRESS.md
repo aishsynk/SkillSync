@@ -1,5 +1,63 @@
 # SkillEdge Project Progress
 
+## Release v1.40.0 - Actions become a real inbox; Team goes 2-up; Demand 500 fixed
+- **Timestamp**: 2026-08-09T02:00:00+05:30
+- **Agent/Tool Used**: Claude Code (Opus 5)
+
+### PRODUCTION BUG FIXED: Demand page was returning 500
+`_rank_batch` did `[l.strip().lower() for l in languages]`, but `_resume()`
+returns languages as `[{"language": ..., "level": ...}]` - dicts, not strings.
+Every allocation-desk request raised AttributeError, so **the Demand page was
+completely down**. `_speaks_english` had the mirror-image bug (assumed dicts,
+broke on strings). Both now go through one `_language_names()` helper that
+accepts either shape.
+
+### Actions: from read-only list to real inbox (Phase 1 core item)
+The lifecycle routes were stubs - `/api/actions` returned `[]` and close /
+escalate / reassign returned a canned response and persisted nothing. Rebuilt:
+- Derived actions (certification gaps, feedback, bench capacity, over-capacity,
+  unallocated demand) now carry a **stable id** hashed from trainer + category
+  + subject, so a decision survives the next RMS refresh. Previously actions
+  had no id at all, which is why lifecycle could not be keyed to anything.
+- **Certification gaps are first-class actions**, not a separate board. A gap
+  is a decision waiting on the manager in the same sense as a feedback
+  incident; splitting them across two screens hid half the queue.
+- Full lifecycle: open / in_progress / closed / escalated / reassigned, with
+  follow-up notes, due dates and an audit trail. Verified persisting live.
+- Managers can **raise** their own actions for anything RMS cannot infer.
+- New `ActionsInbox` UI: state filters with counts, category filters, quick
+  transitions on the card, a detail sheet with the follow-up trail, and a
+  raise-action sheet.
+- `ActionsViewModel` applies every mutation optimistically and rolls back on
+  failure, so tapping Close never blanks the row.
+
+**Storage caveat:** state persists to a local JSON file. On Render's ephemeral
+filesystem it does not survive a restart, so lifecycle is session-durable, not
+permanent. A real datastore is a prerequisite for relying on it across deploys.
+
+### Team page: 2-column command surface
+One card per row meant scrolling past four people to compare two, and
+comparison is the point of the screen. Now two per row via a new
+`TeamMemberCard` showing health score, live status, utilisation, readiness,
+certificates held vs gaps, current assignment with end date, upcoming count,
+and an action flag when one is genuinely required.
+
+### Refresh and sync no longer blank the screen
+`loadData` set `DashboardState.Loading` unconditionally, so revisiting the tab
+or a process recreate wiped a populated dashboard back to skeleton. It now
+reads the cache first and only shows the skeleton when there is genuinely
+nothing to display. The fetch also compares payloads and skips the state swap
+when nothing changed, which is what the per-poll flicker actually was.
+
+### Build & Test
+31/31 unit tests pass. `assembleRelease` verified. All five endpoints
+re-verified live against RMS.
+
+### Still outstanding from this request
+Demand FMAT/ILT priority surfacing, Demand-detail 2-column layout and schedule
+de-duplication, Trainer-360 redesign, and PDF export are **not** in this
+release.
+
 ## Release v1.39.0 - Phase 7 API integration corrected; blueprint grid restored
 - **Timestamp**: 2026-08-09T00:30:00+05:30
 - **Agent/Tool Used**: Claude Code (Opus 5)

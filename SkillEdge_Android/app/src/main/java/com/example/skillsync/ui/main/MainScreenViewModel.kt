@@ -63,12 +63,31 @@ class MainScreenViewModel : ViewModel() {
 
     private var loadedFor: String? = null
 
-    /** First load for [email]; a no-op once that email's data is already on screen. */
+    /**
+     * First load for [email]; a no-op once that email's data is already on
+     * screen.
+     *
+     * The skeleton is shown only when there is genuinely nothing to display —
+     * no live state and no cached snapshot. Setting Loading unconditionally
+     * (the previous behaviour) blanked a populated dashboard every time the
+     * tab was revisited or the process was recreated, so the manager watched
+     * their numbers vanish and reappear on a screen they had already loaded.
+     */
     fun loadData(email: String, context: android.content.Context) {
         if (loadedFor == email && _uiState.value is DashboardState.Success) return
         loadedFor = email
         viewModelScope.launch {
-            _uiState.value = DashboardState.Loading
+            if (_uiState.value !is DashboardState.Success) {
+                val cached = LocalCache.loadMap(dashboardCacheKey(email))
+                _uiState.value = if (cached != null) {
+                    DashboardState.Success(
+                        cached, fromCache = true,
+                        cachedAt = LocalCache.savedAt(dashboardCacheKey(email)),
+                    )
+                } else {
+                    DashboardState.Loading
+                }
+            }
             fetchAll(email, context, fresh = false)
         }
     }
@@ -143,7 +162,13 @@ class MainScreenViewModel : ViewModel() {
         try {
             val data = RetrofitClient.instance.getTrainerIntelligence(email, flag(fresh))
             LocalCache.saveMap(dashboardCacheKey(email), data)
-            _uiState.value = DashboardState.Success(data)
+            // Swap only on a real change. Re-emitting an identical payload
+            // recomposes every card and chart for nothing, which is what the
+            // visible flicker on each poll actually was.
+            val prev = (_uiState.value as? DashboardState.Success)?.intelligenceData
+            if (prev != data) {
+                _uiState.value = DashboardState.Success(data)
+            }
             com.example.skillsync.data.SessionManager.setLastSyncTime(System.currentTimeMillis())
         } catch (e: Exception) {
             // Leave UI in its current state (likely cached Success)

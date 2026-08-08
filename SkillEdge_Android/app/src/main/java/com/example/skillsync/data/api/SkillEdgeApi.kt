@@ -2,6 +2,7 @@ package com.example.skillsync.data.api
 
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Path
 import retrofit2.http.Body
 import retrofit2.http.Query
 
@@ -100,6 +101,30 @@ interface SkillEdgeApi {
     suspend fun agentAsk(
         @Body request: AgentAskRequest
     ): AgentAskResponse
+
+    // ── Manager action inbox ────────────────────────────────────────────────
+
+    /** Derived + manager-raised actions with their lifecycle state. */
+    @GET("api/actions")
+    suspend fun getActions(@Query("email") email: String): Map<String, Any>
+
+    /** Raise an action by hand (anything RMS cannot infer). */
+    @POST("api/actions")
+    suspend fun raiseAction(@Body body: Map<String, String>): Map<String, Any>
+
+    /** Move an action through its lifecycle, optionally with a note. */
+    @POST("api/actions/{id}/state")
+    suspend fun setActionState(
+        @Path("id") id: String,
+        @Body body: Map<String, String>,
+    ): Map<String, Any>
+
+    /** Append a follow-up note without changing state. */
+    @POST("api/actions/{id}/note")
+    suspend fun addActionNote(
+        @Path("id") id: String,
+        @Body body: Map<String, String>,
+    ): Map<String, Any>
 }
 
 data class MarkSkillRequest(

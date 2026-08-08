@@ -227,15 +227,31 @@ internal fun TeamTab(
                 )
             }
         }
-        itemsIndexed(shown) { i, t ->
-            Appear(i) {
-                TrainerCard(
-                    trainer = t,
-                    state = stateMap[t.str("official_email").lowercase()],
-                    capability = capMap[t.str("official_email").lowercase()],
-                    delivery = deliveryMap[t.str("official_email").lowercase()],
+        // Two per row. This is the manager's team command surface, not a
+        // directory: at one card per row a manager scrolls past four people to
+        // compare two, and comparison is the whole point of the screen.
+        val rows = shown.chunked(2)
+        itemsIndexed(rows) { rowIndex, pair ->
+            Appear(rowIndex) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    onTrainerClick(t.str("official_email"), t.str("trainer_name"))
+                    pair.forEach { t ->
+                        Box(Modifier.weight(1f)) {
+                            TeamMemberCard(
+                                trainer = t,
+                                state = stateMap[t.str("official_email").lowercase()],
+                                capability = capMap[t.str("official_email").lowercase()],
+                                delivery = deliveryMap[t.str("official_email").lowercase()],
+                            ) {
+                                onTrainerClick(t.str("official_email"), t.str("trainer_name"))
+                            }
+                        }
+                    }
+                    // Keeps a lone trailing card at half width instead of
+                    // letting it stretch across the row.
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
