@@ -49,12 +49,31 @@ class AllocationViewModel : ViewModel() {
 
     private var loadedFor: String? = null
 
+    /**
+     * { available, trainers, note } for the wider-network lookup; null while
+     * the request is in flight. `available: false` means RMS would not answer
+     * the question at all — which is not the same as an empty trainer list,
+     * and the sheet must not render it as "nobody found".
+     */
+    val globalSearchData = MutableStateFlow<Map<String, Any>?>(null)
+
     fun load(email: String, context: Context) {
         if (loadedFor == email && _state.value is AllocationState.Success) return
         loadedFor = email
         viewModelScope.launch {
             _state.value = AllocationState.Loading
             fetch(email, context, fresh = false)
+        }
+    }
+
+    fun globalSearch(course: String) {
+        viewModelScope.launch {
+            globalSearchData.value = null // reset while loading
+            try {
+                globalSearchData.value = RetrofitClient.instance.getAlternativeTrainers(course)
+            } catch (e: Exception) {
+                // Ignore
+            }
         }
     }
 

@@ -79,6 +79,22 @@ interface SkillEdgeApi {
     @POST("api/action/mark-skill")
     suspend fun markSkill(@Body request: MarkSkillRequest): retrofit2.Response<MarkSkillResponse>
 
+    /** Authoritative 3-month utilisation history (RMS key 39). Returns an
+     *  object: { months: [{month, utilization}], available, emp_code }. */
+    @GET("api/data/trainer-utilization-history")
+    suspend fun getTrainerUtilizationHistory(@Query("email") email: String): Map<String, Any>
+
+    /** Syllabus lookup for one course. Returns { found, syllabus_url, ... }.
+     *  RMS holds a link to a syllabus PDF, not table-of-contents content. */
+    @GET("api/data/course-syllabus")
+    suspend fun getCourseSyllabus(@Query("courseName") courseName: String): Map<String, Any>
+
+    /** Wider trainer network for a course. Returns { available, trainers }.
+     *  `available` is false while RMS rejects every TrainerType value — that
+     *  is "cannot ask", not "nobody found". */
+    @GET("api/data/alternative-trainers")
+    suspend fun getAlternativeTrainers(@Query("course") course: String): Map<String, Any>
+
     /** Ask Copilot a question */
     @POST("api/agent/ask")
     suspend fun agentAsk(

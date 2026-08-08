@@ -43,6 +43,8 @@ fun Trainer360Screen(
 
     val state by viewModel.state.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
+    val utilHistory by viewModel.utilHistory.collectAsState()
+    val syllabus by viewModel.syllabus.collectAsState()
     var showCopilot by remember { mutableStateOf(false) }
     StatusBarIcons(lightIcons = true)
 
@@ -138,7 +140,12 @@ fun Trainer360Screen(
                         onRefresh = { viewModel.refresh(trainerEmail, managerEmail, context) },
                         modifier = Modifier.weight(1f),
                     ) {
-                        Trainer360Content(s.data)
+                        Trainer360Content(
+                            data = s.data,
+                            utilHistory = utilHistory,
+                            syllabus = syllabus,
+                            onCourseTap = { viewModel.fetchSyllabus(it) },
+                        )
                     }
                 }
             }
@@ -147,7 +154,15 @@ fun Trainer360Screen(
 }
 
 @Composable
-internal fun Trainer360Content(data: Map<String, Any>) {
+internal fun Trainer360Content(
+    data: Map<String, Any>,
+    // Hoisted rather than taking the ViewModel: a content composable that owns
+    // one cannot be rendered in the JVM screen tests, and these are all the
+    // secondary lookups this screen needs.
+    utilHistory: Map<String, Any>? = null,
+    syllabus: Map<String, Any>? = null,
+    onCourseTap: (String) -> Unit = {},
+) {
     val sk = MaterialTheme.skill
     val identity = data.obj("identity")
     val metrics  = data.obj("metrics")
@@ -164,6 +179,7 @@ internal fun Trainer360Content(data: Map<String, Any>) {
     val series = util?.list("series").orEmpty()
     val courses = cap?.list("courses").orEmpty()
     val assignments = delivery?.list("assignments").orEmpty()
+    
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -172,12 +188,12 @@ internal fun Trainer360Content(data: Map<String, Any>) {
     ) {
         item { Appear(0) { IdentityCard(identity, util, cap, certs) } }
         item { Appear(1) { PersonalDetails(identity) } }
-        item { Appear(2) { UtilisationSection(util, series, delivery) } }
+        item { Appear(2) { UtilisationSection(util, series, delivery, utilHistory) } }
         item { Appear(3) { CapabilityMetrics(metrics) } }
         item { Appear(4) { DeliveryReadinessSection(deliveryReadiness, feedback) } }
         item { Appear(5) { RiskSection(metrics, feedback) } }
         item { Appear(6) { CertificationSection(certs) } }
-        item { Appear(7) { CapabilitySection(cap, courses) } }
+        item { Appear(7) { CapabilitySection(cap, courses, onCourseTap, syllabus) } }
         item { Appear(8) { DeliverySection(delivery, assignments) } }
         item { Appear(9) { FeedbackSection(feedback) } }
         item { Appear(10) { SPOFAndActionsSection(cap, metrics) } }
@@ -302,14 +318,27 @@ private fun UtilisationSection(
     util: Map<*, *>?,
     series: List<Map<*, *>>,
     delivery: Map<*, *>?,
+    utilHistory: Map<String, Any>?,
 ) {
     val sk = MaterialTheme.skill
     val available = util?.bool("available") == true
     val bench = util?.intOrNull("bench_months")
 
+    // RMS key 39 is the authoritative three-month history and is preferred
+    // when it answers. The trainer-360 payload's own `series` is derived from
+    // the monthly columns of the utilisation rollup and covers a longer
+    // window, so it stays as the fallback rather than being discarded.
+    val historyMonths = utilHistory?.list("months").orEmpty()
+    val plotSeries = if (historyMonths.isNotEmpty()) {
+        historyMonths.map { TrendPoint(it.str("month").take(3), it.int("utilization")) }
+    } else {
+        series.map { TrendPoint(it.str("month").take(3), it.int("utilization")) }
+    }
+
     SectionCard(
         "Utilisation",
-        if (available) "${series.size} months on record" else "RMS returned no utilisation",
+        if (plotSeries.isNotEmpty()) "${plotSeries.size} months on record"
+        else "RMS returned no utilisation",
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Figure("Current", if (available) "${util.int("current")}%" else "—", sk.teal)
@@ -318,21 +347,19 @@ private fun UtilisationSection(
             Figure("Upcoming", "${util?.int("upcoming_load") ?: 0}", sk.amber)
             Figure(
                 "Bench",
-                // 0 means "working this month"; the count is months since the
-                // most recent month with any load.
                 bench?.let { if (it == 0) "none" else "$it mo" } ?: "—",
                 if ((bench ?: 0) > 2) sk.red else sk.green,
             )
         }
-        if (series.isNotEmpty()) {
+        if (plotSeries.isNotEmpty()) {
             Spacer(Modifier.height(14.dp))
             TrendChart(
-                points = series.map { TrendPoint(it.str("month").take(3), it.int("utilization")) },
+                points = plotSeries,
                 tint = sk.teal,
                 height = 100.dp,
             )
-            val projection = remember(series) {
-                projectNextUtilization(series.map { it.int("utilization") })
+            val projection = remember(plotSeries) {
+                projectNextUtilization(plotSeries.map { it.value })
             }
             if (projection != null) {
                 Spacer(Modifier.height(8.dp))
@@ -817,10 +844,20 @@ private fun CertificationSection(certs: Map<*, *>?) {
 
 // ── Capability, delivery, feedback, availability ──────────────────────────────
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun CapabilitySection(cap: Map<*, *>?, courses: List<Map<*, *>>) {
+private fun CapabilitySection(
+    cap: Map<*, *>?,
+    courses: List<Map<*, *>>,
+    onCourseTap: (String) -> Unit,
+    syllabus: Map<String, Any>?,
+) {
     val sk = MaterialTheme.skill
+    // Named `ctx`, not `context`: a line-leading `context` is parsed as
+    // Kotlin's context-parameter declaration keyword and fails to compile.
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     var expanded by remember { mutableStateOf(false) }
+    var selectedCourse by remember { mutableStateOf<String?>(null) }
     val shown = if (expanded) courses else courses.take(12)
 
     SectionCard(
@@ -831,7 +868,14 @@ private fun CapabilitySection(cap: Map<*, *>?, courses: List<Map<*, *>>) {
         if (courses.isEmpty()) {
             EmptyNote("RMS returned no course capability for this trainer.")
         } else {
-            shown.forEach { CourseRow(it) }
+            shown.forEach { c ->
+                // Capability rows key the course title as `course`, not `name`.
+                val name = c.str("course")
+                CourseRow(c, modifier = Modifier.clickable {
+                    selectedCourse = name
+                    onCourseTap(name)
+                })
+            }
             if (courses.size > 12) {
                 Text(
                     if (expanded) "Show fewer" else "Show all ${courses.size} courses",
@@ -841,6 +885,63 @@ private fun CapabilitySection(cap: Map<*, *>?, courses: List<Map<*, *>>) {
                         .padding(top = 8.dp)
                         .clickable { expanded = !expanded },
                 )
+            }
+        }
+    }
+
+    if (selectedCourse != null) {
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { selectedCourse = null },
+            containerColor = sk.cardBg,
+        ) {
+            Column(Modifier.padding(16.dp).fillMaxWidth()) {
+                Text(
+                    selectedCourse ?: "",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = sk.bodyText,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(16.dp))
+                when {
+                    syllabus == null -> Box(
+                        Modifier.fillMaxWidth().height(100.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.material3.CircularProgressIndicator(color = sk.teal)
+                    }
+
+                    syllabus.bool("found") && syllabus.str("syllabus_url").isNotBlank() -> {
+                        // RMS publishes a syllabus *document*, not structured
+                        // module/lesson data — there is no endpoint in this
+                        // integration that returns table-of-contents content,
+                        // so the honest affordance is to open the PDF.
+                        Text(
+                            "RMS holds a syllabus document for this course.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = sk.subText,
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        Button(
+                            onClick = {
+                                com.example.skillsync.ui.batch.BatchShare.openUrl(
+                                    ctx, syllabus.str("syllabus_url"),
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_book), null,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Open syllabus PDF", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+
+                    else -> EmptyNote("RMS holds no syllabus document for this course.")
+                }
+                Spacer(Modifier.height(32.dp))
             }
         }
     }
@@ -1256,7 +1357,7 @@ private fun SectionCard(title: String, subtitle: String?, body: @Composable Colu
 }
 
 @Composable
-private fun CourseRow(c: Map<*, *>) {
+private fun CourseRow(c: Map<*, *>, modifier: Modifier = Modifier) {
     val sk = MaterialTheme.skill
     val q = c.int("qubits_score")
     val tint = when {
@@ -1266,7 +1367,7 @@ private fun CourseRow(c: Map<*, *>) {
         else -> sk.subText
     }
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {

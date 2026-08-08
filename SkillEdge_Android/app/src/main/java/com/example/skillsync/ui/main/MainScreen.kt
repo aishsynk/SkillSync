@@ -260,7 +260,14 @@ fun MainScreen(
                         isRefreshing = allocRefreshing,
                         onRefresh = { allocationViewModel.refresh(email, context) },
                     ) {
-                        AllocationDeskContent(a.data, newIds) { b -> onBatchClick(b.str("demand_id")) }
+                        val globalSearch by allocationViewModel.globalSearchData.collectAsState()
+                        AllocationDeskContent(
+                            data = a.data,
+                            newIds = newIds,
+                            onBatchClick = { b -> onBatchClick(b.str("demand_id")) },
+                            globalSearchData = globalSearch,
+                            onGlobalSearch = { course -> allocationViewModel.globalSearch(course) },
+                        )
                     }
                 }
 

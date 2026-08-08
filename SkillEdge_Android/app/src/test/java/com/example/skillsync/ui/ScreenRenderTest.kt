@@ -288,14 +288,29 @@ class ScreenRenderTest {
         compose.onNodeWithText("LIVE").assertExists()
     }
 
-    /** The eight command-centre KPIs the dashboard is required to surface. */
+    /**
+     * The command-centre surface, per the agreed blueprint: a readiness hero
+     * with three framing figures, then a six-tile grid.
+     *
+     * STRENGTH / DEPLOYED / UTILISATION deliberately appear in both the hero
+     * and the grid — the hero is the summary read and the grid is the
+     * drill-in, so those labels are asserted with onAllNodes rather than
+     * being treated as duplicates to eliminate. The action queue is its own
+     * "Needs you today" section below the grid, not a tile.
+     */
     @Test
     fun dashboard_rendersEveryManagerKpi() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
-        listOf(
-            "TEAM STRENGTH", "ACTIVE TRAINERS", "ACTIVE DELIVERIES", "UTILISATION",
-            "TEAM READINESS", "CERT COVERAGE", "AT RISK", "NEEDS ACTION",
-        ).forEach { compose.onNodeWithText(it).assertExists() }
+
+        // Hero
+        compose.onNodeWithText("TEAM READINESS").assertExists()
+        listOf("STRENGTH", "DEPLOYED", "UTILISATION")
+            .forEach { compose.onAllNodesWithText(it).onFirst().assertExists() }
+
+        // Grid — six tiles
+        listOf("TEAM STRENGTH", "ACTIVE TRAINERS", "ACTIVE DELIVERIES", "CERT COVERAGE", "AT RISK")
+            .forEach { compose.onNodeWithText(it).assertExists() }
+        compose.onAllNodesWithText("UTILISATION").onFirst().assertExists()
     }
 
     /**

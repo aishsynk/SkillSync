@@ -28,6 +28,13 @@ class Trainer360ViewModel : ViewModel() {
 
     private var loadedFor: String? = null
 
+    /** { months: [{month, utilization}], available } — null until first load. */
+    val utilHistory = MutableStateFlow<Map<String, Any>?>(null)
+
+    /** { found, syllabus_url, course_name } for the tapped course; null while
+     *  in flight so the sheet can distinguish loading from "no syllabus". */
+    val syllabus = MutableStateFlow<Map<String, Any>?>(null)
+
     fun load(trainerEmail: String, managerEmail: String = "", context: android.content.Context) {
         if (loadedFor == trainerEmail && _state.value is Trainer360State.Success) return
         loadedFor = trainerEmail
@@ -35,6 +42,7 @@ class Trainer360ViewModel : ViewModel() {
             _state.value = Trainer360State.Loading
             fetch(trainerEmail, managerEmail, context, fresh = false)
         }
+        fetchUtilHistory(trainerEmail)
     }
 
     /** Pull-to-refresh and screen-resume; keeps the profile on screen while re-reading. */
@@ -42,7 +50,29 @@ class Trainer360ViewModel : ViewModel() {
         viewModelScope.launch {
             _refreshing.value = true
             fetch(trainerEmail, managerEmail, context, fresh = true)
+            fetchUtilHistory(trainerEmail)
             _refreshing.value = false
+        }
+    }
+
+    private fun fetchUtilHistory(email: String) {
+        viewModelScope.launch {
+            try {
+                utilHistory.value = RetrofitClient.instance.getTrainerUtilizationHistory(email)
+            } catch (e: Exception) {
+                // Ignore failure for secondary data
+            }
+        }
+    }
+
+    fun fetchSyllabus(courseName: String) {
+        viewModelScope.launch {
+            syllabus.value = null // reset while loading
+            try {
+                syllabus.value = RetrofitClient.instance.getCourseSyllabus(courseName)
+            } catch (e: Exception) {
+                // Ignore
+            }
         }
     }
 

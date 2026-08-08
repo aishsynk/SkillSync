@@ -64,11 +64,17 @@ private fun matchBandOf(relevance: Int) = when {
     else -> MatchBand.LOW
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AllocationDeskContent(
     data: Map<String, Any>,
     newIds: Set<String>,
     onBatchClick: (Map<*, *>) -> Unit,
+    // Hoisted rather than taking the ViewModel: a content composable that owns
+    // a ViewModel cannot be rendered in the JVM screen tests, and these two
+    // values are all the wider-network lookup actually needs.
+    globalSearchData: Map<String, Any>? = null,
+    onGlobalSearch: (String) -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
     val batches = data.rows("batches")
@@ -82,6 +88,8 @@ internal fun AllocationDeskContent(
     var showFilters by remember { mutableStateOf(false) }
     var priorityExpanded by remember { mutableStateOf(true) }
     var otherExpanded by remember { mutableStateOf(true) }
+    
+    var globalSearchCourse by remember { mutableStateOf<String?>(null) }
 
     // Built from what's actually in the data, not a guessed enum — RMS's real
     // delivery-mode strings have proven inconsistent before (see AI/CONTEXT.md).
@@ -293,7 +301,13 @@ internal fun AllocationDeskContent(
             // these batches here; arrival order is how a manager works them.
             itemsIndexed(priorityBatches, key = { _, b -> "p_" + b.str("demand_id") }) { i, b ->
                 Appear(i) {
-                    BatchCard(b, isNew = b.str("demand_id") in newIds, isPriority = true) { onBatchClick(b) }
+                    BatchCard(
+                        b, isNew = b.str("demand_id") in newIds, isPriority = true,
+                        onGlobalSearch = { course ->
+                            globalSearchCourse = course
+                            onGlobalSearch(course)
+                        },
+                    ) { onBatchClick(b) }
                 }
             }
         }
@@ -313,12 +327,116 @@ internal fun AllocationDeskContent(
         if (otherExpanded) {
             itemsIndexed(otherBatches, key = { _, b -> "o_" + b.str("demand_id") }) { i, b ->
                 Appear(i) {
-                    BatchCard(b, isNew = b.str("demand_id") in newIds, isPriority = false) { onBatchClick(b) }
+                    BatchCard(
+                        b, isNew = b.str("demand_id") in newIds, isPriority = false,
+                        onGlobalSearch = { course ->
+                            globalSearchCourse = course
+                            onGlobalSearch(course)
+                        },
+                    ) { onBatchClick(b) }
                 }
             }
         }
 
         item { Spacer(Modifier.height(20.dp)) }
+    }
+
+    if (globalSearchCourse != null) {
+        ModalBottomSheet(
+            onDismissRequest = { globalSearchCourse = null },
+            containerColor = sk.cardBg,
+        ) {
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp).fillMaxWidth().padding(bottom = 24.dp)) {
+                Text(
+                    "Global Network Search",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = sk.bodyText,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    globalSearchCourse ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = sk.subText,
+                )
+                Spacer(Modifier.height(16.dp))
+                
+                // Snapshot the delegated state once: `globalSearchData` is a
+                // `by collectAsState()` delegate, so Kotlin cannot smart-cast
+                // it inside the branches below.
+                val net = globalSearchData
+                val netTrainers = net?.list("trainers").orEmpty()
+                when {
+                    net == null -> Box(
+                        Modifier.fillMaxWidth().height(120.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.material3.CircularProgressIndicator(color = sk.teal)
+                    }
+
+                    // RMS has not accepted any TrainerType value for this
+                    // endpoint, so the question could not be asked. Saying
+                    // "no trainers available" here would be a claim about the
+                    // company's bench that we have no evidence for.
+                    !net.bool("available") -> Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                painterResource(R.drawable.ic_alert), null,
+                                tint = sk.warn, modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Wider network unavailable",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = sk.warn, fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            net.str("note").ifBlank {
+                                "RMS did not accept this lookup, so the wider " +
+                                "trainer network could not be searched."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = sk.subText,
+                        )
+                    }
+
+                    netTrainers.isEmpty() -> Text(
+                        "No trainers outside your team are mapped to this course.",
+                        style = MaterialTheme.typography.bodySmall, color = sk.subText,
+                    )
+
+                    else -> LazyColumn(
+                        Modifier.fillMaxWidth().heightIn(max = 380.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(netTrainers.size) { i ->
+                            val t = netTrainers[i]
+                            Column(Modifier.fillMaxWidth()) {
+                                Text(
+                                    t.str("TrainerName").ifBlank { "Unnamed trainer" },
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = sk.bodyText,
+                                )
+                                val meta = listOfNotNull(
+                                    t.str("Type").takeIf { it.isNotBlank() },
+                                    t.str("BaseLocation").takeIf { it.isNotBlank() },
+                                ).joinToString(" · ")
+                                if (meta.isNotBlank()) {
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        meta, style = MaterialTheme.typography.bodySmall,
+                                        color = sk.subText,
+                                    )
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                HorizontalDivider(color = sk.cardBorder)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -558,7 +676,14 @@ private fun MiniStat(label: String, value: String, tint: Color) {
 // ── Batch card ───────────────────────────────────────────────────────────────
 
 @Composable
-internal fun BatchCard(b: Map<*, *>, isNew: Boolean, isPriority: Boolean = true, onClick: () -> Unit) {
+internal fun BatchCard(
+    b: Map<*, *>,
+    isNew: Boolean,
+    isPriority: Boolean = true,
+    /** Offered only when this manager's own team maps to nobody. */
+    onGlobalSearch: ((String) -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     val sk = MaterialTheme.skill
     val candidates = b.list("candidates")
     val mode = b.str("delivery_mode")
@@ -763,6 +888,21 @@ internal fun BatchCard(b: Map<*, *>, isNew: Boolean, isPriority: Boolean = true,
                         "No one on your team maps to this course.",
                         style = MaterialTheme.typography.labelSmall, color = sk.subText,
                     )
+                    Spacer(Modifier.height(12.dp))
+                    androidx.compose.material3.Button(
+                        onClick = { onGlobalSearch?.invoke(b.str("course_name")) },
+                        enabled = onGlobalSearch != null,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = sk.blue.copy(alpha = 0.15f),
+                            contentColor = sk.blue
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(painterResource(R.drawable.ic_search), contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Global Network Search", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
                 }
             }
         }

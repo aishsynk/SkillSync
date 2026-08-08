@@ -227,6 +227,18 @@ _APIS = {
         "role": "Trainer_Last_3_Months_Utilization",
         "key":  "39",
     },
+    "courseSyllabus": {
+        "user": "AISHWAR_GetCourseSyllab",
+        "pass": "W@PFkUQt$Ek3",
+        "role": "Get Course Syllabus TOC",
+        "key":  "248",
+    },
+    "globalTrainers": {
+        "user": "AISHWAR_GetInhouseandFL",
+        "pass": "2XC!2LBpsTJh",
+        "role": "Get Inhouse and FL Trainers Of Courses",
+        "key":  "157",
+    },
     # ── Profile ──────────────────────────────────────────────────────────────
     # The only endpoint that returns a person rather than a list of their
     # courses: photo, exam certifications, languages, experience, clients.
@@ -279,6 +291,8 @@ _CACHE_TTL = {
     "prevUpcoming":      600,   # assignment calendar
     "unallocated":       180,   # demand turns over during the day
     "courseWithoutExam": 21600,  # catalogue-wide exam policy; changes rarely
+    "courseSyllabus":    21600,  # 12k-row syllabus index; static, fetch once
+    "last3MonthsUtil":    1800,  # same volatility as the utilisation rollup
     # "trainerSkills" intentionally omitted — see above.
     # "addTrainerSkill" is a write and must never be served from cache.
 }
@@ -2934,6 +2948,146 @@ def mark_skill():
                  "usually means the course id is not assignable to this trainer.",
     })
     return jsonify(payload), 409
+@app.route('/api/data/trainer-utilization-history', methods=['GET'])
+def get_trainer_utilization_history():
+    """
+    Authoritative last-three-months utilisation for one trainer (RMS key 39).
+
+    Keys off `emp_code`, not `TrainerId` — RMS returns an empty list for the
+    trainer id (verified: id 15237 -> [], emp code 3815 -> 3 rows). They are
+    different identifiers and only the employee code is accepted here.
+    """
+    email = str(request.args.get("email", "")).strip().lower()
+    if not email:
+        return jsonify({"error": "email query param required"}), 400
+
+    emp_code = _emp_code(email)
+    if not emp_code:
+        return jsonify({
+            "email": email, "emp_code": "", "months": [], "available": False,
+            "note": "RMS returned no employee code for this address, so the "
+                    "utilisation history cannot be looked up.",
+        }), 200
+
+    rows = _rms("last3MonthsUtil", {"EmpCode": str(emp_code)})
+    if rows is None:
+        return jsonify({"error": "Cannot reach RMS — please retry"}), 503
+
+    months = []
+    for r in (rows if isinstance(rows, list) else []):
+        if not isinstance(r, dict):
+            continue
+        label = str(r.get("MonthName", "") or "").strip()
+        if not label:
+            continue
+        try:
+            util = round(float(r.get("Utilization") or 0), 1)
+        except (TypeError, ValueError):
+            util = 0.0
+        months.append({"month": label, "utilization": util})
+    # RMS returns newest first; charts read left-to-right in calendar order.
+    months.sort(key=lambda m: _parse_date("01 " + m["month"], default=date.min))
+
+    return jsonify({
+        "email":     email,
+        "emp_code":  emp_code,
+        "months":    months,
+        "available": bool(months),
+        "timestamp": datetime.utcnow().isoformat(),
+    }), 200
+
+
+def _syllabus_index():
+    """
+    {normalised course name: syllabus PDF url} for the whole catalogue.
+
+    RMS key 248 answers with a single row whose `JsonResult` is a JSON *string*
+    holding all 12,125 courses, so the whole catalogue is fetched once and
+    cached rather than called per course. Note this returns a link to a
+    syllabus PDF (`SyllabusUrl`), not table-of-contents text — there is no
+    endpoint in this integration that returns TOC content itself.
+    """
+    rows = _rms("courseSyllabus", {})
+    if not isinstance(rows, list) or not rows or not isinstance(rows[0], dict):
+        return {}
+    blob = rows[0].get("JsonResult")
+    try:
+        parsed = json.loads(blob) if isinstance(blob, str) else (blob or [])
+    except (ValueError, TypeError):
+        return {}
+    out = {}
+    for r in (parsed if isinstance(parsed, list) else []):
+        if not isinstance(r, dict):
+            continue
+        name = _norm_course(r.get("CourseName"))
+        url = str(r.get("SyllabusUrl") or "").strip()
+        if name and url:
+            out[name] = {"url": url, "course_id": r.get("CId"),
+                         "course_name": str(r.get("CourseName") or "").strip()}
+    return out
+
+
+@app.route('/api/data/course-syllabus', methods=['GET'])
+def get_course_syllabus():
+    """Syllabus PDF link for one course, matched by name against RMS key 248."""
+    course_name = str(request.args.get("courseName", "")).strip()
+    if not course_name:
+        return jsonify({"error": "courseName query param required"}), 400
+
+    index = _syllabus_index()
+    if not index:
+        return jsonify({"error": "Cannot reach RMS — please retry"}), 503
+
+    hit = index.get(_norm_course(course_name))
+    if not hit:
+        # An honest miss: RMS has a syllabus index, this course is not in it.
+        return jsonify({
+            "course_name": course_name, "syllabus_url": "", "found": False,
+            "note": "RMS holds no syllabus document for this course.",
+        }), 200
+
+    return jsonify({
+        "course_name":  hit["course_name"] or course_name,
+        "course_id":    hit["course_id"],
+        "syllabus_url": hit["url"],
+        "found":        True,
+    }), 200
+
+
+@app.route('/api/data/alternative-trainers', methods=['GET'])
+def get_alternative_trainers():
+    """
+    Trainers outside the manager's own team who can deliver a course (key 157).
+
+    UNAVAILABLE. RMS rejects every `TrainerType` value tried — "Internal",
+    "Inhouse", "In-house", "FL", "Freelancer", "Freelance" and "All" all
+    return an empty list, and an empty string returns the guidance row
+    "Please enter Trainer Type.". The accepted enum is not documented in
+    trainer_portal_api_details and cannot be guessed.
+
+    This returns `available: false` rather than an empty trainer list on
+    purpose: "we cannot ask the question" and "nobody can teach this course"
+    are different answers, and rendering the second when the first is true
+    would be a wrong claim about the company's bench.
+    """
+    course = str(request.args.get("course", "")).strip()
+    if not course:
+        return jsonify({"error": "course query param required"}), 400
+
+    trainer_type = str(request.args.get("trainerType", "")).strip()
+    rows = _rms("globalTrainers", {"Course": course, "TrainerType": trainer_type}) if trainer_type else None
+    usable = [r for r in (rows or []) if isinstance(r, dict) and "Column1" not in r]
+
+    if not usable:
+        return jsonify({
+            "course": course, "trainers": [], "available": False,
+            "note": "RMS has not accepted any TrainerType value for this "
+                    "endpoint, so the wider trainer network cannot be "
+                    "searched yet. This is a missing API parameter, not an "
+                    "empty result.",
+        }), 200
+
+    return jsonify({"course": course, "trainers": usable, "available": True}), 200
 
 
 @app.route('/api/actions', methods=['GET'])

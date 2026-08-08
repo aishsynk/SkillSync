@@ -1,5 +1,31 @@
 # SkillEdge Project Progress
 
+## Release v1.39.0 - Phase 7 API integration corrected; blueprint grid restored
+- **Timestamp**: 2026-08-09T00:30:00+05:30
+- **Agent/Tool Used**: Claude Code (Opus 5)
+- **Files Modified**: `backend.py`, `SkillEdgeApi.kt`, `Trainer360Screen.kt`, `Trainer360ViewModel.kt`, `AllocationDeskScreen.kt`, `AllocationViewModel.kt`, `MainScreen.kt`, `DashboardSections.kt`, `ScreenRenderTest.kt`
+
+### Phase 7 APIs - what actually works (live-probed, not assumed)
+The Phase 7 plan integrated three APIs. Probing each one live found that only one worked as written, and the UI built on top of the other two would have rendered nothing:
+
+- **API 39 `last3MonthsUtil` - WORKS, but the route used the wrong identifier.** It was passing `TrainerId` (15237), which RMS answers with `[]`. The endpoint keys off `emp_code` (3815), which returns 3 real rows. Route now uses `_emp_code()` and normalises to `{month, utilization}` in calendar order.
+- **API 248 `courseSyllabus` - WORKS, but the route ignored its own parameter.** It passed `{}` and returned the entire catalogue; the `courseName` argument was never used. It also does not return table-of-contents *content*: the real shape is 12,125 rows of `CId` / `CourseName` / **`SyllabusUrl`** (a PDF link). The UI had been built to render `ModuleName` / `LessonName` / `EstDuration.Hours`, none of which exist, so every row would have been blank. Route now builds a cached name-indexed lookup and returns one course's syllabus URL; the sheet offers "Open syllabus PDF".
+- **API 157 `globalTrainers` - DOES NOT WORK.** Every `TrainerType` value tried returns an empty list ("Internal", "Inhouse", "In-house", "FL", "Freelancer", "Freelance", "All"), and an empty string returns the guidance row "Please enter Trainer Type.". The accepted enum is not documented. The endpoint now returns `available: false` with a note, and the sheet says the wider network could not be searched - rather than "No trainers available in the global network", which is a claim about the company's bench we have no evidence for.
+
+### Compose structure
+`Trainer360Content` and `AllocationDeskContent` had been given `ViewModel` parameters, which broke all five JVM screen tests (a content composable holding a ViewModel cannot be rendered by `createComposeRule`). Both now take hoisted state and callbacks instead. The "Global Network Search" button also had `onClick = { /* TODO */ }` and did nothing; it is now wired and only offered when the manager's own team maps to nobody.
+
+### Blueprint grid restored
+v1.33.0's blueprint pass dropped **Active Trainers** and **Cert Coverage** from the KPI grid and kept Team Readiness and Needs Action, which contradicts the agreed blueprint (readiness is the hero; the action queue is the "Needs you today" section). The grid is now the blueprint's six: Team Strength, Active Trainers, Active Deliveries, Utilisation, Cert Coverage, At Risk. Hero figures relabelled STRENGTH / DEPLOYED / UTILISATION.
+
+`dashboard_rendersEveryManagerKpi` was asserting the old eight labels and now asserts the blueprint structure, using `onAllNodes` for STRENGTH/DEPLOYED/UTILISATION which the blueprint deliberately repeats between hero and grid.
+
+### Build & Test
+`assembleRelease` succeeds, signature verified. **31/31 unit tests pass.** All three new endpoints verified live.
+
+### Note on concurrent work
+This repo advanced from v1.32.0 to v1.38.0 through commits not made in this session (Phase 1 UI blueprint, offline write queue, Agent Copilot, Demand revamp, alert system). This release builds on top of them.
+
 ## Release v1.37.0 — Phase 5: Alerts and Logout Enhancements
 - **Timestamp**: 2026-08-08T23:25:00+05:30
 - **Agent/Tool Used**: Antigravity
@@ -998,3 +1024,19 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   - Created a GitHub release and pushed changes to production.
 - **Current Status**: Phase 1 is officially complete and all blueprint UI components are fully implemented and compiling successfully.
 - **Next Actions**: Proceed to next requested feature.
+
+### Phase 6: Language/Skill Matching & UI Polish (v1.38.0)
+- **Timestamp**: 2026-08-08
+- **Agent/Tool Used**: AntiGravity IDE
+- **Files Modified**: 
+  - `backend.py`
+  - `AllocationDeskScreen.kt`
+  - `MainScreen.kt`
+- **Work Completed**:
+  - Rewrote the `_rank_batch` matching logic in the Python backend to strictly enforce Language constraints (if batch requires French, English-only trainers drop to 0 match).
+  - Enforced Skill Level checks where Qubits scores must map equivalently to the required level (e.g. Expert requires 75+ Qubits score) or the match is heavily penalized.
+  - Revamped the `BatchCard` on the Demand page (`AllocationDeskScreen.kt`) with a striking premium glassmorphic UI using `accentGlass` to deliver the "wow" factor first-impression requirement.
+  - Added an inline `ic_mail` quick message button directly onto the `TrainerCard` in `MainScreen.kt` for managers to quickly address certification gaps without entering the 360 profile.
+  - Built and generated `SkillEdge-v1.38.0.apk`.
+  - Created a GitHub commit and pushed changes to production.
+- **Current Status**: Phase 6 is complete. Algorithm and UI fixes deployed successfully.

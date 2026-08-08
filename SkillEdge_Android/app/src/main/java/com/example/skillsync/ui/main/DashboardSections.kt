@@ -194,9 +194,9 @@ fun CommandHero(kpis: Map<*, *>?, capKpis: Map<*, *>?) {
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                SummaryFigure("TEAM", strength?.toString() ?: "—")
+                SummaryFigure("STRENGTH", strength?.toString() ?: "—")
                 SummaryFigure("DEPLOYED", active?.toString() ?: "—")
-                SummaryFigure("UTILISED", util?.let { "$it%" } ?: "—")
+                SummaryFigure("UTILISATION", util?.let { "$it%" } ?: "—")
             }
         }
     }
@@ -349,6 +349,23 @@ fun ManagerKpiGrid(
             trend = if (bench > 0) "$bench on bench" else "fully engaged",
             trendDir = if (bench > 0) 0 else 1),
 
+        Kpi("Active trainers", figure(n("active_trainers")), "on a live batch", sk.aqua,
+            Drill("Active trainers", "Currently engaged on a delivery",
+                ops.filter { o ->
+                    states.firstOrNull {
+                        it.str("trainer_email").equals(o.str("official_email"), true)
+                    }?.str("current_status") in listOf("teaching_now", "scheduled_today", "preparing")
+                }.map {
+                    com.example.skillsync.ui.main.DrillRow(
+                        it.str("trainer_name"),
+                        it.str("designation").ifBlank { it.str("capacity_bucket") },
+                        it.str("official_email"),
+                    )
+                }),
+            icon = R.drawable.ic_award,
+            trend = "${n("unallocated_trainers") ?: 0} unallocated",
+            trendDir = if ((n("unallocated_trainers") ?: 0) == 0) 1 else 0),
+
         Kpi("Active deliveries", figure(n("active_batches")), "running today", sk.royal,
             Drill("Active deliveries", "Currently being delivered",
                 batches.filter { it.str("engagement_state") == "current" }.map {
@@ -376,20 +393,21 @@ fun ManagerKpiGrid(
             trendDir = if (kpis?.str("utilization_trend").orEmpty().startsWith("-")) -1 else 1,
             spark = utilHistory),
 
-        Kpi("Team readiness", (c("team_readiness_score") ?: n("team_readiness_score"))?.let { "$it" } ?: "—",
-            "${c("ready_trainers") ?: 0} rated Ready", sk.cyan,
-            Drill("Readiness", "Qubits, approved catalogue depth and spare capacity",
-                capTrainers.sortedByDescending { it.int("readiness_score") }.map {
+        Kpi("Cert coverage", n("cert_coverage_pct")?.let { "$it%" } ?: "—",
+            "${c("certification_gap_count") ?: 0} gaps open", sk.sky,
+            Drill("Certification coverage", "Courses taught against certificates held",
+                capTrainers.map {
+                    val cert = it.obj("certification")
                     com.example.skillsync.ui.main.DrillRow(
                         it.str("trainer_name"),
-                        "${it.intOrNull("readiness_score") ?: "—"} · ${it.str("readiness_bucket")}"
+                        "${cert?.intOrNull("coverage_pct") ?: "—"}% · ${cert?.int("gap_count") ?: 0} gap(s)",
+                        it.str("trainer_email"),
                     )
                 }),
-            icon = R.drawable.ic_check,
-            trend = kpis?.str("readiness_trend").orEmpty(),
-            trendDir = if (kpis?.str("readiness_trend").orEmpty().startsWith("-")) -1 else 1,
-            pending = capabilityLoading && n("team_readiness_score") == null,
-            needsCapability = false),
+            icon = R.drawable.ic_certificate,
+            trend = "${c("certified_trainers") ?: 0} certified",
+            trendDir = 1,
+            pending = capabilityLoading && n("cert_coverage_pct") == null),
 
         Kpi("At risk", "$atRisk", "resources flagged", sk.crit,
             Drill("At-risk resources", "Feedback risk flagged on the operations record",
@@ -404,20 +422,6 @@ fun ManagerKpiGrid(
             trend = if (atRisk == 0) "team clear" else "needs review",
             trendDir = if (atRisk == 0) 1 else -1,
             critical = atRisk > 0),
-
-        Kpi("Needs action", "$openActions", "decisions waiting on you", sk.warn,
-            Drill("Actions requiring attention", "Open manager actions and unallocated demand",
-                ops.filter { it.str("recommended_action").isNotBlank() }.map {
-                    com.example.skillsync.ui.main.DrillRow(
-                        it.str("trainer_name"),
-                        it.str("recommended_action"),
-                        it.str("trainer_email").ifBlank { it.str("email") }
-                    )
-                }),
-            icon = R.drawable.ic_flag,
-            trend = "${n("open_demand") ?: 0} unallocated demands",
-            trendDir = if (openActions == 0) 1 else 0,
-            critical = false),
     )
 
     // Two per row for a 6-tile grid
