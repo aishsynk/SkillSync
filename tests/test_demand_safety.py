@@ -105,6 +105,36 @@ class CompleteTeamTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["team_size"], 25)
 
+    def test_actions_does_not_truncate_after_twenty(self):
+        reportees = [
+            {"OffEmail": f"trainer{i}@koenig-solutions.com", "TrainerName": f"Trainer {i}"}
+            for i in range(25)
+        ]
+
+        def built(row, _today):
+            return ({"trainer_email": row["OffEmail"]}, {})
+
+        def actions(trainers, *_args):
+            return [
+                {"id": f"action-{i}", "lifecycle_state": "open"}
+                for i, _trainer in enumerate(trainers)
+            ]
+
+        with (
+            patch.object(backend, "_rms", return_value=reportees),
+            patch.object(backend, "_build_trainer", side_effect=built),
+            patch.object(backend, "_demand_rows", return_value=[]),
+            patch.object(backend, "_derive_actions", side_effect=actions),
+            patch.object(backend, "_action_apply_overlay"),
+            patch.object(backend, "_action_store_load", return_value={"raised": {}}),
+        ):
+            response = backend.app.test_client().get(
+                "/api/actions?email=manager@koenig-solutions.com"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.get_json()["actions"]), 25)
+
 
 if __name__ == "__main__":
     unittest.main()

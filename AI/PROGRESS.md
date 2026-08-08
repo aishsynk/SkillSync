@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T02:23:00+05:30 - Phase 2 production blocker fixed in v1.44.1
+- **Tool Used**: Codex (`Invoke-RestMethod`, `apply_patch`, `unittest`, Gradle, APK Signer)
+- **Files Modified**: `backend.py`, `tests/test_demand_safety.py`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Production validation of v1.44.0 found that `/api/actions` still silently capped the manager roster at 20. Removed that final cap, added an endpoint regression proving Actions cover 25 trainers, and incremented the patch release to v1.44.1/code 53. Backend tests pass 5/5 and Android tests pass 31/31; signed release APK SHA-256 is `DBB92C198D098520F676F97E47C8323EB70279D863274EED39E167429873664D` with the unchanged production signer.
+- **Current Status**: Phase 2 patch is locally validated and ready to publish. v1.44.0 remains superseded because its Actions completeness requirement failed production inspection.
+- **Next Actions**: Commit/push v1.44.1, verify CI/Render/live Actions and Team endpoints, update release notes and close Phase 2 only after production passes.
+
 ## 2026-08-09T02:13:00+05:30 - Phase 2 local validation passed
 - **Tool Used**: Codex (`unittest`, Gradle, APK Signer)
 - **Files Modified**: `tests/test_demand_safety.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/DataRepository.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/MainScreenViewModel.kt`, `AI/PROGRESS.md`

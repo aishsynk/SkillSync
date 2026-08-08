@@ -3410,7 +3410,9 @@ def get_actions():
         return jsonify({"error": "email query param required"}), 400
 
     reportees = _rms("reportees", {"email": email}) or []
-    rows = [r for r in reportees if isinstance(r, dict)][:20]
+    # Action coverage must match the complete Team roster; otherwise trainers
+    # after the twentieth can never surface manager-attention items.
+    rows = [r for r in reportees if isinstance(r, dict)]
     today = datetime.utcnow().date()
 
     def _one(r):
