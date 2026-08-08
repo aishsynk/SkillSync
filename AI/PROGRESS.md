@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T08:31:00+05:30 - Searchable team propagation published and production-validated (v1.52.0/code 63)
+- **Tool Used**: Codex (`git`, `gh`, GitHub Actions, production read/write-safe probes)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published commit `f80f7929b4424732d1774df715bd2d247244b4c4`; CI run `31284541815` passed and release `v1.52.0.63` contains `SkillEdge-v1.52.0.63.apk` digest `21c8012b7df87912183eb613af7f52b826637ed0b0466f5a3c4c2b70cef1b041` with full notes. Production DP-700 search again returned 2 results. A cold Demand worker returned bounded loading rather than 502; Android v1.52.0 polls up to 36 seconds while retaining an existing board. Current mark-skill was separately verified in 4.72 s with no change to an already-held mapping.
+- **Current Status**: Skill marking, searchable single/bulk team propagation, direct full-catalogue assignment, full Demand suitability and premium international treatment are shipped. Skill removal is the sole requested feature not implemented because the provided/live RMS integration catalogue has no delete/unmap endpoint, auth role, key, required identifier contract or verification response. Nothing in the app can safely manufacture that production capability. Physical upgrade remains untested without ADB.
+- **Next Actions**: Obtain from the RMS owner the delete trainer skill endpoint/API key, token credentials/role, required trainer/course/mapping identifiers, duplicate semantics, success/error schema and authoritative read-back procedure. Then implement confirmation, validation, repository/API flow, tests and a new release. Ensure testers install v1.52.0.63 before comparing the former 502 or old Courses UI.
+
 ## 2026-08-09T08:20:00+05:30 - v1.52.0 local release gate passed
 - **Tool Used**: Codex (Gradle release/lint, AAPT, APK Signer)
 - **Files Modified**: `AI/PROGRESS.md`
