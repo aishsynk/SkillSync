@@ -2,6 +2,9 @@
 
 Stable, high-level knowledge about the project. Update only for durable facts.
 
+## Aishwar international-demand policy (effective v1.42.0)
+For the exact account `aishwar_v@koenig-solutions.com`, a foreign-location FMAT or ILT batch with at least 75% course match is automatically marked in RMS as skill level 8 from the next Saturday on/after the current date. The operation is idempotent and requires RMS read-back verification. It does not apply to other trainers, India/domestic batches, ILO, unknown locations, or matches below 75%.
+
 ## What it is
 
 AI-assisted delivery-intelligence workspace for Koenig Solutions delivery managers.

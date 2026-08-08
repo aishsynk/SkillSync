@@ -8,6 +8,9 @@ import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performScrollToNode
 import com.example.skillsync.HomeTab
 import com.example.skillsync.theme.SkillSyncTheme
 import com.example.skillsync.ui.main.CoursesTab
@@ -560,13 +563,17 @@ class ScreenRenderTest {
     @Test
     fun trainer360_rendersEverySection() {
         compose.setContent { SkillSyncTheme { Trainer360Content(trainer360Payload()) } }
+        compose.onAllNodesWithText("Abhinav Samant").onFirst().assertExists()
+        compose.onNodeWithText("Corporate Trainer").assertExists()
         listOf(
+            "Profile", "Performance", "Credentials & capability", "Delivery record", "Manager decisions",
             "Personal details", "Utilisation", "Capability metrics",
             "Certifications", "Capability", "Delivery",
             "Feedback & incidents", "Availability",
-        ).forEach { compose.onAllNodesWithText(it).onFirst().assertExists() }
-        compose.onAllNodesWithText("Abhinav Samant").onFirst().assertExists()
-        compose.onNodeWithText("Corporate Trainer").assertExists()
+        ).forEach { label ->
+            compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(label))
+            compose.onAllNodesWithText(label).onFirst().assertExists()
+        }
     }
 
     /** Held / missing / recommended — the certification gap analysis in full. */

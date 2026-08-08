@@ -2,6 +2,10 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-09 - Automatic RMS skill writes are exact-account and idempotent
+- **Decision:** Automatic skill marking applies only to `aishwar_v@koenig-solutions.com`, only for explicitly international FMAT/ILT demand, and only when that trainer's course match is at least 75%. The record uses skill level 8 and the next Saturday on or after the current date. The backend reads the RMS skill register before writing and never rewrites an existing skill; every write is read back and surfaced as verified/unverified.
+- **Rationale:** The requested automation changes production RMS data. Exact identity, narrow delivery/location/match gates, idempotency, and verification prevent the rule from silently expanding to reportees, domestic work, weaker matches, or duplicate records.
+
 ## 2026-08-08 — v1.32.0: No invented data, ever; "current" utilisation means current
 
 - **Decision:** Deleted the synthetic fallback team and demand, the hardcoded notification feed, and every hardcoded KPI fallback (`avg_team_utilization` 76, `utilization_trend` "+4.2%", `utilization_history` [68,71,74,72,76], `readiness_trend` "+2.4%", `open_actions or 2`, `completion_rate` 95, `deployable_pct` 90).

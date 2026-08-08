@@ -1,5 +1,26 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T01:38:00+05:30 - v1.42.0 local validation passed
+- **Tool Used**: Python compile/assertions, Gradle, Android lint, apksigner
+- **Files Modified**: `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/ScreenRenderTest.kt`, `AI/PROGRESS.md`; generated `SkillEdge-v1.42.0.apk`
+- **Work Completed**: Backend compiles and boundary assertions pass. All 31 JVM/Compose tests pass; release lint and `assembleRelease` pass. APK v2 signature verified with the established SkillEdge release certificate (SHA-256 `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`). Generated `SkillEdge-v1.42.0.apk` (12,252,216 bytes; SHA-256 `44949384FDB3E98821368A6F02C5F0E261C8E9987CF0CBF8FF6A937DF4214071`).
+- **Current Status**: Local implementation and release artifact are validated. Production delivery steps remain.
+- **Next Actions**: Commit and push, wait for GitHub Android release and Render deployment, verify production APIs and release artifact, then record final release status.
+
+## 2026-08-09T01:30:00+05:30 - v1.42.0 feature implementation complete
+- **Tool Used**: Codex (`apply_patch`)
+- **Files Modified**: `backend.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/TeamMemberCard.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/TeamTab.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/trainer/Trainer360Screen.kt`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Added the exact-account Aishwar policy for international FMAT/ILT batches: >=75% match triggers an idempotent RMS skill write at level 8 from the next Saturday, with read-back verification and visible result metadata. Added animated international globe treatment and auto-mark status to demand cards. Reorganized Trainer 360 into five clearly labelled groups with an at-a-glance summary. Redesigned trainer cards with designation, health badge, utilization bar, next assignment, and responsive one-column phone/two-column tablet layout. Incremented Android to v1.42.0/code 50.
+- **Current Status**: Implementation is complete locally but not yet validated, committed, deployed, or released.
+- **Next Actions**: Run syntax/rule tests and the full Android test/build suite; correct any failures; then commit/push and validate CI, Render production, and the versioned signed APK release.
+
+## 2026-08-09T01:21:22+05:30 - Trainer 360 / Team / Demand implementation audit
+- **Tool Used**: Codex repository inspection (PowerShell, Git, ripgrep)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Read the source-of-truth documentation; confirmed `main` is clean and aligned with `origin/main` at commit `1f7b74d` (v1.41.0); reviewed recent releases, Flask/Render/Vercel configuration, Android CI release workflow, signing/package/version configuration, dependencies, allocation ranking, Trainer 360, Team roster, skill-write verification, tests, and documented open issues. Confirmed `SkillEdge_Android` is the active application (`com.example.skillsync`, version 1.41.0/code 49); the root `app` module is a stale parallel scaffold and is out of scope.
+- **Current Status**: Existing FMAT/ILT priority grouping is sound, but the requested Aishwar-only international weekend auto-mark rule and globe treatment do not exist. Trainer 360 remains a flat 12-card scroll, and Team cards are information-dense at half width without a strong visual hierarchy.
+- **Next Actions**: Implement and test the backend matching/auto-mark policy, redesign the three Android surfaces, increment release version, build/test, then commit, push, deploy, validate production, and publish the APK/release.
+
 ## Release v1.41.0 - FMAT/ILT/ILO separated, demand detail de-duplicated, PDF export
 - **Timestamp**: 2026-08-09T04:00:00+05:30
 - **Agent/Tool Used**: Claude Code (Opus 5)

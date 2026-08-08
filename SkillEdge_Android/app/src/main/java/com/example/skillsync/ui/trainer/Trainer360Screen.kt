@@ -201,18 +201,77 @@ internal fun Trainer360Content(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item { Appear(0) { IdentityCard(identity, util, cap, certs) } }
-        item { Appear(1) { PersonalDetails(identity) } }
-        item { Appear(2) { UtilisationSection(util, series, delivery, utilHistory) } }
-        item { Appear(3) { CapabilityMetrics(metrics) } }
-        item { Appear(4) { DeliveryReadinessSection(deliveryReadiness, feedback) } }
-        item { Appear(5) { RiskSection(metrics, feedback) } }
-        item { Appear(6) { CertificationSection(certs) } }
-        item { Appear(7) { CapabilitySection(cap, courses, onCourseTap, syllabus) } }
-        item { Appear(8) { DeliverySection(delivery, assignments) } }
-        item { Appear(9) { FeedbackSection(feedback) } }
-        item { Appear(10) { SPOFAndActionsSection(cap, metrics) } }
+        item { Appear(1) { ProfileOverview(metrics, util, delivery, certs) } }
+
+        item { ProfileGroupHeader("Profile", "Identity, experience and working context", sk.sky) }
+        item { Appear(2) { PersonalDetails(identity) } }
+
+        item { ProfileGroupHeader("Performance", "Capacity, readiness and delivery risk", sk.teal) }
+        item { Appear(3) { UtilisationSection(util, series, delivery, utilHistory) } }
+        item { Appear(4) { CapabilityMetrics(metrics) } }
+        item { Appear(5) { DeliveryReadinessSection(deliveryReadiness, feedback) } }
+        item { Appear(6) { RiskSection(metrics, feedback) } }
+
+        item { ProfileGroupHeader("Credentials & capability", "What this trainer can confidently teach", sk.indigo) }
+        item { Appear(7) { CertificationSection(certs) } }
+        item { Appear(8) { CapabilitySection(cap, courses, onCourseTap, syllabus) } }
+
+        item { ProfileGroupHeader("Delivery record", "Assignments, learner signal and availability", sk.aqua) }
+        item { Appear(9) { DeliverySection(delivery, assignments) } }
+        item { Appear(10) { FeedbackSection(feedback) } }
         item { Appear(11) { AvailabilitySection(avail) } }
+
+        item { ProfileGroupHeader("Manager decisions", "Succession risk and recommended action", sk.warn) }
+        item { Appear(12) { SPOFAndActionsSection(cap, metrics) } }
         item { Spacer(Modifier.height(20.dp)) }
+    }
+}
+
+@Composable
+private fun ProfileOverview(
+    metrics: Map<*, *>?,
+    util: Map<*, *>?,
+    delivery: Map<*, *>?,
+    certs: Map<*, *>?,
+) {
+    val sk = MaterialTheme.skill
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(sk.cardBg)) {
+        Column(Modifier.padding(14.dp)) {
+            Text(
+                "AT A GLANCE", style = MaterialTheme.typography.labelSmall,
+                color = sk.labelText, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                OverviewMetric("Readiness", metrics?.intOrNull("readiness_score")?.toString() ?: "—", sk.teal)
+                OverviewMetric("Utilisation", util?.intOrNull("current")?.let { "$it%" } ?: "—", sk.sky)
+                OverviewMetric("Upcoming", "${delivery?.int("upcoming") ?: 0}", sk.aqua)
+                OverviewMetric("Certificates", "${certs?.int("count") ?: 0}", sk.indigo)
+            }
+        }
+    }
+}
+
+@Composable
+private fun OverviewMetric(label: String, value: String, tint: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleMedium, color = tint, fontWeight = FontWeight.Bold)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText, fontSize = 8.sp)
+    }
+}
+
+@Composable
+private fun ProfileGroupHeader(title: String, subtitle: String, tint: Color) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(4.dp).height(32.dp).clip(RoundedCornerShape(2.dp)).background(tint))
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.skill.frost, fontWeight = FontWeight.Bold)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText, fontSize = 9.sp)
+        }
     }
 }
 

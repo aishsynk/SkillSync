@@ -44,12 +44,15 @@ internal fun TeamMemberCard(
 ) {
     val sk = MaterialTheme.skill
     val name = trainer.str("trainer_name")
+    val designation = trainer.str("designation")
     val util = trainer.intOrNull("current_utilization")
     val upcoming = trainer.int("upcoming_count")
     val statusLabel = state?.str("status_label") ?: "Unknown"
     val status = state?.str("current_status") ?: "unknown"
     val cur = state?.obj("current_batch")
+    val next = state?.obj("next_batch")
     val curCourse = cur?.str("course_name").orEmpty()
+    val nextCourse = next?.str("course_name").orEmpty()
     val daysLeft = cur?.intOrNull("days_left")
 
     val cert = capability?.obj("certification")
@@ -109,17 +112,37 @@ internal fun TeamMemberCard(
                         maxLines = 1,
                     )
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        "$health",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold, color = healthColor, fontSize = 15.sp,
-                    )
-                    Text(
-                        "HEALTH", style = MaterialTheme.typography.labelSmall,
-                        color = healthColor, fontSize = 6.5.sp, fontWeight = FontWeight.Bold,
-                    )
+                Surface(
+                    color = healthColor.copy(alpha = 0.14f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, healthColor.copy(alpha = 0.35f)),
+                ) {
+                    Column(
+                        Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            "$health",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold, color = healthColor, fontSize = 15.sp,
+                        )
+                        Text(
+                            healthBucket.uppercase(), style = MaterialTheme.typography.labelSmall,
+                            color = healthColor, fontSize = 6.5.sp, fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                        )
+                    }
                 }
+            }
+
+            if (designation.isNotBlank()) {
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    designation,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.subText, fontSize = 9.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
             }
 
             Spacer(Modifier.height(9.dp))
@@ -148,6 +171,15 @@ internal fun TeamMemberCard(
                         else -> sk.crit
                     },
                     Modifier.weight(1f),
+                )
+            }
+            util?.let {
+                Spacer(Modifier.height(5.dp))
+                LinearProgressIndicator(
+                    progress = { (it / 100f).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(3.dp).clip(CircleShape),
+                    color = when { it > 85 -> sk.crit; it >= 60 -> sk.aqua; else -> sk.warn },
+                    trackColor = sk.cardBorder.copy(alpha = 0.5f),
                 )
             }
 
@@ -217,6 +249,15 @@ internal fun TeamMemberCard(
                 color = if (upcoming > 0) sk.sky else sk.subText, fontSize = 8.5.sp,
                 fontWeight = if (upcoming > 0) FontWeight.SemiBold else FontWeight.Normal,
             )
+            if (nextCourse.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "Next · $nextCourse",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.sky, fontSize = 8.5.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
 
             // ── Action flag, only when one is genuinely required ────────────
             if (recommended != null) {

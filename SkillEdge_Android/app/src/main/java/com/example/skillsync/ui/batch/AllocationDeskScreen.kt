@@ -1,6 +1,10 @@
 package com.example.skillsync.ui.batch
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -704,6 +708,8 @@ internal fun BatchCard(
     val (coverageLabel, coverageTint, coverageIcon) = coverageStyle(b.str("coverage_status"))
     val risk = b.str("assignment_risk")
     val riskTint = when (risk) { "High" -> sk.crit; "Medium" -> sk.warn; else -> sk.aqua }
+    val international = b.bool("is_international") && b.str("delivery_mode_kind") in listOf("FMAT", "ILT")
+    val autoSkill = b.obj("auto_skill")
 
     Box(
         Modifier
@@ -759,6 +765,10 @@ internal fun BatchCard(
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
                                     )
                                 }
+                            }
+                            if (international) {
+                                Spacer(Modifier.width(6.dp))
+                                InternationalBadge()
                             }
                         }
                         Spacer(Modifier.height(4.dp))
@@ -918,7 +928,55 @@ internal fun BatchCard(
                         Text("Global Network Search", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                 }
+
+                if (autoSkill != null) {
+                    Spacer(Modifier.height(9.dp))
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(sk.aqua.copy(alpha = 0.10f))
+                            .padding(horizontal = 9.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("✓", color = if (autoSkill.bool("verified")) sk.aqua else sk.warn, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            if (autoSkill.bool("verified"))
+                                "Aishwar · skill level 8 · ${autoSkill.str("from_date").shortDate()}"
+                            else "Aishwar qualifies for level 8 · ${autoSkill.str("reason")}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (autoSkill.bool("verified")) sk.aqua else sk.warn,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                        )
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun InternationalBadge() {
+    val sk = MaterialTheme.skill
+    val transition = rememberInfiniteTransition(label = "internationalGlobe")
+    val rotation by transition.animateFloat(
+        initialValue = -8f,
+        targetValue = 8f,
+        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing)),
+        label = "globeRotation",
+    )
+    Surface(color = sk.sky.copy(alpha = 0.14f), shape = RoundedCornerShape(4.dp)) {
+        Row(
+            Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("🌐", fontSize = 10.sp, modifier = Modifier.rotate(rotation))
+            Spacer(Modifier.width(3.dp))
+            Text(
+                "ABROAD", color = sk.sky, fontSize = 8.5.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 0.05.em,
+            )
         }
     }
 }

@@ -13,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -93,6 +94,7 @@ internal fun TeamTab(
     onTrainerClick: (String, String) -> Unit,
 ) {
     val sk = MaterialTheme.skill
+    val columns = if (LocalConfiguration.current.screenWidthDp >= 600) 2 else 1
     val ops = data.rows("trainer_operations_df")
     val stateMap = data.rows("trainer_current_state_df").associateBy { it.str("trainer_email").lowercase() }
     val capMap = (capability?.rows("trainers") ?: emptyList())
@@ -227,10 +229,10 @@ internal fun TeamTab(
                 )
             }
         }
-        // Two per row. This is the manager's team command surface, not a
-        // directory: at one card per row a manager scrolls past four people to
-        // compare two, and comparison is the whole point of the screen.
-        val rows = shown.chunked(2)
+        // Phones need a full-width command card so names, assignments and the
+        // action signal remain legible. Tablets retain the two-up comparison
+        // surface where each card still has enough physical width.
+        val rows = shown.chunked(columns)
         itemsIndexed(rows) { rowIndex, pair ->
             Appear(rowIndex) {
                 Row(
@@ -251,7 +253,7 @@ internal fun TeamTab(
                     }
                     // Keeps a lone trailing card at half width instead of
                     // letting it stretch across the row.
-                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    if (columns > 1 && pair.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }

@@ -975,6 +975,100 @@ def _rank_batch(batch, team):
     return top["match"], candidates[:5], top["coverage"]
 
 
+# This is an intentionally narrow business rule requested for the manager who
+# owns this workspace. It must never broaden to reportees or similarly-named
+# users: an automatic RMS write is safe only for the exact approved account.
+_AISHWAR_EMAIL = "aishwar_v@koenig-solutions.com"
+
+
+def _next_weekend(today=None):
+    """Next Saturday on or after today, as an ISO date."""
+    today = today or date.today()
+    return today + timedelta(days=(5 - today.weekday()) % 7)
+
+
+def _auto_mark_aishwar_skill(batch, candidates):
+    """Idempotently mark Aishwar at level 8 for a qualifying foreign FMAT/ILT.
+
+    The caller has already classified the delivery mode/location. We still
+    re-check every condition here so a future caller cannot accidentally turn
+    this into a general auto-write path. Existing skills are never rewritten.
+    """
+    if batch.get("delivery_mode_kind") not in {"FMAT", "ILT"}:
+        return None
+    if not batch.get("is_international"):
+        return None
+
+    candidate = next(
+        (c for c in candidates
+         if c.get("trainer_email", "").lower() == _AISHWAR_EMAIL
+         and int(c.get("match") or 0) >= 75),
+        None,
+    )
+    if not candidate:
+        return None
+
+    course_id = str(batch.get("course_id", "")).strip()
+    if not course_id.isdigit():
+        return {
+            "eligible": True, "verified": False, "changed": False,
+            "trainer_email": _AISHWAR_EMAIL, "skill_level": 8,
+            "from_date": _iso(_next_weekend()),
+            "reason": "RMS did not provide a numeric course id",
+        }
+
+    emp = _emp_code(_AISHWAR_EMAIL)
+    before = _skill_register(emp) if emp else None
+    if before is None:
+        return {
+            "eligible": True, "verified": False, "changed": False,
+            "trainer_email": _AISHWAR_EMAIL, "skill_level": 8,
+            "from_date": _iso(_next_weekend()),
+            "reason": "Aishwar's skill register is unavailable",
+        }
+    if any(s["course_id"] == course_id for s in before):
+        return {
+            "eligible": True, "verified": True, "changed": False,
+            "already_held": True, "trainer_email": _AISHWAR_EMAIL,
+            "skill_level": 8, "from_date": _iso(_next_weekend()),
+            "reason": "Skill already exists in RMS",
+        }
+
+    weekend = _next_weekend()
+    result = _rms("addTrainerSkill", {
+        "CourseId": course_id,
+        "TrainerEmail": _AISHWAR_EMAIL,
+        "SkillLevel": "8",
+        "OfficiallyApproved": "No",
+        "FromDate": _iso(weekend),
+    })
+    if result is None:
+        return {
+            "eligible": True, "verified": False, "changed": False,
+            "trainer_email": _AISHWAR_EMAIL, "skill_level": 8,
+            "from_date": _iso(weekend), "reason": "RMS write was unavailable",
+        }
+
+    status, message = _write_status(result)
+    if status.lower() == "error":
+        return {
+            "eligible": True, "verified": False, "changed": False,
+            "trainer_email": _AISHWAR_EMAIL, "skill_level": 8,
+            "from_date": _iso(weekend), "reason": message or "RMS refused the skill",
+        }
+
+    _cache_purge(_AISHWAR_EMAIL)
+    after = _skill_register(emp)
+    verified = bool(after) and any(s["course_id"] == course_id for s in after)
+    return {
+        "eligible": True, "verified": verified, "changed": verified,
+        "already_held": False, "trainer_email": _AISHWAR_EMAIL,
+        "skill_level": 8, "from_date": _iso(weekend),
+        "reason": "Skill marked and verified in RMS" if verified
+                  else "RMS accepted the write but read-back did not confirm it",
+    }
+
+
 def _certifications(email):
     """{count, held[]} — vendorCertCount returns one 'True'/'False' column per body."""
     rows = _rms("vendorCertCount", {"email": email}) or []
@@ -2844,6 +2938,15 @@ def allocation_desk():
         b.update(_priority_fields(
             b.get("delivery_mode"), b.get("location"), b.get("participants"), coverage,
         ))
+        # Aishwar-only policy: a foreign FMAT/ILT with >=75% course match is
+        # placed on the next weekend at level 8. The helper is idempotent and
+        # refuses to act for every other trainer/account.
+        auto_skill = _auto_mark_aishwar_skill(b, b["candidates"])
+        if auto_skill:
+            b["auto_skill"] = auto_skill
+            for candidate in b["candidates"]:
+                if candidate.get("trainer_email", "").lower() == _AISHWAR_EMAIL:
+                    candidate["auto_skill"] = auto_skill
         if b["is_priority"]:
             priority_count += 1
 
@@ -2866,6 +2969,11 @@ def allocation_desk():
             "international": sum(1 for b in demand if b.get("is_international")),
             "instructor_led": sum(1 for b in demand if b.get("is_priority")),
             "at_risk": sum(1 for b in demand if b["assignment_risk"] == "High"),
+            "auto_marked": sum(
+                1 for b in demand
+                if b.get("auto_skill", {}).get("verified")
+                and b.get("auto_skill", {}).get("changed")
+            ),
         },
         "timestamp": datetime.utcnow().isoformat(),
     }), 200
