@@ -1876,15 +1876,24 @@ def _build_trainer(r, today):
         "Startdate": window_start, "Enddate": window_end, "Email": t_email,
     })
     assignment_source = "previous_upcoming"
+    assignment_reference_count = 0
     # The supplied paged Assignment API was configured but never consumed.
     # Use it as a bounded read-only fallback only when the primary calendar did
     # not answer; an honest empty primary response remains empty and does not
     # trigger a second RMS call for every trainer.
     if assignments_raw is None and t_email:
-        assignments_raw = _rms("assignment", {
+        assignment_reference_rows = _rms("assignment", {
             "TrainerEmailAddres": t_email, "PageNumber": "1", "PageSize": "100",
         })
-        assignment_source = "assignment_api" if assignments_raw is not None else "unavailable"
+        assignment_reference_count = (
+            len(assignment_reference_rows) if isinstance(assignment_reference_rows, list) else 0
+        )
+        # This API returns assignment/course identifiers but no dates. It can
+        # prove records exist, not whether they overlap today or a future batch.
+        # Never promote it to availability evidence.
+        assignment_source = (
+            "assignment_api_reference" if assignment_reference_rows is not None else "unavailable"
+        )
     assignments_ok = assignments_raw is not None
     assignments = [a for a in (assignments_raw if isinstance(assignments_raw, list) else [])
                    if isinstance(a, dict)]
@@ -2028,6 +2037,7 @@ def _build_trainer(r, today):
         "negative_count":         neg_count,
         "recommended_action":     recommended,
         "assignment_count":       len(assignments),
+        "assignment_reference_count": assignment_reference_count,
         "assignment_source":      assignment_source,
         "upcoming_count":         sum(1 for a in assignments
                                       if _engagement_state(a, today) == "upcoming"),

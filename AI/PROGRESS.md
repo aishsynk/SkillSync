@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T13:15:00+05:30 - Live Assignment API schema validated; availability misuse prevented before release
+- **Tool Used**: Codex (read-only live RMS probe, `apply_patch`)
+- **Files Modified**: `backend.py`, `tests/test_demand_safety.py`, `AI/PROGRESS.md`
+- **Work Completed**: Live-probed the supplied paged Assignment API for Abhinav: HTTP data answered in 1.11 s with 5 rows, but the authoritative schema contains only `AssignmentID`, `Course`, `CourseID`, `OffEmailId`, and `TrainerName`—no start/end dates. Corrected the pending integration before release: it now provides an `assignment_reference_count`/`assignment_api_reference` provenance only when the dated Previous/Upcoming source fails; current status and availability remain `unknown` and no current/upcoming batch is inferred. Updated the regression to require this safe behavior.
+- **Current Status**: The first unused API is genuinely consumed without making false schedule/availability claims. The pushed `4b8d3cf` build is superseded by this local correction and must not become the accepted v1.54.0 artifact.
+- **Next Actions**: Re-run backend/Android gates, push the correction with the same unreleased code 66 so GitHub concurrency replaces the pending build, then validate CI/release and production provenance.
+
 ## 2026-08-09T13:00:00+05:30 - v1.54.0 Dashboard/API integration local release gate passed
 - **Tool Used**: Codex (full backend/Android tests, Gradle lint/release, AAPT, APK Signer)
 - **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`

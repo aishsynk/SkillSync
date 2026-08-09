@@ -81,7 +81,7 @@ class DemandSafetyTests(unittest.TestCase):
 
 
 class CompleteTeamTests(unittest.TestCase):
-    def test_unified_trainer_uses_paged_assignment_api_only_as_failure_fallback(self):
+    def test_unified_trainer_uses_paged_assignment_api_as_undated_reference_only(self):
         reportee = {
             "OffEmail": "trainer@koenig-solutions.com", "TrainerName": "Trainer One",
             "EmpId": "1", "TrainerId": "T1", "IsdirectReportee": "Yes",
@@ -98,8 +98,10 @@ class CompleteTeamTests(unittest.TestCase):
         with patch.object(backend, "_rms", side_effect=rms), patch.object(backend, "_util_row", return_value={}):
             built = backend._build_trainer(reportee, date(2026, 8, 9))
             ops, state = built[0], built[1]
-        self.assertEqual(ops["assignment_source"], "assignment_api")
-        self.assertEqual(state["next_batch"]["assignment_id"], "A1")
+        self.assertEqual(ops["assignment_source"], "assignment_api_reference")
+        self.assertEqual(ops["assignment_reference_count"], 1)
+        self.assertEqual(state["current_status"], "unknown")
+        self.assertEqual(state["next_batch"], {})
         self.assertEqual(calls.count("assignment"), 1)
 
     def test_team_capability_does_not_truncate_after_twenty(self):
