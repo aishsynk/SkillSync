@@ -2306,10 +2306,10 @@ def unified_intelligence():
     engaged = {"teaching_now", "scheduled_today", "preparing"}
     active_trainers = sum(1 for s in trainer_states if s["current_status"] in engaged)
     unallocated_trainers = sum(1 for s in trainer_states if s["current_status"] == "free")
-    active_batches   = sum(1 for b in all_batches if b["engagement_state"] == "current") or 4
-    upcoming_batches = sum(1 for b in all_batches if b["engagement_state"] == "upcoming") or 6
+    active_batches   = sum(1 for b in all_batches if b["engagement_state"] == "current")
+    upcoming_batches = sum(1 for b in all_batches if b["engagement_state"] == "upcoming")
 
-    days_delivered = 42
+    days_delivered = 0
     for b in all_batches:
         if b["engagement_state"] != "completed":
             continue
@@ -2327,8 +2327,11 @@ def unified_intelligence():
 
     int_batch_count = sum(1 for d in demand_df if d["is_international"])
     dom_batch_count = len(demand_df) - int_batch_count
-    cert_coverage = round((sum(1 for t in trainer_ops if t.get("vendor_cert_count", 0) > 0) / len(trainer_ops) * 100)) if trainer_ops else 85
-    readiness_score = min(100, max(50, round(100 - (high_risk * 10) - (unknown_state * 5) + (cert_coverage * 0.2))))
+    cert_coverage = round((sum(1 for t in trainer_ops if t.get("vendor_cert_count", 0) > 0) / len(trainer_ops) * 100)) if trainer_ops else None
+    readiness_score = (
+        min(100, max(0, round(100 - (high_risk * 10) - (unknown_state * 5) + (cert_coverage * 0.2))))
+        if cert_coverage is not None else None
+    )
 
     if trainer_ops:
         deployable = sum(

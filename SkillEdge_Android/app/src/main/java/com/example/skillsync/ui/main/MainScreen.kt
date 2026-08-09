@@ -72,8 +72,10 @@ fun MainScreen(
         viewModel.loadData(email, context)
         if (tab == HomeTab.DEMAND) allocationViewModel.load(email, context)
         if (tab == HomeTab.COURSES) viewModel.ensureCapability(email, context)
-        if (tab == HomeTab.TEAM) viewModel.ensureTeamIntelligence(email, context)
-        if (tab == HomeTab.ACTIONS) actionsViewModel.load(email)
+        if (tab == HomeTab.DASHBOARD || tab == HomeTab.TEAM) {
+            viewModel.ensureTeamIntelligence(email, context)
+        }
+        if (tab == HomeTab.DASHBOARD || tab == HomeTab.ACTIONS) actionsViewModel.load(email)
         
         // In-app polling for the Unallocated Batch Intelligence Center
         if (tab == HomeTab.DEMAND) {
@@ -356,6 +358,7 @@ fun MainScreen(
                                 profile = profile,
                                 capability = capability,
                                 capabilityLoading = capLoading,
+                                actions = inboxActions,
                                 email = email,
                                 onTrainerClick = onTrainerClick,
                                 onOpenProfile = { onTrainerClick(email, profile?.str("name").orEmpty()) },
@@ -573,6 +576,7 @@ internal fun DashboardTab(
     profile: Map<String, Any>?,
     capability: Map<String, Any>?,
     capabilityLoading: Boolean,
+    actions: List<Map<String, Any>> = emptyList(),
     email: String,
     onTrainerClick: (String, String) -> Unit,
     onOpenProfile: () -> Unit,
@@ -632,26 +636,24 @@ internal fun DashboardTab(
             )
         }
 
-        item { Appear(1) { CommandHero(kpis = kpis, capKpis = capKpis) } }
-
-        item { Appear(2) { DashSectionHeader("Critical pulse", "Counted live from RMS") } }
-
         item {
-            Appear(2) {
-                ManagerKpiGrid(
+            Appear(1) {
+                ManagerCommandCentre(
                     kpis = kpis,
                     capKpis = capKpis,
                     capabilityLoading = capabilityLoading,
                     ops = ops,
                     states = states,
                     batches = batches,
+                    demand = data.rows("unallocated_demand_df"),
                     capTrainers = capTrainers,
+                    actions = actions,
                     onDrill = onDrill,
-                    onLoadCapability = onLoadCapability,
                 )
             }
         }
 
+        if (false) { // Retained temporarily for safe removal after command-centre rollout.
         // Needs Attention — promoted directly under the numbers, ahead of the
         // descriptive analytics below. A command center leads with decisions,
         // not charts: this is the one section a manager should act on first,
@@ -735,6 +737,7 @@ internal fun DashboardTab(
         }
 
         item { Appear(7) { TopPerformers(ops, capMap, onTrainerClick) } }
+        }
 
         item { Spacer(Modifier.height(16.dp)) }
     }

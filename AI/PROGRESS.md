@@ -1,5 +1,26 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T10:05:00+05:30 - v1.53.0 Manager Command Centre local release gate passed
+- **Tool Used**: Codex (Gradle lint/release, AAPT, APK Signer, SHA-256 inspection)
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Assigned v1.53.0/code 64 because the Dashboard information architecture, data-loading behaviour and manager workflows materially changed. Release lint and signed APK assembly pass. APK identity is `com.example.skillsync` v1.53.0/code 64, SHA-256 `701D7AAB2D68501299B294A12EBB6CDB96E56ED50E915355C1A8891141FEDE95`; signer remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`, preserving install-over-existing compatibility and user data. A final focused Dashboard render gate also passes after disabling the superseded screen path.
+- **Current Status**: All local functional, lint, release, identity and signing gates pass. No `adb` executable/device is available, so physical upgrade/data-retention execution remains unavailable. Git publication, CI release, backend deployment and production health/API validation remain.
+- **Next Actions**: Commit/push v1.53.0, verify GitHub Actions and versioned release APK, wait for backend deployment, validate `/healthz`, unified manager Dashboard KPIs and `/api/actions`, then add the final handoff entry.
+
+## 2026-08-09T09:35:00+05:30 - Manager Command Centre functional gate passed
+- **Tool Used**: Codex (`apply_patch`, Python unittest, Gradle/Compose JVM tests)
+- **Files Modified**: `backend.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/MainScreen.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/ManagerCommandCentre.kt`, `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/ScreenRenderTest.kt`, `tests/test_demand_safety.py`, `AI/PROGRESS.md`
+- **Work Completed**: Replaced the Dashboard's readiness hero, six-box Critical Pulse and overlapping narrative sections with a six-part Manager Command Centre: Executive Summary, Team Health & Capacity, Demand Intelligence, Delivery Operations, Certification & Readiness, and Action Centre. Added compact decision KPIs, manager brief, drillable health/risk matrix, capacity-versus-demand chart, demand mode heatmap, delivery calendar, certification coverage, readiness distribution and real Action previews. Dashboard entry now automatically loads capability and `/api/actions`. Removed fabricated backend fallbacks (`4` active batches, `6` upcoming batches, `42` delivered days and `85%` empty-team certification coverage); unavailable readiness is now honest. Backend passes 17/17 and Android passes 34/34.
+- **Current Status**: Dashboard product redesign is functionally complete locally. Release versioning, lint/release build, package/signature verification, Git publication, CI/release, deployment and production data-contract validation remain.
+- **Next Actions**: Assign the next version/code, build and inspect the signed APK, commit/push, verify GitHub Actions/release and Render deployment, then probe production health and Dashboard/Actions contracts before closing the phase.
+
+## 2026-08-09T09:00:00+05:30 - Manager Command Centre dashboard audit completed
+- **Tool Used**: Codex (codebase, API contract, dependency, deployment, test and Git history audit)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Reviewed the production Android dashboard composition, ViewModel loading/caching boundaries, repository/API usage, backend KPI derivation, regression fixtures, Gradle dependencies, Render/Vercel configuration, open integration constraints and the eight most recent commits. Confirmed the current screen is still a readiness hero plus six large Critical Pulse cards followed by overlapping team summaries; Dashboard entry does not automatically load capability or the real Actions API. Found backend integrity defects where zero active/upcoming deliveries are replaced with `4`/`6`, delivered days start at `42`, and missing-team certification coverage becomes `85`, so some executive figures can be fabricated instead of honestly unavailable/zero.
+- **Current Status**: Dashboard redesign phase is in progress. No product code has been changed yet; the working tree was clean at audit start. The target is a six-section decision surface: Executive Summary, Team Health & Capacity, Demand Intelligence, Delivery Operations, Certification & Readiness, and Action Centre.
+- **Next Actions**: Remove fabricated KPI fallbacks, automatically load capability and Actions for Dashboard, define honest management aggregates/drill-downs, replace Critical Pulse and redundant summaries with compact decision widgets and charts, add regression coverage, then build/version/publish and validate production.
+
 ## 2026-08-09T08:31:00+05:30 - Searchable team propagation published and production-validated (v1.52.0/code 63)
 - **Tool Used**: Codex (`git`, `gh`, GitHub Actions, production read/write-safe probes)
 - **Files Modified**: `AI/PROGRESS.md`

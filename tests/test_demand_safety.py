@@ -1,11 +1,19 @@
 import unittest
 from datetime import date
+from pathlib import Path
 from unittest.mock import patch
 
 import backend
 
 
 class DemandSafetyTests(unittest.TestCase):
+    def test_dashboard_does_not_invent_delivery_or_certification_kpis(self):
+        source = Path(backend.__file__).read_text(encoding="utf-8")
+        self.assertNotIn('if b["engagement_state"] == "current") or 4', source)
+        self.assertNotIn('if b["engagement_state"] == "upcoming") or 6', source)
+        self.assertNotIn("days_delivered = 42", source)
+        self.assertNotIn("if trainer_ops else 85", source)
+
     def test_aishwar_recommendation_is_pure_and_non_mutating(self):
         batch = {
             "delivery_mode_kind": "FMAT",

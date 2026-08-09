@@ -268,11 +268,11 @@ class ScreenRenderTest {
      * batch and live badge, is the Team tab's job — asserted separately below.
      */
     @Test
-    fun dashboard_showsWhoIsCarryingDelivery() {
+    fun dashboard_showsDeliveryAndCapacityDecisions() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
-        compose.onNodeWithText("Carrying delivery").assertExists()
-        compose.onAllNodesWithText("Abhinav Samant").onFirst().assertExists()
-        compose.onAllNodesWithText("39%").onFirst().assertExists()
+        compose.onNodeWithText("Capacity vs demand").assertExists()
+        compose.onNodeWithText("Upcoming delivery calendar").assertExists()
+        compose.onNodeWithText("ACTIVE DELIVERIES").assertExists()
     }
 
     @Test
@@ -307,16 +307,9 @@ class ScreenRenderTest {
     @Test
     fun dashboard_rendersEveryManagerKpi() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
-
-        // Hero
-        compose.onNodeWithText("TEAM READINESS").assertExists()
-        listOf("STRENGTH", "DEPLOYED", "UTILISATION")
-            .forEach { compose.onAllNodesWithText(it).onFirst().assertExists() }
-
-        // Grid — six tiles
-        listOf("TEAM STRENGTH", "ACTIVE TRAINERS", "ACTIVE DELIVERIES", "CERT COVERAGE", "AT RISK")
+        listOf("TEAM STRENGTH", "AVAILABLE CAPACITY", "UTILISATION", "ACTIVE DELIVERIES", "UNALLOCATED DEMAND", "ACTIONS")
             .forEach { compose.onNodeWithText(it).assertExists() }
-        compose.onAllNodesWithText("UTILISATION").onFirst().assertExists()
+        compose.onAllNodesWithText("Critical pulse").assertCountEquals(0)
     }
 
     /**
@@ -341,22 +334,26 @@ class ScreenRenderTest {
                 )
             }
         }
-        compose.onNodeWithText("CERT COVERAGE").assertExists()
-        compose.onNodeWithText("TEAM READINESS").assertExists()
+        compose.onNodeWithText("Certification coverage").assertExists()
+        compose.onNodeWithText("Team readiness distribution").assertExists()
         // Never a placeholder where the payload already carries the number.
         compose.onAllNodesWithText("Tap to load").assertCountEquals(0)
     }
 
     @Test
-    fun dashboard_trainerCardIsClickable() {
-        var clickedEmail = ""
+    fun dashboard_teamStrengthDrillsIntoTrainerEvidence() {
+        var opened: com.example.skillsync.ui.main.Drill? = null
         compose.setContent {
-            SkillSyncTheme { Dashboard(onTrainerClick = { e, _ -> clickedEmail = e }) }
+            SkillSyncTheme {
+                DashboardTab(
+                    data = dashboardPayload(), profile = managerProfile(), capability = capabilityPayload(),
+                    capabilityLoading = false, email = "aishwar.c@koenig-solutions.com",
+                    onTrainerClick = { _, _ -> }, onOpenProfile = {}, onDrill = { opened = it },
+                )
+            }
         }
-        // The last occurrence is the roster card; earlier ones are chart labels
-        // and the Top performers row, which are not all navigation targets.
-        compose.onAllNodesWithText("Abhinav Samant").onLast().performClick()
-        assertEquals("abhinav.samant@koenig-solutions.com", clickedEmail)
+        compose.onNodeWithText("TEAM STRENGTH").performClick()
+        org.junit.Assert.assertNotNull(opened)
     }
 
     /** Regression: a missing utilisation must read "—", never a confident 0%. */
@@ -600,6 +597,17 @@ class ScreenRenderTest {
         compose.onNodeWithText("Close AI-102 certification gap").assertExists()
         compose.onNodeWithText("Quarterly skill validation & career planning").assertDoesNotExist()
         compose.onNodeWithText("Develop backup trainer for advanced courses").assertDoesNotExist()
+    }
+
+    @Test
+    fun dashboard_isAManagerCommandCentreNotCriticalPulse() {
+        compose.setContent { SkillSyncTheme { Dashboard() } }
+        compose.onNodeWithText("Manager brief").assertExists()
+        compose.onNodeWithText("Team health & risk matrix").assertExists()
+        compose.onNodeWithText("Demand coverage heatmap").assertExists()
+        compose.onNodeWithText("Upcoming delivery calendar").assertExists()
+        compose.onNodeWithText("Actions requiring attention").assertExists()
+        compose.onAllNodesWithText("Critical pulse").assertCountEquals(0)
     }
 
     @Test
