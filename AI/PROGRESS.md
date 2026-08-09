@@ -1,5 +1,26 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T11:15:00+05:30 - v1.53.1 emergency visual patch passed all local gates
+- **Tool Used**: Codex (Python unittest, Gradle/Compose tests, lint/release, AAPT, APK Signer)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Backend passes 17/17; Android passes 35/35 including the new section-bounds/non-overlap regression; lint and signed release assembly pass. APK identity is `com.example.skillsync` v1.53.1/code 65, local SHA-256 `DF7E90336B26CF6E7DB79A25DCBBBFCF481FA7BF9C1A66B923AF2D505FD93D8E`, and the production signer is unchanged.
+- **Current Status**: The exact screenshot defect is corrected and fully gated locally. Publication, GitHub release verification and a new-device screenshot remain.
+- **Next Actions**: Commit/push v1.53.1, verify CI and versioned APK/release notes, recheck production health, then provide a factual manager-UX audit sequence for the remaining screens.
+
+## 2026-08-09T10:50:00+05:30 - Dashboard overlap blocker fixed locally; v1.53.1/code 65 assigned
+- **Tool Used**: Codex (`apply_patch`, focused Compose phone-layout regression)
+- **Files Modified**: `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/ManagerCommandCentre.kt`, `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/ScreenRenderTest.kt`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Wrapped the complete Manager Command Centre in one explicit full-width `Column` with controlled section spacing so its six sections are measured vertically inside the parent `LazyColumn` item instead of overlapping. Added a regression that reads real Compose bounds and requires all six section headers to have strictly increasing vertical positions with separation; it passes. Assigned patch v1.53.1/code 65 to supersede the visually broken v1.53.0.64 while preserving upgrade continuity.
+- **Current Status**: Screenshot root cause is corrected locally and the exact non-overlap gate passes. Full backend/Android tests, lint/release build, signing, publication and updated-device visual confirmation remain.
+- **Next Actions**: Run full suites and release gates, publish v1.53.1, verify CI/release/backend health, then use the supplied screenshot as the baseline for a screen-by-screen manager workflow audit rather than resuming isolated feature work.
+
+## 2026-08-09T10:35:00+05:30 - v1.53.0 visual release blocker confirmed from device screenshot
+- **Tool Used**: Codex (original-resolution screenshot inspection, Compose hierarchy audit)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Inspected the supplied v1.53.0 phone screenshot and traced the severe Dashboard overlap/blank-space failure to `ManagerCommandCentre`: all six sections are emitted as sibling roots inside one `LazyColumn` item, so they share one measured item slot and render on top of one another. Existing render tests only asserted text presence on a 3600dp canvas and therefore falsely passed without checking bounds, order, overlap or viewport density. The screenshot also confirms the product outcome is unacceptable despite technically present widgets.
+- **Current Status**: v1.53.0.64 is superseded as a visually broken release and must not be considered production-ready. Backend/API integrity remains valid. Immediate corrective phase is in progress; broader screen-by-screen manager workflow review will follow phase by phase.
+- **Next Actions**: Give the command centre one explicit vertical layout, tighten first-viewport density, add real phone-size vertical-order/non-overlap regressions, run full gates, publish a patch release, then review Courses/skill management, Demand explanations/international emphasis, Team, Trainer 360 and Actions as manager decision workflows rather than record screens.
+
 ## 2026-08-09T10:20:00+05:30 - Manager Command Centre published and production-validated (v1.53.0/code 64)
 - **Tool Used**: Codex (`git`, `gh`, GitHub Actions, Render production API probes)
 - **Files Modified**: `AI/PROGRESS.md`

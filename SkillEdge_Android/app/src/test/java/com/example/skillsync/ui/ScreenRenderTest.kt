@@ -21,6 +21,7 @@ import com.example.skillsync.ui.main.TeamTab
 import com.example.skillsync.ui.main.TrainerCard
 import com.example.skillsync.ui.trainer.Trainer360Content
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -608,6 +609,19 @@ class ScreenRenderTest {
         compose.onNodeWithText("Upcoming delivery calendar").assertExists()
         compose.onNodeWithText("Actions requiring attention").assertExists()
         compose.onAllNodesWithText("Critical pulse").assertCountEquals(0)
+    }
+
+    @Test
+    fun dashboard_commandSectionsAreVerticallyOrderedAndDoNotOverlap() {
+        compose.setContent { SkillSyncTheme { Dashboard() } }
+        val titles = listOf(
+            "1  EXECUTIVE SUMMARY", "2  TEAM HEALTH & CAPACITY", "3  DEMAND INTELLIGENCE",
+            "4  DELIVERY OPERATIONS", "5  CERTIFICATION & READINESS", "6  ACTION CENTRE",
+        )
+        val tops = titles.map { title ->
+            compose.onNodeWithText(title).fetchSemanticsNode().boundsInRoot.top
+        }
+        assertTrue("Dashboard sections overlap or render out of order: $tops", tops.zipWithNext().all { (a, b) -> b > a + 20f })
     }
 
     @Test

@@ -36,6 +36,14 @@ fun ManagerCommandCentre(
     val gaps = capTrainers.sumOf { it.obj("certification")?.int("gap_count") ?: 0 }
     val readiness = capKpis?.intOrNull("team_readiness_score") ?: kpis?.intOrNull("team_readiness_score")
 
+    // LazyColumn treats this entire command centre as one item. It therefore
+    // needs one explicit measuring parent; emitting sibling roots here causes
+    // every section to occupy the same item slot and visually overlap.
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+
     SectionTitle("1  EXECUTIVE SUMMARY", "What needs a decision now")
     ExecutiveNarrative(ops.size, available.size, overloaded.size, demand.size, openActions.size, readiness)
     CompactKpiGrid(
@@ -120,6 +128,7 @@ fun ManagerCommandCentre(
         openActions.take(3).forEach { ActionPreview(it) }
         if (openActions.isEmpty()) InsightLine("No open manager actions.", sk.good)
         else TextButton(onClick = { onDrill(actionDrill(openActions)) }, modifier = Modifier.align(Alignment.End)) { Text("Review all ${openActions.size}") }
+    }
     }
 }
 
