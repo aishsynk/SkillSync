@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T13:35:00+05:30 - Dashboard chart/KPI/Top Performers and API audit phase released (v1.54.0/code 66)
+- **Tool Used**: Codex (`git`, `gh`, GitHub Actions, live RMS and Render production read-only probes)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published feature commit `4b8d3cf982e57cb644c5a0ec2530dc88caaee6f3` plus safety correction `74918a2412e1dc62bceda345212b6148372a03a0`. The unsafe intermediate CI run `31287316399` was cancelled before release; corrected run `31287404928` passed. Release `v1.54.0.66` contains `SkillEdge-v1.54.0.66.apk` digest `4671dc68d0ce6531e944ea323ea8451146afd7231aeeb2ce240c5d14e80a4a1e` with full reason/change/user-gain/version/rollback notes. Live Assignment API probe proved 5 undated reference rows in 1.11 s; production health is OK. Production unified intelligence returned 8 demand rows for both manager accounts; `aishwar.c@koenig-solutions.com` returned 2 trainers in 14.0 s with source `previous_upcoming`, proving the healthy normal path does not pay for the fallback, while the zero-reportee account remained honestly empty.
+- **Current Status**: Dashboard now has semantic green/amber/red KPI figures, compact aligned 78dp KPI cards, filled utilisation trend, distribution/bar/donut/calendar chart variety and restored v1.50-style Top Performers. Backend 18/18 and Android 36/36 pass. Supplied API catalogue is audited; the first previously-unused API is safely consumed as undated fallback reference evidence. Physical APK upgrade/on-device visual confirmation remains unavailable without ADB.
+- **Next Actions**: Install v1.54.0.66 over v1.53.1.65 and capture the Dashboard. In the next independent phase, register/live-probe the supplied course taxonomy/name/latest-version/content/schedule contracts and use only verified fields to turn Courses into skill-first Team Capability Management. Later phases own schedule/availability and SCID/recording integrations; exam link remains blocked by 403 and skill removal by the absent delete contract.
+
 ## 2026-08-09T13:15:00+05:30 - Live Assignment API schema validated; availability misuse prevented before release
 - **Tool Used**: Codex (read-only live RMS probe, `apply_patch`)
 - **Files Modified**: `backend.py`, `tests/test_demand_safety.py`, `AI/PROGRESS.md`
