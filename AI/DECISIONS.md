@@ -2,6 +2,10 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-08-09 - Product completion is a manager outcome plus verified phone geometry
+- **Decision:** Screens are designed and accepted by the decision a 20-50-person delivery manager can make, not by the number of fields/cards implemented. Dashboard, Team, Courses, Demand, Trainer 360 and Actions must lead with attention, availability, overload, allocation, risk, readiness and interventions. Phone-layout tests must assert vertical order/non-overlap and density-sensitive geometry; text presence alone is insufficient.
+- **Rationale:** v1.53.0 contained the requested sections and passed 34 render tests, yet a real device showed every section overlapping in one malformed list item. Technical presence without usable hierarchy is a product failure.
+
 ## 2026-08-09 - Demand recommendations must never write to RMS
 - **Decision:** All Demand GET paths are read-only. The Aishwar international FMAT/ILT rule produces recommendation metadata only; Skill Level 8 and suggested weekend are decision-support values, not persisted skill records. The earlier v1.42.0 auto-write decision is superseded.
 - **Rationale:** Page loading and polling must be safe and repeatable. A staffing recommendation is not authorization to alter the production skill register.

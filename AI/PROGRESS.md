@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T11:35:00+05:30 - Dashboard visual blocker patched and released (v1.53.1/code 65)
+- **Tool Used**: Codex (`git`, `gh`, GitHub Actions, Render health probe, screenshot-led product audit)
+- **Files Modified**: `AI/PROGRESS.md`, `AI/CONTEXT.md`, `AI/DECISIONS.md`
+- **Work Completed**: Published corrective commit `4bdcb206a1f6ddca082026ba06d0773e4744c0ca`; GitHub Actions run `31286327057` passed and release `v1.53.1.65` contains `SkillEdge-v1.53.1.65.apk` digest `76d536e32f665b6402ea840d1addd9a18d60c322dc2d06374ba962af83e402b6` with explicit defect, fix, user benefit, version reason and rollback notes. Production health is OK. Recorded the durable manager-first product contract and phone-geometry acceptance requirement; corrected stale CONTEXT wording so Aishwar's international rule is recommendation-only and never an RMS write.
+- **Current Status**: v1.53.0.64 is superseded; v1.53.1.65 is the current release. The screenshot overlap root cause is fixed and protected by 35/35 Android plus 17/17 backend tests. A fresh device screenshot is still required for final visual confirmation because no ADB device is available in the workspace.
+- **Next Actions**: Install v1.53.1.65 and capture the Dashboard. Then execute manager-outcome redesign phases independently: (1) Courses as skill-first Team Capability Management with select-all/bulk/result clarity, (2) Team as daily roster triage, (3) Demand as recommendation/exception evidence with unmistakable international opportunities, (4) Trainer 360 as intervention intelligence, (5) Actions as prioritised work management. Skill removal remains blocked until RMS supplies a delete/unmap contract.
+
 ## 2026-08-09T11:15:00+05:30 - v1.53.1 emergency visual patch passed all local gates
 - **Tool Used**: Codex (Python unittest, Gradle/Compose tests, lint/release, AAPT, APK Signer)
 - **Files Modified**: `AI/PROGRESS.md`

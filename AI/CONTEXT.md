@@ -2,11 +2,14 @@
 
 Stable, high-level knowledge about the project. Update only for durable facts.
 
+## Manager-first product contract
+SkillEdge is a manager decision system, not a trainer/skill/batch record browser. Every primary screen must lead with the management question it resolves: attention, capacity, overload, allocation, delivery risk, capability gap or required action. Production readiness includes real-phone layout geometry (order, bounds, overlap, viewport density), not only compilation and text-presence tests.
+
 ## Demand read-safety contract (effective v1.43.0)
 `GET /api/data/allocation-desk` and every recommendation helper it calls must be side-effect free. Aishwar's qualifying international FMAT/ILT result is a non-persisted manager recommendation with suggested Skill Level 8 and availability metadata. Only the explicit `POST /api/action/mark-skill` route may write a trainer skill to RMS.
 
 ## Aishwar international-demand policy (effective v1.42.0)
-For the exact account `aishwar_v@koenig-solutions.com`, a foreign-location FMAT or ILT batch with at least 75% course match is automatically marked in RMS as skill level 8 from the next Saturday on/after the current date. The operation is idempotent and requires RMS read-back verification. It does not apply to other trainers, India/domestic batches, ILO, unknown locations, or matches below 75%.
+For the exact account `aishwar_v@koenig-solutions.com`, a foreign-location FMAT or ILT batch with at least 75% course match is automatically recommended with Skill Level 8 and the next verified available weekend. This is recommendation metadata only and never writes to RMS. It does not apply to other trainers, India/domestic batches, ILO, unknown locations, or matches below 75%.
 
 ## What it is
 
