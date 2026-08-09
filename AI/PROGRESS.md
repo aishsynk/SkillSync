@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-09T10:20:00+05:30 - Manager Command Centre published and production-validated (v1.53.0/code 64)
+- **Tool Used**: Codex (`git`, `gh`, GitHub Actions, Render production API probes)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published commit `58d91a1bdc6e4e4bcaf4efd0329cbf2c2ad44230`. GitHub Actions run `31285528812` passed and release `v1.53.0.64` contains `SkillEdge-v1.53.0.64.apk` digest `235dbd2f7e96a109523a47992e756d80f7c3cb9f5af5088274a1bd334d8e2305` with complete purpose/change/user-gain/version/rollback notes. Production `/healthz` returned OK; the unified Dashboard contract returned the expected real empty-team values (`active=0`, `upcoming=0`, `delivered_days=0`, certification/readiness unavailable rather than fabricated) with 8 live demand rows; `/api/actions` returned one real open action. Package/signing/version continuity is preserved.
+- **Current Status**: Dashboard redesign phase is complete across data integrity, automatic capability/Actions loading, six-section manager UX, drill-downs, charts, tests, release, deployment and production API validation. Backend 17/17 and Android 34/34 pass. Physical install-over-existing and visual on-device inspection remain unexecuted because `adb` is unavailable; static package/signer/code invariants pass. RMS skill removal remains separately blocked by the absent delete/unmap contract documented in prior entries.
+- **Next Actions**: Install `SkillEdge-v1.53.0.64.apk` on a connected device over v1.52.0.63 to execute physical upgrade/data-retention and visual-density checks. Capture populated Dashboard screenshots with a manager account that has reportees; Aishwar's current production account returns no reportees, so populated layouts are regression-tested rather than live-populated. Obtain the RMS delete-skill contract before implementing real skill removal.
+
 ## 2026-08-09T10:05:00+05:30 - v1.53.0 Manager Command Centre local release gate passed
 - **Tool Used**: Codex (Gradle lint/release, AAPT, APK Signer, SHA-256 inspection)
 - **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
