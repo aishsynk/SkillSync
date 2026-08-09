@@ -625,6 +625,18 @@ class ScreenRenderTest {
     }
 
     @Test
+    fun dashboard_usesCompactSemanticKpisAndRestoresTopPerformers() {
+        compose.setContent { SkillSyncTheme { Dashboard() } }
+        compose.onNodeWithText("Utilisation trend").assertExists()
+        compose.onNodeWithText("Top performers").assertExists()
+        compose.onNodeWithText("Carrying delivery · ranked by measured utilisation").assertExists()
+        compose.onAllNodesWithText("Abhinav Samant").onFirst().assertExists()
+        val strength = compose.onNodeWithText("TEAM STRENGTH").fetchSemanticsNode().boundsInRoot
+        val capacity = compose.onNodeWithText("AVAILABLE CAPACITY").fetchSemanticsNode().boundsInRoot
+        assertTrue("Executive KPI tiles are not aligned", kotlin.math.abs(strength.top - capacity.top) < 2f)
+    }
+
+    @Test
     fun teamTab_placesTwoTrainerCardsInOnePhoneRow() {
         val data = dashboardPayload().toMutableMap()
         data["trainer_operations_df"] = listOf(

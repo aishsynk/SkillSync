@@ -1875,6 +1875,16 @@ def _build_trainer(r, today):
     assignments_raw = _rms("prevUpcoming", {
         "Startdate": window_start, "Enddate": window_end, "Email": t_email,
     })
+    assignment_source = "previous_upcoming"
+    # The supplied paged Assignment API was configured but never consumed.
+    # Use it as a bounded read-only fallback only when the primary calendar did
+    # not answer; an honest empty primary response remains empty and does not
+    # trigger a second RMS call for every trainer.
+    if assignments_raw is None and t_email:
+        assignments_raw = _rms("assignment", {
+            "TrainerEmailAddres": t_email, "PageNumber": "1", "PageSize": "100",
+        })
+        assignment_source = "assignment_api" if assignments_raw is not None else "unavailable"
     assignments_ok = assignments_raw is not None
     assignments = [a for a in (assignments_raw if isinstance(assignments_raw, list) else [])
                    if isinstance(a, dict)]
@@ -1890,7 +1900,7 @@ def _build_trainer(r, today):
     current_a = None
     upcoming_a = None
     for a in assignments:
-        st = _parse_date(a.get("StarDate", ""))
+        st = _parse_date(a.get("StarDate", a.get("StartDate", "")))
         en = _parse_date(a.get("EndDate", ""))
         if not st:
             continue
@@ -1902,7 +1912,7 @@ def _build_trainer(r, today):
             if upcoming_a is None:
                 upcoming_a = a
             else:
-                existing_st = _parse_date(upcoming_a.get("StarDate", ""))
+                existing_st = _parse_date(upcoming_a.get("StarDate", upcoming_a.get("StartDate", "")))
                 if existing_st and st < existing_st:
                     upcoming_a = a
 
@@ -1911,7 +1921,7 @@ def _build_trainer(r, today):
     elif current_a:
         status = "teaching_now"
     elif upcoming_a:
-        days_to = (_parse_date(upcoming_a.get("StarDate", ""), default=today) - today).days
+        days_to = (_parse_date(upcoming_a.get("StarDate", upcoming_a.get("StartDate", "")), default=today) - today).days
         status = "scheduled_today" if days_to <= 3 else "preparing"
     else:
         status = "free"
@@ -1949,13 +1959,14 @@ def _build_trainer(r, today):
     cur_batch = {}
     nxt_batch = {}
     def _batch(a):
-        st, en = _parse_date(a.get("StarDate", "")), _parse_date(a.get("EndDate", ""))
+        st = _parse_date(a.get("StarDate", a.get("StartDate", "")))
+        en = _parse_date(a.get("EndDate", ""))
         return {
             "course_name":   str(a.get("Course", "") or "").strip(),
             "delivery_mode": str(a.get("Mode", "") or "").strip(),
             "location":      str(a.get("Location", "") or "").strip(),
             "vendor":        str(a.get("Vendor", "") or "").strip(),
-            "assignment_id": str(a.get("AssignmentId", "") or ""),
+            "assignment_id": str(a.get("AssignmentId", a.get("AssignmentID", "")) or ""),
             "participants":  a.get("NoOfParticipants", 0),
             "start_at":      _iso(st),
             "end_at":        _iso(en),
@@ -1972,7 +1983,7 @@ def _build_trainer(r, today):
 
     days_label = ""
     if upcoming_a:
-        nd = _parse_date(upcoming_a.get("StarDate", ""))
+        nd = _parse_date(upcoming_a.get("StarDate", upcoming_a.get("StartDate", "")))
         if nd:
             d = (nd - today).days
             days_label = f"Upcoming in {d} day{'s' if d != 1 else ''}"
@@ -2017,6 +2028,7 @@ def _build_trainer(r, today):
         "negative_count":         neg_count,
         "recommended_action":     recommended,
         "assignment_count":       len(assignments),
+        "assignment_source":      assignment_source,
         "upcoming_count":         sum(1 for a in assignments
                                       if _engagement_state(a, today) == "upcoming"),
     }
@@ -2036,6 +2048,7 @@ def _build_trainer(r, today):
         ),
         "data_complete": availability["verified"] and util_ok,
         "availability": availability,
+        "assignment_source": assignment_source,
     }
 
     batch_rows = []

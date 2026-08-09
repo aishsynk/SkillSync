@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +27,7 @@ fun ManagerCommandCentre(
     ops: List<Map<*, *>>, states: List<Map<*, *>>, batches: List<Map<*, *>>,
     demand: List<Map<*, *>>, capTrainers: List<Map<*, *>>,
     actions: List<Map<String, Any>>, onDrill: (Drill) -> Unit,
+    onTrainerClick: (String, String) -> Unit,
 ) {
     val sk = MaterialTheme.skill
     val openActions = actions.filter { it.str("lifecycle_state").ifBlank { "open" } !in setOf("closed", "resolved") }
@@ -48,15 +50,27 @@ fun ManagerCommandCentre(
     ExecutiveNarrative(ops.size, available.size, overloaded.size, demand.size, openActions.size, readiness)
     CompactKpiGrid(
         listOf(
-            MiniKpi("Team strength", ops.size.toString(), "reportees", sk.brand, drill("Team strength", ops)),
-            MiniKpi("Available capacity", available.size.toString(), if (available.isEmpty()) "none verified free" else "verified free now", sk.aqua,
+            MiniKpi("Team strength", ops.size.toString(), "reportees", sk.good, drill("Team strength", ops)),
+            MiniKpi("Available capacity", available.size.toString(), if (available.isEmpty()) "none verified free" else "verified free now", if (available.isEmpty()) sk.subText else sk.good,
                 Drill("Available capacity", "Assignment-derived availability", available.map { DrillRow(it.str("trainer_name").ifBlank { it.str("trainer_email") }, it.str("reason"), it.str("trainer_email")) })),
-            MiniKpi("Utilisation", kpis?.intOrNull("avg_team_utilization")?.let { "$it%" } ?: "—", "${kpis?.intOrNull("utilization_sample") ?: 0}/${ops.size} measured", sk.sky, drill("Team utilisation", ops, true)),
-            MiniKpi("Active deliveries", active.size.toString(), "running now", sk.royal, batchDrill("Active deliveries", active)),
-            MiniKpi("Unallocated demand", demand.size.toString(), "batches need owners", if (demand.isEmpty()) sk.good else sk.warn, demandDrill(demand)),
+            MiniKpi("Utilisation", kpis?.intOrNull("avg_team_utilization")?.let { "$it%" } ?: "—", "${kpis?.intOrNull("utilization_sample") ?: 0}/${ops.size} measured", utilisationColour(kpis?.intOrNull("avg_team_utilization"), sk), drill("Team utilisation", ops, true)),
+            MiniKpi("Active deliveries", active.size.toString(), "running now", if (active.isEmpty()) sk.subText else sk.good, batchDrill("Active deliveries", active)),
+            MiniKpi("Unallocated demand", demand.size.toString(), "batches need owners", if (demand.isEmpty()) sk.good else sk.crit, demandDrill(demand)),
             MiniKpi("Actions", openActions.size.toString(), "requiring attention", if (openActions.isEmpty()) sk.good else sk.crit, actionDrill(openActions)),
         ), onDrill
     )
+
+    val utilizationHistory = (kpis?.get("utilization_history") as? List<*>)
+        ?.mapNotNull { (it as? Number)?.toInt() }.orEmpty()
+    DecisionPanel("Utilisation trend", "Measured team utilisation over the available RMS window") {
+        TrendChart(
+            points = utilizationHistory.mapIndexed { index, value ->
+                TrendPoint(if (index == utilizationHistory.lastIndex) "Now" else "M${index + 1}", value)
+            },
+            tint = utilisationColour(utilizationHistory.lastOrNull(), sk),
+            height = 76.dp,
+        )
+    }
 
     SectionTitle("2  TEAM HEALTH & CAPACITY", "Who is healthy, stretched or at risk")
     val highRisk = ops.filter { it.str("feedback_risk").equals("High", true) }
@@ -81,6 +95,7 @@ fun ManagerCommandCentre(
     DecisionPanel("Capacity vs demand", "Verified free trainers compared with unallocated batches") {
         BarChart(listOf(BarDatum("Free", available.size, sk.aqua), BarDatum("Demand", demand.size, sk.warn), BarDatum("Overload", overloaded.size, sk.crit)), height = 92.dp)
     }
+    TopPerformersPanel(ops, capTrainers, onTrainerClick)
 
     SectionTitle("3  DEMAND INTELLIGENCE", "What future work is waiting and where")
     val modeCounts = listOf("FMAT", "ILT", "ILO", "Unknown").map { mode ->
@@ -150,7 +165,52 @@ private data class MiniKpi(val label: String, val value: String, val caption: St
 
 @Composable private fun CompactKpiGrid(items: List<MiniKpi>, onDrill: (Drill) -> Unit) { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { items.chunked(2).forEach { row -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) { row.forEach { item -> key(item.label) { CompactKpi(item, Modifier.weight(1f), onDrill) } }; if (row.size == 1) Spacer(Modifier.weight(1f)) } } } }
 
-@Composable private fun CompactKpi(item: MiniKpi, modifier: Modifier, onDrill: (Drill) -> Unit) { val sk = MaterialTheme.skill; val target = item.drill; Column(modifier.heightIn(min = 78.dp).glassSurface(RoundedCornerShape(12.dp)).then(if (target != null) Modifier.clickable(onClick = { onDrill(target) }) else Modifier).padding(11.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(7.dp).background(item.tint, RoundedCornerShape(3.dp))); Spacer(Modifier.width(6.dp)); Text(item.label.uppercase(), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = sk.labelText, maxLines = 1) }; Spacer(Modifier.height(5.dp)); Text(item.value, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = sk.bodyText); Text(item.caption, fontSize = 9.sp, color = sk.subText, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
+@Composable private fun CompactKpi(item: MiniKpi, modifier: Modifier, onDrill: (Drill) -> Unit) { val sk = MaterialTheme.skill; val target = item.drill; Column(modifier.height(78.dp).glassSurface(RoundedCornerShape(12.dp)).then(if (target != null) Modifier.clickable(onClick = { onDrill(target) }) else Modifier).padding(horizontal = 11.dp, vertical = 9.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(7.dp).background(item.tint, RoundedCornerShape(3.dp))); Spacer(Modifier.width(6.dp)); Text(item.label.uppercase(), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = sk.labelText, maxLines = 1) }; Spacer(Modifier.height(3.dp)); Text(item.value, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = item.tint); Text(item.caption, fontSize = 9.sp, color = sk.subText, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
+
+private fun utilisationColour(value: Int?, sk: com.example.skillsync.theme.SkillColors): Color = when {
+    value == null -> sk.subText
+    value > 85 -> sk.crit
+    value >= 55 -> sk.good
+    value >= 30 -> sk.warn
+    else -> sk.sky
+}
+
+@Composable
+private fun TopPerformersPanel(
+    ops: List<Map<*, *>>,
+    capTrainers: List<Map<*, *>>,
+    onTrainerClick: (String, String) -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    val capMap = remember(capTrainers) { capTrainers.associateBy { it.str("trainer_email").lowercase() } }
+    val top = remember(ops) {
+        ops.filter { (it.intOrNull("current_utilization") ?: 0) > 0 }
+            .sortedByDescending { it.int("current_utilization") }
+            .take(5)
+    }
+    if (top.isEmpty()) return
+    DecisionPanel("Top performers", "Carrying delivery · ranked by measured utilisation") {
+        top.forEachIndexed { index, trainer ->
+            val util = trainer.int("current_utilization")
+            val email = trainer.str("official_email")
+            Row(
+                Modifier.fillMaxWidth()
+                    .clickable { onTrainerClick(email, trainer.str("trainer_name")) }
+                    .padding(vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("${index + 1}", color = sk.subText, fontSize = 10.sp, modifier = Modifier.width(18.dp))
+                Avatar(trainer.str("trainer_name"), capMap[email.lowercase()]?.str("photo_url"), 28.dp)
+                Spacer(Modifier.width(9.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(trainer.str("trainer_name"), color = sk.bodyText, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(trainer.str("capacity_bucket").ifBlank { "Measured delivery load" }, color = sk.subText, fontSize = 8.5.sp, maxLines = 1)
+                }
+                Text("$util%", color = utilisationColour(util, sk), fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+            }
+        }
+    }
+}
 
 @Composable private fun DecisionPanel(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) { val sk = MaterialTheme.skill; Column(Modifier.fillMaxWidth().glassSurface(RoundedCornerShape(14.dp)).padding(13.dp)) { Text(title, fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 13.sp); Text(subtitle, color = sk.subText, fontSize = 9.5.sp); Spacer(Modifier.height(10.dp)); content() } }
 @Composable private fun InsightLine(text: String, tint: Color) { Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(6.dp).background(tint, RoundedCornerShape(3.dp))); Spacer(Modifier.width(6.dp)); Text(text, fontSize = 9.5.sp, color = MaterialTheme.skill.subText) } }

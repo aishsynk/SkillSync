@@ -649,6 +649,7 @@ internal fun DashboardTab(
                     capTrainers = capTrainers,
                     actions = actions,
                     onDrill = onDrill,
+                    onTrainerClick = onTrainerClick,
                 )
             }
         }
