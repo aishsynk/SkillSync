@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T03:06:00+05:30 - Team Capability phase released and production-validated (v1.55.0/code 67)
+- **Tool Used**: Codex (`git`, `gh`, GitHub Actions, Render production probes, AAPT, APK Signer)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published commit `622a8c4258cd3e679751255e8b2960b618eacfe6`; GitHub Actions run `31336890292` passed and created release `v1.55.0.67` with `SkillEdge-v1.55.0.67.apk`. Replaced generic release text with full publication reason, changes, deployed commit, version-increase rationale, user gain, validation and rollback notes. Downloaded the GitHub asset and independently verified SHA-256 `5646788218790650e92f58bb980d5bd33cb9e6c8ccb56a04d4eff4e44a6807cd`, package `com.example.skillsync`, version 1.55.0/code 67 and unchanged signer `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Render `/healthz`, production DP-700 course search and AI-102 course intelligence all returned HTTP 200; AI-102 exposed 33 real schedule windows.
+- **Current Status**: This phase is released and production healthy. Courses now supports course-first one/many/all team propagation with level selection, real catalogue metadata and verified schedule evidence. Backend 19/19, Android 36/36, lint and release gates pass. Physical install-over-existing and on-device visual confirmation remain unverified because no ADB device is connected; package/signer/code prerequisites for safe upgrade are verified.
+- **Next Actions**: Install `SkillEdge-v1.55.0.67.apk` over v1.54.0.66 on a device and confirm the Courses dialog visually. Next independent API phase should evaluate trainer free-schedule/off-date contracts for real availability and conflicts; keep skill removal blocked until RMS supplies an authenticated delete contract.
+
 ## 2026-08-10T03:02:00+05:30 - v1.55.0 local release gate passed
 - **Tool Used**: Codex (full backend/Android tests, Gradle lint/release, AAPT, APK Signer, live read-only RMS probe)
 - **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
