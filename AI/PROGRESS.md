@@ -1,5 +1,26 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T03:02:00+05:30 - v1.55.0 local release gate passed
+- **Tool Used**: Codex (full backend/Android tests, Gradle lint/release, AAPT, APK Signer, live read-only RMS probe)
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Assigned v1.55.0/code 67 because the release adds a new production course-intelligence contract and changes the manager's bulk assignment workflow. Backend passes 19/19; Android passes 36/36; lint and signed release assembly pass. APK package is unchanged (`com.example.skillsync`), certificate SHA-256 remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`, and local APK SHA-256 is `DDDEC26EF1063DA4F00CF91092FAEB232AC5D9DA35FA6BC8FAF7D9080B58CF52`. Live read-only checks returned three AI-102 catalogue matches and 33 future schedule windows.
+- **Current Status**: All local release gates pass. Install-over-existing remains unavailable without ADB. Commit/push, GitHub CI/release, Render deployment, production endpoint validation and release asset verification remain.
+- **Next Actions**: Commit and push the scoped phase, verify CI creates the versioned APK/release, validate Render health and both production course endpoints, then record the final release evidence.
+
+## 2026-08-10T02:48:00+05:30 - Skill-first Courses workflow and verified course intelligence implemented
+- **Tool Used**: Codex (`apply_patch`, Python unittest, Gradle/Compose unit tests)
+- **Files Modified**: `backend.py`, `tests/test_skill_marking.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/DataRepository.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationViewModel.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/MainScreen.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/CoursesTab.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Registered the verified Course Name (key 70) and Course Schedule (key 246) contracts with environment overrides and bounded caches. Course search now uses the 8,816-row RMS catalogue and returns vendor, duration, code, course page and TOC while retaining the syllabus index as a read-only fallback. Added course-intelligence normalization for real future public schedules. Redesigned the assignment dialog with enriched search results, verified next-schedule evidence and manager-speed Select All/Clear controls; existing single and multi-trainer verified RMS writes remain unchanged.
+- **Current Status**: Backend 19/19 and Android unit/Compose tests pass. Course IDs are normalized to strings at the API boundary. No RMS write occurred during implementation/testing. Release versioning, lint, signed APK, commit/push, CI, deployment and production validation remain.
+- **Next Actions**: Add focused UI assertions, run lint/release/signature gates, publish the next versioned release, then validate the new endpoints and unchanged production health.
+
+## 2026-08-10T02:36:26+05:30 - Course capability API live audit completed
+- **Tool Used**: Codex (code review and read-only live RMS probes)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Reviewed the Courses UI, repository/API wiring, existing bulk skill write flow and supplied course contracts. Confirmed the current dialog supports single and multi-trainer writes but omits manager-friendly Select All/Clear All controls. Live-probed four supplied RMS contracts: Course Name returned 8,816 real courses with `Cid`, name, vendor, duration, course page and TOC; Course Schedule returned real dated schedules for AI-102; Course and Domain and Latest Version returned zero rows for their documented requests.
+- **Current Status**: Course Name and Course Schedule are verified integration candidates. Domain/latest-version must remain unavailable rather than being represented as populated. No RMS writes were performed during this audit.
+- **Next Actions**: Register the two verified APIs with cache protection, expose normalized course intelligence endpoints, enrich course search/cards, add Select All/Clear All and robust bulk-result UX, then run backend and Android release gates.
+
 ## 2026-08-09T13:35:00+05:30 - Dashboard chart/KPI/Top Performers and API audit phase released (v1.54.0/code 66)
 - **Tool Used**: Codex (`git`, `gh`, GitHub Actions, live RMS and Render production read-only probes)
 - **Files Modified**: `AI/PROGRESS.md`

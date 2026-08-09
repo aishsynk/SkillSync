@@ -234,6 +234,18 @@ _APIS = {
         "role": "Get Course Syllabus TOC",
         "key":  "248",
     },
+    "courseCatalogue": {
+        "user": _ev("SKILLEDGE_RMS_COURSE_CATALOGUE_USER", "AISHWAR_GetCourseName"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_CATALOGUE_PASS", "H7GnTdC@ECvC"),
+        "role": "Get Course Name",
+        "key":  "70",
+    },
+    "courseSchedule": {
+        "user": _ev("SKILLEDGE_RMS_COURSE_SCHEDULE_USER", "AISHWAR_GetCourseSchedu"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_SCHEDULE_PASS", "tFEy8T6JLT!J"),
+        "role": "Get Course Schedule",
+        "key":  "246",
+    },
     "globalTrainers": {
         "user": "AISHWAR_GetInhouseandFL",
         "pass": "2XC!2LBpsTJh",
@@ -293,6 +305,8 @@ _CACHE_TTL = {
     "unallocated":       180,   # demand turns over during the day
     "courseWithoutExam": 21600,  # catalogue-wide exam policy; changes rarely
     "courseSyllabus":    21600,  # 12k-row syllabus index; static, fetch once
+    "courseCatalogue":   21600,  # 8.8k-row catalogue metadata; changes rarely
+    "courseSchedule":      900,  # public dates change during the day
     "last3MonthsUtil":    1800,  # same volatility as the utilisation rollup
     # "trainerSkills" intentionally omitted — see above.
     # "addTrainerSkill" is a write and must never be served from cache.
@@ -3588,6 +3602,61 @@ def _syllabus_index():
     return out
 
 
+def _course_catalogue_index():
+    """Normalised RMS course catalogue enriched with verified metadata."""
+    rows = _rms("courseCatalogue", {})
+    if not isinstance(rows, list):
+        return {}
+    out = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("Course") or "").strip()
+        key = _norm_course(name)
+        if not key:
+            continue
+        out[key] = {
+            "course_id": str(row.get("Cid") or ""),
+            "course_name": name,
+            "course_code": str(row.get("course_code") or "").strip(),
+            "vendor": str(row.get("vendor_of_course") or "").strip(),
+            "duration_days": row.get("course_duration"),
+            "course_page_url": str(row.get("Course_Page") or "").strip(),
+            "syllabus_url": str(row.get("TOC") or "").strip(),
+        }
+    return out
+
+
+def _course_schedule(course_name):
+    """Verified public schedule dates from RMS key 246 for one course."""
+    rows = _rms("courseSchedule", {
+        "CourseName": course_name, "Country": "", "region": "", "DeliveryMode": "",
+    })
+    if rows is None:
+        return None
+    schedules, resolved_name, course_id = [], course_name, ""
+    for row in (rows if isinstance(rows, list) else []):
+        if not isinstance(row, dict):
+            continue
+        item = row
+        if isinstance(row.get("JsonResult"), str):
+            try:
+                item = json.loads(row["JsonResult"])
+            except (ValueError, TypeError):
+                continue
+        if not isinstance(item, dict):
+            continue
+        resolved_name = str(item.get("CourseName") or resolved_name).strip()
+        course_id = str(item.get("CId") or course_id)
+        raw_dates = item.get("ScheduleDates") or []
+        if isinstance(raw_dates, list):
+            schedules.extend(str(value).strip() for value in raw_dates if str(value).strip())
+    return {
+        "course_name": resolved_name, "course_id": course_id,
+        "schedule_dates": list(dict.fromkeys(schedules)), "available": bool(schedules),
+    }
+
+
 @app.route('/api/data/course-syllabus', methods=['GET'])
 def get_course_syllabus():
     """Syllabus PDF link for one course, matched by name against RMS key 248."""
@@ -3617,26 +3686,54 @@ def get_course_syllabus():
 
 @app.route('/api/data/course-search', methods=['GET'])
 def search_courses():
-    """Search the full RMS syllabus catalogue, including courses no trainer owns."""
+    """Search the full RMS catalogue, including courses no trainer owns."""
     query = str(request.args.get("q", "")).strip()
     if len(query) < 2:
         return jsonify({"query": query, "courses": [], "count": 0}), 200
-    index = _syllabus_index()
+    index = _course_catalogue_index() or {
+        key: {
+            "course_id": str(value.get("course_id") or ""),
+            "course_name": value.get("course_name") or "",
+            "course_code": "", "vendor": "", "duration_days": None,
+            "course_page_url": "", "syllabus_url": value.get("url") or "",
+        }
+        for key, value in _syllabus_index().items()
+    }
     if not index:
         return jsonify({"error": "Cannot reach RMS — please retry"}), 503
     needle = _norm_course(query)
     hits = []
     for normalised, course in index.items():
         if needle in normalised:
-            hits.append({
-                "course_id": str(course.get("course_id") or ""),
-                "course_name": course.get("course_name") or "",
-                "syllabus_url": course.get("url") or "",
-            })
+            hits.append({**course, "course_id": str(course.get("course_id") or "")})
     hits.sort(key=lambda row: (0 if _norm_course(row["course_name"]).startswith(needle) else 1,
                                len(row["course_name"]), row["course_name"]))
     hits = hits[:25]
     return jsonify({"query": query, "courses": hits, "count": len(hits), "available": True}), 200
+
+
+@app.route('/api/data/course-intelligence', methods=['GET'])
+def get_course_intelligence():
+    """Verified course metadata and future public schedules for manager planning."""
+    course_name = str(request.args.get("courseName", "")).strip()
+    if not course_name:
+        return jsonify({"error": "courseName query param required"}), 400
+    catalogue = _course_catalogue_index()
+    meta = catalogue.get(_norm_course(course_name), {}) if catalogue else {}
+    schedule = _course_schedule(course_name)
+    if schedule is None:
+        return jsonify({
+            **meta, "course_name": meta.get("course_name") or course_name,
+            "schedule_dates": [], "schedule_available": False,
+            "note": "RMS schedule data could not be verified.",
+        }), 200
+    return jsonify({
+        **meta,
+        "course_name": schedule.get("course_name") or meta.get("course_name") or course_name,
+        "course_id": schedule.get("course_id") or meta.get("course_id") or "",
+        "schedule_dates": schedule.get("schedule_dates") or [],
+        "schedule_available": schedule.get("available", False),
+    }), 200
 
 
 @app.route('/api/data/alternative-trainers', methods=['GET'])

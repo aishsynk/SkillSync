@@ -63,6 +63,8 @@ class AllocationViewModel(
 
     val courseSearchResults = MutableStateFlow<List<Map<String, Any>>>(emptyList())
     val courseSearchLoading = MutableStateFlow(false)
+    val courseIntelligence = MutableStateFlow<Map<String, Any>?>(null)
+    val courseIntelligenceLoading = MutableStateFlow(false)
 
     fun searchCourses(query: String) {
         if (query.trim().length < 2) {
@@ -78,6 +80,23 @@ class AllocationViewModel(
                 emptyList()
             }
             courseSearchLoading.value = false
+        }
+    }
+
+    fun loadCourseIntelligence(courseName: String) {
+        if (courseName.isBlank()) return
+        viewModelScope.launch {
+            courseIntelligenceLoading.value = true
+            courseIntelligence.value = try {
+                repository.courseIntelligence(courseName)
+            } catch (_: Exception) {
+                mapOf(
+                    "course_name" to courseName, "schedule_dates" to emptyList<String>(),
+                    "schedule_available" to false,
+                    "note" to "Course schedule could not be verified."
+                )
+            }
+            courseIntelligenceLoading.value = false
         }
     }
 

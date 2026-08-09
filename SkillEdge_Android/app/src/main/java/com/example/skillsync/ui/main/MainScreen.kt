@@ -106,6 +106,8 @@ fun MainScreen(
     val skillMarkState by allocationViewModel.mark.collectAsState()
     val courseSearchResults by allocationViewModel.courseSearchResults.collectAsState()
     val courseSearchLoading by allocationViewModel.courseSearchLoading.collectAsState()
+    val courseIntelligence by allocationViewModel.courseIntelligence.collectAsState()
+    val courseIntelligenceLoading by allocationViewModel.courseIntelligenceLoading.collectAsState()
     val inboxActions by actionsViewModel.actions.collectAsState()
     val inboxLoading by actionsViewModel.initialLoading.collectAsState()
     val inboxError by actionsViewModel.error.collectAsState()
@@ -305,7 +307,10 @@ fun MainScreen(
                         markState = skillMarkState,
                         courseSearchResults = courseSearchResults,
                         courseSearchLoading = courseSearchLoading,
+                        courseIntelligence = courseIntelligence,
+                        courseIntelligenceLoading = courseIntelligenceLoading,
                         onSearchCourses = allocationViewModel::searchCourses,
+                        onLoadCourseIntelligence = allocationViewModel::loadCourseIntelligence,
                         onAssign = { courseId, trainers, level, date ->
                             allocationViewModel.markSkillBatch(
                                 context, courseId, trainers, level, date,

@@ -49,7 +49,10 @@ internal fun CoursesTab(
     markState: MarkState = MarkState.Idle,
     courseSearchResults: List<Map<String, Any>> = emptyList(),
     courseSearchLoading: Boolean = false,
+    courseIntelligence: Map<String, Any>? = null,
+    courseIntelligenceLoading: Boolean = false,
     onSearchCourses: (String) -> Unit = {},
+    onLoadCourseIntelligence: (String) -> Unit = {},
     onAssign: (String, List<Pair<String, String>>, Int, String) -> Unit = { _, _, _, _ -> },
     onClearMark: () -> Unit = {},
 ) {
@@ -192,8 +195,11 @@ internal fun CoursesTab(
             people = people,
             results = courseSearchResults,
             searching = courseSearchLoading,
+            intelligence = courseIntelligence,
+            intelligenceLoading = courseIntelligenceLoading,
             markState = markState,
             onSearch = onSearchCourses,
+            onLoadIntelligence = onLoadCourseIntelligence,
             onDismiss = { showAssignment = false; onClearMark() },
             onAssign = onAssign,
         )
@@ -433,8 +439,11 @@ internal fun SkillAssignmentDialog(
     people: List<Pair<String, String>>,
     results: List<Map<String, Any>>,
     searching: Boolean,
+    intelligence: Map<String, Any>?,
+    intelligenceLoading: Boolean,
     markState: MarkState,
     onSearch: (String) -> Unit,
+    onLoadIntelligence: (String) -> Unit,
     onDismiss: () -> Unit,
     onAssign: (String, List<Pair<String, String>>, Int, String) -> Unit,
 ) {
@@ -453,6 +462,10 @@ internal fun SkillAssignmentDialog(
     val today = remember { Calendar.getInstance() }
     val date = remember { "%04d-%02d-%02d".format(today.get(Calendar.YEAR), today.get(Calendar.MONTH) + 1, today.get(Calendar.DAY_OF_MONTH)) }
     val working = markState is MarkState.Working
+
+    LaunchedEffect(initialCourse) {
+        initialCourse?.str("course")?.takeIf { it.isNotBlank() }?.let(onLoadIntelligence)
+    }
 
     AlertDialog(
         onDismissRequest = { if (!working) onDismiss() },
@@ -475,16 +488,66 @@ internal fun SkillAssignmentDialog(
                     LazyColumn(Modifier.fillMaxWidth().heightIn(max = 130.dp)) {
                         itemsIndexed(results) { _, course ->
                             Row(
-                                Modifier.fillMaxWidth().clickable { selectedCourse = course; query = course.str("course_name") }.padding(vertical = 7.dp),
+                                Modifier.fillMaxWidth().clickable {
+                                    selectedCourse = course
+                                    query = course.str("course_name")
+                                    onLoadIntelligence(query)
+                                }.padding(vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text(course.str("course_name"), style = MaterialTheme.typography.bodySmall, color = sk.bodyText, modifier = Modifier.weight(1f), maxLines = 2)
+                                Column(Modifier.weight(1f)) {
+                                    Text(course.str("course_name"), style = MaterialTheme.typography.bodySmall, color = sk.bodyText, maxLines = 2)
+                                    Text(
+                                        listOfNotNull(
+                                            course.str("vendor").takeIf { it.isNotBlank() },
+                                            course["duration_days"]?.toString()?.takeIf { it.isNotBlank() }?.let { "$it days" },
+                                            course.str("course_code").takeIf { it.isNotBlank() },
+                                        ).joinToString(" · ").ifBlank { "RMS catalogue" },
+                                        style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                                    )
+                                }
                                 Text("Select", style = MaterialTheme.typography.labelSmall, color = sk.teal)
                             }
                         }
                     }
                 }
+                if (selectedCourse != null) {
+                    if (intelligenceLoading) {
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                    } else intelligence?.let { info ->
+                        val dates = info.strings("schedule_dates")
+                        Surface(color = sk.teal.copy(alpha = 0.09f), shape = RoundedCornerShape(8.dp)) {
+                            Column(Modifier.fillMaxWidth().padding(9.dp)) {
+                                Text(
+                                    listOfNotNull(
+                                        info.str("vendor").takeIf { it.isNotBlank() },
+                                        info["duration_days"]?.toString()?.takeIf { it.isNotBlank() }?.let { "$it days" },
+                                    ).joinToString(" · ").ifBlank { "Verified RMS course" },
+                                    style = MaterialTheme.typography.labelSmall, color = sk.bodyText,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                Text(
+                                    if (dates.isNotEmpty()) "Next public schedule: ${dates.first()}" else
+                                        info.str("note").ifBlank { "No public schedule is currently returned by RMS." },
+                                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                                )
+                            }
+                        }
+                    }
+                }
                 Text("TEAM MEMBERS (${selectedPeople.size} SELECTED)", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(
+                        onClick = {
+                            people.forEach { if (it !in selectedPeople) selectedPeople.add(it) }
+                        },
+                        enabled = people.isNotEmpty() && selectedPeople.size < people.size && !working,
+                    ) { Text("Select all") }
+                    TextButton(
+                        onClick = { selectedPeople.clear() },
+                        enabled = selectedPeople.isNotEmpty() && !working,
+                    ) { Text("Clear") }
+                }
                 OutlinedTextField(
                     value = trainerQuery,
                     onValueChange = { trainerQuery = it },

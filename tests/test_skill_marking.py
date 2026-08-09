@@ -44,21 +44,40 @@ class SkillMarkingReliabilityTests(unittest.TestCase):
         self.assertFalse(body["verified"])
         self.assertIn("did not answer in time", body["error"])
 
-    @patch.object(backend, "_syllabus_index")
-    def test_course_search_includes_unowned_rms_catalogue_courses(self, syllabus):
-        syllabus.return_value = {
+    @patch.object(backend, "_course_catalogue_index")
+    def test_course_search_includes_unowned_rms_catalogue_courses(self, catalogue):
+        catalogue.return_value = {
             "dp 700 microsoft fabric data engineer": {
                 "course_id": 22001,
                 "course_name": "DP-700 Microsoft Fabric Data Engineer",
-                "url": "https://example.test/dp700.pdf",
+                "syllabus_url": "https://example.test/dp700.pdf",
+                "vendor": "Microsoft", "duration_days": 4,
             },
-            "other course": {"course_id": 2, "course_name": "Other Course", "url": ""},
+            "other course": {"course_id": 2, "course_name": "Other Course"},
         }
         response = self.client.get("/api/data/course-search?q=DP-700")
         self.assertEqual(200, response.status_code)
         body = response.get_json()
         self.assertEqual(1, body["count"])
         self.assertEqual("22001", body["courses"][0]["course_id"])
+        self.assertEqual("Microsoft", body["courses"][0]["vendor"])
+
+    @patch.object(backend, "_course_schedule")
+    @patch.object(backend, "_course_catalogue_index")
+    def test_course_intelligence_combines_metadata_and_verified_dates(self, catalogue, schedule):
+        catalogue.return_value = {
+            "ai 102": {"course_id": "9716", "course_name": "AI-102", "vendor": "Microsoft"}
+        }
+        schedule.return_value = {
+            "course_id": "9716", "course_name": "AI-102T00: Develop AI Solutions in Azure",
+            "schedule_dates": ["14-Aug-26 - 20-Aug-26"], "available": True,
+        }
+        response = self.client.get("/api/data/course-intelligence?courseName=AI-102")
+        self.assertEqual(200, response.status_code)
+        body = response.get_json()
+        self.assertTrue(body["schedule_available"])
+        self.assertEqual("Microsoft", body["vendor"])
+        self.assertEqual(["14-Aug-26 - 20-Aug-26"], body["schedule_dates"])
 
 
 if __name__ == "__main__":
