@@ -30,7 +30,7 @@ class SkillMarkingReliabilityTests(unittest.TestCase):
             [{"course_id": 17997, "course_name": "AI-102"}],
         ]
 
-        response = self.client.post("/api/action/mark-skill", json=self.payload)
+        response = self.client.post("/api/action/mark-skill", json=self.payload, headers=self.headers)
 
         self.assertEqual(200, response.status_code)
         self.assertTrue(response.get_json()["verified"])
@@ -42,13 +42,29 @@ class SkillMarkingReliabilityTests(unittest.TestCase):
     @patch.object(backend, "_emp_code", return_value="1001")
     @patch.object(backend, "_rms", return_value=None)
     def test_rms_timeout_returns_structured_503_not_proxy_502(self, _rms, _emp):
-        response = self.client.post("/api/action/mark-skill", json=self.payload)
+        response = self.client.post("/api/action/mark-skill", json=self.payload, headers=self.headers)
 
         self.assertEqual(503, response.status_code)
         body = response.get_json()
         self.assertFalse(body["success"])
         self.assertFalse(body["verified"])
         self.assertIn("did not answer in time", body["error"])
+
+    def test_mark_skill_requires_a_session(self):
+        backend._sessions.clear()
+        response = self.client.post("/api/action/mark-skill", json=self.payload)
+
+        self.assertEqual(401, response.status_code)
+        self.assertEqual("SESSION_REQUIRED", response.get_json()["code"])
+
+    def test_mark_skill_rejects_unknown_session_token(self):
+        response = self.client.post(
+            "/api/action/mark-skill", json=self.payload,
+            headers={"Authorization": "Bearer does-not-exist"},
+        )
+
+        self.assertEqual(401, response.status_code)
+        self.assertEqual("SESSION_REQUIRED", response.get_json()["code"])
 
     @patch.object(backend, "_course_catalogue_index")
     def test_course_search_includes_unowned_rms_catalogue_courses(self, catalogue):

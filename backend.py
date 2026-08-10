@@ -3700,6 +3700,10 @@ def mark_skill():
     success off that envelope is what made skill assignment look like it saved
     when it had not; only a read-back can tell the two apart.
     """
+    _, error = _v2_manager_session("")
+    if error:
+        return error
+
     data = request.get_json(silent=True) or {}
     course_id = str(data.get("course_id", "")).strip()
     trainer_email = str(data.get("trainer_email", "")).strip().lower()
