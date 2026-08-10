@@ -26,9 +26,7 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    com.example.skillsync.data.SessionManager.init(applicationContext)
-    com.example.skillsync.data.api.RetrofitClient.init(applicationContext)
-    com.example.skillsync.data.cache.LocalCache.init(applicationContext)
+    // SkillEdgeApplication initializes cache, networking and sync before UI.
     com.example.skillsync.util.NotificationStateStore.init(applicationContext)
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -37,16 +35,6 @@ class MainActivity : ComponentActivity() {
     ) {
         requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
-
-    // Schedule background push service
-    val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.example.skillsync.util.SkillSyncNotificationWorker>(
-        15, java.util.concurrent.TimeUnit.MINUTES
-    ).build()
-    androidx.work.WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
-        "SkillSyncPushService",
-        androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-        workRequest
-    )
 
     enableEdgeToEdge()
 

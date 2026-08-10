@@ -76,21 +76,22 @@ fun MainScreen(
             viewModel.ensureTeamIntelligence(email, context)
         }
         if (tab == HomeTab.DASHBOARD || tab == HomeTab.ACTIONS) actionsViewModel.load(email)
-        
-        // In-app polling for the Unallocated Batch Intelligence Center
-        if (tab == HomeTab.DEMAND) {
-            while(true) {
-                kotlinx.coroutines.delay(60_000L) // 1 minute
-                allocationViewModel.refresh(email, context)
-            }
-        }
     }
-    // Coming back to the app re-reads everything, so the manager is never acting
-    // on numbers that went stale while the phone was in their pocket.
+    // Resume adopts whatever WorkManager already persisted and requests one
+    // constrained background pass. It never blanks or reloads the screen.
     RefreshOnResume(key = email) {
-        viewModel.refresh(email, context)
-        if (tab == HomeTab.DEMAND) allocationViewModel.refresh(email, context)
-        if (tab == HomeTab.ACTIONS) actionsViewModel.refresh(email)
+        viewModel.adoptBackgroundSync(email)
+        allocationViewModel.adoptBackgroundSync(email, context)
+        actionsViewModel.adoptBackgroundSync(email)
+        com.example.skillsync.data.sync.SyncScheduler.enqueueImmediate(context)
+    }
+
+    LaunchedEffect(email) {
+        com.example.skillsync.data.sync.SyncCoordinator.revisions.collect {
+            viewModel.adoptBackgroundSync(email)
+            allocationViewModel.adoptBackgroundSync(email, context)
+            actionsViewModel.adoptBackgroundSync(email)
+        }
     }
 
     val state by viewModel.uiState.collectAsState()
@@ -108,6 +109,7 @@ fun MainScreen(
     val courseSearchLoading by allocationViewModel.courseSearchLoading.collectAsState()
     val courseIntelligence by allocationViewModel.courseIntelligence.collectAsState()
     val courseIntelligenceLoading by allocationViewModel.courseIntelligenceLoading.collectAsState()
+    val online by com.example.skillsync.data.sync.SyncScheduler.online.collectAsState()
     val inboxActions by actionsViewModel.actions.collectAsState()
     val inboxLoading by actionsViewModel.initialLoading.collectAsState()
     val inboxError by actionsViewModel.error.collectAsState()
@@ -227,40 +229,22 @@ fun MainScreen(
         bottomBar = { SkillSyncNavBar(tab, onTabChange) },
     ) { pv ->
         Column(modifier.fillMaxSize().padding(pv)) {
-            // Driven by whether the data actually on screen came from disk
-            // (fetch failed and LocalCache answered) rather than just guessing
-            // from connectivity — a live network with a down backend/RMS chain
-            // looks identical to the manager as being offline.
-            val hasNetwork = com.example.skillsync.data.api.RetrofitClient.isNetworkAvailable(context)
-            val dashSuccess = state as? DashboardState.Success
-            val lastSync = com.example.skillsync.data.SessionManager.getLastSyncTime()
-            val showBanner = dashSuccess?.fromCache == true || !hasNetwork || lastSync > 0
-            if (showBanner) {
-                val stale = dashSuccess?.fromCache == true || !hasNetwork
+            // Offline is strictly a validated-connectivity state. Backend/RMS
+            // failures keep saved data visible without mislabelling the device.
+            if (!online) {
                 Row(
                     modifier = Modifier.fillMaxWidth()
                         .background(
-                            if (stale) MaterialTheme.skill.warn.copy(alpha = 0.16f)
-                            else Color.Transparent
+                            MaterialTheme.skill.warn.copy(alpha = 0.16f)
                         )
                         .padding(vertical = 4.dp, horizontal = 16.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val syncMsg = when {
-                        dashSuccess?.fromCache == true -> "Offline — showing data from ${relativeAge(dashSuccess.cachedAt)}"
-                        !hasNetwork -> "Offline Mode - Showing Cached Data"
-                        refreshing -> "Syncing..."
-                        else -> {
-                            val diff = System.currentTimeMillis() - lastSync
-                            val mins = java.util.concurrent.TimeUnit.MILLISECONDS.toMinutes(diff)
-                            if (mins == 0L) "Synced just now" else "Last synced $mins mins ago"
-                        }
-                    }
                     Text(
-                        syncMsg,
+                        "Offline Mode · Showing saved data · Changes will sync automatically",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (stale) MaterialTheme.skill.warn else MaterialTheme.skill.labelText,
+                        color = MaterialTheme.skill.warn,
                     )
                 }
             }

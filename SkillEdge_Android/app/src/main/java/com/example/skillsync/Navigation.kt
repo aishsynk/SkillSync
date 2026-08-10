@@ -66,8 +66,9 @@ fun MainNavigation() {
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 if (current is Main) {
                     val email = (current as Main).email
-                    mainViewModel.refresh(email, context)
-                    allocationViewModel.refresh(email, context)
+                    mainViewModel.adoptBackgroundSync(email)
+                    allocationViewModel.adoptBackgroundSync(email, context)
+                    com.example.skillsync.data.sync.SyncScheduler.enqueueImmediate(context)
                     mainViewModel.startPolling(email, context)
                 }
             } else if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {

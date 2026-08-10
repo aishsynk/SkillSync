@@ -1,5 +1,40 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T12:05:00+05:30 - v1.57.0 final local regression gate passed
+- **Tool Used**: Codex (complete Gradle regression/lint/release rerun, Git diff audit)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Re-ran the full 38-test Android suite, release lint and signed release assembly after the final Demand cold-start cache adjustment; all pass. Diff whitespace validation is clean and only the scoped offline-first architecture, tests, version metadata and progress ledger are pending publication.
+- **Current Status**: v1.57.0/code 69 is locally release-ready. Server-side endpoints still return full snapshots, so record-level network deltas remain a future backend contract; this release safely performs changed-only persistence and UI adoption without false freshness claims.
+- **Next Actions**: Commit and push main, monitor the GitHub Actions release, add complete v1.57.0 release notes, verify the published APK identity/signature/hash, then repeat production health and key API checks.
+
+## 2026-08-10T11:55:00+05:30 - v1.57.0 offline-first local release gate reached
+- **Tool Used**: Codex (Python unittest, Gradle unit/render tests, Android lint/release assembly, AAPT, APK Signer, production API probes, `apply_patch`)
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `app/src/main/AndroidManifest.xml`, `app/src/main/java/com/example/skillsync/SkillEdgeApplication.kt`, `ui/batch/AllocationViewModel.kt`, `ui/main/MainScreen.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Assigned v1.57.0/code 69 for the material sync/data-lifecycle change. Backend passes 19/19; Android passes 38/38; lint and release assembly pass. Corrected the supported on-demand WorkManager manifest contract by removing its default startup initializer while the Application supplies configuration. Signed APK identity is `com.example.skillsync` v1.57.0/code 69, SHA-256 `FDE176FF5984C37B1BCEB1C328EC29373E2033D6501D931C2BB30B8596CA1F52`, with unchanged signer `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Production health, Dashboard, Demand and Actions APIs returned valid real payloads. Demand cold-start presentation was tightened so an existing persisted board is never replaced by a loading screen.
+- **Current Status**: Local release gates pass; the final small Demand cold-start adjustment needs the combined regression gate rerun. Publication, CI/release verification and post-deployment health remain.
+- **Next Actions**: Rerun final Android gate, inspect/stage/commit/push, monitor GitHub release, verify the downloaded APK, and complete final production validation.
+
+## 2026-08-10T11:35:00+05:30 - Offline cache revision behaviour covered
+- **Tool Used**: Codex (Robolectric unit tests, `apply_patch`)
+- **Files Modified**: `SkillEdge_Android/app/src/test/java/com/example/skillsync/data/cache/LocalCacheTest.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Added focused tests proving identical background snapshots are not rewritten or surfaced as false revisions, while genuinely changed snapshots replace persisted data and remain readable. Both dedicated cache tests pass.
+- **Current Status**: Android regression coverage is now 38 tests (36 existing plus 2 offline-cache tests). Full combined suite, lint, release build, backend/API checks and publication remain.
+- **Next Actions**: Assign the release version, run complete delivery gates, verify APK identity/signing/upgrade compatibility, publish and validate production.
+
+## 2026-08-10T11:30:58+05:30 - Offline sync lifecycle verification restored
+- **Tool Used**: Codex (Gradle JVM/Compose verification, failure-report analysis, `apply_patch`)
+- **Files Modified**: `SkillEdge_Android/app/src/main/java/com/example/skillsync/SkillEdgeApplication.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Traced all 23 initial test failures to the same WorkManager startup contract: automatic initialization is disabled in the merged test environment, but the new Application scheduled work before supplying a configuration. Made `SkillEdgeApplication` the explicit `Configuration.Provider`, preserving one-time production initialization and deterministic Robolectric startup. Re-ran the complete Android unit/render suite successfully (36/36).
+- **Current Status**: Offline-first production code compiles and the pre-existing Android behavioural/render regression suite passes. Dedicated cache-change and background-sync tests plus lint/release/API gates remain before publication.
+- **Next Actions**: Add focused persistence/sync tests, audit the final diff and runtime wiring, then version, build, sign, publish and production-validate the release.
+
+## 2026-08-10T06:20:00+05:30 - Offline-first sync architecture implemented locally
+- **Tool Used**: Codex (full Android architecture review, `apply_patch`)
+- **Files Modified**: `SkillEdge_Android/app/src/main/AndroidManifest.xml`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/SkillEdgeApplication.kt`, `MainActivity.kt`, `Navigation.kt`, `data/DataRepository.kt`, `data/api/RetrofitClient.kt`, `data/cache/LocalCache.kt`, `data/sync/SyncCoordinator.kt`, `data/sync/SyncScheduler.kt`, `util/SkillSyncNotificationWorker.kt`, `ui/main/MainScreen.kt`, `MainScreenViewModel.kt`, `ActionsViewModel.kt`, `ui/batch/AllocationViewModel.kt`, `ui/trainer/Trainer360Screen.kt`, `Trainer360ViewModel.kt`, `ui/main/DashboardSections.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Replaced notification-only background work with a centralized sync coordinator used by WorkManager, foreground polling and validated-connectivity restoration. The Application now initializes persistent cache/queue/networking before UI or worker execution. Periodic and immediate work use network constraints, refresh Dashboard/profile/Demand/capability/Actions, drain queued skill writes, update sync time and publish cache revisions. UI adopts changed persisted snapshots without reloads; identical JSON is not rewritten. Actions, utilisation, syllabus, course search and course intelligence gained explicit disk fallback. Online HTTP cache now revalidates instead of hiding updates for two hours. Connectivity requires Android's validated-internet capability, and all stale online sync-age messages were removed; only genuine no-internet state shows Offline Mode.
+- **Current Status**: Architecture is implemented but not yet compiled/tested. True record-level download deltas remain impossible because current APIs expose full snapshots without ETags/change tokens; the client now performs change-only persistence and UI updates without falsely claiming server deltas.
+- **Next Actions**: Compile, fix integration issues, add cache/scheduler tests, validate offline cold-start and connectivity-return state transitions in the JVM where possible, then run full release gates before publication.
+
 ## 2026-08-10T05:48:00+05:30 - Global Demand Priority phase released and production-validated (v1.56.0/code 68)
 - **Tool Used**: Codex (`git`, `gh`, GitHub Actions, production probes, AAPT, APK Signer)
 - **Files Modified**: `AI/PROGRESS.md`

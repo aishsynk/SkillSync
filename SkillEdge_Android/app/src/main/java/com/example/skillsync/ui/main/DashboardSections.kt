@@ -248,7 +248,7 @@ fun ProfileMenuBottomSheet(
             Spacer(Modifier.height(8.dp))
             Text("Logged in as: $email", color = Color.LightGray)
             Text("Session ID: ${com.example.skillsync.data.SessionManager.getSessionId()?.take(8)}...", color = Color.LightGray)
-            Text("Last Sync: ${java.util.Date(com.example.skillsync.data.SessionManager.getLastSyncTime())}", color = Color.LightGray)
+            Text("Background sync: Automatic", color = Color.LightGray)
             
             Spacer(Modifier.height(24.dp))
             HorizontalDivider(color = Color.White.copy(alpha = 0.12f))

@@ -28,12 +28,28 @@ object LocalCache {
         return File(dir, "$safe.json")
     }
 
-    fun saveMap(key: String, data: Map<String, Any>) {
-        try {
-            keyToFile(key).writeText(gson.toJson(data))
+    /**
+     * Atomically persist a snapshot only when its content changed.
+     *
+     * Avoiding identical rewrites keeps [savedAt] meaningful: it represents a
+     * real data revision, not merely another background poll. The temporary
+     * file prevents a killed process from leaving truncated JSON behind.
+     */
+    @Synchronized
+    fun saveMap(key: String, data: Map<String, Any>): Boolean {
+        return try {
+            val target = keyToFile(key)
+            val json = gson.toJson(data)
+            if (target.exists() && target.readText() == json) return false
+            val temp = File(target.parentFile, target.name + ".tmp")
+            temp.writeText(json)
+            if (!temp.renameTo(target)) {
+                target.writeText(json)
+                temp.delete()
+            }
+            true
         } catch (_: Exception) {
-            // Best-effort; a failed write just means offline fallback won't have
-            // this entry, which is no worse than not caching at all.
+            false
         }
     }
 

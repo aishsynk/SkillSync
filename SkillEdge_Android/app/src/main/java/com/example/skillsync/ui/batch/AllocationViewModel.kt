@@ -103,8 +103,13 @@ class AllocationViewModel(
     fun load(email: String, context: Context) {
         if (loadedFor == email && _state.value is AllocationState.Success) return
         loadedFor = email
+        // Never replace a usable persisted Demand board with a loading screen.
+        // The network pass below updates it silently when it completes.
+        com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))?.let { cached ->
+            _newIds.value = SeenBatches.diffAndRemember(context, email, cached)
+            _state.value = AllocationState.Success(cached)
+        }
         viewModelScope.launch {
-            _state.value = AllocationState.Loading
             fetch(email, context, fresh = false)
         }
     }
@@ -129,6 +134,18 @@ class AllocationViewModel(
     }
 
     private fun cacheKey(email: String) = "allocation_$email"
+
+    fun adoptBackgroundSync(email: String, context: Context) {
+        viewModelScope.launch {
+            com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))?.let { cached ->
+                val previous = (_state.value as? AllocationState.Success)?.data
+                if (previous != cached) {
+                    _newIds.value = SeenBatches.diffAndRemember(context, email, cached)
+                    _state.value = AllocationState.Success(cached)
+                }
+            }
+        }
+    }
 
     private suspend fun fetch(email: String, context: Context, fresh: Boolean) {
         // 1. Instantly read from LocalCache if not already loaded and no fresh push requested

@@ -73,6 +73,14 @@ class Trainer360ViewModel(
         }
     }
 
+    fun syncSilently(trainerEmail: String, managerEmail: String = "", context: android.content.Context) {
+        viewModelScope.launch {
+            fetch(trainerEmail, managerEmail, context, fresh = false)
+            fetchUtilHistory(trainerEmail)
+            fetchActions(managerEmail, trainerEmail)
+        }
+    }
+
     private fun fetchActions(managerEmail: String, trainerEmail: String) {
         if (managerEmail.isBlank()) {
             actions.value = emptyList()

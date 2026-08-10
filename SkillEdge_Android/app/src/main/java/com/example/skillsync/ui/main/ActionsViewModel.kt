@@ -43,6 +43,11 @@ class ActionsViewModel(
         if (loadedFor == managerEmail && _actions.value.isNotEmpty()) return
         loadedFor = managerEmail
         viewModelScope.launch {
+            val cached = com.example.skillsync.data.cache.LocalCache.loadMap("actions_$managerEmail")
+            if (cached != null) {
+                @Suppress("UNCHECKED_CAST")
+                _actions.value = (cached["actions"] as? List<Map<String, Any>>).orEmpty()
+            }
             if (_actions.value.isEmpty()) _initialLoading.value = true
             fetch(managerEmail)
             _initialLoading.value = false
@@ -54,6 +59,15 @@ class ActionsViewModel(
             _refreshing.value = true
             fetch(managerEmail)
             _refreshing.value = false
+        }
+    }
+
+    fun adoptBackgroundSync(managerEmail: String) {
+        viewModelScope.launch {
+            val body = com.example.skillsync.data.cache.LocalCache.loadMap("actions_$managerEmail") ?: return@launch
+            @Suppress("UNCHECKED_CAST")
+            val rows = (body["actions"] as? List<Map<String, Any>>).orEmpty()
+            if (_actions.value != rows) _actions.value = rows
         }
     }
 

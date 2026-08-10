@@ -19,7 +19,8 @@ object RetrofitClient {
 
     fun init(context: Context) {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            // Production payloads contain employee and customer data.
+            level = HttpLoggingInterceptor.Level.NONE
         }
 
         val cacheSize = 10L * 1024 * 1024 // 10 MB
@@ -32,6 +33,11 @@ object RetrofitClient {
                 request = request.newBuilder()
                     .header("Cache-Control", "public, only-if-cached, max-stale=$maxStale")
                     .build()
+            } else {
+                // The explicit app-private LocalCache owns offline display.
+                // Online sync must revalidate instead of silently accepting an
+                // OkHttp response declared fresh for two hours.
+                request = request.newBuilder().header("Cache-Control", "no-cache").build()
             }
             chain.proceed(request)
         }
@@ -39,9 +45,8 @@ object RetrofitClient {
         val rewriteCacheControlInterceptor = Interceptor { chain ->
             val originalResponse = chain.proceed(chain.request())
             if (isNetworkAvailable(context)) {
-                val maxAge = 60 * 60 * 2 // 2 hours
                 originalResponse.newBuilder()
-                    .header("Cache-Control", "public, max-age=$maxAge")
+                    .header("Cache-Control", "public, max-age=0, must-revalidate")
                     .build()
             } else {
                 val maxStale = 60 * 60 * 24 * 7 // 7 days
@@ -66,9 +71,8 @@ object RetrofitClient {
         val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = connectivityManager.activeNetwork ?: return false
         val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-               capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-               capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+               capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 
     val instance: SkillEdgeApi by lazy {

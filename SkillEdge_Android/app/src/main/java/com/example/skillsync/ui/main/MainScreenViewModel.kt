@@ -149,6 +149,23 @@ class MainScreenViewModel(
         viewModelScope.launch { fetchCapability(email, context, fresh = true) }
     }
 
+    /** Adopt WorkManager's persisted revision without another network request. */
+    fun adoptBackgroundSync(email: String) {
+        viewModelScope.launch {
+            LocalCache.loadMap(dashboardCacheKey(email))?.let { data ->
+                val previous = (_uiState.value as? DashboardState.Success)?.intelligenceData
+                if (previous != data) _uiState.value = DashboardState.Success(data)
+            }
+            LocalCache.loadMap(profileCacheKey(email))?.let { if (_profile.value != it) _profile.value = it }
+            LocalCache.loadMap(capabilityCacheKey(email))?.let { if (_capability.value != it) _capability.value = it }
+            LocalCache.loadMap("actions_$email")?.let { body ->
+                @Suppress("UNCHECKED_CAST")
+                val rows = (body["actions"] as? List<Map<String, Any>>).orEmpty()
+                if (_teamActions.value != rows) _teamActions.value = rows
+            }
+        }
+    }
+
     private suspend fun fetchAll(email: String, context: android.content.Context, fresh: Boolean = false) = coroutineScope {
         // Sync any offline actions first so subsequent fetches get updated data
         com.example.skillsync.data.cache.ActionQueueManager.syncPendingActions(context)
@@ -266,9 +283,10 @@ class MainScreenViewModel(
         if (pollingJob?.isActive == true) return
         pollingJob = viewModelScope.launch {
             while (true) {
-                kotlinx.coroutines.delay(60000)
+                kotlinx.coroutines.delay(120000)
                 try {
-                    fetchAll(email, context, fresh = true)
+                    com.example.skillsync.data.sync.SyncCoordinator.sync(context)
+                    adoptBackgroundSync(email)
                     val fresh = (_uiState.value as? DashboardState.Success)?.intelligenceData
                     if (fresh != null) checkForNotifications(email, fresh)
                 } catch (e: Exception) {

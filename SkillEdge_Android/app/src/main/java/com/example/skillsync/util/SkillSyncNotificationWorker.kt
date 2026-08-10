@@ -4,7 +4,8 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.example.skillsync.data.api.RetrofitClient
+import com.example.skillsync.data.cache.LocalCache
+import com.example.skillsync.data.sync.SyncCoordinator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -27,8 +28,7 @@ class SkillSyncNotificationWorker(
             // exists in this app to guarantee it runs first), so every
             // singleton this worker touches must be (re-)initialized here.
             // .init() is idempotent — safe even if MainActivity already ran.
-            com.example.skillsync.data.SessionManager.init(context)
-            com.example.skillsync.data.api.RetrofitClient.init(context)
+            SyncCoordinator.initialize(context)
             NotificationStateStore.init(context)
 
             val email = com.example.skillsync.data.SessionManager.getEmail()
@@ -36,7 +36,8 @@ class SkillSyncNotificationWorker(
                 return@withContext Result.success() // Not logged in, nothing to do
             }
 
-            val data = RetrofitClient.instance.getTrainerIntelligence(email, null)
+            if (!SyncCoordinator.sync(context)) return@withContext Result.retry()
+            val data = LocalCache.loadMap("dashboard_$email") ?: return@withContext Result.retry()
 
             if (NotificationStateStore.isFirstRun(email)) {
                 // Seed from whatever already exists without notifying — the

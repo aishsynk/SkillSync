@@ -25,7 +25,6 @@ import com.example.skillsync.R
 import com.example.skillsync.theme.StatusBarIcons
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
-import com.example.skillsync.ui.main.relativeAge
 import com.example.skillsync.ui.main.projectNextUtilization
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,13 +38,14 @@ fun Trainer360Screen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(trainerEmail, managerEmail) { viewModel.load(trainerEmail, managerEmail, context) }
-    RefreshOnResume(key = trainerEmail) { viewModel.refresh(trainerEmail, managerEmail, context) }
+    RefreshOnResume(key = trainerEmail) { viewModel.syncSilently(trainerEmail, managerEmail, context) }
 
     val state by viewModel.state.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
     val utilHistory by viewModel.utilHistory.collectAsState()
     val syllabus by viewModel.syllabus.collectAsState()
     val actions by viewModel.actions.collectAsState()
+    val online by com.example.skillsync.data.sync.SyncScheduler.online.collectAsState()
     var showCopilot by remember { mutableStateOf(false) }
     StatusBarIcons(lightIcons = true)
 
@@ -136,7 +136,7 @@ fun Trainer360Screen(
                     ) { Text("Try again") }
                 }
                 is Trainer360State.Success -> Column(Modifier.fillMaxSize()) {
-                    if (s.fromCache) {
+                    if (!online) {
                         Row(
                             Modifier.fillMaxWidth()
                                 .background(MaterialTheme.colorScheme.errorContainer)
@@ -144,7 +144,7 @@ fun Trainer360Screen(
                             horizontalArrangement = Arrangement.Center,
                         ) {
                             Text(
-                                "Offline — showing data from ${relativeAge(s.cachedAt)}",
+                                "Offline Mode · Showing saved trainer data",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
                             )
