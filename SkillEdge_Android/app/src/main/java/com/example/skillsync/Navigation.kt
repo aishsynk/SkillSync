@@ -145,6 +145,9 @@ fun MainNavigation() {
             is BatchDetail -> {
                 val allocState by allocationViewModel.state.collectAsState()
                 val markState by allocationViewModel.mark.collectAsState()
+                val demandContext by allocationViewModel.demandContext.collectAsState()
+                val demandContextLoading by allocationViewModel.demandContextLoading.collectAsState()
+                val demandContextError by allocationViewModel.demandContextError.collectAsState()
                 val data = (allocState as? AllocationState.Success)?.data
                 val batch = data?.rows("batches")
                     ?.firstOrNull { it.str("demand_id") == screen.demandId }
@@ -154,6 +157,9 @@ fun MainNavigation() {
                     // rather than render a detail screen with nothing in it.
                     LaunchedEffect(Unit) { current = Main(screen.email, HomeTab.DEMAND) }
                 } else {
+                    LaunchedEffect(screen.demandId, batch.str("course_name")) {
+                        allocationViewModel.loadDemandContext(screen.email, screen.demandId, batch.str("course_name"))
+                    }
                     // Candidates are this manager's reportees, which is exactly the
                     // set they may mark a skill for.
                     val reportees = data.rows("batches")
@@ -168,6 +174,9 @@ fun MainNavigation() {
                         managerEmail = screen.email,
                         reportees = reportees,
                         markState = markState,
+                        operationalContext = demandContext,
+                        operationalContextLoading = demandContextLoading,
+                        operationalContextError = demandContextError,
                         onMarkSkill = { courseId, trainerEmail, level, date, who ->
                             allocationViewModel.markSkill(
                                 context, courseId, trainerEmail, level, date, who,

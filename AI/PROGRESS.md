@@ -1,5 +1,33 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T16:25:00+05:30 - v2.1.0 operational evidence release gate passed locally
+- **Tool Used**: Codex (Python backend suite, complete Gradle unit/render tests, release lint/assembly, AAPT, APK Signer)
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Assigned v2.1.0/code 71 because the release adds the first protected Version 2 business-data contract and manager-visible operational verification. Backend passes 26/26, Android tests pass, release lint and assembly pass. The signed APK is `com.example.skillsync` v2.1.0/code 71, local SHA-256 `A758F85F31769CF1B5FE6DADAA8EA299A7E84D02E9D3F7BF87CC8A4AD145E678`, with the unchanged production signer `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808` for direct-upgrade continuity.
+- **Current Status**: v2.1.0 is locally release-ready. Git publication, CI release verification, backend deployment and authenticated production contract/user-journey validation remain. A physical install-over-v2.0.0 still cannot be executed because ADB is unavailable.
+- **Next Actions**: Commit and push the scoped release, monitor GitHub Actions, verify the published APK identity/hash/signature and release notes, then validate production session scope, demand context and the existing manager journeys.
+
+## 2026-08-10T16:00:00+05:30 - Verified Demand operational evidence integrated into Android
+- **Tool Used**: Codex (`apply_patch`, Gradle Kotlin compile and unit/render tests)
+- **Files Modified**: `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt`, `ui/batch/AllocationViewModel.kt`, `ui/batch/BatchDetailScreen.kt`, `Navigation.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Added typed Android models for the Version 2 demand-context contract, loaded them through the shared authenticated API client when Demand Detail opens, and added a compact Operational Verification panel. It distinguishes verified RMS course status and linked sales confirmations from partial/unavailable evidence; a failed enrichment never blanks the cached demand page. Kotlin compilation and the complete Android unit/render suite pass.
+- **Current Status**: The verified dormant-API slice is functionally complete locally across backend, session scope, typed mobile contract and manager UI. Full lint/release/APK identity gates, version assignment, publication and production validation remain.
+- **Next Actions**: Assign v2.1.0/code 71 for the new protected operational-data capability, run all release gates, commit/push, validate CI/release APK and exercise the authenticated production endpoint plus key manager journeys.
+
+## 2026-08-10T15:30:00+05:30 - Protected Version 2 demand operations contract implemented
+- **Tool Used**: Codex (`apply_patch`, Flask contract tests)
+- **Files Modified**: `backend.py`, `tests/test_v2_demand_context.py`, `AI/PROGRESS.md`
+- **Work Completed**: Added a reusable Version 2 manager-session boundary that requires a valid bearer session and rejects cross-manager access. Added authenticated `/api/v2/operations/demand-context`, a versioned non-PII contract that enriches one demand with live Course Availability 104 and SCID 173 data, deduplicates sales-confirmation ids and labels missing RMS evidence as `partial`/unverified instead of pretending it is an empty business state. Added coverage for missing sessions, manager-scope violations, verified responses and zero-row semantics. Full backend suite passes 26/26.
+- **Current Status**: The first strictly authenticated and manager-scoped Version 2 business endpoint is complete locally. It uses only contracts proven in the live read audit and exposes no commercial totals or participant data. Android consumption, offline cache, UI presentation, full release gates and publication remain for this slice.
+- **Next Actions**: Add the typed Android contract/repository cache, load it on Demand Detail, present a compact Operational Verification panel with honest confidence states, then run Android/backend release gates and publish the next version.
+
+## 2026-08-10T15:05:00+05:30 - Dormant RMS read-contract audit completed safely
+- **Tool Used**: Codex (read-only documentation parser and live RMS contract probes; mutating APIs excluded)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Reconciled the repository, deployment configuration and all supplied API documents, then safely probed 15 dormant or unregistered read capabilities without logging tokens or credentials. Live contracts were positively verified for SCID 173 (`SCIDs`), Active SC Date 13 (`AssignmentId`, `CSM`, `CourseName`, `Currency`, `SCCreatedDate`, `SCId`, `Total Fee`) and Course Availability 104 (`Course Available in RMS`, `Course Status`, `Is Discontinued`, `Is Duplicate`). Upcoming Assignments 93, Trainer Availability 90, Recording 278, Trainer RC Schedule 111, Course & Technology 114, Course List 164, Course & Domain 205, Course Content 156, Course Module 206, Latest Course Version 172, Trainer Free Schedule 171 and Unique Certifications 72 authenticated successfully but returned zero rows for the documented/current test inputs, so they remain unavailable/unverified for product logic rather than being presented as genuine empty business states. Skill-write 255 and exam-link 215 were deliberately not invoked.
+- **Current Status**: The safe integration boundary is now evidence-based. Three additional read contracts can support Version 2; twelve candidates cannot yet be trusted for manager decisions without known-good inputs or RMS owner clarification. The existing source still contains plaintext credential fallbacks, so no additional credentials will be copied into application code.
+- **Next Actions**: Add authenticated, manager-scoped Version 2 contracts using only verified sources; build capacity/demand planning from assignments, off-dates, utilisation and unallocated demand with explicit confidence; expose verified course/SC operational intelligence without commercial or participant PII.
+
 ## 2026-08-10T14:10:00+05:30 - SkillEdge Manager Command Centre v2.0.0 released and production-validated
 - **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, production authenticated API probes, AAPT, APK Signer)
 - **Files Modified**: `AI/PROGRESS.md`

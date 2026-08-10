@@ -74,6 +74,14 @@ interface SkillEdgeApi {
         @Query("refresh") refresh: Int? = null,
     ): Map<String, Any>
 
+    /** Authenticated Version 2 operational evidence for one demand. */
+    @GET("api/v2/operations/demand-context")
+    suspend fun getDemandContext(
+        @Query("manager") manager: String,
+        @Query("demandId") demandId: String,
+        @Query("courseName") courseName: String,
+    ): DemandContextResponse
+
     /** RMS skill register for one trainer — the read-back behind a skill write. */
     @GET("api/data/trainer-skills")
     suspend fun getTrainerSkills(@Query("email") email: String): Map<String, Any>
@@ -140,6 +148,30 @@ interface SkillEdgeApi {
         @Body body: Map<String, String>,
     ): Map<String, Any>
 }
+
+data class DemandCourseContext(
+    val name: String = "",
+    val verified: Boolean = false,
+    @com.google.gson.annotations.SerializedName("available_in_rms") val availableInRms: Any? = null,
+    val status: String = "",
+    @com.google.gson.annotations.SerializedName("is_duplicate") val isDuplicate: Any? = null,
+    @com.google.gson.annotations.SerializedName("is_discontinued") val isDiscontinued: Any? = null,
+)
+
+data class SalesConfirmationContext(
+    val verified: Boolean = false,
+    val count: Int = 0,
+    val ids: List<String> = emptyList(),
+)
+
+data class DemandContextResponse(
+    @com.google.gson.annotations.SerializedName("schema_version") val schemaVersion: String = "",
+    @com.google.gson.annotations.SerializedName("demand_id") val demandId: String = "",
+    val course: DemandCourseContext = DemandCourseContext(),
+    @com.google.gson.annotations.SerializedName("sales_confirmations") val salesConfirmations: SalesConfirmationContext = SalesConfirmationContext(),
+    val confidence: String = "partial",
+    val note: String = "",
+)
 
 data class MarkSkillRequest(
     val course_id: String,

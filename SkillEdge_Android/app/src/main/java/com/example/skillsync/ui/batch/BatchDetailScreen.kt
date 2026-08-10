@@ -41,6 +41,9 @@ fun BatchDetailScreen(
     managerEmail: String,
     reportees: List<Pair<String, String>>,   // name to email
     markState: MarkState,
+    operationalContext: com.example.skillsync.data.api.DemandContextResponse? = null,
+    operationalContextLoading: Boolean = false,
+    operationalContextError: String? = null,
     onMarkSkill: (courseId: String, trainerEmail: String, level: Int, date: String, who: String) -> Unit,
     onClearMark: () -> Unit,
     onBack: () -> Unit,
@@ -169,6 +172,36 @@ fun BatchDetailScreen(
                             DetailStat("Priority", "${batch.intOrNull("priority_score") ?: 0}", sk.teal)
                             DetailStat("Risk", risk.ifBlank { "—" }, riskTint)
                             DetailStat("Coverage", "$relevance%", relevanceColor(relevance))
+                        }
+                    }
+                }
+
+                Box(Modifier.fillMaxWidth().glassSurface()) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Operational verification", fontWeight = FontWeight.SemiBold, color = sk.frost)
+                            val label = when {
+                                operationalContextLoading -> "Checking"
+                                operationalContext?.confidence == "verified" -> "Verified"
+                                else -> "Partial"
+                            }
+                            Text(label, style = MaterialTheme.typography.labelSmall, color = if (label == "Verified") sk.aqua else sk.amber)
+                        }
+                        when {
+                            operationalContextLoading -> LinearProgressIndicator(Modifier.fillMaxWidth())
+                            operationalContext != null -> {
+                                val course = operationalContext.course
+                                val confirmations = operationalContext.salesConfirmations
+                                Text(
+                                    if (course.verified) "RMS course status: ${course.status.ifBlank { "Verified" }}" else "Course status could not be verified",
+                                    style = MaterialTheme.typography.bodySmall, color = sk.bodyText,
+                                )
+                                Text(
+                                    if (confirmations.verified) "${confirmations.count} sales confirmation${if (confirmations.count == 1) "" else "s"} linked" else "Sales confirmation link could not be verified",
+                                    style = MaterialTheme.typography.bodySmall, color = sk.subText,
+                                )
+                            }
+                            operationalContextError != null -> Text(operationalContextError, style = MaterialTheme.typography.bodySmall, color = sk.warn)
                         }
                     }
                 }

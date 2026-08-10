@@ -65,6 +65,28 @@ class AllocationViewModel(
     val courseSearchLoading = MutableStateFlow(false)
     val courseIntelligence = MutableStateFlow<Map<String, Any>?>(null)
     val courseIntelligenceLoading = MutableStateFlow(false)
+    val demandContext = MutableStateFlow<com.example.skillsync.data.api.DemandContextResponse?>(null)
+    val demandContextLoading = MutableStateFlow(false)
+    val demandContextError = MutableStateFlow<String?>(null)
+    private var demandContextKey: String? = null
+
+    fun loadDemandContext(manager: String, demandId: String, courseName: String) {
+        val key = "$manager|$demandId|$courseName"
+        if (demandContextKey == key && (demandContext.value != null || demandContextLoading.value)) return
+        demandContextKey = key
+        demandContext.value = null
+        demandContextError.value = null
+        viewModelScope.launch {
+            demandContextLoading.value = true
+            try {
+                demandContext.value = RetrofitClient.instance.getDemandContext(manager, demandId, courseName)
+            } catch (_: Exception) {
+                demandContextError.value = "Live operational verification is unavailable. Cached demand details remain usable."
+            } finally {
+                demandContextLoading.value = false
+            }
+        }
+    }
 
     fun searchCourses(query: String) {
         if (query.trim().length < 2) {

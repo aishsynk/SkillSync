@@ -301,6 +301,21 @@ def _session_payload(required=False):
         }), 401)
     return session, None
 
+
+def _v2_manager_session(manager_email=""):
+    """Require an authenticated v2 session and keep manager data in scope."""
+    session, error = _session_payload(required=True)
+    if error:
+        return None, error
+    requested = str(manager_email or "").strip().lower()
+    signed_in = str(session.get("email", "") or "").strip().lower()
+    if requested and requested != signed_in:
+        return None, (jsonify({
+            "error": "The requested manager is outside this session",
+            "code": "MANAGER_SCOPE_MISMATCH",
+        }), 403)
+    return session, None
+
 # ─── Response cache ───────────────────────────────────────────────────────────
 #
 # Measured from Render (2026-08-07): a single RMS round-trip costs 2-5s, and the
@@ -3393,6 +3408,59 @@ def allocation_desk():
     with _allocation_lock:
         _allocation_payload_cache[email] = payload
     return jsonify(payload), 200
+
+
+@app.route('/api/v2/operations/demand-context', methods=['GET'])
+def v2_demand_context():
+    """Verified, non-PII RMS context for one manager demand decision."""
+    manager = request.args.get('manager', '').strip().lower()
+    _, error = _v2_manager_session(manager)
+    if error:
+        return error
+
+    demand_id = request.args.get('demandId', '').strip()
+    course_name = request.args.get('courseName', '').strip()
+    if not demand_id or not demand_id.isdigit():
+        return jsonify({"error": "A numeric demandId is required", "code": "INVALID_DEMAND_ID"}), 400
+    if not course_name or len(course_name) > 200:
+        return jsonify({"error": "courseName is required", "code": "INVALID_COURSE_NAME"}), 400
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        course_future = pool.submit(_rms, "courseAvailability", {"CourseName": course_name})
+        scid_future = pool.submit(_rms, "scid", {"assignmentid": demand_id})
+        course_rows = course_future.result() or []
+        scid_rows = scid_future.result() or []
+
+    course_row = next((r for r in course_rows if isinstance(r, dict)), {})
+    scid_values = []
+    for row in scid_rows if isinstance(scid_rows, list) else []:
+        if not isinstance(row, dict):
+            continue
+        raw = str(row.get("SCIDs", "") or "").strip()
+        scid_values.extend(v.strip() for v in _re.split(r"[,#;]", raw) if v.strip())
+
+    course_verified = bool(course_row)
+    scid_verified = bool(scid_values)
+    return jsonify({
+        "schema_version": "2.1",
+        "demand_id": demand_id,
+        "course": {
+            "name": course_name,
+            "verified": course_verified,
+            "available_in_rms": course_row.get("Course Available in RMS") if course_verified else None,
+            "status": str(course_row.get("Course Status", "") or ""),
+            "is_duplicate": course_row.get("Is Duplicate") if course_verified else None,
+            "is_discontinued": course_row.get("Is Discontinued") if course_verified else None,
+        },
+        "sales_confirmations": {
+            "verified": scid_verified,
+            "count": len(set(scid_values)),
+            "ids": sorted(set(scid_values)),
+        },
+        "confidence": "verified" if course_verified and scid_verified else "partial",
+        "note": "Unavailable fields are unverified, not assumed empty.",
+        "generated_at": datetime.utcnow().isoformat(),
+    }), 200
 
 
 @app.route('/api/data/trainer-skills', methods=['GET'])
