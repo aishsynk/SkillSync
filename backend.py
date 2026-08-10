@@ -279,6 +279,28 @@ _APIS = {
 _token_cache: dict = {}
 _sessions: dict = {}
 
+
+def _request_session():
+    """Resolve the opaque SkillEdge session carried by Android.
+
+    Session transport is introduced before enforcement so the currently
+    published Android client keeps working during the migration window. New
+    clients send `Authorization: Bearer <session_id>` on every request.
+    """
+    auth = str(request.headers.get("Authorization", "") or "").strip()
+    token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    return token, _sessions.get(token)
+
+
+def _session_payload(required=False):
+    token, session = _request_session()
+    if required and not session:
+        return None, (jsonify({
+            "error": "Authentication required",
+            "code": "SESSION_REQUIRED",
+        }), 401)
+    return session, None
+
 # ─── Response cache ───────────────────────────────────────────────────────────
 #
 # Measured from Render (2026-08-07): a single RMS round-trip costs 2-5s, and the
@@ -2173,7 +2195,22 @@ def login():
 
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
+    token, _ = _request_session()
+    if token:
+        _sessions.pop(token, None)
     return jsonify({"success": True}), 200
+
+
+@app.route('/api/auth/session', methods=['GET'])
+def validate_session():
+    session, error = _session_payload(required=True)
+    if error:
+        return error
+    return jsonify({
+        "authenticated": True,
+        "email": session.get("email", ""),
+        "role": session.get("role", ""),
+    }), 200
 
 
 @app.route('/api/data/unified-manager-intelligence', methods=['GET'])

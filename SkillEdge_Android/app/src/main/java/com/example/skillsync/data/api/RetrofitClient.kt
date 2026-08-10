@@ -56,8 +56,25 @@ object RetrofitClient {
             }
         }
 
+        // Carry the backend-issued session on every request after login. The
+        // login call itself naturally has no stored session yet. Centralising
+        // this here prevents individual repositories from accidentally making
+        // unauthenticated requests as Version 2 route enforcement rolls out.
+        val sessionInterceptor = Interceptor { chain ->
+            val sessionId = com.example.skillsync.data.SessionManager.getSessionId()
+            val request = if (sessionId.isNullOrBlank()) {
+                chain.request()
+            } else {
+                chain.request().newBuilder()
+                    .header("Authorization", "Bearer $sessionId")
+                    .build()
+            }
+            chain.proceed(request)
+        }
+
         okHttpClient = OkHttpClient.Builder()
             .cache(cache)
+            .addInterceptor(sessionInterceptor)
             .addInterceptor(offlineInterceptor)
             .addNetworkInterceptor(rewriteCacheControlInterceptor)
             .addInterceptor(loggingInterceptor)

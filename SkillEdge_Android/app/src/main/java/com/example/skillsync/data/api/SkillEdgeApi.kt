@@ -21,6 +21,12 @@ interface SkillEdgeApi {
     @POST("api/auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
 
+    @GET("api/auth/session")
+    suspend fun validateSession(): Map<String, Any>
+
+    @POST("api/auth/logout")
+    suspend fun logout(): Map<String, Any>
+
     /**
      * [refresh] maps to `?refresh=1`, which purges this manager's server-side
      * cache before rebuilding. Sent on pull-to-refresh only: a first load should

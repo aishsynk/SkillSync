@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +45,7 @@ import com.example.skillsync.ui.batch.AllocationDeskContent
 import com.example.skillsync.ui.batch.AllocationState
 import com.example.skillsync.ui.batch.AllocationViewModel
 import com.example.skillsync.ui.components.*
+import kotlinx.coroutines.launch
 
 // ── Screen shell ──────────────────────────────────────────────────────────────
 
@@ -70,12 +72,12 @@ fun MainScreen(
 
     LaunchedEffect(email, tab) {
         viewModel.loadData(email, context)
-        if (tab == HomeTab.DEMAND) allocationViewModel.load(email, context)
-        if (tab == HomeTab.COURSES) viewModel.ensureCapability(email, context)
-        if (tab == HomeTab.DASHBOARD || tab == HomeTab.TEAM) {
+        if (tab == HomeTab.DEMAND || tab == HomeTab.SEARCH) allocationViewModel.load(email, context)
+        if (tab == HomeTab.COURSES || tab == HomeTab.TEAM || tab == HomeTab.SEARCH) viewModel.ensureCapability(email, context)
+        if (tab == HomeTab.DASHBOARD || tab == HomeTab.TEAM || tab == HomeTab.SEARCH) {
             viewModel.ensureTeamIntelligence(email, context)
         }
-        if (tab == HomeTab.DASHBOARD || tab == HomeTab.ACTIONS) actionsViewModel.load(email)
+        if (tab == HomeTab.DASHBOARD || tab == HomeTab.ACTIONS || tab == HomeTab.SEARCH) actionsViewModel.load(email)
     }
     // Resume adopts whatever WorkManager already persisted and requests one
     // constrained background pass. It never blanks or reloads the screen.
@@ -121,6 +123,8 @@ fun MainScreen(
     var bannerMessage by remember { mutableStateOf<String?>(null) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showNotificationsSheet by remember { mutableStateOf(false) }
+    var peopleWorkspace by rememberSaveable { mutableStateOf("PORTFOLIO") }
+    var todayWorkspace by rememberSaveable { mutableStateOf("BRIEF") }
 
     LaunchedEffect(Unit) {
         viewModel.notification.collect { (title, message) ->
@@ -314,13 +318,55 @@ fun MainScreen(
                     ) {
                         val d = s.intelligenceData
                         when (tab) {
-                            HomeTab.TEAM -> TeamTab(
-                                data = d,
+                            HomeTab.TEAM -> Column(Modifier.fillMaxSize()) {
+                                PeopleWorkspaceSwitch(peopleWorkspace) { peopleWorkspace = it }
+                                if (peopleWorkspace == "PORTFOLIO") {
+                                    TeamTab(
+                                        data = d,
+                                        capability = capability,
+                                        actions = teamActions,
+                                        loading = capLoading,
+                                        dataError = teamDataError,
+                                        onTrainerClick = onTrainerClick,
+                                    )
+                                } else {
+                                    val coursePeople = buildList {
+                                        add("Aishwar (You)" to email)
+                                        d.rows("trainer_operations_df").forEach { trainer ->
+                                            val trainerEmail = trainer.str("official_email")
+                                            if (trainerEmail.isNotBlank() && trainerEmail.lowercase() != email.lowercase()) {
+                                                add(trainer.str("trainer_name").ifBlank { trainerEmail } to trainerEmail)
+                                            }
+                                        }
+                                    }.distinctBy { it.second.lowercase() }
+                                    CoursesTab(
+                                        capability, capLoading, onTrainerClick,
+                                        people = coursePeople,
+                                        markState = skillMarkState,
+                                        courseSearchResults = courseSearchResults,
+                                        courseSearchLoading = courseSearchLoading,
+                                        courseIntelligence = courseIntelligence,
+                                        courseIntelligenceLoading = courseIntelligenceLoading,
+                                        onSearchCourses = allocationViewModel::searchCourses,
+                                        onLoadCourseIntelligence = allocationViewModel::loadCourseIntelligence,
+                                        onAssign = { courseId, trainers, level, date ->
+                                            allocationViewModel.markSkillBatch(
+                                                context, courseId, trainers, level, date,
+                                                onSaved = { viewModel.refreshCapability(email, context) },
+                                            )
+                                        },
+                                        onClearMark = allocationViewModel::clearMark,
+                                    )
+                                }
+                            }
+                            HomeTab.DELIVERY -> DeliveryOperationsWorkspace(d, onTrainerClick)
+                            HomeTab.SEARCH -> UniversalCommandSearch(
+                                dashboard = d,
                                 capability = capability,
-                                actions = teamActions,
-                                loading = capLoading,
-                                dataError = teamDataError,
-                                onTrainerClick = onTrainerClick,
+                                allocation = (allocState as? AllocationState.Success)?.data,
+                                actions = inboxActions,
+                                onTrainer = onTrainerClick,
+                                onDemand = onBatchClick,
                             )
                             HomeTab.ACTIONS -> ActionsInbox(
                                 managerEmail = email,
@@ -342,21 +388,40 @@ fun MainScreen(
                                 onTrainerClick = onTrainerClick,
                                 onDismissError = { actionsViewModel.clearError() },
                             )
-                            else -> DashboardTab(
-                                data = d,
-                                profile = profile,
-                                capability = capability,
-                                capabilityLoading = capLoading,
-                                actions = inboxActions,
-                                email = email,
-                                onTrainerClick = onTrainerClick,
-                                onOpenProfile = { onTrainerClick(email, profile?.str("name").orEmpty()) },
-                                onLogout = { showLogoutConfirm = true },
-                                onDrill = { drill = it },
-                                onLoadCapability = { viewModel.ensureCapability(email, context) },
-                                onOpenTeam = { onTabChange(HomeTab.TEAM) },
-                                onOpenNotifications = { showNotificationsSheet = true }
-                            )
+                            else -> Column(Modifier.fillMaxSize()) {
+                                TodayWorkspaceSwitch(todayWorkspace) { todayWorkspace = it }
+                                if (todayWorkspace == "QUEUE") {
+                                    ActionsInbox(
+                                        managerEmail = email,
+                                        actions = inboxActions,
+                                        initialLoading = inboxLoading,
+                                        error = inboxError,
+                                        onSetState = { id, st, note -> actionsViewModel.setState(email, id, st, note) },
+                                        onAddNote = { id, note -> actionsViewModel.addNote(email, id, note) },
+                                        onRaise = { title, detail, cat, prio ->
+                                            actionsViewModel.raise(email, title, detail, cat, prio)
+                                        },
+                                        onTrainerClick = onTrainerClick,
+                                        onDismissError = { actionsViewModel.clearError() },
+                                    )
+                                } else {
+                                    DashboardTab(
+                                        data = d,
+                                        profile = profile,
+                                        capability = capability,
+                                        capabilityLoading = capLoading,
+                                        actions = inboxActions,
+                                        email = email,
+                                        onTrainerClick = onTrainerClick,
+                                        onOpenProfile = { onTrainerClick(email, profile?.str("name").orEmpty()) },
+                                        onLogout = { showLogoutConfirm = true },
+                                        onDrill = { drill = it },
+                                        onLoadCapability = { viewModel.ensureCapability(email, context) },
+                                        onOpenTeam = { onTabChange(HomeTab.TEAM) },
+                                        onOpenNotifications = { showNotificationsSheet = true }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -392,11 +457,13 @@ internal fun relativeAge(epochMillis: Long): String {
 }
 
 private fun tabTitle(tab: String) = when (tab) {
-    HomeTab.TEAM -> "Team roster"
-    HomeTab.COURSES -> "Course catalogue"
-    HomeTab.DEMAND -> "Unallocated demand"
+    HomeTab.TEAM -> "People & Capability"
+    HomeTab.COURSES -> "Capability Marketplace"
+    HomeTab.DEMAND -> "Demand & Planning"
     HomeTab.ACTIONS -> "Manager actions"
-    else -> "Manager Command Dashboard"
+    HomeTab.DELIVERY -> "Delivery Operations"
+    HomeTab.SEARCH -> "Search & Command"
+    else -> "Today · Manager Brief"
 }
 
 /**
@@ -412,11 +479,11 @@ private fun tabTitle(tab: String) = when (tab) {
 internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
     val sk = MaterialTheme.skill
     val items = listOf(
-        Triple(HomeTab.DASHBOARD, R.drawable.ic_home, "Home"),
-        Triple(HomeTab.TEAM, R.drawable.ic_people, "Team"),
-        Triple(HomeTab.COURSES, R.drawable.ic_book, "Courses"),
-        Triple(HomeTab.DEMAND, R.drawable.ic_inbox, "Demand"),
-        Triple(HomeTab.ACTIONS, R.drawable.ic_flag, "Actions"),
+        Triple(HomeTab.DASHBOARD, R.drawable.ic_home, "Today"),
+        Triple(HomeTab.TEAM, R.drawable.ic_people, "People"),
+        Triple(HomeTab.DEMAND, R.drawable.ic_inbox, "Plan"),
+        Triple(HomeTab.DELIVERY, R.drawable.ic_calendar, "Deliver"),
+        Triple(HomeTab.SEARCH, R.drawable.ic_search, "Search"),
     )
     // Frosted over the aurora. Material's indicator pill is gone — the active
     // tab is marked by a cyan glow bar and a lit icon instead, which costs no
@@ -592,6 +659,7 @@ internal fun DashboardTab(
     val attention = remember(ops, deliveryByEmail) { rankByAttention(ops, deliveryByEmail) }
 
     var showProfileMenu by remember { mutableStateOf(false) }
+    val sessionScope = rememberCoroutineScope()
 
     if (showProfileMenu) {
         ProfileMenuBottomSheet(
@@ -599,8 +667,11 @@ internal fun DashboardTab(
             onDismiss = { showProfileMenu = false },
             onLogout = {
                 showProfileMenu = false
-                com.example.skillsync.data.SessionManager.clearSession()
-                onLogout()
+                sessionScope.launch {
+                    runCatching { com.example.skillsync.data.api.RetrofitClient.instance.logout() }
+                    com.example.skillsync.data.SessionManager.clearSession()
+                    onLogout()
+                }
             },
             onViewProfile = {
                 showProfileMenu = false

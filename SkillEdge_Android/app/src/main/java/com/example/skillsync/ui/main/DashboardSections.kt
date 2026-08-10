@@ -247,7 +247,7 @@ fun ProfileMenuBottomSheet(
             Text("Session Information", style = MaterialTheme.typography.titleMedium, color = Color.White)
             Spacer(Modifier.height(8.dp))
             Text("Logged in as: $email", color = Color.LightGray)
-            Text("Session ID: ${com.example.skillsync.data.SessionManager.getSessionId()?.take(8)}...", color = Color.LightGray)
+            Text("Secure manager session", color = Color.LightGray)
             Text("Background sync: Automatic", color = Color.LightGray)
             
             Spacer(Modifier.height(24.dp))

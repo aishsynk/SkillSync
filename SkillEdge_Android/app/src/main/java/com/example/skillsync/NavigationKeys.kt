@@ -15,9 +15,11 @@ import kotlinx.serialization.Serializable
 @Serializable data class BatchDetail(val email: String, val demandId: String) : NavKey
 
 object HomeTab {
-    const val DASHBOARD = "dashboard"
-    const val TEAM = "team"
+    const val DASHBOARD = "today"
+    const val TEAM = "people"
     const val COURSES = "courses"
-    const val DEMAND = "demand"
+    const val DEMAND = "planning"
     const val ACTIONS = "actions"
+    const val DELIVERY = "delivery"
+    const val SEARCH = "search"
 }

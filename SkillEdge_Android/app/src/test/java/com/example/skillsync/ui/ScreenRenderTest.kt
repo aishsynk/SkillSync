@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performScrollToNode
@@ -20,6 +21,8 @@ import com.example.skillsync.ui.main.DashboardTab
 import com.example.skillsync.ui.main.SkillSyncNavBar
 import com.example.skillsync.ui.main.TeamTab
 import com.example.skillsync.ui.main.TrainerCard
+import com.example.skillsync.ui.main.DeliveryOperationsWorkspace
+import com.example.skillsync.ui.main.UniversalCommandSearch
 import com.example.skillsync.ui.trainer.Trainer360Content
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -389,7 +392,7 @@ class ScreenRenderTest {
         compose.setContent {
             SkillSyncTheme { SkillSyncNavBar(HomeTab.DASHBOARD) { selected = it } }
         }
-        compose.onNodeWithText("Demand").performClick()
+        compose.onNodeWithText("Plan").performClick()
         assertEquals(HomeTab.DEMAND, selected)
     }
 
@@ -398,7 +401,7 @@ class ScreenRenderTest {
         compose.setContent {
             SkillSyncTheme { SkillSyncNavBar(HomeTab.DASHBOARD) {} }
         }
-        listOf("Home", "Team", "Courses", "Demand", "Actions").forEach {
+        listOf("Today", "People", "Plan", "Deliver", "Search").forEach {
             compose.onNodeWithText(it).assertExists()
         }
     }
@@ -471,6 +474,31 @@ class ScreenRenderTest {
         compose.onNodeWithText("2 of 2 courses").assertExists()
         compose.onNodeWithText("Single owner only").performClick()
         compose.onNodeWithText("1 of 2 courses").assertExists()
+    }
+
+    @Test
+    fun deliveryWorkspace_prioritisesLiveOperations() {
+        compose.setContent {
+            SkillSyncTheme { DeliveryOperationsWorkspace(dashboardPayload()) { _, _ -> } }
+        }
+        compose.onNodeWithText("Delivery Operations").assertExists()
+        compose.onNodeWithText("LIVE · 1").assertExists()
+        compose.onNodeWithText("AI-102T00: Develop AI Solutions in Azure").assertExists()
+    }
+
+    @Test
+    fun universalSearch_findsManagersEntitiesTogether() {
+        compose.setContent {
+            SkillSyncTheme {
+                UniversalCommandSearch(
+                    dashboardPayload(), capabilityPayload(), null, emptyList(),
+                    onTrainer = { _, _ -> }, onDemand = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Try “available Azure”, “FMAT” or a trainer name").performTextInput("Abhinav")
+        compose.onNodeWithText("TRAINER").assertExists()
+        compose.onNodeWithText("Abhinav Samant").assertExists()
     }
 
     // ── Trainer 360 ─────────────────────────────────────────────────────────
