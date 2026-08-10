@@ -740,6 +740,7 @@ class ScreenRenderTest {
             "location" to "London, United Kingdom",
             "revenue_potential" to "High",
             "priority_score" to 90,
+            "relevance" to 88,
             "assignment_risk" to "Medium",
             "coverage_status" to "Best Match",
             "candidates" to emptyList<Map<String, Any>>(),
@@ -763,6 +764,26 @@ class ScreenRenderTest {
         compose.onNodeWithText("TRAVEL REQUIRED", substring = true).assertExists()
         compose.onNodeWithText("London, United Kingdom").assertExists()
         compose.onNodeWithText("Visa and schedule readiness", substring = true).assertExists()
+    }
+
+    @Test
+    fun leastMatchDemand_isExplicitlyRedAndRequiresReview() {
+        val batch = mapOf<String, Any>(
+            "course_name" to "DP-700 Fabric Data Engineer",
+            "delivery_mode" to "ILO",
+            "delivery_mode_kind" to "ILO",
+            "relevance" to 34,
+            "assignment_risk" to "High",
+            "coverage_status" to "No Coverage",
+            "candidates" to emptyList<Map<String, Any>>(),
+        )
+        compose.setContent {
+            SkillSyncTheme {
+                BatchCard(batch, isNew = false, isPriority = false) {}
+            }
+        }
+        compose.onNodeWithText("LOW MATCH · MANAGER REVIEW REQUIRED").assertExists()
+        compose.onNodeWithText("34%").assertExists()
     }
 
     @Test

@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-11T01:20:00+05:30 - v3.1.0 Plan redesign release gate passed
+- **Tool Used**: Codex (38 backend tests, complete Android unit/render suite, release lint/assembly, AAPT, APK Signer, diff audit)
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Completed the full release gate for the final Plan visual-intelligence change. Backend passes 38/38; Android tests including new global-premium and low-match states, release lint and signed assembly pass. APK is `com.example.skillsync` v3.1.0/code 76, local SHA-256 `0FCB7C1564C087893BF3BA22C8CA9AAC2BA1387EAAEB54A365867EBB088D985C`, with unchanged signer `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`.
+- **Current Status**: v3.1.0 is locally release-ready. GitHub publication, CI APK verification, release history and production Plan service checks remain. Physical upgrade remains unavailable without a connected device.
+- **Next Actions**: Commit/push, monitor CI, verify the versioned signed APK and notes, then production-check login, seven-demand Plan readiness, capability/actions health, manager isolation and logout revocation.
+
+## 2026-08-11T00:55:00+05:30 - Plan visual intelligence redesign implemented
+- **Tool Used**: Codex (`apply_patch`, Compose render tests)
+- **Files Modified**: `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `app/src/test/java/com/example/skillsync/ui/ScreenRenderTest.kt`, `app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Reworked Plan so delivery modes read as distinct visual lanes rather than similarly styled groups: FMAT uses amber/gold, ILT blue, ILO indigo and unspecified mode rose. Each lane now has a tinted bordered header and every normal batch card carries its lane color. International FMAT/ILT remains the strongest treatment with animated globe, premium gradient border, global priority ribbon and travel/international indicator. Added a stronger business override for every demand below 50% relevance: the whole card becomes red-accented with a red border and explicit `LOW MATCH · MANAGER REVIEW REQUIRED` banner plus the percentage, regardless of delivery mode. Added render coverage for the international premium state and the low-match red state; focused render suite passes.
+- **Current Status**: The requested final Plan visual behavior is complete locally and assigned v3.1.0/code 76. Full Android release gates, signed APK verification, GitHub publication and production service checks remain.
+- **Next Actions**: Run complete tests/lint/release assembly, publish v3.1.0, verify the signed APK and release history, then revalidate production Plan data/authentication without changing matching logic.
+
 ## 2026-08-11T00:25:00+05:30 - SkillEdge 3.0 Android redesign released and production services validated
 - **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, published APK verification, authenticated production journey checks)
 - **Files Modified**: `AI/PROGRESS.md`

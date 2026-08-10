@@ -328,7 +328,7 @@ internal fun AllocationDeskContent(
             batches = fmatBatches,
             title = "FMAT — Trainer travels to customer",
             subtitle = "Highest delivery cost · travel and visa lead time",
-            tint = sk.teal,
+            tint = sk.warn,
             expanded = fmatExpanded,
             onToggle = { fmatExpanded = !fmatExpanded },
             keyPrefix = "fmat_",
@@ -356,7 +356,7 @@ internal fun AllocationDeskContent(
             batches = otherModeBatches,
             title = "Unspecified delivery mode",
             subtitle = "RMS did not state a mode — worth checking",
-            tint = sk.warn,
+            tint = sk.crit,
             expanded = otherExpanded,
             onToggle = { otherExpanded = !otherExpanded },
             keyPrefix = "oth_",
@@ -370,7 +370,7 @@ internal fun AllocationDeskContent(
             batches = iloBatches,
             title = "ILO — Online delivery",
             subtitle = "Remote instructor-led",
-            tint = sk.subText,
+            tint = sk.indigo,
             expanded = iloExpanded,
             onToggle = { iloExpanded = !iloExpanded },
             keyPrefix = "ilo_",
@@ -642,9 +642,11 @@ private fun SectionHeader(title: String, count: Int, tint: Color, expanded: Bool
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(tint.copy(alpha = 0.11f))
+            .border(1.dp, tint.copy(alpha = 0.28f), RoundedCornerShape(14.dp))
             .clickable(onClick = onToggle)
-            .padding(vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(4.dp).height(18.dp).clip(RoundedCornerShape(2.dp)).background(tint))
@@ -723,6 +725,7 @@ internal fun BatchCard(
     isNew: Boolean,
     isPriority: Boolean = true,
     globalFeatured: Boolean = false,
+    modeTint: Color? = null,
     /** Offered only when this manager's own team maps to nobody. */
     onGlobalSearch: ((String) -> Unit)? = null,
     onClick: () -> Unit,
@@ -734,6 +737,14 @@ internal fun BatchCard(
     val risk = b.str("assignment_risk")
     val riskTint = when (risk) { "High" -> sk.crit; "Medium" -> sk.warn; else -> sk.aqua }
     val international = b.bool("is_international") && b.str("delivery_mode_kind") in listOf("FMAT", "ILT")
+    val leastMatch = b.int("relevance") < 50
+    val cardAccent = when {
+        international -> sk.sky
+        leastMatch -> sk.crit
+        modeTint != null -> modeTint
+        isPriority -> sk.warn
+        else -> sk.indigo
+    }
     val managerRecommendation = b.obj("manager_recommendation")
 
     Box(
@@ -741,14 +752,16 @@ internal fun BatchCard(
             .fillMaxWidth()
             .animateContentSize()
             .accentGlass(
-                if (international) sk.sky else if (isPriority) sk.teal else sk.subText.copy(alpha = 0.3f),
-                RoundedCornerShape(Radii.card), strong = isPriority || international,
+                cardAccent,
+                RoundedCornerShape(Radii.card), strong = isPriority || international || leastMatch,
             )
             .then(
                 if (globalFeatured) Modifier.border(
                     2.dp,
                     androidx.compose.ui.graphics.Brush.linearGradient(listOf(sk.sky, sk.indigo, sk.aqua)),
                     RoundedCornerShape(Radii.card),
+                ) else if (leastMatch) Modifier.border(
+                    1.5.dp, sk.crit.copy(alpha = 0.72f), RoundedCornerShape(Radii.card)
                 ) else Modifier
             )
             .clickable(onClick = onClick),
@@ -768,6 +781,26 @@ internal fun BatchCard(
                 if (globalFeatured) {
                     GlobalPriorityRibbon(b)
                     Spacer(Modifier.height(10.dp))
+                }
+                if (leastMatch) {
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                            .background(sk.crit.copy(alpha = 0.14f))
+                            .border(1.dp, sk.crit.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 9.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(painterResource(R.drawable.ic_alert), null, tint = sk.crit, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            "LOW MATCH · MANAGER REVIEW REQUIRED",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.crit, fontWeight = FontWeight.ExtraBold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text("${b.int("relevance")}%", color = sk.crit, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp)
+                    }
+                    Spacer(Modifier.height(9.dp))
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                     Column(Modifier.weight(1f)) {
@@ -1222,6 +1255,7 @@ private fun LazyListScope.globalPrioritySection(
                 isNew = batch.str("demand_id") in newIds,
                 isPriority = true,
                 globalFeatured = true,
+                modeTint = MaterialTheme.skill.sky,
                 onGlobalSearch = onGlobalSearch,
             ) { onBatchClick(batch) }
         }
@@ -1325,6 +1359,7 @@ private fun LazyListScope.modeSection(
                     b,
                     isNew = b.str("demand_id") in newIds,
                     isPriority = isPriority,
+                    modeTint = tint,
                     onGlobalSearch = onGlobalSearch,
                 ) { onBatchClick(b) }
             }
@@ -1353,7 +1388,7 @@ private fun ModeSectionHeader(
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(4.dp).height(30.dp).clip(RoundedCornerShape(2.dp)).background(tint))
+        Box(Modifier.width(5.dp).height(34.dp).clip(RoundedCornerShape(3.dp)).background(tint))
         Spacer(Modifier.width(9.dp))
         Column(Modifier.weight(1f)) {
             Text(
