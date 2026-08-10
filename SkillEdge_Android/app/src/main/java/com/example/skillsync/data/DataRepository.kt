@@ -4,6 +4,7 @@ import com.example.skillsync.data.api.RetrofitClient
 import com.example.skillsync.data.api.SkillEdgeApi
 import com.example.skillsync.data.api.MarkSkillRequest
 import com.example.skillsync.data.api.MarkSkillResponse
+import com.example.skillsync.data.api.CapacityPlanResponse
 import com.example.skillsync.data.cache.LocalCache
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -61,6 +62,16 @@ class ManagerRepository(
     suspend fun allocation(email: String, fresh: Boolean): RepositoryResult<Map<String, Any>> =
         cachedMap("allocation_$email", fresh) { api.getAllocationDesk(email, fresh.flag()) }
 
+    suspend fun capacityPlan(email: String): CapacityPlanResponse? = try {
+        val live = api.getCapacityPlan(email)
+        if (live.ready) {
+            LocalCache.saveObject("capacity_plan_$email", live)
+            live
+        } else LocalCache.loadObject("capacity_plan_$email", CapacityPlanResponse::class.java)
+    } catch (_: Exception) {
+        LocalCache.loadObject("capacity_plan_$email", CapacityPlanResponse::class.java)
+    }
+
     suspend fun utilizationHistory(email: String) =
         cachedMap("utilization_${email.lowercase()}", false) { api.getTrainerUtilizationHistory(email) }.data.orEmpty()
 
@@ -112,6 +123,9 @@ class ManagerRepository(
         val allocation = async { allocation(email, fresh = false) }
         val team = async { teamIntelligence(email, fresh = false) }
         val results = listOf(dashboard.await(), profile.await(), allocation.await())
+        // Capacity depends on the completed allocation snapshot, so refresh it
+        // only after allocation has returned rather than racing the two calls.
+        capacityPlan(email)
         val teamResult = team.await()
         val success = results.count { it.data != null } +
             (if (teamResult.capability != null) 1 else 0) +

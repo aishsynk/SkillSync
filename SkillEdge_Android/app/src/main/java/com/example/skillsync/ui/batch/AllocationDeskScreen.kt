@@ -81,6 +81,8 @@ internal fun AllocationDeskContent(
     // values are all the wider-network lookup actually needs.
     globalSearchData: Map<String, Any>? = null,
     onGlobalSearch: (String) -> Unit = {},
+    capacityPlan: com.example.skillsync.data.api.CapacityPlanResponse? = null,
+    capacityPlanLoading: Boolean = false,
 ) {
     val sk = MaterialTheme.skill
     val batches = data.rows("batches")
@@ -194,6 +196,8 @@ internal fun AllocationDeskContent(
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        item { CapacityPlanningCard(capacityPlan, capacityPlanLoading) }
+
         globalPrioritySection(
             batches = globalBatches,
             newIds = newIds,
@@ -1023,6 +1027,50 @@ internal fun BatchCard(
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CapacityPlanningCard(
+    plan: com.example.skillsync.data.api.CapacityPlanResponse?,
+    loading: Boolean,
+) {
+    val sk = MaterialTheme.skill
+    Box(Modifier.fillMaxWidth().glassSurface(RoundedCornerShape(16.dp))) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text("Capacity & demand outlook", fontWeight = FontWeight.SemiBold, color = sk.frost)
+                    Text("8-week allocation pressure", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+                }
+                Text(if (plan?.ready == true) "LIVE EVIDENCE" else "PREPARING", style = MaterialTheme.typography.labelSmall, color = if (plan?.ready == true) sk.green else sk.amber)
+            }
+            when {
+                loading && plan == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
+                plan == null -> Text("Capacity outlook will appear when the demand snapshot is ready.", style = MaterialTheme.typography.bodySmall, color = sk.subText)
+                else -> {
+                    val s = plan.summary
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        StatFigure("${s.demand}", "DEMAND", sk.frost, Modifier.weight(1f))
+                        StatFigure(s.coveragePct?.let { "$it%" } ?: "—", "COVERED", if ((s.coveragePct ?: 0) >= 75) sk.green else sk.amber, Modifier.weight(1f))
+                        StatFigure("${s.uncovered}", "UNCOVERED", if (s.uncovered == 0) sk.green else sk.crit, Modifier.weight(1f))
+                        StatFigure(plan.confidence.availabilityPct?.let { "$it%" } ?: "—", "AVAIL. PROOF", if (plan.confidence.availabilityPct == 100) sk.green else sk.amber, Modifier.weight(1f))
+                    }
+                    val maxDemand = (plan.weeks.maxOfOrNull { it.demand } ?: 1).coerceAtLeast(1)
+                    Row(Modifier.fillMaxWidth().height(72.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.Bottom) {
+                        plan.weeks.forEach { week ->
+                            val tint = when (week.pressure) { "high" -> sk.crit; "watch" -> sk.amber; "healthy" -> sk.green; else -> sk.cardBorder }
+                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+                                if (week.demand > 0) Text("${week.demand}", fontSize = 9.sp, color = tint, fontWeight = FontWeight.Bold)
+                                Box(Modifier.fillMaxWidth().height((8 + 38 * week.demand / maxDemand).dp).clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)).background(tint.copy(alpha = 0.85f)))
+                                Text(week.weekStart.drop(5).replace("-", "/"), fontSize = 7.sp, color = sk.labelText, maxLines = 1)
+                            }
+                        }
+                    }
+                    Text(plan.confidence.note, style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 9.sp)
                 }
             }
         }

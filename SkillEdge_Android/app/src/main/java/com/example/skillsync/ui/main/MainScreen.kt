@@ -265,12 +265,16 @@ fun MainScreen(
                         onRefresh = { allocationViewModel.refresh(email, context) },
                     ) {
                         val globalSearch by allocationViewModel.globalSearchData.collectAsState()
+                        val capacityPlan by allocationViewModel.capacityPlan.collectAsState()
+                        val capacityPlanLoading by allocationViewModel.capacityPlanLoading.collectAsState()
                         AllocationDeskContent(
                             data = a.data,
                             newIds = newIds,
                             onBatchClick = { b -> onBatchClick(b.str("demand_id")) },
                             globalSearchData = globalSearch,
                             onGlobalSearch = { course -> allocationViewModel.globalSearch(course) },
+                            capacityPlan = capacityPlan,
+                            capacityPlanLoading = capacityPlanLoading,
                         )
                     }
                 }

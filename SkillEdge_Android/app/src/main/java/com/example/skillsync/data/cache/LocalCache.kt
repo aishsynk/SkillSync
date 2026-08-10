@@ -64,6 +64,27 @@ object LocalCache {
         }
     }
 
+    @Synchronized
+    fun saveObject(key: String, data: Any): Boolean {
+        return try {
+            val target = keyToFile(key)
+            val json = gson.toJson(data)
+            if (target.exists() && target.readText() == json) return false
+            val temp = File(target.parentFile, target.name + ".tmp")
+            temp.writeText(json)
+            if (!temp.renameTo(target)) {
+                target.writeText(json)
+                temp.delete()
+            }
+            true
+        } catch (_: Exception) { false }
+    }
+
+    fun <T> loadObject(key: String, type: Class<T>): T? = try {
+        val file = keyToFile(key)
+        if (!file.exists()) null else gson.fromJson(file.readText(), type)
+    } catch (_: Exception) { null }
+
     /** Epoch millis of the cached write, or 0 if nothing is cached under [key]. */
     fun savedAt(key: String): Long {
         val f = keyToFile(key)

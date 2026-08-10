@@ -3463,6 +3463,113 @@ def v2_demand_context():
     }), 200
 
 
+def _capacity_plan_from_allocation(payload, today=None, weeks=8):
+    """Turn the verified allocation board into an honest weekly pressure view."""
+    today = today or datetime.utcnow().date()
+    monday = today - timedelta(days=today.weekday())
+    end = monday + timedelta(days=7 * weeks)
+    buckets = []
+    for index in range(weeks):
+        start = monday + timedelta(days=7 * index)
+        buckets.append({
+            "week_start": start.isoformat(),
+            "week_end": (start + timedelta(days=6)).isoformat(),
+            "demand": 0, "priority": 0, "international": 0,
+            "strong_coverage": 0, "partial_coverage": 0, "uncovered": 0,
+            "verified_available_candidates": 0, "availability_unknown_candidates": 0,
+        })
+
+    considered = []
+    candidate_total = 0
+    candidate_verified = 0
+    for batch in payload.get("batches", []) if isinstance(payload, dict) else []:
+        if not isinstance(batch, dict):
+            continue
+        start = _parse_date(batch.get("start_date"))
+        if not start or start < monday or start >= end:
+            continue
+        bucket = buckets[(start - monday).days // 7]
+        bucket["demand"] += 1
+        bucket["priority"] += int(bool(batch.get("is_priority")))
+        bucket["international"] += int(bool(batch.get("is_international")))
+        try:
+            relevance = int(float(batch.get("relevance") or 0))
+        except (TypeError, ValueError):
+            relevance = 0
+        if relevance >= 75:
+            bucket["strong_coverage"] += 1
+        elif relevance >= 50:
+            bucket["partial_coverage"] += 1
+        else:
+            bucket["uncovered"] += 1
+        candidates = [c for c in batch.get("candidates", []) if isinstance(c, dict)]
+        candidate_total += len(candidates)
+        for candidate in candidates:
+            verified = bool(candidate.get("availability_verified"))
+            candidate_verified += int(verified)
+            status = str(candidate.get("availability_status", "") or "").lower()
+            if verified and status in {"available", "free"}:
+                bucket["verified_available_candidates"] += 1
+            elif not verified:
+                bucket["availability_unknown_candidates"] += 1
+        considered.append(batch)
+
+    for bucket in buckets:
+        demand = bucket["demand"]
+        bucket["coverage_pct"] = round(100 * bucket["strong_coverage"] / demand) if demand else None
+        if not demand:
+            bucket["pressure"] = "none"
+        elif bucket["uncovered"] or (bucket["priority"] and not bucket["verified_available_candidates"]):
+            bucket["pressure"] = "high"
+        elif bucket["partial_coverage"]:
+            bucket["pressure"] = "watch"
+        else:
+            bucket["pressure"] = "healthy"
+
+    strong = sum(b["strong_coverage"] for b in buckets)
+    uncovered = sum(b["uncovered"] for b in buckets)
+    availability_confidence = round(100 * candidate_verified / candidate_total) if candidate_total else None
+    return {
+        "schema_version": "2.1",
+        "horizon": {"weeks": weeks, "start": monday.isoformat(), "end": (end - timedelta(days=1)).isoformat()},
+        "summary": {
+            "demand": len(considered),
+            "strong_coverage": strong,
+            "uncovered": uncovered,
+            "priority": sum(int(bool(b.get("is_priority"))) for b in considered),
+            "international": sum(int(bool(b.get("is_international"))) for b in considered),
+            "coverage_pct": round(100 * strong / len(considered)) if considered else None,
+        },
+        "weeks": buckets,
+        "confidence": {
+            "demand": "verified_snapshot",
+            "availability_pct": availability_confidence,
+            "availability": "verified" if availability_confidence == 100 else "partial",
+            "note": "Availability uses assignment and off-date evidence carried by ranked candidates; unknown evidence is never treated as free capacity.",
+        },
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
+@app.route('/api/v2/planning/capacity', methods=['GET'])
+def v2_capacity_plan():
+    manager = request.args.get('manager', '').strip().lower()
+    _, error = _v2_manager_session(manager)
+    if error:
+        return error
+    with _allocation_lock:
+        payload = _allocation_payload_cache.get(manager)
+    if not payload:
+        return jsonify({
+            "schema_version": "2.1", "ready": False,
+            "code": "ALLOCATION_SNAPSHOT_REQUIRED",
+            "message": "Open demand is still preparing; capacity planning will update automatically.",
+        }), 202
+    plan = _capacity_plan_from_allocation(payload)
+    plan["ready"] = True
+    return jsonify(plan), 200
+
+
 @app.route('/api/data/trainer-skills', methods=['GET'])
 def trainer_skills():
     """

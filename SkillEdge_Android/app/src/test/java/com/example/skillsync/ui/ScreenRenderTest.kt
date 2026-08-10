@@ -764,4 +764,39 @@ class ScreenRenderTest {
         compose.onNodeWithText("London, United Kingdom").assertExists()
         compose.onNodeWithText("Visa and schedule readiness", substring = true).assertExists()
     }
+
+    @Test
+    fun demandPlan_showsCapacityPressureAndEvidenceConfidence() {
+        val plan = com.example.skillsync.data.api.CapacityPlanResponse(
+            schemaVersion = "2.1",
+            ready = true,
+            summary = com.example.skillsync.data.api.CapacitySummary(
+                demand = 6, strongCoverage = 4, uncovered = 1, priority = 3,
+                international = 1, coveragePct = 67,
+            ),
+            weeks = listOf(
+                com.example.skillsync.data.api.CapacityWeek(weekStart = "2026-08-10", demand = 2, pressure = "high"),
+                com.example.skillsync.data.api.CapacityWeek(weekStart = "2026-08-17", demand = 1, pressure = "healthy"),
+            ),
+            confidence = com.example.skillsync.data.api.CapacityConfidence(
+                availabilityPct = 75,
+                note = "Unknown evidence is never treated as free capacity.",
+            ),
+        )
+        compose.setContent {
+            SkillSyncTheme {
+                AllocationDeskContent(
+                    data = mapOf("batches" to emptyList<Map<String, Any>>(), "summary" to emptyMap<String, Any>()),
+                    newIds = emptySet(),
+                    onBatchClick = {},
+                    capacityPlan = plan,
+                )
+            }
+        }
+        compose.onNodeWithText("Capacity & demand outlook").assertExists()
+        compose.onNodeWithText("8-week allocation pressure").assertExists()
+        compose.onNodeWithText("67%").assertExists()
+        compose.onNodeWithText("75%").assertExists()
+        compose.onNodeWithText("Unknown evidence is never treated as free capacity.").assertExists()
+    }
 }

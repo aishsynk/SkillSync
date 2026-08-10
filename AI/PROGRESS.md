@@ -1,5 +1,26 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T18:10:00+05:30 - v2.2.0 Capacity Planning release gate passed locally
+- **Tool Used**: Codex (backend suite, complete Android unit/render tests, release lint/assembly, AAPT, APK Signer, diff audit)
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Assigned v2.2.0/code 72 because Plan gains a new protected forecasting contract, persistent offline dataset, KPI layer and eight-week pressure visualization. Backend passes 31/31; Android unit/render tests, release lint and assembly pass. The signed APK is `com.example.skillsync` v2.2.0/code 72, local SHA-256 `723035D288106E695CA6EDE5FB81882182E4BF15081C4C8970E3FEA99048C801`, with unchanged signer `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808` for upgrade continuity. Diff whitespace validation is clean.
+- **Current Status**: v2.2.0 is locally release-ready. GitHub publication, CI asset verification and available production checks remain; Render remains on the earlier backend until authenticated deployment is possible.
+- **Next Actions**: Commit/push the planning slice, monitor the GitHub release, verify the published APK and release history, re-probe Render for any delayed deployment, and document the precise production boundary before continuing capability/analytics.
+
+## 2026-08-10T17:45:00+05:30 - Offline-safe Capacity & Demand Outlook integrated into Plan
+- **Tool Used**: Codex (`apply_patch`, Gradle Kotlin compile and complete unit/render suite)
+- **Files Modified**: `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt`, `data/cache/LocalCache.kt`, `data/DataRepository.kt`, `ui/batch/AllocationViewModel.kt`, `ui/batch/AllocationDeskScreen.kt`, `ui/main/MainScreen.kt`, `app/src/test/java/com/example/skillsync/ui/ScreenRenderTest.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Added typed capacity-plan models, authenticated API consumption, generic atomic typed-object persistence and background-sync integration. Plan now opens with a compact Capacity & Demand Outlook showing eight-week demand pressure as a weekly bar chart plus demand, strong coverage, uncovered demand and availability-proof KPIs with green/amber/red business status. It preserves cached planning evidence offline and states that unknown evidence is never free capacity. Added a rendered test covering the planning summary, chart inputs and confidence note. Kotlin compilation and the full Android test suite pass.
+- **Current Status**: The complete planning slice now exists locally across protected backend contract, offline persistence, manager UI and tests. Full release lint/assembly, versioning, APK identity, GitHub publication and available production gates remain.
+- **Next Actions**: Run combined backend/Android/lint/release gates, assign the next minor version/code, inspect UI regression evidence, publish with release history, and validate GitHub assets plus any production surfaces currently reachable.
+
+## 2026-08-10T17:15:00+05:30 - Version 2 capacity-planning contract implemented locally
+- **Tool Used**: Codex (`apply_patch`, Python contract/unit tests)
+- **Files Modified**: `backend.py`, `tests/test_v2_capacity_plan.py`, `AI/PROGRESS.md`
+- **Work Completed**: Added authenticated, manager-scoped `/api/v2/planning/capacity` and a pure planning engine that converts the manager's completed allocation snapshot into an eight-week pressure view. Each week reports demand, priority/international demand, strong/partial/uncovered capability, verified available candidates, unknown availability, coverage and pressure. Unknown availability is never counted as capacity. The contract exposes demand and availability confidence, returns 202 while the prerequisite snapshot is preparing, and avoids invented leave/revenue/history signals. Added route security, readiness, horizon and unknown-evidence tests; backend passes 31/31.
+- **Current Status**: The Version 2 planning backend is complete locally and built entirely from verified current-state evidence. Android Plan integration, offline persistence, rendered tests, release gates and publication remain. Render still requires authenticated deployment access for v2.1 and subsequent backend contracts.
+- **Next Actions**: Add typed Android planning models and persistent cache, load the plan after Allocation Desk readiness, render compact KPI/weekly pressure visualizations above the demand workbench, and add empty/partial/healthy/high-pressure UI coverage.
+
 ## 2026-08-10T16:45:00+05:30 - v2.1.0 published; Render rollout awaiting authenticated deployment access
 - **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, APK verification, public production probes, Render dashboard inspection)
 - **Files Modified**: `AI/PROGRESS.md`

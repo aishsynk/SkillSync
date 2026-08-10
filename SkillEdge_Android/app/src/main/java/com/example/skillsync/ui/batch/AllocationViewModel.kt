@@ -68,6 +68,8 @@ class AllocationViewModel(
     val demandContext = MutableStateFlow<com.example.skillsync.data.api.DemandContextResponse?>(null)
     val demandContextLoading = MutableStateFlow(false)
     val demandContextError = MutableStateFlow<String?>(null)
+    val capacityPlan = MutableStateFlow<com.example.skillsync.data.api.CapacityPlanResponse?>(null)
+    val capacityPlanLoading = MutableStateFlow(false)
     private var demandContextKey: String? = null
 
     fun loadDemandContext(manager: String, demandId: String, courseName: String) {
@@ -130,6 +132,7 @@ class AllocationViewModel(
         com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))?.let { cached ->
             _newIds.value = SeenBatches.diffAndRemember(context, email, cached)
             _state.value = AllocationState.Success(cached)
+            viewModelScope.launch { fetchCapacityPlan(email) }
         }
         viewModelScope.launch {
             fetch(email, context, fresh = false)
@@ -208,6 +211,7 @@ class AllocationViewModel(
             }
             _newIds.value = SeenBatches.diffAndRemember(context, email, data)
             _state.value = AllocationState.Success(data)
+            fetchCapacityPlan(email)
         } catch (e: Exception) {
             if (_state.value !is AllocationState.Success) {
                 _state.value = AllocationState.Error(
@@ -305,6 +309,12 @@ class AllocationViewModel(
 
     fun clearMark() {
         _mark.value = MarkState.Idle
+    }
+
+    private suspend fun fetchCapacityPlan(email: String) {
+        capacityPlanLoading.value = true
+        capacityPlan.value = repository.capacityPlan(email)
+        capacityPlanLoading.value = false
     }
 
     /** Assign one selected course to one or more trainers, reporting partial failure honestly. */

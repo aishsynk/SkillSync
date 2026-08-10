@@ -82,6 +82,9 @@ interface SkillEdgeApi {
         @Query("courseName") courseName: String,
     ): DemandContextResponse
 
+    @GET("api/v2/planning/capacity")
+    suspend fun getCapacityPlan(@Query("manager") manager: String): CapacityPlanResponse
+
     /** RMS skill register for one trainer — the read-back behind a skill write. */
     @GET("api/data/trainer-skills")
     suspend fun getTrainerSkills(@Query("email") email: String): Map<String, Any>
@@ -171,6 +174,46 @@ data class DemandContextResponse(
     @com.google.gson.annotations.SerializedName("sales_confirmations") val salesConfirmations: SalesConfirmationContext = SalesConfirmationContext(),
     val confidence: String = "partial",
     val note: String = "",
+)
+
+data class CapacityHorizon(val weeks: Int = 0, val start: String = "", val end: String = "")
+data class CapacitySummary(
+    val demand: Int = 0,
+    @com.google.gson.annotations.SerializedName("strong_coverage") val strongCoverage: Int = 0,
+    val uncovered: Int = 0,
+    val priority: Int = 0,
+    val international: Int = 0,
+    @com.google.gson.annotations.SerializedName("coverage_pct") val coveragePct: Int? = null,
+)
+data class CapacityWeek(
+    @com.google.gson.annotations.SerializedName("week_start") val weekStart: String = "",
+    @com.google.gson.annotations.SerializedName("week_end") val weekEnd: String = "",
+    val demand: Int = 0,
+    val priority: Int = 0,
+    val international: Int = 0,
+    @com.google.gson.annotations.SerializedName("strong_coverage") val strongCoverage: Int = 0,
+    @com.google.gson.annotations.SerializedName("partial_coverage") val partialCoverage: Int = 0,
+    val uncovered: Int = 0,
+    @com.google.gson.annotations.SerializedName("verified_available_candidates") val verifiedAvailableCandidates: Int = 0,
+    @com.google.gson.annotations.SerializedName("availability_unknown_candidates") val availabilityUnknownCandidates: Int = 0,
+    @com.google.gson.annotations.SerializedName("coverage_pct") val coveragePct: Int? = null,
+    val pressure: String = "none",
+)
+data class CapacityConfidence(
+    val demand: String = "",
+    @com.google.gson.annotations.SerializedName("availability_pct") val availabilityPct: Int? = null,
+    val availability: String = "partial",
+    val note: String = "",
+)
+data class CapacityPlanResponse(
+    @com.google.gson.annotations.SerializedName("schema_version") val schemaVersion: String = "",
+    val ready: Boolean = false,
+    val code: String? = null,
+    val message: String? = null,
+    val horizon: CapacityHorizon = CapacityHorizon(),
+    val summary: CapacitySummary = CapacitySummary(),
+    val weeks: List<CapacityWeek> = emptyList(),
+    val confidence: CapacityConfidence = CapacityConfidence(),
 )
 
 data class MarkSkillRequest(
