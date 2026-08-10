@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T12:10:00+05:30 - Offline-first sync phase released and production-validated (v1.57.0/code 69)
+- **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, production API probes, AAPT, APK Signer)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published feature commit `fa53bb3d4e10142c443ce1ec718911e2eb9b9bbf`; GitHub Actions run `31362076875` passed and created release `v1.57.0.69` with `SkillEdge-v1.57.0.69.apk` plus complete purpose/change/commit/version/user-gain/validation/platform-boundary/rollback notes. Independently downloaded the release asset and verified SHA-256 `6D28655634FE2708CC7F09683C287F40E000D83BB3C2FE2AC31FFC8C68E0AED6`, package `com.example.skillsync`, v1.57.0/code 69 and unchanged signer `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Production `/healthz` returned OK; Dashboard and Actions returned valid current payloads; Demand returned 10 real batches after its asynchronous refresh completed.
+- **Current Status**: v1.57.0 is live and downloadable. Persistent cache-first display, OS background refresh, validated-connectivity catch-up, silent revision adoption and stale timestamp removal are delivered. True record-level network delta downloads are not claimed because the backend still lacks ETags/change tokens. Physical install-over-v1.56.0 and device state-retention validation remain unavailable because ADB is not installed/connected; signer/package/code continuity is verified but does not substitute for that physical test.
+- **Next Actions**: On a device, install `SkillEdge-v1.57.0.69.apk` directly over v1.56.0, confirm session/cache/user data retention, then exercise airplane-mode cold start, background/lock for 15+ minutes, and connectivity restoration. A future backend phase should add ETag or change-token delta contracts if record-level download reduction is required.
+
 ## 2026-08-10T12:05:00+05:30 - v1.57.0 final local regression gate passed
 - **Tool Used**: Codex (complete Gradle regression/lint/release rerun, Git diff audit)
 - **Files Modified**: `AI/PROGRESS.md`
