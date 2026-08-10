@@ -7,6 +7,14 @@ import backend
 
 
 class DemandSafetyTests(unittest.TestCase):
+    def setUp(self):
+        backend._sessions.clear()
+        backend._sessions["aishwar-session"] = {
+            "email": backend._AISHWAR_EMAIL,
+            "role": "manager",
+        }
+        self.headers = {"Authorization": "Bearer aishwar-session"}
+
     def test_dashboard_does_not_invent_delivery_or_certification_kpis(self):
         source = Path(backend.__file__).read_text(encoding="utf-8")
         self.assertNotIn('if b["engagement_state"] == "current") or 4', source)
@@ -66,7 +74,8 @@ class DemandSafetyTests(unittest.TestCase):
             patch.object(backend, "_rank_batch", return_value=(80, [candidate], "Available with Upskilling")),
         ):
             response = backend.app.test_client().get(
-                "/api/data/allocation-desk?email=aishwar_v@koenig-solutions.com&_build=1"
+                "/api/data/allocation-desk?email=aishwar_v@koenig-solutions.com&_build=1",
+                headers=self.headers,
             )
 
         self.assertEqual(response.status_code, 200)
@@ -81,6 +90,14 @@ class DemandSafetyTests(unittest.TestCase):
 
 
 class CompleteTeamTests(unittest.TestCase):
+    def setUp(self):
+        backend._sessions.clear()
+        backend._sessions["manager-session"] = {
+            "email": "manager@koenig-solutions.com",
+            "role": "manager",
+        }
+        self.headers = {"Authorization": "Bearer manager-session"}
+
     def test_unified_trainer_uses_paged_assignment_api_as_undated_reference_only(self):
         reportee = {
             "OffEmail": "trainer@koenig-solutions.com", "TrainerName": "Trainer One",
@@ -132,7 +149,8 @@ class CompleteTeamTests(unittest.TestCase):
             patch.object(backend, "_capability_for", side_effect=capability),
         ):
             response = backend.app.test_client().get(
-                "/api/data/team-capability?email=manager@koenig-solutions.com"
+                "/api/data/team-capability?email=manager@koenig-solutions.com",
+                headers=self.headers,
             )
 
         self.assertEqual(response.status_code, 200)
@@ -162,7 +180,8 @@ class CompleteTeamTests(unittest.TestCase):
             patch.object(backend, "_action_store_load", return_value={"raised": {}}),
         ):
             response = backend.app.test_client().get(
-                "/api/actions?email=manager@koenig-solutions.com"
+                "/api/actions?email=manager@koenig-solutions.com",
+                headers=self.headers,
             )
 
         self.assertEqual(response.status_code, 200)

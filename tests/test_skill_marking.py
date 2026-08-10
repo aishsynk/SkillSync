@@ -6,7 +6,13 @@ import backend
 
 class SkillMarkingReliabilityTests(unittest.TestCase):
     def setUp(self):
+        backend._sessions.clear()
+        backend._sessions["test-session"] = {
+            "email": "manager@koenig-solutions.com",
+            "role": "manager",
+        }
         self.client = backend.app.test_client()
+        self.headers = {"Authorization": "Bearer test-session"}
         self.payload = {
             "course_id": "17997",
             "trainer_email": "aishwar.c@koenig-solutions.com",
@@ -55,7 +61,7 @@ class SkillMarkingReliabilityTests(unittest.TestCase):
             },
             "other course": {"course_id": 2, "course_name": "Other Course"},
         }
-        response = self.client.get("/api/data/course-search?q=DP-700")
+        response = self.client.get("/api/data/course-search?q=DP-700", headers=self.headers)
         self.assertEqual(200, response.status_code)
         body = response.get_json()
         self.assertEqual(1, body["count"])
@@ -72,7 +78,7 @@ class SkillMarkingReliabilityTests(unittest.TestCase):
             "course_id": "9716", "course_name": "AI-102T00: Develop AI Solutions in Azure",
             "schedule_dates": ["14-Aug-26 - 20-Aug-26"], "available": True,
         }
-        response = self.client.get("/api/data/course-intelligence?courseName=AI-102")
+        response = self.client.get("/api/data/course-intelligence?courseName=AI-102", headers=self.headers)
         self.assertEqual(200, response.status_code)
         body = response.get_json()
         self.assertTrue(body["schedule_available"])

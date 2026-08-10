@@ -3,6 +3,11 @@ SkillSync Backend API v6.0
 Deployed on Render — production backend for SkillSync Android app.
 
 Auth: POST /api/auth/login — @koenig-solutions.com only, manager or Trainer Plus role.
+      Every other route requires `Authorization: Bearer <session_id>` (issued by
+      login) and enforces manager scope: a requested manager email that does not
+      match the session email is rejected with 403 MANAGER_SCOPE_MISMATCH. This
+      closes the former unauthenticated-PII-by-email surface on /api/data/... and
+      /api/action(s)/... routes.
 Data: GET /api/data/unified-manager-intelligence?email=EMAIL — dashboard payload
       matching the web frontend data model (trainer_operations_df, trainer_current_state_df,
       batch_engagement_df, unallocated_demand_df, trainer_feedback_summary_df,
@@ -2233,8 +2238,10 @@ def validate_session():
 @app.route('/data/unified-manager-intelligence', methods=['GET'])
 def unified_intelligence():
     email = request.args.get('email', '').strip().lower()
-    if not email:
-        return jsonify({"error": "email query param required"}), 400
+    session, error = _v2_manager_session(email)
+    if error:
+        return error
+    email = session["email"]
 
     if _wants_fresh():
         _cache_purge(email)
@@ -2590,8 +2597,10 @@ def manager_profile():
     the dashboard header. Everything derived (KPIs, capability) lives elsewhere.
     """
     email = request.args.get('email', '').strip().lower()
-    if not email:
-        return jsonify({"error": "email query param required"}), 400
+    session, error = _v2_manager_session(email)
+    if error:
+        return error
+    email = session["email"]
 
     if _wants_fresh():
         _cache_purge(email)
@@ -2759,13 +2768,10 @@ def team_capability():
     the client fetches it alongside, so the dashboard still paints immediately.
     """
     email = request.args.get('email', '').strip().lower()
-    if request.path.startswith('/api/v2/'):
-        session, error = _v2_manager_session(email)
-        if error:
-            return error
-        email = session["email"]
-    if not email:
-        return jsonify({"error": "email query param required"}), 400
+    session, error = _v2_manager_session(email)
+    if error:
+        return error
+    email = session["email"]
 
     if _wants_fresh():
         _cache_purge(email)
@@ -2871,13 +2877,18 @@ def trainer_360():
     would multiply across a full roster. Fetched on demand instead.
     """
     email = request.args.get('email', '').strip().lower()
+    # Optional: lets the profile rank this trainer against their own team. When
+    # present it is scoped to the session — a manager cannot ask for another
+    # manager's ranking context.
+    manager_email = request.args.get('manager', '').strip().lower()
+    session, error = _v2_manager_session(manager_email)
+    if error:
+        return error
     if not email:
         return jsonify({"error": "email query param required"}), 400
 
     if _wants_fresh():
         _cache_purge(email)
-    # Optional: lets the profile rank this trainer against their own team.
-    manager_email = request.args.get('manager', '').strip().lower()
 
     today = datetime.utcnow().date()
 
@@ -3330,8 +3341,10 @@ def allocation_desk():
     high-priority batch the team can't yet cover invisible at the bottom.
     """
     email = request.args.get('email', '').strip().lower()
-    if not email:
-        return jsonify({"error": "email query param required"}), 400
+    session, error = _v2_manager_session(email)
+    if error:
+        return error
+    email = session["email"]
 
     internal_build = request.args.get("_build") == "1"
     if not internal_build:
@@ -3640,6 +3653,11 @@ def trainer_skills():
     able to teach. Also the read-back that proves a mark-skill write landed.
     """
     email = request.args.get('email', '').strip().lower()
+    # The `email` here is the trainer being looked up, not the manager. Any
+    # authenticated manager may read the register; a session is still required.
+    _, error = _v2_manager_session("")
+    if error:
+        return error
     if not email:
         return jsonify({"error": "email query param required"}), 400
 
@@ -3808,6 +3826,11 @@ def get_trainer_utilization_history():
     different identifiers and only the employee code is accepted here.
     """
     email = str(request.args.get("email", "")).strip().lower()
+    # The `email` here is the trainer, not the manager — session required, no
+    # scope match against the trainer address.
+    _, error = _v2_manager_session("")
+    if error:
+        return error
     if not email:
         return jsonify({"error": "email query param required"}), 400
 
@@ -3936,6 +3959,9 @@ def _course_schedule(course_name):
 def get_course_syllabus():
     """Syllabus PDF link for one course, matched by name against RMS key 248."""
     course_name = str(request.args.get("courseName", "")).strip()
+    _, error = _v2_manager_session("")
+    if error:
+        return error
     if not course_name:
         return jsonify({"error": "courseName query param required"}), 400
 
@@ -3963,6 +3989,9 @@ def get_course_syllabus():
 def search_courses():
     """Search the full RMS catalogue, including courses no trainer owns."""
     query = str(request.args.get("q", "")).strip()
+    _, error = _v2_manager_session("")
+    if error:
+        return error
     if len(query) < 2:
         return jsonify({"query": query, "courses": [], "count": 0}), 200
     index = _course_catalogue_index() or {
@@ -3991,6 +4020,9 @@ def search_courses():
 def get_course_intelligence():
     """Verified course metadata and future public schedules for manager planning."""
     course_name = str(request.args.get("courseName", "")).strip()
+    _, error = _v2_manager_session("")
+    if error:
+        return error
     if not course_name:
         return jsonify({"error": "courseName query param required"}), 400
     catalogue = _course_catalogue_index()
@@ -4028,6 +4060,9 @@ def get_alternative_trainers():
     would be a wrong claim about the company's bench.
     """
     course = str(request.args.get("course", "")).strip()
+    _, error = _v2_manager_session("")
+    if error:
+        return error
     if not course:
         return jsonify({"error": "course query param required"}), 400
 
@@ -4206,15 +4241,10 @@ def _derive_actions(trainer_ops, trainer_states, capability_trainers, demand_row
 def get_actions():
     """The manager's full inbox: derived actions plus anything raised by hand."""
     requested = str(request.args.get("email", request.args.get("manager", ""))).strip().lower()
-    if request.path.startswith("/api/v2/"):
-        session, error = _v2_manager_session(requested)
-        if error:
-            return error
-        email = session["email"]
-    else:
-        email = requested
-    if not email:
-        return jsonify({"error": "email query param required"}), 400
+    session, error = _v2_manager_session(requested)
+    if error:
+        return error
+    email = session["email"]
 
     reportees = _rms("reportees", {"email": email}) or []
     # Action coverage must match the complete Team roster; otherwise trainers
@@ -4258,17 +4288,12 @@ def raise_action():
     body = request.get_json(silent=True) or {}
     title = str(body.get("title", "")).strip()
     requested = str(body.get("manager_email", "")).strip().lower()
-    if request.path.startswith("/api/v2/"):
-        session, error = _v2_manager_session(requested)
-        if error:
-            return error
-        manager_email = session["email"]
-    else:
-        manager_email = requested
+    session, error = _v2_manager_session(requested)
+    if error:
+        return error
+    manager_email = session["email"]
     if not title:
         return jsonify({"error": "title is required"}), 400
-    if not manager_email:
-        return jsonify({"error": "manager_email is required"}), 400
 
     now = datetime.utcnow().isoformat()
     action_id = "act_m_" + hashlib.sha1((manager_email + title + now).encode()).hexdigest()[:14]
@@ -4300,15 +4325,10 @@ def set_action_state(action_id):
         return jsonify({"error": "state must be one of %s" % (VALID_ACTION_STATES,)}), 400
 
     requested = str(body.get("manager_email", "")).strip().lower()
-    if request.path.startswith("/api/v2/"):
-        session, error = _v2_manager_session(requested)
-        if error:
-            return error
-        manager_email = session["email"]
-    else:
-        manager_email = requested
-    if not manager_email:
-        return jsonify({"error": "manager_email is required"}), 400
+    session, error = _v2_manager_session(requested)
+    if error:
+        return error
+    manager_email = session["email"]
     now = datetime.utcnow().isoformat()
     entry = {
         "state": state, "note": str(body.get("note", "")).strip(),
@@ -4330,15 +4350,10 @@ def add_action_note(action_id):
     if not text:
         return jsonify({"error": "note is required"}), 400
     requested = str(body.get("manager_email", "")).strip().lower()
-    if request.path.startswith("/api/v2/"):
-        session, error = _v2_manager_session(requested)
-        if error:
-            return error
-        manager_email = session["email"]
-    else:
-        manager_email = requested
-    if not manager_email:
-        return jsonify({"error": "manager_email is required"}), 400
+    session, error = _v2_manager_session(requested)
+    if error:
+        return error
+    manager_email = session["email"]
     note = _action_repository.add_note(manager_email, action_id, text, manager_email)
     return jsonify({"id": action_id, "note": note,
                     "history": _action_repository.audit(manager_email, action_id)}), 200
