@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T20:20:00+05:30 - v2.3.0 Secure Audited Actions released, deployed and production-validated
+- **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, published APK verification, authenticated production action lifecycle/security checks)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published commit `69444475da2da72de887ba3f53b9beaeeeaa22bb`; GitHub Actions run `31372741439` passed and release `v2.3.0.73` was created with `SkillEdge-v2.3.0.73.apk` and complete purpose/change/commit/version/user-gain/validation/rollback notes. The downloaded APK SHA-256 is `D4EA8BEA57B45670844620CC1ED34B8D297558A753A072A0564AEF8AC400422B`, package is `com.example.skillsync`, version is v2.3.0/code 73 and signer remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Render deployed successfully. Production checks passed for unauthenticated rejection (401), Aishwar login, scoped Actions retrieval, state transition, ordered audit retrieval, restoration to the original state, cross-manager denial (403), logout, and revoked-session denial (401).
+- **Current Status**: Secure manager-scoped Actions are live and transactional with an append-only audit. Production explicitly reports SQLite `local_ephemeral`, `transactional=true`, `audit_log=true`, and `durable_across_deploys=false`; managed cross-deploy durability remains an open platform requirement. No production test clutter was left behind. Physical install-over-v2.2 remains unverified because no ADB-connected Android device is available.
+- **Next Actions**: Continue the Version 2 capability-intelligence and historical analytics slice, while keeping unknown RMS evidence explicit. Provision managed persistent storage before claiming cross-deploy workflow durability.
+
+## 2026-08-10T20:21:00+05:30 - Final dated v2.3 continuation entry
+- **Tool Used**: Codex
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Recorded the v2.3 GitHub publication, release artifact identity, Render rollout, production security/audit evidence and remaining persistence boundary so continuation requires only this file.
+- **Current Status**: v2.3.0/code 73 is live and healthy; the broader Version 2 Manager Command Centre goal remains active.
+- **Next Actions**: Build the protected capability portfolio contract and manager-facing capability intelligence, then add historical snapshots/reporting without fabricating unavailable taxonomy, capacity or revenue signals.
+
 ## 2026-08-10T19:50:00+05:30 - v2.3.0 Secure Audited Actions release gate passed locally
 - **Tool Used**: Codex (34-test backend suite, complete Android unit/render tests, release lint/assembly, AAPT, APK Signer, diff audit)
 - **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
