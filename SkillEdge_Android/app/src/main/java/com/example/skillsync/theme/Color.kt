@@ -17,28 +17,28 @@ import androidx.compose.ui.graphics.Color
  */
 
 // ── Primary ramp ─────────────────────────────────────────────────────────────
-val DeepNavy   = Color(0xFF0B1F5E)
-val RoyalBlue  = Color(0xFF144EA6)
-val AzureBlue  = Color(0xFF1976D2)
-val BrandBlue  = Color(0xFF2196F3)
-val SkyBlue    = Color(0xFF42A5F5)
-val Cyan       = Color(0xFF00BCD4)
-val Aqua       = Color(0xFF26C6DA)
-val LightAzure = Color(0xFF64B5F6)
-val IceBlue    = Color(0xFF90CAF9)
-val SoftBlue   = Color(0xFFBBDEFB)
-val FrostWhite = Color(0xFFE3F2FD)
+val DeepNavy   = Color(0xFF111827)
+val RoyalBlue  = Color(0xFF1D4ED8)
+val AzureBlue  = Color(0xFF2563EB)
+val BrandBlue  = Color(0xFF3B82F6)
+val SkyBlue    = Color(0xFF60A5FA)
+val Cyan       = Color(0xFF22D3EE)
+val Aqua       = Color(0xFF34D399)
+val LightAzure = Color(0xFF93C5FD)
+val IceBlue    = Color(0xFFBFDBFE)
+val SoftBlue   = Color(0xFFDBEAFE)
+val FrostWhite = Color(0xFFF8FAFC)
 
 // ── Dark surfaces (elevation steps, not drop shadows) ────────────────────────
-val Surface0 = Color(0xFF0D1117)   // scaffold
-val Surface1 = Color(0xFF121826)   // section ground
-val Surface2 = Color(0xFF172030)   // card
-val Surface3 = Color(0xFF1E293B)   // raised / pressed
+val Surface0 = Color(0xFF0B0F17)
+val Surface1 = Color(0xFF101722)
+val Surface2 = Color(0xFF151E2B)
+val Surface3 = Color(0xFF1C2736)
 
 // ── Semantic status ──────────────────────────────────────────────────────────
 val StatusGood = Aqua
-val StatusWarn = Color(0xFFF0A828)
-val StatusCrit = Color(0xFFF0556B)
+val StatusWarn = Color(0xFFFBBF24)
+val StatusCrit = Color(0xFFFB7185)
 
 // Names kept from the previous palette so existing call sites keep compiling;
 // the values now resolve into the command-centre ramp.
@@ -57,7 +57,7 @@ val GradientHero     = listOf(DeepNavy, BrandBlue)              // Deep Navy →
 val GradientRoyalSky = listOf(RoyalBlue, SkyBlue)               // Royal Blue → Sky Blue
 val GradientAzureCyan = listOf(AzureBlue, Cyan)                 // Azure Blue → Cyan
 val GradientBrandIce = listOf(BrandBlue, IceBlue)               // Brand Blue → Ice Blue
-val GradientAurora   = listOf(Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364))
+val GradientAurora   = listOf(Surface0, Surface0, Surface1)
 
 /** Blue ramp used for chart series; index 0 is the oldest period. */
 val ChartRamp = listOf(RoyalBlue, AzureBlue, BrandBlue, SkyBlue, IceBlue)
@@ -135,15 +135,15 @@ val CommandSkillColors = SkillColors(
 
     pageBg      = Surface0,
     cardBg      = Surface2,
-    cardBorder  = Color(0x2490CAF9),   // Ice @ 14%
+    cardBorder  = Color(0xFF263345),
     heroBg      = DeepNavy,
     heroBgAlt   = BrandBlue,
     heroText    = FrostWhite,
-    heroMuted   = Color(0xB390CAF9),   // Ice @ 70%
+    heroMuted   = Color(0xFFA8B3C5),
     bodyText    = FrostWhite,
-    subText     = Color(0xB390CAF9),
-    track       = Color(0x1A90CAF9),   // Ice @ 10%
-    shimmer     = Color(0x1F90CAF9),
+    subText     = Color(0xFFA8B3C5),
+    track       = Color(0xFF263345),
+    shimmer     = Color(0xFF202C3C),
 
     navy        = DeepNavy,
     royal       = RoyalBlue,
@@ -157,13 +157,13 @@ val CommandSkillColors = SkillColors(
     surface1    = Surface1,
     surface2    = Surface2,
     surface3    = Surface3,
-    glass       = Color(0x9E172030),   // Surface-2 @ 62%
-    glassBorder = Color(0x2490CAF9),
-    glow        = Color(0x2A2196F3),   // Brand @ 16%
+    glass       = Surface2,
+    glassBorder = Color(0xFF263345),
+    glow        = Color(0x333B82F6),
     good        = StatusGood,
     warn        = StatusWarn,
     crit        = StatusCrit,
-    labelText   = Color(0x7390CAF9),   // Ice @ 45% — uppercase labels
+    labelText   = Color(0xFF7F8CA3),
 )
 
 // Both entry points resolve to the command scheme; the app has one identity.

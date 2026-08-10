@@ -1,6 +1,7 @@
 package com.example.skillsync.ui.main
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,35 +40,35 @@ private data class CommandResult(
 
 @Composable
 internal fun PeopleWorkspaceSwitch(selected: String, onSelect: (String) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)
-            .glassSurface(RoundedCornerShape(14.dp)),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-    ) {
-        listOf("PORTFOLIO" to "Team Portfolio", "CAPABILITY" to "Capability Market").forEach { (key, label) ->
-            TextButton(onClick = { onSelect(key) }) {
-                Text(
-                    label,
-                    color = if (selected == key) MaterialTheme.colorScheme.primary else MaterialTheme.skill.subText,
-                    fontWeight = if (selected == key) FontWeight.Bold else FontWeight.Medium,
-                )
-            }
-        }
-    }
+    WorkspaceSelector(selected, listOf("PORTFOLIO" to "Team", "CAPABILITY" to "Capability"), onSelect)
 }
 
 @Composable
 internal fun TodayWorkspaceSwitch(selected: String, onSelect: (String) -> Unit) {
+    WorkspaceSelector(selected, listOf("BRIEF" to "Briefing", "QUEUE" to "Action queue"), onSelect)
+}
+
+@Composable
+private fun WorkspaceSelector(
+    selected: String,
+    options: List<Pair<String, String>>,
+    onSelect: (String) -> Unit,
+) {
+    val sk = MaterialTheme.skill
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)
-            .glassSurface(RoundedCornerShape(14.dp)),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+            .background(sk.surface1, RoundedCornerShape(12.dp)).padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        listOf("BRIEF" to "Executive Brief", "QUEUE" to "Work Queue").forEach { (key, label) ->
-            TextButton(onClick = { onSelect(key) }) {
+        options.forEach { (key, label) ->
+            TextButton(
+                onClick = { onSelect(key) },
+                modifier = Modifier.weight(1f)
+                    .background(if (selected == key) sk.surface3 else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(9.dp)),
+            ) {
                 Text(
                     label,
-                    color = if (selected == key) MaterialTheme.colorScheme.primary else MaterialTheme.skill.subText,
+                    color = if (selected == key) sk.frost else sk.subText,
                     fontWeight = if (selected == key) FontWeight.Bold else FontWeight.Medium,
                 )
             }

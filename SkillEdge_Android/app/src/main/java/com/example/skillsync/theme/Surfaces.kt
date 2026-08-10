@@ -30,11 +30,11 @@ import androidx.compose.ui.unit.dp
 
 // ── Radius ladder — radius decreases with the element, so hierarchy is felt ──
 object Radii {
-    val hero = 24.dp
-    val card = 20.dp
-    val kpi = 18.dp
-    val chip = 14.dp
-    val icon = 11.dp
+    val hero = 20.dp
+    val card = 16.dp
+    val kpi = 14.dp
+    val chip = 10.dp
+    val icon = 10.dp
 }
 
 /** Spacing scale. Replaces the ad-hoc 6/9/10/14dp values used previously. */
@@ -65,7 +65,7 @@ fun AuroraBackground(modifier: Modifier = Modifier) {
         // Royal bloom, upper left — the brand anchor.
         drawRect(
             Brush.radialGradient(
-                colors = listOf(RoyalBlue.copy(alpha = 0.42f), Color.Transparent),
+                colors = listOf(BrandBlue.copy(alpha = 0.07f), Color.Transparent),
                 center = Offset(size.width * 0.12f, -size.height * 0.04f),
                 radius = size.width * 1.05f,
             )
@@ -73,7 +73,7 @@ fun AuroraBackground(modifier: Modifier = Modifier) {
         // Cyan bloom, upper right — keeps the ground from reading flat navy.
         drawRect(
             Brush.radialGradient(
-                colors = listOf(Cyan.copy(alpha = 0.16f), Color.Transparent),
+                colors = listOf(Cyan.copy(alpha = 0.03f), Color.Transparent),
                 center = Offset(size.width * 0.95f, size.height * 0.05f),
                 radius = size.width * 0.8f,
             )
@@ -81,7 +81,7 @@ fun AuroraBackground(modifier: Modifier = Modifier) {
         // Deep navy settle at the bottom so long scrolls stay legible.
         drawRect(
             Brush.verticalGradient(
-                colors = listOf(Color.Transparent, DeepNavy.copy(alpha = 0.55f)),
+                colors = listOf(Color.Transparent, Surface0.copy(alpha = 0.75f)),
                 startY = size.height * 0.45f,
                 endY = size.height,
             )
@@ -104,7 +104,7 @@ fun Modifier.glassSurface(
         )
     )
     .then(if (tint == Color.Transparent) Modifier else Modifier.background(tint))
-    .border(1.dp, Color(0x2490CAF9), shape)
+    .border(1.dp, Color(0xFF263345), shape)
 
 /**
  * Glass card carrying a status accent: a 3dp gradient stripe down the left edge
@@ -120,19 +120,19 @@ fun Modifier.accentGlass(
     .background(
         Brush.horizontalGradient(
             listOf(
-                accent.copy(alpha = if (strong) 0.20f else 0.10f),
-                Color(0x99172030),
+                accent.copy(alpha = if (strong) 0.15f else 0.07f),
+                Surface2,
             )
         )
     )
-    .border(1.dp, accent.copy(alpha = if (strong) 0.42f else 0.20f), shape)
+    .border(1.dp, accent.copy(alpha = if (strong) 0.48f else 0.24f), shape)
 
 /** Hero surface: Deep Navy → Brand Blue at 135°, the app's single loudest fill. */
 fun Modifier.heroSurface(shape: Shape = RoundedCornerShape(Radii.hero)): Modifier = this
     .clip(shape)
     .background(
         Brush.linearGradient(
-            colors = listOf(DeepNavy, RoyalBlue, BrandBlue.copy(alpha = 0.82f)),
+            colors = listOf(Color(0xFF172554), Color(0xFF1E3A8A), RoyalBlue),
             start = Offset(0f, 0f),
             end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
         )

@@ -277,7 +277,7 @@ class ScreenRenderTest {
         compose.setContent { SkillSyncTheme { Dashboard() } }
         compose.onNodeWithText("Capacity vs demand").assertExists()
         compose.onNodeWithText("Upcoming delivery calendar").assertExists()
-        compose.onNodeWithText("ACTIVE DELIVERIES").assertExists()
+        compose.onNodeWithText("Active deliveries").assertExists()
     }
 
     @Test
@@ -312,7 +312,7 @@ class ScreenRenderTest {
     @Test
     fun dashboard_rendersEveryManagerKpi() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
-        listOf("TEAM STRENGTH", "AVAILABLE CAPACITY", "UTILISATION", "ACTIVE DELIVERIES", "UNALLOCATED DEMAND", "ACTIONS")
+        listOf("Team strength", "Available capacity", "Utilisation", "Active deliveries", "Unallocated demand", "Actions")
             .forEach { compose.onNodeWithText(it).assertExists() }
         compose.onAllNodesWithText("Critical pulse").assertCountEquals(0)
     }
@@ -357,7 +357,7 @@ class ScreenRenderTest {
                 )
             }
         }
-        compose.onNodeWithText("TEAM STRENGTH").performClick()
+        compose.onNodeWithText("Team strength").performClick()
         org.junit.Assert.assertNotNull(opened)
     }
 
@@ -401,7 +401,7 @@ class ScreenRenderTest {
         compose.setContent {
             SkillSyncTheme { SkillSyncNavBar(HomeTab.DASHBOARD) {} }
         }
-        listOf("Today", "People", "Plan", "Deliver", "Search").forEach {
+        listOf("Today", "People", "Plan", "Work", "Search").forEach {
             compose.onNodeWithText(it).assertExists()
         }
     }
@@ -644,8 +644,8 @@ class ScreenRenderTest {
     fun dashboard_commandSectionsAreVerticallyOrderedAndDoNotOverlap() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
         val titles = listOf(
-            "1  EXECUTIVE SUMMARY", "2  TEAM HEALTH & CAPACITY", "3  DEMAND INTELLIGENCE",
-            "4  DELIVERY OPERATIONS", "5  CERTIFICATION & READINESS", "6  ACTION CENTRE",
+            "Executive summary", "Team health & capacity", "Demand intelligence",
+            "Delivery operations", "Certification & readiness", "Action centre",
         )
         val tops = titles.map { title ->
             compose.onNodeWithText(title).fetchSemanticsNode().boundsInRoot.top
@@ -660,8 +660,8 @@ class ScreenRenderTest {
         compose.onNodeWithText("Top performers").assertExists()
         compose.onNodeWithText("Carrying delivery · ranked by measured utilisation").assertExists()
         compose.onAllNodesWithText("Abhinav Samant").onFirst().assertExists()
-        val strength = compose.onNodeWithText("TEAM STRENGTH").fetchSemanticsNode().boundsInRoot
-        val capacity = compose.onNodeWithText("AVAILABLE CAPACITY").fetchSemanticsNode().boundsInRoot
+        val strength = compose.onNodeWithText("Team strength").fetchSemanticsNode().boundsInRoot
+        val capacity = compose.onNodeWithText("Available capacity").fetchSemanticsNode().boundsInRoot
         assertTrue("Executive KPI tiles are not aligned", kotlin.math.abs(strength.top - capacity.top) < 2f)
     }
 

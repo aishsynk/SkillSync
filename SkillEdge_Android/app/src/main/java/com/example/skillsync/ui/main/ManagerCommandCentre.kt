@@ -46,7 +46,7 @@ fun ManagerCommandCentre(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
 
-    SectionTitle("1  EXECUTIVE SUMMARY", "What needs a decision now")
+    SectionTitle("Executive summary", "What needs a decision now")
     ExecutiveNarrative(ops.size, available.size, overloaded.size, demand.size, openActions.size, readiness)
     CompactKpiGrid(
         listOf(
@@ -72,7 +72,7 @@ fun ManagerCommandCentre(
         )
     }
 
-    SectionTitle("2  TEAM HEALTH & CAPACITY", "Who is healthy, stretched or at risk")
+    SectionTitle("Team health & capacity", "Who is healthy, stretched or at risk")
     val highRisk = ops.filter { it.str("feedback_risk").equals("High", true) }
     val watch = ops.filter { it.str("capacity_bucket") in setOf("Light", "Stretched") && it !in highRisk }
     val needs = ops.filter { it.str("recommended_action").isNotBlank() && it !in highRisk && it !in watch }
@@ -97,7 +97,7 @@ fun ManagerCommandCentre(
     }
     TopPerformersPanel(ops, capTrainers, onTrainerClick)
 
-    SectionTitle("3  DEMAND INTELLIGENCE", "What future work is waiting and where")
+    SectionTitle("Demand intelligence", "What future work is waiting and where")
     val modeCounts = listOf("FMAT", "ILT", "ILO", "Unknown").map { mode ->
         val count = demand.count { it.str("delivery_mode").ifBlank { "Unknown" }.equals(mode, true) }
         BarDatum(mode, count, when (mode) { "FMAT" -> sk.crit; "ILT" -> sk.warn; "ILO" -> sk.sky; else -> sk.subText })
@@ -107,7 +107,7 @@ fun ManagerCommandCentre(
         InsightLine(if (demand.isEmpty()) "All visible demand is covered." else "${demand.size} batches remain unallocated; FMAT and ILT are reviewed first.", if (demand.isEmpty()) sk.good else sk.warn)
     }
 
-    SectionTitle("4  DELIVERY OPERATIONS", "What is running and what starts next")
+    SectionTitle("Delivery operations", "What is running and what starts next")
     CompactKpiGrid(listOf(
         MiniKpi("Active", active.size.toString(), "live deliveries", sk.aqua, batchDrill("Active deliveries", active)),
         MiniKpi("Upcoming", upcoming.size.toString(), "scheduled next", sk.sky, batchDrill("Upcoming deliveries", upcoming)),
@@ -116,7 +116,7 @@ fun ManagerCommandCentre(
     ), onDrill)
     UpcomingCalendar(upcoming.take(5), onDrill)
 
-    SectionTitle("5  CERTIFICATION & READINESS", "Coverage that can block future delivery")
+    SectionTitle("Certification & readiness", "Coverage that can block future delivery")
     val coverage = capKpis?.intOrNull("avg_trainer_coverage_pct") ?: kpis?.intOrNull("cert_coverage_pct")
     val ready = capTrainers.count { it.int("readiness_score") >= 75 }
     val developing = capTrainers.count { it.int("readiness_score") in 50..74 }
@@ -132,7 +132,7 @@ fun ManagerCommandCentre(
         BarChart(listOf(BarDatum("Ready", ready, sk.good), BarDatum("Develop", developing, sk.warn), BarDatum("Blocked", blocked.coerceAtLeast(0), sk.crit)), height = 92.dp)
     }
 
-    SectionTitle("6  ACTION CENTRE", "The manager's working queue")
+    SectionTitle("Action centre", "The manager's working queue")
     val categories = listOf("Certification", "Underutilised", "Overallocated", "Unallocated", "Readiness", "Feedback")
     val actionBars = categories.map { category ->
         BarDatum(category.take(5), openActions.count { (it.str("category") + " " + it.str("title") + " " + it.str("detail")).contains(category, true) }, sk.warn)
@@ -149,7 +149,7 @@ fun ManagerCommandCentre(
 
 private data class MiniKpi(val label: String, val value: String, val caption: String, val tint: Color, val drill: Drill?)
 
-@Composable private fun SectionTitle(title: String, subtitle: String) { Column(Modifier.padding(top = 5.dp, bottom = 2.dp)) { Text(title, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.skill.ice); Text(subtitle, fontSize = 11.sp, color = MaterialTheme.skill.subText) } }
+@Composable private fun SectionTitle(title: String, subtitle: String) { Column(Modifier.padding(top = 12.dp, bottom = 2.dp)) { Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.skill.bodyText); Spacer(Modifier.height(2.dp)); Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.skill.subText) } }
 
 @Composable private fun ExecutiveNarrative(team: Int, free: Int, overload: Int, demand: Int, actions: Int, readiness: Int?) {
     val sk = MaterialTheme.skill
@@ -165,7 +165,7 @@ private data class MiniKpi(val label: String, val value: String, val caption: St
 
 @Composable private fun CompactKpiGrid(items: List<MiniKpi>, onDrill: (Drill) -> Unit) { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { items.chunked(2).forEach { row -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) { row.forEach { item -> key(item.label) { CompactKpi(item, Modifier.weight(1f), onDrill) } }; if (row.size == 1) Spacer(Modifier.weight(1f)) } } } }
 
-@Composable private fun CompactKpi(item: MiniKpi, modifier: Modifier, onDrill: (Drill) -> Unit) { val sk = MaterialTheme.skill; val target = item.drill; Column(modifier.height(78.dp).glassSurface(RoundedCornerShape(12.dp)).then(if (target != null) Modifier.clickable(onClick = { onDrill(target) }) else Modifier).padding(horizontal = 11.dp, vertical = 9.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(7.dp).background(item.tint, RoundedCornerShape(3.dp))); Spacer(Modifier.width(6.dp)); Text(item.label.uppercase(), fontSize = 8.sp, fontWeight = FontWeight.Bold, color = sk.labelText, maxLines = 1) }; Spacer(Modifier.height(3.dp)); Text(item.value, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = item.tint); Text(item.caption, fontSize = 9.sp, color = sk.subText, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
+@Composable private fun CompactKpi(item: MiniKpi, modifier: Modifier, onDrill: (Drill) -> Unit) { val sk = MaterialTheme.skill; val target = item.drill; Column(modifier.height(86.dp).glassSurface(RoundedCornerShape(14.dp)).then(if (target != null) Modifier.clickable(onClick = { onDrill(target) }) else Modifier).padding(horizontal = 12.dp, vertical = 10.dp)) { Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(7.dp).background(item.tint, RoundedCornerShape(3.dp))); Spacer(Modifier.width(7.dp)); Text(item.label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = sk.subText, maxLines = 1) }; Spacer(Modifier.height(4.dp)); Text(item.value, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = item.tint); Text(item.caption, style = MaterialTheme.typography.labelSmall, color = sk.subText, maxLines = 1, overflow = TextOverflow.Ellipsis) } }
 
 private fun utilisationColour(value: Int?, sk: com.example.skillsync.theme.SkillColors): Color = when {
     value == null -> sk.subText

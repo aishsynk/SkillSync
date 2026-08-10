@@ -178,21 +178,25 @@ fun MainScreen(
                 TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        SkillSyncLogo(size = 26.dp)
-                        Spacer(Modifier.width(10.dp))
+                        Box(
+                            Modifier.size(34.dp).clip(RoundedCornerShape(11.dp))
+                                .background(MaterialTheme.skill.brand.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center,
+                        ) { SkillSyncLogo(size = 22.dp) }
+                        Spacer(Modifier.width(12.dp))
                         Column {
                             Text(
-                                "SkillEdge",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 15.sp,
+                                tabTitle(tab),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
                                 color = MaterialTheme.skill.frost,
                                 letterSpacing = (-0.01).em,
                             )
                             Text(
-                                tabTitle(tab).uppercase(),
-                                fontSize = 8.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.13.em,
+                                "SKILLEDGE  /  MANAGER WORKSPACE",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 0.09.em,
                                 color = MaterialTheme.skill.labelText,
                             )
                         }
@@ -212,21 +216,27 @@ fun MainScreen(
                             modifier = Modifier.size(18.dp),
                         )
                     }
-                    androidx.compose.material3.TextButton(onClick = {
-                        showLogoutConfirm = true
-                    }) {
-                        Text(
-                            "Logout",
-                            color = MaterialTheme.skill.ice,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.sp
-                        )
+                    IconButton(onClick = { showLogoutConfirm = true }) {
+                        Surface(
+                            color = MaterialTheme.skill.surface3,
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.skill.cardBorder),
+                        ) {
+                            Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                                Text(
+                                    profile?.str("name").orEmpty().trim().take(1).uppercase().ifBlank { "M" },
+                                    color = MaterialTheme.skill.frost,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                )
+                            }
+                        }
                     }
                 },
                 // Transparent over the aurora — the teal band is gone entirely.
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = Color.Transparent,
+                    containerColor = MaterialTheme.skill.surface1,
+                    scrolledContainerColor = MaterialTheme.skill.surface1,
                 ),
             )
         },
@@ -486,7 +496,7 @@ internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
         Triple(HomeTab.DASHBOARD, R.drawable.ic_home, "Today"),
         Triple(HomeTab.TEAM, R.drawable.ic_people, "People"),
         Triple(HomeTab.DEMAND, R.drawable.ic_inbox, "Plan"),
-        Triple(HomeTab.DELIVERY, R.drawable.ic_calendar, "Deliver"),
+        Triple(HomeTab.DELIVERY, R.drawable.ic_calendar, "Work"),
         Triple(HomeTab.SEARCH, R.drawable.ic_search, "Search"),
     )
     // Frosted over the aurora. Material's indicator pill is gone — the active
@@ -495,11 +505,7 @@ internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0x000D1117), Color(0xDB0D1117), Color(0xF20D1117))
-                )
-            )
+            .background(sk.surface1)
     ) {
         Column {
             Box(Modifier.fillMaxWidth().height(1.dp).background(sk.glassBorder))
@@ -529,25 +535,18 @@ internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
                         verticalArrangement = Arrangement.Center,
                     ) {
                         Box(
-                            Modifier
-                                .width(if (selected) 22.dp else 0.dp)
-                                .height(2.5.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(
-                                    if (selected) Brush.horizontalGradient(
-                                        listOf(com.example.skillsync.theme.Cyan, com.example.skillsync.theme.SkyBlue)
-                                    ) else Brush.horizontalGradient(
-                                        listOf(Color.Transparent, Color.Transparent)
-                                    )
-                                )
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Icon(
-                            painterResource(icon),
-                            contentDescription = label,
-                            tint = tint,
-                            modifier = Modifier.size(19.dp),
-                        )
+                            Modifier.size(width = 38.dp, height = 28.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selected) sk.brand.copy(alpha = 0.16f) else Color.Transparent),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(icon),
+                                contentDescription = label,
+                                tint = tint,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                         Spacer(Modifier.height(3.dp))
                         Text(
                             label,
