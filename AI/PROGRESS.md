@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T22:05:00+05:30 - v2.4.0 Capability Portfolio released, deployed and production-validated
+- **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, published APK verification, authenticated production portfolio and manager-journey checks)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published commit `d9b7610b715fa60412a982ee3f65c36bccb801bb`; GitHub Actions run `31374647143` passed and created release `v2.4.0.74` with `SkillEdge-v2.4.0.74.apk`. Added the initially missing release narrative covering purpose, changes, commit, version rationale, user gain, validation and rollback. The downloaded APK SHA-256 is `F9CDDD45CC4873D74B1B4B4D49881096674FA7A308AD56155165B251DD29021A`, package is `com.example.skillsync`, version is v2.4.0/code 74 and signer remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Render deployed the commit. Production passed unauthenticated denial (401), Aishwar login, protected portfolio (200), cross-manager denial (403), legacy capability compatibility (200), Dashboard (200), Actions (200), Demand asynchronous preparation then ready (7 real batches), Capacity ready (8 weeks, 7 demands), logout and revoked-session denial (401).
+- **Current Status**: v2.4.0 is live and healthy. Aishwar's current RMS response contains zero reportees/courses, so production truthfully reports portfolio health `unknown`, confidence `partial`, zero vendor groups and no priorities; this is missing upstream evidence, not a healthy or zero-risk claim. Physical install-over-v2.3 remains unexecuted because no ADB-connected device is available. The broader Version 2 goal remains active for historical snapshots/reporting, managed durability, identity/security and remaining product modules.
+- **Next Actions**: Build the historical snapshot and reporting layer from manager datasets with explicit retention/source confidence, then expose trend/reporting views in Android. Separately provision managed storage, complete Entra identity/secret removal and run physical upgrade validation when the required platform/device access exists.
+
+## 2026-08-10T22:06:00+05:30 - Final dated continuation entry
+- **Tool Used**: Codex
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Recorded all v2.4 implementation, release artifact, deployment and production evidence so the next continuation can proceed from this file alone.
+- **Current Status**: Capability Portfolio v2.4.0/code 74 is production-live; no false capability health is shown when RMS provides no roster evidence.
+- **Next Actions**: Continue the active Version 2 program with historical snapshots and manager reporting, retaining the same protected-contract, offline-cache, release and production gates.
+
 ## 2026-08-10T21:35:00+05:30 - v2.4.0 Capability Portfolio release gate passed locally
 - **Tool Used**: Codex (38-test backend suite, complete Android unit/render tests, release lint/assembly, AAPT, APK Signer, diff audit)
 - **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
