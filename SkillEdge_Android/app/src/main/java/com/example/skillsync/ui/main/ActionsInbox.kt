@@ -553,7 +553,7 @@ private fun ActionDetailSheet(
             if (history.isNotEmpty()) {
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    "${history.size} state change${if (history.size == 1) "" else "s"} on record",
+                    "${history.size} audited event${if (history.size == 1) "" else "s"} on record",
                     style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 10.sp,
                 )
             }

@@ -2,6 +2,9 @@
 .gradle/
 build/
 *.apk
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
 *.aab
 
 # Android Studio

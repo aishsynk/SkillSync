@@ -84,6 +84,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from action_store import ActionStore
 
 app = Flask(__name__)
 CORS(app)
@@ -4006,6 +4007,9 @@ def get_alternative_trainers():
 # prerequisite for relying on it across deploys.
 
 _ACTION_STORE = os.path.join(os.getenv("SKILLEDGE_STATE_DIR", "."), "action_state.json")
+_ACTION_DB = os.getenv("SKILLEDGE_ACTION_DB", "").strip() or os.path.join(
+    os.getenv("SKILLEDGE_STATE_DIR", "."), "skilledge_actions.sqlite3")
+_action_repository = ActionStore(_ACTION_DB, legacy_json=_ACTION_STORE)
 _action_lock = threading.Lock()
 
 VALID_ACTION_STATES = ("open", "in_progress", "closed", "escalated", "reassigned")
@@ -4042,27 +4046,11 @@ def _action_store_save(data):
         pass          # a read-only filesystem must not break the request
 
 
-def _action_apply_overlay(actions):
+def _action_apply_overlay(actions, manager_email=""):
     """Annotate derived actions with any stored lifecycle state and notes."""
     if not isinstance(actions, list):
         return actions
-    with _action_lock:
-        states = _action_store_load()["states"]
-    for a in actions:
-        if not isinstance(a, dict):
-            continue
-        rec = states.get(a.get("id"))
-        if rec:
-            a["lifecycle_state"] = rec.get("state", "open")
-            a["notes"] = rec.get("notes", [])
-            a["due_date"] = rec.get("due_date", "")
-            a["assignee"] = rec.get("assignee", "")
-            a["updated_at"] = rec.get("updated_at", "")
-            a["history"] = rec.get("history", [])
-        else:
-            a.setdefault("lifecycle_state", "open")
-            a.setdefault("notes", [])
-    return actions
+    return _action_repository.overlay(str(manager_email or "").lower(), actions)
 
 
 def _derive_actions(trainer_ops, trainer_states, capability_trainers, demand_rows):
@@ -4152,9 +4140,17 @@ def _derive_actions(trainer_ops, trainer_states, capability_trainers, demand_row
 
 
 @app.route('/api/actions', methods=['GET'])
+@app.route('/api/v2/actions', methods=['GET'])
 def get_actions():
     """The manager's full inbox: derived actions plus anything raised by hand."""
-    email = str(request.args.get("email", "")).strip().lower()
+    requested = str(request.args.get("email", request.args.get("manager", ""))).strip().lower()
+    if request.path.startswith("/api/v2/"):
+        session, error = _v2_manager_session(requested)
+        if error:
+            return error
+        email = session["email"]
+    else:
+        email = requested
     if not email:
         return jsonify({"error": "email query param required"}), 400
 
@@ -4177,12 +4173,10 @@ def get_actions():
 
     demand = _demand_rows() or []
     derived = _derive_actions(trainer_ops, trainer_states, [], demand)
-    _action_apply_overlay(derived)
+    _action_apply_overlay(derived, email)
 
-    with _action_lock:
-        raised = list(_action_store_load()["raised"].values())
-    for r in raised:
-        r.setdefault("lifecycle_state", "open")
+    raised = _action_repository.list_raised(email)
+    _action_repository.overlay(email, raised)
 
     actions = derived + [r for r in raised if r.get("manager_email") == email]
     return jsonify({
@@ -4190,16 +4184,25 @@ def get_actions():
         "actions": actions,
         "open": sum(1 for a in actions if a.get("lifecycle_state") == "open"),
         "closed": sum(1 for a in actions if a.get("lifecycle_state") == "closed"),
+        "persistence": _action_repository.status(),
         "timestamp": datetime.utcnow().isoformat(),
     }), 200
 
 
 @app.route('/api/actions', methods=['POST'])
+@app.route('/api/v2/actions', methods=['POST'])
 def raise_action():
     """Create a manager-raised action (anything RMS cannot infer)."""
     body = request.get_json(silent=True) or {}
     title = str(body.get("title", "")).strip()
-    manager_email = str(body.get("manager_email", "")).strip().lower()
+    requested = str(body.get("manager_email", "")).strip().lower()
+    if request.path.startswith("/api/v2/"):
+        session, error = _v2_manager_session(requested)
+        if error:
+            return error
+        manager_email = session["email"]
+    else:
+        manager_email = requested
     if not title:
         return jsonify({"error": "title is required"}), 400
     if not manager_email:
@@ -4221,14 +4224,12 @@ def raise_action():
         "notes": [], "history": [],
         "created_at": now, "updated_at": now,
     }
-    with _action_lock:
-        data = _action_store_load()
-        data["raised"][action_id] = record
-        _action_store_save(data)
+    _action_repository.raise_action(manager_email, record, manager_email)
     return jsonify(record), 201
 
 
 @app.route('/api/actions/<action_id>/state', methods=['POST'])
+@app.route('/api/v2/actions/<action_id>/state', methods=['POST'])
 def set_action_state(action_id):
     """Move one action through its lifecycle, with an audit trail."""
     body = request.get_json(silent=True) or {}
@@ -4236,52 +4237,60 @@ def set_action_state(action_id):
     if state not in VALID_ACTION_STATES:
         return jsonify({"error": "state must be one of %s" % (VALID_ACTION_STATES,)}), 400
 
+    requested = str(body.get("manager_email", "")).strip().lower()
+    if request.path.startswith("/api/v2/"):
+        session, error = _v2_manager_session(requested)
+        if error:
+            return error
+        manager_email = session["email"]
+    else:
+        manager_email = requested
+    if not manager_email:
+        return jsonify({"error": "manager_email is required"}), 400
     now = datetime.utcnow().isoformat()
     entry = {
         "state": state, "note": str(body.get("note", "")).strip(),
         "assignee": str(body.get("assignee", "")).strip(),
         "by": str(body.get("manager_email", "")).strip().lower(), "at": now,
     }
-    with _action_lock:
-        data = _action_store_load()
-        # A raised action carries its own record; a derived one only has state.
-        if action_id in data["raised"]:
-            rec = data["raised"][action_id]
-        else:
-            rec = data["states"].setdefault(action_id, {"notes": [], "history": []})
-        rec["state"] = state
-        rec["assignee"] = entry["assignee"] or rec.get("assignee", "")
-        rec["due_date"] = str(body.get("due_date", "")).strip() or rec.get("due_date", "")
-        rec["updated_at"] = now
-        rec.setdefault("history", []).append(entry)
-        if entry["note"]:
-            rec.setdefault("notes", []).append(
-                {"text": entry["note"], "by": entry["by"], "at": now})
-        if action_id in data["raised"]:
-            rec["lifecycle_state"] = state
-        _action_store_save(data)
-    return jsonify({"id": action_id, "state": state, "updated_at": now,
-                    "notes": rec.get("notes", []),
-                    "history": rec.get("history", [])}), 200
+    result = _action_repository.transition(
+        manager_email, action_id, state, manager_email,
+        assignee=entry["assignee"], due_date=str(body.get("due_date", "")).strip(), note=entry["note"])
+    return jsonify(result), 200
 
 
 @app.route('/api/actions/<action_id>/note', methods=['POST'])
+@app.route('/api/v2/actions/<action_id>/note', methods=['POST'])
 def add_action_note(action_id):
     """Append a follow-up note without changing the action's state."""
     body = request.get_json(silent=True) or {}
     text = str(body.get("note", "")).strip()
     if not text:
         return jsonify({"error": "note is required"}), 400
-    now = datetime.utcnow().isoformat()
-    note = {"text": text, "by": str(body.get("manager_email", "")).strip().lower(), "at": now}
-    with _action_lock:
-        data = _action_store_load()
-        rec = data["raised"].get(action_id) or data["states"].setdefault(
-            action_id, {"state": "open", "notes": [], "history": []})
-        rec.setdefault("notes", []).append(note)
-        rec["updated_at"] = now
-        _action_store_save(data)
-    return jsonify({"id": action_id, "notes": rec.get("notes", [])}), 200
+    requested = str(body.get("manager_email", "")).strip().lower()
+    if request.path.startswith("/api/v2/"):
+        session, error = _v2_manager_session(requested)
+        if error:
+            return error
+        manager_email = session["email"]
+    else:
+        manager_email = requested
+    if not manager_email:
+        return jsonify({"error": "manager_email is required"}), 400
+    note = _action_repository.add_note(manager_email, action_id, text, manager_email)
+    return jsonify({"id": action_id, "note": note,
+                    "history": _action_repository.audit(manager_email, action_id)}), 200
+
+
+@app.route('/api/v2/actions/<action_id>/audit', methods=['GET'])
+def get_action_audit(action_id):
+    requested = str(request.args.get("manager", "")).strip().lower()
+    session, error = _v2_manager_session(requested)
+    if error:
+        return error
+    return jsonify({"action_id": action_id, "manager": session["email"],
+                    "events": _action_repository.audit(session["email"], action_id),
+                    "persistence": _action_repository.status()}), 200
 
 
 @app.errorhandler(404)

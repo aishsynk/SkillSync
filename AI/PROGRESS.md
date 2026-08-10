@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T19:50:00+05:30 - v2.3.0 Secure Audited Actions release gate passed locally
+- **Tool Used**: Codex (34-test backend suite, complete Android unit/render tests, release lint/assembly, AAPT, APK Signer, diff audit)
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Assigned v2.3.0/code 73 for the new transactional/action-audit data layer and authenticated mobile contract. Backend passes 34/34; Android tests, release lint and assembly pass. The signed APK is `com.example.skillsync` v2.3.0/code 73, local SHA-256 `2AE3FEFC41CBE7C06DEEAFF1F43AEFE3A8FE93D14F0A79409953BD5F063D6D45`, with unchanged signer `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Diff validation is clean. A combined command initially discovered backend tests from the Android directory and failed imports; the authoritative suite was immediately rerun from repository root and passed 34/34.
+- **Current Status**: The secure audited Actions release is locally ready. GitHub publication, CI APK verification, Render deployment and production action lifecycle/isolation/audit validation remain. Cross-deploy persistence still requires managed persistent storage and will remain explicitly reported as `local_ephemeral` in current production.
+- **Next Actions**: Commit/push, monitor CI, verify the published APK and notes, then production-test create → start → note → audit under Aishwar, cross-manager denial, logout revocation and persistence status without leaving test clutter in the manager inbox.
+
+## 2026-08-10T19:20:00+05:30 - Transactional audited Version 2 Actions foundation implemented
+- **Tool Used**: Codex (`apply_patch`, SQLite restart/security/audit contract tests)
+- **Files Modified**: `action_store.py`, `backend.py`, `.gitignore`, `tests/test_v2_actions.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Replaced active JSON workflow reads/writes with a transactional SQLite action repository using WAL, composite manager/action scoping, raised records, lifecycle state, notes and an append-only event audit. Added one-time migration of existing raised JSON actions and wildcard compatibility for legacy derived state. Added authenticated `/api/v2/actions` read/create/state/note routes plus scoped audit retrieval; the session identity is authoritative and cross-manager request spoofing returns 403. Android now uses only the protected Version 2 Actions contract. Added restart persistence, manager isolation, authentication, identity-spoofing and ordered-audit tests. Backend passes 34/34.
+- **Current Status**: Actions are now transactional, audited and manager-scoped in code, and survive process restarts on a stable filesystem. Production cross-deploy durability is not yet solved: Render's current free service filesystem is ephemeral and no persistent database/volume credential is configured. The API reports `local_ephemeral` unless `SKILLEDGE_DURABLE_STATE` is explicitly configured; this limitation is not being hidden. Android compile/release gates and publication remain.
+- **Next Actions**: Run Android tests and full release gates, publish the secure v2.3 migration, production-validate action creation/state/audit/isolation and persistence status, then provision a managed database or persistent Render volume before claiming cross-deploy durability.
+
 ## 2026-08-10T18:40:00+05:30 - v2.2.0 Capacity Planning released, deployed and production-validated
 - **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, downloaded APK verification, authenticated production API journey)
 - **Files Modified**: `AI/PROGRESS.md`

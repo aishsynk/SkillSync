@@ -130,25 +130,31 @@ interface SkillEdgeApi {
     // ── Manager action inbox ────────────────────────────────────────────────
 
     /** Derived + manager-raised actions with their lifecycle state. */
-    @GET("api/actions")
+    @GET("api/v2/actions")
     suspend fun getActions(@Query("email") email: String): Map<String, Any>
 
     /** Raise an action by hand (anything RMS cannot infer). */
-    @POST("api/actions")
+    @POST("api/v2/actions")
     suspend fun raiseAction(@Body body: Map<String, String>): Map<String, Any>
 
     /** Move an action through its lifecycle, optionally with a note. */
-    @POST("api/actions/{id}/state")
+    @POST("api/v2/actions/{id}/state")
     suspend fun setActionState(
         @Path("id") id: String,
         @Body body: Map<String, String>,
     ): Map<String, Any>
 
     /** Append a follow-up note without changing state. */
-    @POST("api/actions/{id}/note")
+    @POST("api/v2/actions/{id}/note")
     suspend fun addActionNote(
         @Path("id") id: String,
         @Body body: Map<String, String>,
+    ): Map<String, Any>
+
+    @GET("api/v2/actions/{id}/audit")
+    suspend fun getActionAudit(
+        @Path("id") id: String,
+        @Query("manager") manager: String,
     ): Map<String, Any>
 }
 
