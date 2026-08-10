@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T14:10:00+05:30 - SkillEdge Manager Command Centre v2.0.0 released and production-validated
+- **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, production authenticated API probes, AAPT, APK Signer)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published feature commit `f3ef7de9cb12fe3e761e338bee2f9cef3342c649`; GitHub Actions run `31364697036` passed and created `v2.0.0.70` with `SkillEdge-v2.0.0.70.apk` and complete release rationale/change/commit/version/user-gain/identity-boundary/rollback notes. Independently downloaded and verified the asset: SHA-256 `AB2FB9AD8243B029B4FCB2EC5F512B6D92B292F905197E66F107624766773613`, package `com.example.skillsync`, v2.0.0/code 70 and unchanged signer `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Production health and login passed; bearer session validation returned the authenticated Aishwar identity; Dashboard and Actions returned valid payloads; logout revoked the server session and the next validation returned 401. Team/Capability honestly returned the current zero-reportee state. Demand asynchronous refresh returned 7 real batches led by FMAT demand `265295` (`F5-LTM-GTM-Professional`).
+- **Current Status**: The first Version 2 milestone is live: Today/People/Plan/Deliver/Search, integrated Work Queue and Capability Marketplace, Delivery Operations, universal Search and backward-compatible session transport/revocation. The broader Version 2 goal remains active. Entra identity, enforced manager scoping, removal/rotation of RMS fallback credentials, durable database/audit persistence, typed contracts, dormant-API validation, planning forecasts and historical analytics remain unfinished and are not claimed. Physical install-over-v1.57 remains unavailable because ADB is absent.
+- **Next Actions**: Continue the active Version 2 Foundation step with Entra configuration when supplied, safe route-enforcement migration, secret rotation, durable actions/audit storage and typed versioned contracts; then complete verified dormant API integration and advanced planning/analytics. On a physical device, install v2.0.0.70 over v1.57.0.69 and confirm session/cache/user-data retention.
+
 ## 2026-08-10T13:45:00+05:30 - SkillEdge v2.0.0 local release gate passed
 - **Tool Used**: Codex (Python security/business tests, complete Gradle/Compose tests, Android lint, signed release assembly, AAPT, APK Signer)
 - **Files Modified**: `AI/PROGRESS.md`
