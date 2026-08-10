@@ -1,5 +1,12 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T05:48:00+05:30 - Global Demand Priority phase released and production-validated (v1.56.0/code 68)
+- **Tool Used**: Codex (`git`, `gh`, GitHub Actions, production probes, AAPT, APK Signer)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published commit `b82fa11fbf21a13a7f659c83c9a5bc43586cd193`; GitHub Actions run `31359305657` passed and created release `v1.56.0.68` with `SkillEdge-v1.56.0.68.apk`. Added full release reason/change/commit/version/user-gain/rollback notes. Downloaded and verified the GitHub asset: SHA-256 `538fe09367cb53ee5f1299c75ddf89d2ac13249617c091f3b7847f79715c13d7`, package `com.example.skillsync`, version 1.56.0/code 68 and unchanged signer `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Production `/healthz` returned OK; after the expected asynchronous rebuild, Demand returned HTTP 200 with 7 real batches, valid ids/course names and 17 candidate recommendations.
+- **Current Status**: The Demand hierarchy release is live and healthy. International FMAT/ILT now owns the first, always-expanded Global Priority Desk with animated globe, count, premium border, global/travel ribbon, location/readiness banner and separation from ordinary demand. Production currently contains no international record, so that state is verified by the full-page Compose fixture rather than a live screenshot. Backend 19/19 and Android 36/36 pass. Physical upgrade/device screenshot remains unavailable without ADB.
+- **Next Actions**: Install `SkillEdge-v1.56.0.68.apk` over v1.55.0.67 and capture the Demand page when an international FMAT/ILT record exists. Next phase should address real trainer free-schedule/off-date availability APIs; do not infer or fake international examples in production.
+
 ## 2026-08-10T03:53:00+05:30 - v1.56.0 Demand Intelligence local release gate passed
 - **Tool Used**: Codex (backend tests, full Gradle/Compose tests, lint, release assembly, AAPT, APK Signer)
 - **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
