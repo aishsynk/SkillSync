@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T13:20:00+05:30 - v3.1.1 Plan Continuity released and production-validated
+- **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, published APK verification, authenticated production journey)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published commit `19b430605d3b0dd22c8e5b0f88556c408fbd6f82`; GitHub Actions run `31381506373` passed and created release `v3.1.1.77` with `SkillEdge-v3.1.1.77.apk` and full release rationale/change/commit/version/user-gain/validation/rollback notes. Published APK SHA-256 is `70A205CEDCBD4952817617C54336CA465BF307CE56D574898D98970CA06B5DC0`, package is `com.example.skillsync`, version v3.1.1/code 77 and signer remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Authenticated production validation passed login, allocation preparation-to-ready (11 current batches), Actions, Capability and logout. This release removes Plan sections/global-search language, keeps one colour-coded FMAT→ILT→ILO→unknown queue, preserves the populated snapshot during incremental refresh, and routes notification taps to demand detail, Trainer 360 or Actions.
+- **Current Status**: v3.1.1 is published and production services are healthy. Direct physical APK upgrade and notification-tap interaction remain unexecuted because no ADB-connected device is available; package, increasing version code and unchanged signer satisfy static upgrade compatibility.
+- **Next Actions**: Install `SkillEdge-v3.1.1.77.apk` over v3.1.0 on a connected phone and exercise real notification taps when a new event arrives.
+
+## 2026-08-10T13:21:00+05:30 - Final dated v3.1.1 handoff
+- **Tool Used**: Codex
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Recorded the exact implementation, release identity, CI result and production evidence so another AI can continue from this file alone.
+- **Current Status**: `v3.1.1.77` is live at `https://github.com/aishsynk/SkillSync/releases/tag/v3.1.1.77`; no known code, build, CI, API or release issue remains in the requested scope.
+- **Next Actions**: Physical-device upgrade and notification interaction validation only when a device is connected.
+
 ## 2026-08-10T13:05:00+05:30 - v3.1.1 release gate passed locally
 - **Tool Used**: Codex (38 backend tests, Android unit/render tests, release lint/assembly, AAPT, APK Signer, SHA-256 and diff checks)
 - **Files Modified**: Android Plan/cache/notification/navigation implementation and tests, `app/build.gradle.kts`, `AI/PROGRESS.md`
