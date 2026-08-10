@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-11T01:45:00+05:30 - v3.1.0 Plan Visual Intelligence released and production-validated
+- **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, published APK verification, authenticated production Plan journey)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published commit `b5ce9e53c0b26def3abcecca8b9e460542b392a7`; GitHub Actions run `31379578245` passed and created release `v3.1.0.76` with `SkillEdge-v3.1.0.76.apk` and complete purpose/change/commit/version/user-gain/validation/rollback notes. Downloaded APK SHA-256 is `9231423516DDB0B078A9393E270A979572B1181CFE99779C39AB1D9DB40ACE86`, package is `com.example.skillsync`, version v3.1.0/code 76 and signer remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Production passed Aishwar login, Plan readiness (10 live demands: 1 FMAT, 9 ILO), Actions, Capability, cross-manager denial, logout and revoked-session denial. Current production has no international FMAT/ILT record, so the premium state is validated by deterministic render coverage; all 10 current demands are below 50% relevance because RMS returns no reportee capability evidence, so the new red low-match treatment applies to every current production demand exactly as requested.
+- **Current Status**: v3.1.0 Plan Visual Intelligence is published and backend journeys are healthy. FMAT/ILT/ILO lanes are visually distinct, international instructor-led work has the premium luminous override when present, and every sub-50% demand is red. Physical install-over-v3.0 remains unexecuted without an ADB-connected device.
+- **Next Actions**: No further product change requested. Validate direct APK upgrade and capture the Plan screen on a connected Android device when available.
+
+## 2026-08-11T01:46:00+05:30 - Final dated v3.1 handoff
+- **Tool Used**: Codex
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Recorded implementation, tests, GitHub release, APK identity and production Plan evidence so continuation requires only this file.
+- **Current Status**: `v3.1.0.76` is the current published release at `https://github.com/aishsynk/SkillSync/releases/tag/v3.1.0.76`.
+- **Next Actions**: Stop feature work; only physical-device visual/upgrade validation remains.
+
 ## 2026-08-11T01:20:00+05:30 - v3.1.0 Plan redesign release gate passed
 - **Tool Used**: Codex (38 backend tests, complete Android unit/render suite, release lint/assembly, AAPT, APK Signer, diff audit)
 - **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
