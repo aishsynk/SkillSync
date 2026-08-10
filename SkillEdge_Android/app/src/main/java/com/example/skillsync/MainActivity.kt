@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -28,6 +29,7 @@ class MainActivity : ComponentActivity() {
 
     // SkillEdgeApplication initializes cache, networking and sync before UI.
     com.example.skillsync.util.NotificationStateStore.init(applicationContext)
+    com.example.skillsync.util.NotificationDestinationStore.accept(intent)
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -41,5 +43,11 @@ class MainActivity : ComponentActivity() {
     setContent {
       SkillSyncTheme { Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { MainNavigation() } }
     }
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    com.example.skillsync.util.NotificationDestinationStore.accept(intent)
   }
 }

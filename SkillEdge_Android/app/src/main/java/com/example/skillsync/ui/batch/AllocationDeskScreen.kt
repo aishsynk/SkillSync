@@ -76,11 +76,6 @@ internal fun AllocationDeskContent(
     data: Map<String, Any>,
     newIds: Set<String>,
     onBatchClick: (Map<*, *>) -> Unit,
-    // Hoisted rather than taking the ViewModel: a content composable that owns
-    // a ViewModel cannot be rendered in the JVM screen tests, and these two
-    // values are all the wider-network lookup actually needs.
-    globalSearchData: Map<String, Any>? = null,
-    onGlobalSearch: (String) -> Unit = {},
     capacityPlan: com.example.skillsync.data.api.CapacityPlanResponse? = null,
     capacityPlanLoading: Boolean = false,
 ) {
@@ -94,12 +89,6 @@ internal fun AllocationDeskContent(
     var selectedLanguages by remember { mutableStateOf(setOf<String>()) }
     var selectedSkillLevels by remember { mutableStateOf(setOf<String>()) }
     var showFilters by remember { mutableStateOf(false) }
-    var fmatExpanded by remember { mutableStateOf(true) }
-    var iltExpanded by remember { mutableStateOf(true) }
-    var iloExpanded by remember { mutableStateOf(true) }
-    var otherExpanded by remember { mutableStateOf(true) }
-    
-    var globalSearchCourse by remember { mutableStateOf<String?>(null) }
 
     // Built from what's actually in the data, not a guessed enum — RMS's real
     // delivery-mode strings have proven inconsistent before (see AI/CONTEXT.md).
@@ -165,6 +154,18 @@ internal fun AllocationDeskContent(
     val otherModeBatches = remember(filtered) {
         filtered.filter { it.str("delivery_mode_kind") !in listOf("FMAT", "ILT", "ILO") }
     }
+    val orderedBatches = remember(filtered) {
+        filtered.withIndex().sortedWith(
+            compareBy<IndexedValue<Map<*, *>>> {
+                when (it.value.str("delivery_mode_kind")) {
+                    "FMAT" -> 0
+                    "ILT" -> 1
+                    "ILO" -> 2
+                    else -> 3
+                }
+            }.thenBy { it.index }
+        ).map { it.value }
+    }
 
     val activeFilterCount = selectedModes.size + selectedLanguages.size + selectedSkillLevels.size + (if (matchBand != MatchBand.ALL) 1 else 0)
 
@@ -197,13 +198,6 @@ internal fun AllocationDeskContent(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item { CapacityPlanningCard(capacityPlan, capacityPlanLoading) }
-
-        globalPrioritySection(
-            batches = globalBatches,
-            newIds = newIds,
-            onGlobalSearch = { course -> globalSearchCourse = course; onGlobalSearch(course) },
-            onBatchClick = onBatchClick,
-        )
 
         item {
             Column {
@@ -323,163 +317,26 @@ internal fun AllocationDeskContent(
             }
         }
 
-        // FMAT first: trainer travel means the longest lead time.
-        modeSection(
-            batches = fmatBatches,
-            title = "FMAT — Trainer travels to customer",
-            subtitle = "Highest delivery cost · travel and visa lead time",
-            tint = sk.warn,
-            expanded = fmatExpanded,
-            onToggle = { fmatExpanded = !fmatExpanded },
-            keyPrefix = "fmat_",
-            newIds = newIds,
-            isPriority = true,
-            onGlobalSearch = { course -> globalSearchCourse = course; onGlobalSearch(course) },
-            onBatchClick = onBatchClick,
-        )
-
-        modeSection(
-            batches = iltBatches,
-            title = "ILT — Classroom delivery",
-            subtitle = "Instructor present on site",
-            tint = sk.sky,
-            expanded = iltExpanded,
-            onToggle = { iltExpanded = !iltExpanded },
-            keyPrefix = "ilt_",
-            newIds = newIds,
-            isPriority = true,
-            onGlobalSearch = { course -> globalSearchCourse = course; onGlobalSearch(course) },
-            onBatchClick = onBatchClick,
-        )
-
-        modeSection(
-            batches = otherModeBatches,
-            title = "Unspecified delivery mode",
-            subtitle = "RMS did not state a mode — worth checking",
-            tint = sk.crit,
-            expanded = otherExpanded,
-            onToggle = { otherExpanded = !otherExpanded },
-            keyPrefix = "oth_",
-            newIds = newIds,
-            isPriority = true,
-            onGlobalSearch = { course -> globalSearchCourse = course; onGlobalSearch(course) },
-            onBatchClick = onBatchClick,
-        )
-
-        modeSection(
-            batches = iloBatches,
-            title = "ILO — Online delivery",
-            subtitle = "Remote instructor-led",
-            tint = sk.indigo,
-            expanded = iloExpanded,
-            onToggle = { iloExpanded = !iloExpanded },
-            keyPrefix = "ilo_",
-            newIds = newIds,
-            isPriority = false,
-            onGlobalSearch = { course -> globalSearchCourse = course; onGlobalSearch(course) },
-            onBatchClick = onBatchClick,
-        )
+        itemsIndexed(orderedBatches, key = { i, b -> b.str("demand_id").ifBlank { "demand_$i" } }) { _, batch ->
+            val mode = batch.str("delivery_mode_kind")
+            BatchCard(
+                b = batch,
+                isNew = batch.str("demand_id") in newIds,
+                isPriority = mode == "FMAT" || mode == "ILT",
+                globalFeatured = batch.bool("is_international") && mode in listOf("FMAT", "ILT"),
+                modeTint = when (mode) {
+                    "FMAT" -> sk.warn
+                    "ILT" -> sk.sky
+                    "ILO" -> sk.indigo
+                    else -> sk.crit
+                },
+                onClick = { onBatchClick(batch) },
+            )
+        }
 
         item { Spacer(Modifier.height(20.dp)) }
     }
 
-    if (globalSearchCourse != null) {
-        ModalBottomSheet(
-            onDismissRequest = { globalSearchCourse = null },
-            containerColor = sk.cardBg,
-        ) {
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp).fillMaxWidth().padding(bottom = 24.dp)) {
-                Text(
-                    "Global Network Search",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = sk.bodyText,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    globalSearchCourse ?: "",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = sk.subText,
-                )
-                Spacer(Modifier.height(16.dp))
-                
-                // Snapshot the delegated state once: `globalSearchData` is a
-                // `by collectAsState()` delegate, so Kotlin cannot smart-cast
-                // it inside the branches below.
-                val net = globalSearchData
-                val netTrainers = net?.list("trainers").orEmpty()
-                when {
-                    net == null -> Box(
-                        Modifier.fillMaxWidth().height(120.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        androidx.compose.material3.CircularProgressIndicator(color = sk.teal)
-                    }
-
-                    // RMS has not accepted any TrainerType value for this
-                    // endpoint, so the question could not be asked. Saying
-                    // "no trainers available" here would be a claim about the
-                    // company's bench that we have no evidence for.
-                    !net.bool("available") -> Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                painterResource(R.drawable.ic_alert), null,
-                                tint = sk.warn, modifier = Modifier.size(16.dp),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "Wider network unavailable",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = sk.warn, fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            net.str("note").ifBlank {
-                                "RMS did not accept this lookup, so the wider " +
-                                "trainer network could not be searched."
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = sk.subText,
-                        )
-                    }
-
-                    netTrainers.isEmpty() -> Text(
-                        "No trainers outside your team are mapped to this course.",
-                        style = MaterialTheme.typography.bodySmall, color = sk.subText,
-                    )
-
-                    else -> LazyColumn(
-                        Modifier.fillMaxWidth().heightIn(max = 380.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        items(netTrainers.size) { i ->
-                            val t = netTrainers[i]
-                            Column(Modifier.fillMaxWidth()) {
-                                Text(
-                                    t.str("TrainerName").ifBlank { "Unnamed trainer" },
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = sk.bodyText,
-                                )
-                                val meta = listOfNotNull(
-                                    t.str("Type").takeIf { it.isNotBlank() },
-                                    t.str("BaseLocation").takeIf { it.isNotBlank() },
-                                ).joinToString(" · ")
-                                if (meta.isNotBlank()) {
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        meta, style = MaterialTheme.typography.bodySmall,
-                                        color = sk.subText,
-                                    )
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                HorizontalDivider(color = sk.cardBorder)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 // ── Filters ──────────────────────────────────────────────────────────────────
@@ -726,8 +583,6 @@ internal fun BatchCard(
     isPriority: Boolean = true,
     globalFeatured: Boolean = false,
     modeTint: Color? = null,
-    /** Offered only when this manager's own team maps to nobody. */
-    onGlobalSearch: ((String) -> Unit)? = null,
     onClick: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
@@ -1013,24 +868,9 @@ internal fun BatchCard(
                 } else {
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "No one on your team maps to this course.",
+                        "No suitable team match yet. Review the demand details and capability gaps.",
                         style = MaterialTheme.typography.labelSmall, color = sk.subText,
                     )
-                    Spacer(Modifier.height(12.dp))
-                    androidx.compose.material3.Button(
-                        onClick = { onGlobalSearch?.invoke(b.str("course_name")) },
-                        enabled = onGlobalSearch != null,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = sk.blue.copy(alpha = 0.15f),
-                            contentColor = sk.blue
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(painterResource(R.drawable.ic_search), contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Global Network Search", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
                 }
 
                 if (managerRecommendation != null) {
@@ -1256,7 +1096,6 @@ private fun LazyListScope.globalPrioritySection(
                 isPriority = true,
                 globalFeatured = true,
                 modeTint = MaterialTheme.skill.sky,
-                onGlobalSearch = onGlobalSearch,
             ) { onBatchClick(batch) }
         }
     }
@@ -1360,7 +1199,6 @@ private fun LazyListScope.modeSection(
                     isNew = b.str("demand_id") in newIds,
                     isPriority = isPriority,
                     modeTint = tint,
-                    onGlobalSearch = onGlobalSearch,
                 ) { onBatchClick(b) }
             }
         }

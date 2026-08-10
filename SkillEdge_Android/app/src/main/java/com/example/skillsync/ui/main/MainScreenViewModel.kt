@@ -266,8 +266,8 @@ class MainScreenViewModel(
         }
     }
 
-    /** (title, message) pairs for the UI to fire as a system notification + in-app banner. */
-    private val _notification = kotlinx.coroutines.flow.MutableSharedFlow<Pair<String, String>>()
+    /** Targeted events for both system notifications and the in-app banner. */
+    private val _notification = kotlinx.coroutines.flow.MutableSharedFlow<com.example.skillsync.util.NotifyEvent>()
     val notification = _notification.asSharedFlow()
 
     private var pollingJob: kotlinx.coroutines.Job? = null

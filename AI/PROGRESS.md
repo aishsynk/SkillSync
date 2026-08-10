@@ -1,5 +1,26 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T13:05:00+05:30 - v3.1.1 release gate passed locally
+- **Tool Used**: Codex (38 backend tests, Android unit/render tests, release lint/assembly, AAPT, APK Signer, SHA-256 and diff checks)
+- **Files Modified**: Android Plan/cache/notification/navigation implementation and tests, `app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: All 38 backend tests, Android unit/render tests, release lint and signed assembly pass. The APK is `com.example.skillsync` v3.1.1/code 77, SHA-256 `724944A58156BD30C83F2D22D661C083872BA9D7F4614A0DABD023254E9F1E39`, with the unchanged production signer `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. This preserves direct install-over compatibility and app data.
+- **Current Status**: v3.1.1 is locally release-ready; GitHub publication, CI asset verification and production service validation remain. Physical upgrade remains blocked only by the absence of an ADB-connected device.
+- **Next Actions**: Commit/push, monitor CI release, verify published APK identity/notes, then run authenticated production health checks.
+
+## 2026-08-10T12:45:00+05:30 - Plan continuity and notification routing test gate passed
+- **Tool Used**: Codex (Android JVM/render suite, Kotlin compile, diff audit)
+- **Files Modified**: Plan/cache/notification/navigation sources, `ScreenRenderTest.kt`, new `NotificationEngineTest.kt`, `app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Android compilation and the complete debug unit/render suite pass. Added regression proof that the international premium treatment remains inline without a Global Priority Desk or Global Network Search, and that demand/allocation notifications retain their exact navigation targets. Assigned v3.1.1/code 77 because this is a backward-compatible correction to v3.1 rather than a new feature line.
+- **Current Status**: Functional and regression gates pass locally. Release lint/assembly, signer verification, GitHub publication and production validation remain.
+- **Next Actions**: Run release gates, publish v3.1.1, verify the versioned APK/signature/release notes and validate production services.
+
+## 2026-08-10T12:25:00+05:30 - Plan interpretation and continuity corrections implemented
+- **Tool Used**: Codex (`apply_patch`, source-flow audit)
+- **Files Modified**: `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/DataRepository.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/util/NotificationEngine.kt`, `LocalNotificationService.kt`, `SkillSyncNotificationWorker.kt`, `NotificationDestinationStore.kt`, `ui/main/MainScreenViewModel.kt`, `ui/main/MainScreen.kt`, `MainActivity.kt`, `Navigation.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Removed the separate global and delivery-mode lane UI from Plan and replaced it with one continuous priority-ordered queue (FMAT, ILT, ILO, unknown) whose cards retain distinct mode colour and inline international premium treatment. Removed the unsupported Global Network Search action from no-match cards. Prevented backend `loading`/202 control responses from replacing the last complete cached dataset. Added targeted notification metadata and routing so demand alerts open the demand detail, trainer allocation alerts open Trainer 360, and feedback/action alerts open Actions; direct demand launches now hydrate the allocation cache instead of bouncing back to the list.
+- **Current Status**: The requested behavior is implemented in source; compile, regression tests and release validation are in progress.
+- **Next Actions**: Resolve any compile/test findings, add targeted regression coverage, run the signed release gate, publish and production-validate.
+
 ## 2026-08-11T01:45:00+05:30 - v3.1.0 Plan Visual Intelligence released and production-validated
 - **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, published APK verification, authenticated production Plan journey)
 - **Files Modified**: `AI/PROGRESS.md`

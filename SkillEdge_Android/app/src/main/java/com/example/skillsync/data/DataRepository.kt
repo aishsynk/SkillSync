@@ -143,7 +143,10 @@ class ManagerRepository(
     ): RepositoryResult<Map<String, Any>> {
         return try {
             val live = network()
-            LocalCache.saveMap(key, live)
+            // A 202/preparing response is control state, not a dataset. Never
+            // overwrite the last complete board with it; the UI remains
+            // populated until the completed incremental snapshot arrives.
+            if (live["loading"] != true) LocalCache.saveMap(key, live)
             RepositoryResult(live, DataSource.LIVE)
         } catch (e: Exception) {
             // A forced network refresh must never remove the last usable local

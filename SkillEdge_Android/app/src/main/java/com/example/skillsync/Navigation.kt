@@ -49,6 +49,22 @@ fun MainNavigation() {
     // Hoisted out of MainScreen so a skill write can invalidate the capability
     // cache that the dashboard and Courses tab read from.
     val mainViewModel: MainScreenViewModel = viewModel()
+    val notificationDestination by com.example.skillsync.util.NotificationDestinationStore.pending.collectAsState()
+
+    LaunchedEffect(notificationDestination) {
+        val target = notificationDestination ?: return@LaunchedEffect
+        val email = com.example.skillsync.data.SessionManager.getEmail()
+        if (!email.isNullOrBlank()) {
+            current = when (target.type) {
+                "demand" -> BatchDetail(email, target.id)
+                "demand_list" -> Main(email, HomeTab.DEMAND)
+                "trainer" -> if (target.id.isNotBlank()) Trainer360(email, target.id, target.label) else Main(email, HomeTab.TEAM)
+                "actions" -> Main(email, HomeTab.ACTIONS)
+                else -> Main(email, HomeTab.DASHBOARD)
+            }
+        }
+        com.example.skillsync.util.NotificationDestinationStore.consumed()
+    }
 
     // Hardware/gesture back returns from a pushed detail screen to the shell.
     BackHandler(enabled = current is Trainer360 || current is BatchDetail) {
@@ -153,9 +169,11 @@ fun MainNavigation() {
                     ?.firstOrNull { it.str("demand_id") == screen.demandId }
 
                 if (batch == null) {
-                    // Reached without the desk loaded (e.g. process death); go back
-                    // rather than render a detail screen with nothing in it.
-                    LaunchedEffect(Unit) { current = Main(screen.email, HomeTab.DEMAND) }
+                    // A notification may launch directly into detail before the
+                    // allocation cache is hydrated. Load incrementally and keep
+                    // the destination instead of bouncing the manager away.
+                    LaunchedEffect(screen.email) { allocationViewModel.load(screen.email, context) }
+                    androidx.compose.material3.CircularProgressIndicator()
                 } else {
                     LaunchedEffect(screen.demandId, batch.str("course_name")) {
                         allocationViewModel.loadDemandContext(screen.email, screen.demandId, batch.str("course_name"))

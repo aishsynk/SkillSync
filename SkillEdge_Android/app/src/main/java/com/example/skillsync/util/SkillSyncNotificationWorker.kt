@@ -53,8 +53,8 @@ class SkillSyncNotificationWorker(
 
             val events = NotificationEngine.detect(data, seenAlloc, seenFb, seenDemand)
             if (events.isNotEmpty()) {
-                NotificationEngine.toNotifications(events).forEach { (title, message) ->
-                    LocalNotificationService.showNotification(context, title, message)
+                NotificationEngine.toNotifications(events).forEach { event ->
+                    LocalNotificationService.showNotification(context, event)
                 }
                 events.groupBy { it.bucket }.forEach { (bucket, group) ->
                     NotificationStateStore.addSeen(email, bucket, group.map { it.id }.toSet())

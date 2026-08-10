@@ -9,6 +9,9 @@ data class NotifyEvent(
     val bucket: String,
     val title: String,
     val message: String,
+    val targetType: String,
+    val targetId: String,
+    val targetLabel: String = "",
 )
 
 /**
@@ -51,6 +54,7 @@ object NotificationEngine {
                         id = id, bucket = BUCKET_ALLOCATION,
                         title = "New Batch Assigned",
                         message = "$trainer has been allocated to $course.",
+                        targetType = "trainer", targetId = b.str("trainer_email"), targetLabel = trainer,
                     )
                 }
             } else if (state == "completed") {
@@ -59,6 +63,7 @@ object NotificationEngine {
                         id = id, bucket = BUCKET_FEEDBACK,
                         title = "Feedback Required",
                         message = "$trainer's $course session has ended — feedback submission is mandatory.",
+                        targetType = "actions", targetId = id,
                     )
                 }
             }
@@ -72,6 +77,7 @@ object NotificationEngine {
                 id = id, bucket = BUCKET_DEMAND,
                 title = "New Unallocated Batch",
                 message = "$course needs a trainer assigned.",
+                targetType = "demand", targetId = id,
             )
         }
 
@@ -83,10 +89,10 @@ object NotificationEngine {
      * there are many, so a big overnight sync doesn't fire a dozen separate
      * system notifications at once.
      */
-    fun toNotifications(events: List<NotifyEvent>): List<Pair<String, String>> {
+    fun toNotifications(events: List<NotifyEvent>): List<NotifyEvent> {
         return events.groupBy { it.bucket }.flatMap { (bucket, group) ->
             if (group.size <= 3) {
-                group.map { it.title to it.message }
+                group
             } else {
                 val title = when (bucket) {
                     BUCKET_ALLOCATION -> "New Batches Assigned"
@@ -94,7 +100,12 @@ object NotificationEngine {
                     BUCKET_DEMAND -> "New Unallocated Batches"
                     else -> "SkillSync Update"
                 }
-                listOf(title to "${group.size} updates — open the app for details.")
+                listOf(NotifyEvent(
+                    id = "${bucket}_summary", bucket = bucket, title = title,
+                    message = "${group.size} updates — open the app for details.",
+                    targetType = if (bucket == BUCKET_DEMAND) "demand_list" else "actions",
+                    targetId = "",
+                ))
             }
         }
     }

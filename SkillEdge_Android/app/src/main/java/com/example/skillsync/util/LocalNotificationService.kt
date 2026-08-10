@@ -30,6 +30,10 @@ object LocalNotificationService {
     }
 
     fun showNotification(context: Context, title: String, message: String) {
+        showNotification(context, NotifyEvent("general", "general", title, message, "dashboard", ""))
+    }
+
+    fun showNotification(context: Context, event: NotifyEvent) {
         // Ensure channel exists
         createNotificationChannel(context)
         
@@ -50,6 +54,9 @@ object LocalNotificationService {
         // dismiss it.
         val openIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(NotificationDestinationStore.EXTRA_TYPE, event.targetType)
+            putExtra(NotificationDestinationStore.EXTRA_ID, event.targetId)
+            putExtra(NotificationDestinationStore.EXTRA_LABEL, event.targetLabel)
         }
         val pendingIntent = PendingIntent.getActivity(
             context, Random.nextInt(), openIntent,
@@ -58,9 +65,9 @@ object LocalNotificationService {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher) // Best to replace with a transparent silhouette icon if available
-            .setContentTitle(title)
-            .setContentText(message)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setContentTitle(event.title)
+            .setContentText(event.message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(event.message))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)

@@ -757,13 +757,13 @@ class ScreenRenderTest {
                 )
             }
         }
-        compose.onNodeWithText("GLOBAL PRIORITY DESK").assertExists()
         compose.onNodeWithText("INTERNATIONAL FMAT OPPORTUNITY").assertExists()
         compose.onNodeWithText("GLOBAL OPPORTUNITY").assertExists()
         compose.onNodeWithText("GLOBAL PRIORITY").assertExists()
         compose.onNodeWithText("TRAVEL REQUIRED", substring = true).assertExists()
         compose.onNodeWithText("London, United Kingdom").assertExists()
         compose.onNodeWithText("Visa and schedule readiness", substring = true).assertExists()
+        compose.onNodeWithText("Global Network Search").assertDoesNotExist()
     }
 
     @Test

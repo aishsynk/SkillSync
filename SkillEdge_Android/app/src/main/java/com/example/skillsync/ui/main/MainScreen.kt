@@ -127,14 +127,12 @@ fun MainScreen(
     var todayWorkspace by rememberSaveable { mutableStateOf("BRIEF") }
 
     LaunchedEffect(Unit) {
-        viewModel.notification.collect { (title, message) ->
+        viewModel.notification.collect { event ->
             // System notification — fires even if the manager is on a
             // different screen than the dashboard right now.
-            com.example.skillsync.util.LocalNotificationService.showNotification(
-                context, title, message
-            )
+            com.example.skillsync.util.LocalNotificationService.showNotification(context, event)
             // In-app banner for immediate visibility while the app is open.
-            bannerMessage = message
+            bannerMessage = event.message
         }
     }
 
@@ -274,15 +272,12 @@ fun MainScreen(
                         isRefreshing = allocRefreshing,
                         onRefresh = { allocationViewModel.refresh(email, context) },
                     ) {
-                        val globalSearch by allocationViewModel.globalSearchData.collectAsState()
                         val capacityPlan by allocationViewModel.capacityPlan.collectAsState()
                         val capacityPlanLoading by allocationViewModel.capacityPlanLoading.collectAsState()
                         AllocationDeskContent(
                             data = a.data,
                             newIds = newIds,
                             onBatchClick = { b -> onBatchClick(b.str("demand_id")) },
-                            globalSearchData = globalSearch,
-                            onGlobalSearch = { course -> allocationViewModel.globalSearch(course) },
                             capacityPlan = capacityPlan,
                             capacityPlanLoading = capacityPlanLoading,
                         )
