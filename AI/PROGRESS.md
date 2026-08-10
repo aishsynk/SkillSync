@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T18:40:00+05:30 - v2.2.0 Capacity Planning released, deployed and production-validated
+- **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, downloaded APK verification, authenticated production API journey)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published planning commit `1185972c607853ffd7dfe9b4b732b20fee8e5fc7`; GitHub Actions run `31371371372` passed and created `v2.2.0.72` with `SkillEdge-v2.2.0.72.apk` and complete purpose/change/commit/version/user-gain/validation/upgrade/rollback notes. Downloaded asset SHA-256 is `569384CF7D5E58B5B89060035131724A22C90642E9BE72810D7E7902195D171A`; package is `com.example.skillsync`, version v2.2.0/code 72 and signer remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Render subsequently deployed the Version 2 backend commits. Production unauthenticated v2 routes return 401; Aishwar login/session, Dashboard and Actions return 200; Demand returns 7 real batches; Capacity returns a ready eight-week plan with 7 demands, 0% strong team coverage and unavailable availability confidence because RMS currently returns no reportees/candidate evidence; Demand Context returns verified live course/SC evidence; cross-manager access returns 403; logout revokes the session and revalidation returns 401.
+- **Current Status**: Capacity Planning is complete end-to-end and live. Its current zero coverage/null availability is a truthful consequence of the production zero-reportee state, not a placeholder. Android v2.2.0 is published and backend production health is validated. Physical install-over-v2.1 remains the only unexecuted release gate because no ADB-connected device exists. The broader Version 2 goal remains active for durable Actions, capability intelligence, reporting and historical analytics.
+- **Next Actions**: Replace JSON/in-memory workflow persistence with a durable audited store, add versioned manager-scoped Action contracts, then build Capability Marketplace intelligence and a historical snapshot/reporting layer. Separately validate direct APK upgrade on a physical device when available.
+
+## 2026-08-10T18:41:00+05:30 - Final dated continuation entry
+- **Tool Used**: Codex
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Recorded the complete v2.2.0 publication, deployment and production evidence so the next AI can continue from this file alone.
+- **Current Status**: v2.2.0 Capacity Planning is live and healthy; the active Version 2 program now moves to durable Actions, capability intelligence and analytics.
+- **Next Actions**: Begin the durable Actions/audit persistence design and implementation without exposing sensitive RMS fields or weakening manager scope.
+
 ## 2026-08-10T18:10:00+05:30 - v2.2.0 Capacity Planning release gate passed locally
 - **Tool Used**: Codex (backend suite, complete Android unit/render tests, release lint/assembly, AAPT, APK Signer, diff audit)
 - **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
