@@ -130,6 +130,8 @@ internal fun CoursesTab(
         item {
             CatalogueSummary(kpis, courses)
             Spacer(Modifier.height(8.dp))
+            CapabilityPortfolio(capability.obj("portfolio"))
+            Spacer(Modifier.height(8.dp))
             Button(onClick = { assignmentCourse = null; showAssignment = true }, modifier = Modifier.fillMaxWidth()) {
                 Text("Assign skill by course name")
             }
@@ -203,6 +205,78 @@ internal fun CoursesTab(
             onDismiss = { showAssignment = false; onClearMark() },
             onAssign = onAssign,
         )
+    }
+}
+
+@Composable
+private fun CapabilityPortfolio(portfolio: Map<*, *>?) {
+    if (portfolio == null) return
+    val sk = MaterialTheme.skill
+    val summary = portfolio.obj("summary")
+    val vendors = portfolio.list("vendor_coverage").take(5)
+    val priorities = portfolio.list("priorities")
+    val confidence = portfolio.obj("confidence")
+    val health = summary?.str("portfolio_health").orEmpty()
+    val healthTint = when (health) {
+        "healthy" -> sk.green
+        "needs_attention" -> sk.amber
+        "high_risk" -> sk.red
+        else -> sk.subText
+    }
+
+    Box(Modifier.fillMaxWidth().accentGlass(healthTint, RoundedCornerShape(Radii.card))) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Capability portfolio", style = MaterialTheme.typography.titleMedium, color = sk.bodyText)
+                    Text("Where delivery depth needs a manager decision", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                }
+                Tag(health.replace('_', ' ').ifBlank { "Unknown" }, healthTint)
+            }
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                CatalogueFigure("Ready", "${summary?.int("ready_trainers") ?: 0}/${summary?.int("team_size") ?: 0}", sk.green)
+                CatalogueFigure("Single owner", "${summary?.int("single_owner_courses") ?: 0}", sk.amber)
+                CatalogueFigure("Cert exposed", "${summary?.int("certification_exposed_courses") ?: 0}", sk.red)
+                CatalogueFigure("Future", "${summary?.int("future_skill_courses") ?: 0}", sk.blue)
+            }
+
+            if (vendors.isNotEmpty()) {
+                HorizontalDivider(color = sk.cardBorder)
+                Text("Coverage by vendor", style = MaterialTheme.typography.labelMedium, color = sk.bodyText, fontWeight = FontWeight.Bold)
+                vendors.forEach { row ->
+                    val pct = row.int("coverage_pct").coerceIn(0, 100)
+                    val tint = when { pct >= 75 -> sk.green; pct >= 50 -> sk.amber; else -> sk.red }
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Row {
+                            Text(row.str("vendor"), style = MaterialTheme.typography.labelSmall, color = sk.bodyText, modifier = Modifier.weight(1f), maxLines = 1)
+                            Text("$pct% depth · ${row.int("single_owner")} single · ${row.int("certification_exposed")} exposed", style = MaterialTheme.typography.labelSmall, color = tint, fontSize = 9.sp)
+                        }
+                        LinearProgressIndicator(
+                            progress = { pct / 100f },
+                            modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)),
+                            color = tint,
+                            trackColor = sk.cardBorder,
+                        )
+                    }
+                }
+            }
+
+            priorities.firstOrNull()?.let { priority ->
+                Surface(color = sk.amber.copy(alpha = 0.10f), shape = RoundedCornerShape(8.dp)) {
+                    Text(
+                        "Next decision: ${priority.str("label")} (${priority.int("count")})",
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.labelSmall, color = sk.amber, fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            Text(
+                if (confidence?.str("status") == "verified") "Verified from current RMS capability evidence"
+                else confidence?.str("note").orEmpty().ifBlank { "Capability evidence is incomplete" },
+                style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 9.sp,
+            )
+        }
     }
 }
 

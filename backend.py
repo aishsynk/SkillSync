@@ -2693,7 +2693,63 @@ def _capability_for(r, policy=None):
     }
 
 
+def _capability_portfolio(team, courses):
+    """Decision rollup built only from verified capability evidence."""
+    vendor_rows = {}
+    for course in courses:
+        vendor = str(course.get("vendor") or "Unclassified").strip() or "Unclassified"
+        row = vendor_rows.setdefault(vendor, {
+            "vendor": vendor, "courses": 0, "single_owner": 0,
+            "exam_linked": 0, "certification_exposed": 0,
+            "approved_depth": 0, "owner_depth": 0,
+        })
+        row["courses"] += 1
+        row["owner_depth"] += int(course.get("owner_count") or 0)
+        row["approved_depth"] += int(course.get("approved_count") or 0)
+        if course.get("coverage") == "single":
+            row["single_owner"] += 1
+        if course.get("exam_code"):
+            row["exam_linked"] += 1
+            if int(course.get("certified_count") or 0) == 0:
+                row["certification_exposed"] += 1
+
+    vendors = []
+    for row in vendor_rows.values():
+        row["coverage_pct"] = round(100 * (row["courses"] - row["single_owner"]) / row["courses"]) if row["courses"] else None
+        row["certification_coverage_pct"] = round(100 * (row["exam_linked"] - row["certification_exposed"]) / row["exam_linked"]) if row["exam_linked"] else None
+        vendors.append(row)
+    vendors.sort(key=lambda row: (-row["certification_exposed"], -row["single_owner"], -row["courses"], row["vendor"]))
+
+    single_owner = [course for course in courses if course.get("coverage") == "single"]
+    uncertified = [course for course in courses if course.get("exam_code") and int(course.get("certified_count") or 0) == 0]
+    future = [course for course in courses if course.get("future_skill")]
+    priorities = []
+    if uncertified:
+        priorities.append({"type": "certification", "count": len(uncertified), "label": "Exam-linked courses without certified cover"})
+    if single_owner:
+        priorities.append({"type": "succession", "count": len(single_owner), "label": "Courses dependent on one trainer"})
+    if future:
+        priorities.append({"type": "future_skill", "count": len(future), "label": "Future skills being developed"})
+    evidence_complete = bool(team) and all(trainer.get("readiness_score") is not None for trainer in team)
+    return {
+        "summary": {
+            "portfolio_health": "unknown" if not team or not courses else ("high_risk" if uncertified and single_owner else "needs_attention" if uncertified or single_owner else "healthy"),
+            "ready_trainers": sum(1 for trainer in team if trainer.get("readiness_bucket") == "Ready"),
+            "team_size": len(team), "single_owner_courses": len(single_owner),
+            "certification_exposed_courses": len(uncertified), "future_skill_courses": len(future),
+        },
+        "vendor_coverage": vendors, "priorities": priorities,
+        "confidence": {
+            "status": "verified" if evidence_complete else "partial",
+            "basis": "Current RMS trainer capability, certification, approval and readiness evidence",
+            "domain_taxonomy_available": False,
+            "note": "Vendor groups are used because RMS domain and technology contracts are not yet verified.",
+        },
+    }
+
+
 @app.route('/api/data/team-capability', methods=['GET'])
+@app.route('/api/v2/capability/portfolio', methods=['GET'])
 def team_capability():
     """
     What the team can teach, and where their paper credentials fall short.
@@ -2703,6 +2759,11 @@ def team_capability():
     the client fetches it alongside, so the dashboard still paints immediately.
     """
     email = request.args.get('email', '').strip().lower()
+    if request.path.startswith('/api/v2/'):
+        session, error = _v2_manager_session(email)
+        if error:
+            return error
+        email = session["email"]
     if not email:
         return jsonify({"error": "email query param required"}), 400
 
@@ -2797,6 +2858,7 @@ def team_capability():
             "ready_trainers":          sum(1 for t in team
                                            if t["readiness_bucket"] == "Ready"),
         },
+        "portfolio": _capability_portfolio(team, courses),
         "timestamp": datetime.utcnow().isoformat(),
     }), 200
 

@@ -61,7 +61,7 @@ interface SkillEdgeApi {
      * round-trips per trainer, so it is fetched alongside the dashboard rather
      * than inside it.
      */
-    @GET("api/data/team-capability")
+    @GET("api/v2/capability/portfolio")
     suspend fun getTeamCapability(
         @Query("email") email: String,
         @Query("refresh") refresh: Int? = null,

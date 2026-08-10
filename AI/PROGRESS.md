@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T21:35:00+05:30 - v2.4.0 Capability Portfolio release gate passed locally
+- **Tool Used**: Codex (38-test backend suite, complete Android unit/render tests, release lint/assembly, AAPT, APK Signer, diff audit)
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Assigned v2.4.0/code 74 for the protected capability portfolio contract and manager decision UI. Backend passes 38/38; Android unit/render tests, release lint and signed assembly pass. The APK is `com.example.skillsync` v2.4.0/code 74, local SHA-256 `4CC5DDB07137B1CE29BFC288812E6161BB69D812981141724E6619F92CFB0103`, with unchanged signer `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Diff validation is clean. An initial build command targeted the obsolete root Android project and exposed its AGP/JDK incompatibility; the authoritative release project under `SkillEdge_Android` passed all gates without workaround.
+- **Current Status**: v2.4.0 is locally release-ready. GitHub publication, CI asset verification, Render deployment and authenticated production portfolio validation remain. Physical direct-upgrade testing remains unavailable without an ADB-connected device.
+- **Next Actions**: Commit/push, monitor CI and release creation, verify the published APK identity/signature/notes, then production-test unauthenticated and cross-manager denial, Aishwar portfolio evidence, legacy compatibility, logout revocation and existing Dashboard/Actions/Demand/Plan health.
+
+## 2026-08-10T21:05:00+05:30 - Protected Version 2 capability portfolio implemented
+- **Tool Used**: Codex (`apply_patch`, Flask security/rollup tests, production Android unit/render suite)
+- **Files Modified**: `backend.py`, `tests/test_v2_capability_portfolio.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/CoursesTab.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Added authenticated, manager-scoped `/api/v2/capability/portfolio` while retaining the legacy read route for older clients. The contract turns verified team capability into portfolio health, readiness depth, single-owner dependency, certification exposure, future-skill count, vendor coverage and prioritized manager decisions with explicit evidence confidence. Android now consumes the protected route and the Capability Marketplace opens with a dense portfolio intelligence panel, four decision KPIs, vendor coverage bars and the highest-priority intervention. Unverified RMS domain/technology taxonomy is not used or represented as empty. Added authorization, cross-manager, empty-evidence and portfolio-math tests. Focused backend tests and the production Android unit/render suite pass.
+- **Current Status**: The capability portfolio slice is functionally complete locally. Full backend regression, Android lint/release build, versioning, APK identity/signature, GitHub publication, Render rollout and production validation remain. The repository still contains a legacy root Android project; production validation must run from `SkillEdge_Android`.
+- **Next Actions**: Run the complete release gate, assign v2.4.0/code 74, publish and verify the APK, deploy Render, then validate protected portfolio authentication, Aishwar data/confidence, legacy compatibility and key manager journeys.
+
 ## 2026-08-10T20:20:00+05:30 - v2.3.0 Secure Audited Actions released, deployed and production-validated
 - **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, published APK verification, authenticated production action lifecycle/security checks)
 - **Files Modified**: `AI/PROGRESS.md`
