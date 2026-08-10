@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T16:45:00+05:30 - v2.1.0 published; Render rollout awaiting authenticated deployment access
+- **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, APK verification, public production probes, Render dashboard inspection)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Published feature commit `d76cc9bc1979495fc446c977ee7c2537db4179d5`; GitHub Actions run `31369565437` passed and created release `v2.1.0.71` with documented purpose, changes, deployed commit, version rationale, user gain, validation and rollback notes. Downloaded the asset and independently verified SHA-256 `4B9757B8F981C8D24D691CD0B87AA4855AD462C66EAC08FCA945FF85B440CCEE`, package `com.example.skillsync`, v2.1.0/code 71 and unchanged signer `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Public production probing for five minutes showed the prior Render backend still serving 404 for the new v2 route. Both available browser sessions reached Render but were not authenticated; GitHub OAuth reported that the connected GitHub identity is configured for deployments but not Render login. No Render deploy hook/API credential exists in the repo, environment or GitHub secrets, so a rollout could not be triggered or its logs inspected safely from this session.
+- **Current Status**: Android v2.1.0 is released and upgrade-compatible, but the new Demand Operational Verification panel will correctly show its graceful unavailable state until Render deploys commit `d76cc9b`. This slice is therefore not claimed production-complete. Backend 26/26 and Android test/lint/release gates pass locally. Physical upgrade remains untested because ADB is unavailable. The broader Version 2 goal remains active.
+- **Next Actions**: In an authenticated Render session, deploy `d76cc9b` for `skilledge-backend`, inspect build/runtime logs, then rerun: unauthenticated v2 route=401, Aishwar session=200, cross-manager=403, live course/SC evidence, Dashboard/Actions/Demand health and logout revocation. Continue capacity planning and capability analytics only after that deployment gate passes.
+
+## 2026-08-10T16:46:00+05:30 - Final session handoff entry
+- **Tool Used**: Codex
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Closed the session with the repository, release, validation evidence and remaining deployment dependency recorded above so continuation requires only this file.
+- **Current Status**: v2.1.0 APK is published; Render is still on the previous backend and production validation for the new protected endpoint is pending.
+- **Next Actions**: Authenticate to Render and deploy/validate commit `d76cc9b`, then resume the active Version 2 planning/capability/analytics program.
+
 ## 2026-08-10T16:25:00+05:30 - v2.1.0 operational evidence release gate passed locally
 - **Tool Used**: Codex (Python backend suite, complete Gradle unit/render tests, release lint/assembly, AAPT, APK Signer)
 - **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
