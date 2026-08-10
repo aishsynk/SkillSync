@@ -1,5 +1,26 @@
 # SkillEdge Project Progress
 
+## 2026-08-10T03:53:00+05:30 - v1.56.0 Demand Intelligence local release gate passed
+- **Tool Used**: Codex (backend tests, full Gradle/Compose tests, lint, release assembly, AAPT, APK Signer)
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
+- **Work Completed**: Assigned v1.56.0/code 68 because the Demand page hierarchy and global-opportunity visual identity materially changed. Backend passes 19/19 and Android 36/36, including the full-page international FMAT fixture; lint and release assembly pass. APK is `com.example.skillsync` v1.56.0/code 68, local SHA-256 `E78A34F8C2B12C11CE31A048E482E66F8056E936336A08B673F918FFBE44D9C4`, signed by unchanged production certificate `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`.
+- **Current Status**: All local release gates pass. Physical install-over-existing and device screenshot remain unavailable without ADB. Commit/push, GitHub release, asset verification and production normal-demand regression remain.
+- **Next Actions**: Commit/push this isolated phase, monitor CI/release, add complete release notes, verify the downloaded APK, and confirm production health plus the current 8-demand payload remains valid.
+
+## 2026-08-10T03:45:00+05:30 - Global Demand hierarchy render-validated
+- **Tool Used**: Codex (Gradle/Compose full and focused screen tests)
+- **Files Modified**: `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/ScreenRenderTest.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Replaced the prior isolated-card assertion with an end-to-end Demand board render fixture containing an international FMAT opportunity. The acceptance test now requires the top-level `GLOBAL PRIORITY DESK` plus the global opportunity label, global-priority ribbon, travel indicator, international banner, location and visa/readiness message. Full Android tests and the focused full-screen international fixture pass.
+- **Current Status**: The requested international state is composition-tested at page level. Physical on-device visual review remains unavailable without ADB; production has no current international record to exercise the lane. Versioning, lint/release, publication and production regression checks remain.
+- **Next Actions**: Assign the next version/code, run complete backend/Android/lint/release/signature gates, publish, verify release asset and confirm normal production Demand still returns valid real data.
+
+## 2026-08-10T03:38:00+05:30 - Demand screen hierarchy corrected for global opportunities
+- **Tool Used**: Codex (production payload review, Compose architecture review, `apply_patch`)
+- **Files Modified**: `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/ScreenRenderTest.kt`, `AI/PROGRESS.md`
+- **Work Completed**: Diagnosed why the prior international implementation was technically present but visually ineffective: global batches were only decorated inside ordinary FMAT/ILT sections, after the large summary/search area, and could sit below domestic work. Rebuilt the hierarchy so international FMAT/ILT is extracted into an always-expanded `GLOBAL PRIORITY DESK` at the top and removed from normal mode sections. Added an animated globe hero, count, global KPI, travel/international ribbon, stronger premium gradient border, persistent international banner and visual divider before ordinary demand. Updated the international card render assertion to require the new global-priority treatment.
+- **Current Status**: Manager-facing information architecture is implemented locally. Production currently has 8 open demands (1 FMAT, 7 ILO) and no international demand, so live data cannot demonstrate the special lane; the representative international FMAT render fixture covers that state. Compilation, screenshot/render validation, tests and release gates remain.
+- **Next Actions**: Compile and run screen/backend tests, inspect the rendered international fixture if available, refine density if required, then version, release and production-validate this independent phase.
+
 ## 2026-08-10T03:06:00+05:30 - Team Capability phase released and production-validated (v1.55.0/code 67)
 - **Tool Used**: Codex (`git`, `gh`, GitHub Actions, Render production probes, AAPT, APK Signer)
 - **Files Modified**: `AI/PROGRESS.md`

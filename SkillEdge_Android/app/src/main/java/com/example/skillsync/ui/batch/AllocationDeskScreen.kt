@@ -33,6 +33,7 @@ import com.example.skillsync.R
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
+import com.example.skillsync.theme.heroSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
 
@@ -145,8 +146,19 @@ internal fun AllocationDeskContent(
     // the mode grouping stays legible. Within each group RMS arrival order is
     // preserved — the grouping carries business priority, the order inside it
     // is how demand actually arrives.
-    val fmatBatches = remember(filtered) { filtered.filter { it.str("delivery_mode_kind") == "FMAT" } }
-    val iltBatches = remember(filtered) { filtered.filter { it.str("delivery_mode_kind") == "ILT" } }
+    // Overseas instructor-present work is its own manager queue. A badge inside
+    // a long mode list is not discoverable enough when the board has 100 items.
+    val globalBatches = remember(filtered) {
+        filtered.filter {
+            it.bool("is_international") && it.str("delivery_mode_kind") in listOf("FMAT", "ILT")
+        }
+    }
+    val fmatBatches = remember(filtered, globalBatches) {
+        filtered.filter { it.str("delivery_mode_kind") == "FMAT" && it !in globalBatches }
+    }
+    val iltBatches = remember(filtered, globalBatches) {
+        filtered.filter { it.str("delivery_mode_kind") == "ILT" && it !in globalBatches }
+    }
     val iloBatches = remember(filtered) { filtered.filter { it.str("delivery_mode_kind") == "ILO" } }
     val otherModeBatches = remember(filtered) {
         filtered.filter { it.str("delivery_mode_kind") !in listOf("FMAT", "ILT", "ILO") }
@@ -182,6 +194,13 @@ internal fun AllocationDeskContent(
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        globalPrioritySection(
+            batches = globalBatches,
+            newIds = newIds,
+            onGlobalSearch = { course -> globalSearchCourse = course; onGlobalSearch(course) },
+            onBatchClick = onBatchClick,
+        )
+
         item {
             Column {
                 // Coverage first: the manager's real question is not "how many
@@ -212,6 +231,7 @@ internal fun AllocationDeskContent(
                         )
                         Spacer(Modifier.height(14.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            StatFigure("${globalBatches.size}", "GLOBAL", if (globalBatches.isNotEmpty()) sk.aqua else sk.subText, Modifier.weight(1f))
                             StatFigure("$priorityCount", "PRIORITY", sk.teal, Modifier.weight(1f))
                             StatFigure("$atRisk", "AT RISK", if (atRisk > 0) sk.crit else sk.aqua, Modifier.weight(1f))
                             StatFigure("$high", "BEST MATCH", sk.aqua, Modifier.weight(1f))
@@ -698,6 +718,7 @@ internal fun BatchCard(
     b: Map<*, *>,
     isNew: Boolean,
     isPriority: Boolean = true,
+    globalFeatured: Boolean = false,
     /** Offered only when this manager's own team maps to nobody. */
     onGlobalSearch: ((String) -> Unit)? = null,
     onClick: () -> Unit,
@@ -719,6 +740,13 @@ internal fun BatchCard(
                 if (international) sk.sky else if (isPriority) sk.teal else sk.subText.copy(alpha = 0.3f),
                 RoundedCornerShape(Radii.card), strong = isPriority || international,
             )
+            .then(
+                if (globalFeatured) Modifier.border(
+                    2.dp,
+                    androidx.compose.ui.graphics.Brush.linearGradient(listOf(sk.sky, sk.indigo, sk.aqua)),
+                    RoundedCornerShape(Radii.card),
+                ) else Modifier
+            )
             .clickable(onClick = onClick),
     ) {
         Row {
@@ -733,6 +761,10 @@ internal fun BatchCard(
                     )
             )
             Column(Modifier.padding(start = 14.dp, top = 13.dp, end = 13.dp, bottom = 13.dp).fillMaxWidth()) {
+                if (globalFeatured) {
+                    GlobalPriorityRibbon(b)
+                    Spacer(Modifier.height(10.dp))
+                }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -998,6 +1030,42 @@ internal fun BatchCard(
 }
 
 @Composable
+private fun GlobalPriorityRibbon(batch: Map<*, *>) {
+    val sk = MaterialTheme.skill
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                androidx.compose.ui.graphics.Brush.horizontalGradient(
+                    listOf(sk.indigo.copy(alpha = 0.42f), sk.sky.copy(alpha = 0.24f))
+                )
+            )
+            .border(1.dp, sk.sky.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(R.drawable.ic_flag), null, tint = sk.aqua, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(7.dp))
+        Text(
+            "GLOBAL PRIORITY",
+            style = MaterialTheme.typography.labelSmall,
+            color = sk.frost, fontWeight = FontWeight.ExtraBold,
+            letterSpacing = 0.08.em, modifier = Modifier.weight(1f),
+        )
+        Surface(color = sk.aqua.copy(alpha = 0.18f), shape = RoundedCornerShape(6.dp)) {
+            Row(Modifier.padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(painterResource(R.drawable.ic_globe), null, tint = sk.aqua, modifier = Modifier.size(11.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    if (batch.str("delivery_mode_kind") == "FMAT") "TRAVEL REQUIRED" else "INTERNATIONAL DELIVERY",
+                    color = sk.aqua, fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun InternationalBadge() {
     val sk = MaterialTheme.skill
     val transition = rememberInfiniteTransition(label = "internationalGlobe")
@@ -1087,6 +1155,86 @@ private fun InternationalOpportunityBanner(batch: Map<*, *>) {
     }
 }
 
+
+private fun LazyListScope.globalPrioritySection(
+    batches: List<Map<*, *>>,
+    newIds: Set<String>,
+    onGlobalSearch: (String) -> Unit,
+    onBatchClick: (Map<*, *>) -> Unit,
+) {
+    if (batches.isEmpty()) return
+
+    item(key = "global_priority_header") {
+        GlobalPriorityHeader(batches)
+    }
+    itemsIndexed(batches, key = { _, b -> "global_" + b.str("demand_id") }) { i, batch ->
+        Appear(i) {
+            BatchCard(
+                b = batch,
+                isNew = batch.str("demand_id") in newIds,
+                isPriority = true,
+                globalFeatured = true,
+                onGlobalSearch = onGlobalSearch,
+            ) { onBatchClick(batch) }
+        }
+    }
+    item(key = "global_priority_divider") {
+        Row(Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.skill.cardBorder)
+            Text(
+                "ALL OTHER DEMAND",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.skill.labelText,
+                fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 9.dp),
+            )
+            HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.skill.cardBorder)
+        }
+    }
+}
+
+@Composable
+private fun GlobalPriorityHeader(batches: List<Map<*, *>>) {
+    val sk = MaterialTheme.skill
+    val transition = rememberInfiniteTransition(label = "globalPriorityHeader")
+    val rotation by transition.animateFloat(
+        initialValue = -7f, targetValue = 7f,
+        animationSpec = infiniteRepeatable(tween(1300, easing = LinearEasing)),
+        label = "globalPriorityHeaderGlobe",
+    )
+    Box(Modifier.fillMaxWidth().heroSurface(RoundedCornerShape(16.dp))) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = Color.White.copy(alpha = 0.13f), shape = RoundedCornerShape(12.dp)) {
+                Icon(
+                    painterResource(R.drawable.ic_globe), "Global priority opportunities",
+                    tint = sk.aqua, modifier = Modifier.padding(9.dp).size(25.dp).rotate(rotation),
+                )
+            }
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "GLOBAL PRIORITY DESK",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Color.White, fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.04.em,
+                )
+                Text(
+                    "International FMAT & ILT · travel, visa and allocation decisions first",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.76f), fontSize = 9.sp,
+                    maxLines = 2,
+                )
+            }
+            Surface(color = sk.aqua, shape = RoundedCornerShape(12.dp)) {
+                Text(
+                    "${batches.size}", color = Color(0xFF071523),
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
+                )
+            }
+        }
+    }
+}
 
 /**
  * One delivery-mode band on the demand board.

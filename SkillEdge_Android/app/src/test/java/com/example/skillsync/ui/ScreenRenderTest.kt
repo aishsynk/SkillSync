@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performScrollToNode
 import com.example.skillsync.HomeTab
 import com.example.skillsync.theme.SkillSyncTheme
 import com.example.skillsync.ui.batch.BatchCard
+import com.example.skillsync.ui.batch.AllocationDeskContent
 import com.example.skillsync.ui.main.CoursesTab
 import com.example.skillsync.ui.main.DashboardTab
 import com.example.skillsync.ui.main.SkillSyncNavBar
@@ -717,11 +718,20 @@ class ScreenRenderTest {
         )
         compose.setContent {
             SkillSyncTheme {
-                BatchCard(batch, isNew = false, isPriority = true, onClick = {})
+                AllocationDeskContent(
+                    data = mapOf(
+                        "batches" to listOf(batch),
+                        "summary" to mapOf("total" to 1, "priority" to 1, "at_risk" to 1),
+                    ),
+                    newIds = emptySet(),
+                    onBatchClick = {},
+                )
             }
         }
+        compose.onNodeWithText("GLOBAL PRIORITY DESK").assertExists()
         compose.onNodeWithText("INTERNATIONAL FMAT OPPORTUNITY").assertExists()
         compose.onNodeWithText("GLOBAL OPPORTUNITY").assertExists()
+        compose.onNodeWithText("GLOBAL PRIORITY").assertExists()
         compose.onNodeWithText("TRAVEL REQUIRED", substring = true).assertExists()
         compose.onNodeWithText("London, United Kingdom").assertExists()
         compose.onNodeWithText("Visa and schedule readiness", substring = true).assertExists()
