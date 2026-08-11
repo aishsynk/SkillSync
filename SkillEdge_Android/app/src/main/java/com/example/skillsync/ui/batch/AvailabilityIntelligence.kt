@@ -25,6 +25,7 @@ import com.example.skillsync.R
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.skill
+import com.example.skillsync.ui.components.intOrNull
 import com.example.skillsync.ui.components.obj
 import com.example.skillsync.ui.components.str
 
@@ -171,10 +172,12 @@ internal fun TimeZoneChip(candidate: Map<*, *>) {
 @Composable
 internal fun ExperienceChips(candidate: Map<*, *>) {
     val sk = MaterialTheme.skill
-    val level = candidate.str("skill_level")
-    val runs = candidate.str("course_deliveries")
-    if (level.isNotBlank() && level != "null") Tone("Level $level", sk.indigo)
-    if (runs.isNotBlank() && runs != "null" && runs != "0") Tone("$runs delivered", sk.indigo)
+    // These arrive as JSON numbers, which Gson decodes to Double — str() would
+    // render "Level 9.0". intOrNull keeps them whole.
+    val level = candidate.intOrNull("skill_level")
+    val runs = candidate.intOrNull("course_deliveries")
+    if (level != null) Tone("Level $level", sk.indigo)
+    if (runs != null && runs > 0) Tone("$runs delivered", sk.indigo)
 }
 
 /**
@@ -188,7 +191,8 @@ internal fun ExperienceChips(candidate: Map<*, *>) {
 internal fun UncheckedNotice(batch: Map<*, *>) {
     val sk = MaterialTheme.skill
     val intel = batch.obj("availability_intelligence") ?: return
-    if (intel.str("dnc_checked") == "true") return
+    // Compare the decoded boolean rather than its string form.
+    if (intel["dnc_checked"] == true) return
     Text(
         "Client exclusions and leave are checked when you open this batch.",
         style = MaterialTheme.typography.bodySmall,

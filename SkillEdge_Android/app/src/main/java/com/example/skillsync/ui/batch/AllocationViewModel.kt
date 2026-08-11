@@ -82,6 +82,53 @@ class AllocationViewModel(
     val capacityPlanLoading = MutableStateFlow(false)
     private var demandContextKey: String? = null
 
+    /**
+     * Fully gated candidates for the open batch.
+     *
+     * The board's overlay cannot check client exclusions or leave — those need
+     * a per-trainer call that is multiplicative across a whole board — so the
+     * complete evaluation runs here, when a manager opens one batch.
+     * [candidatesUnverified] carries the reason when the course could not be
+     * resolved, which must never be shown as "nobody available".
+     */
+    val gatedCandidates = MutableStateFlow<com.example.skillsync.data.api.AllocationCandidatesResponse?>(null)
+    val gatedCandidatesLoading = MutableStateFlow(false)
+    val gatedCandidatesUnverified = MutableStateFlow<String?>(null)
+    private var gatedKey: String? = null
+
+    fun loadGatedCandidates(
+        manager: String, course: String, start: String, end: String,
+        country: String = "", customer: String = "",
+        deliveryMode: String = "", international: Boolean = false,
+    ) {
+        if (course.isBlank() || start.isBlank()) return
+        val key = "$manager|$course|$start|$end"
+        if (gatedKey == key && (gatedCandidates.value != null || gatedCandidatesLoading.value)) return
+        gatedKey = key
+        gatedCandidates.value = null
+        gatedCandidatesUnverified.value = null
+        viewModelScope.launch {
+            gatedCandidatesLoading.value = true
+            try {
+                gatedCandidates.value = RetrofitClient.instance.getAllocationCandidates(
+                    manager = manager, course = course, start = start, end = end,
+                    country = country, customer = customer,
+                    deliveryMode = deliveryMode,
+                    international = if (international) "true" else "",
+                )
+            } catch (e: retrofit2.HttpException) {
+                // 422 is the deliberate "cannot verify" answer, not a failure.
+                gatedCandidatesUnverified.value = if (e.code() == 422)
+                    "This course could not be matched in the RMS catalogue, so availability could not be verified."
+                else e.userMessage("check candidate availability")
+            } catch (e: Exception) {
+                gatedCandidatesUnverified.value = e.userMessage("check candidate availability")
+            } finally {
+                gatedCandidatesLoading.value = false
+            }
+        }
+    }
+
     fun loadDemandContext(manager: String, demandId: String, courseName: String) {
         val key = "$manager|$demandId|$courseName"
         if (demandContextKey == key && (demandContext.value != null || demandContextLoading.value)) return

@@ -58,8 +58,10 @@ class DemandIntelligenceTest {
         put("utilization", 91.0)
         put("real_availability", mapOf("status" to availability, "reason" to
             if (availability == "unavailable") "on approved leave" else ""))
-        put("skill_level", "9")
-        put("course_deliveries", "12")
+        // Numbers, as Gson actually decodes them from the wire. Strings
+        // here would hide "Level 9.0" style rendering bugs.
+        put("skill_level", 9.0)
+        put("course_deliveries", 12.0)
         visa?.let {
             put("international_readiness",
                 mapOf("visa" to it, "visa_detail" to "", "timezone_fit" to "workable"))

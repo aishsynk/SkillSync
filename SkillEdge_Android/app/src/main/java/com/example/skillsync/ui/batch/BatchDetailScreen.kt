@@ -44,6 +44,9 @@ fun BatchDetailScreen(
     operationalContext: com.example.skillsync.data.api.DemandContextResponse? = null,
     operationalContextLoading: Boolean = false,
     operationalContextError: String? = null,
+    gatedCandidates: com.example.skillsync.data.api.AllocationCandidatesResponse? = null,
+    gatedCandidatesLoading: Boolean = false,
+    gatedCandidatesUnverified: String? = null,
     onMarkSkill: (courseId: String, trainerEmail: String, level: Int, date: String, who: String) -> Unit,
     onClearMark: () -> Unit,
     onBack: () -> Unit,
@@ -170,13 +173,24 @@ fun BatchDetailScreen(
                         HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f), thickness = 0.5.dp)
                         Spacer(Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                            DetailStat("Revenue", batch.str("revenue_potential").ifBlank { "—" }, sk.indigo)
+                            DetailStat("Opportunity", batch.str("revenue_potential").ifBlank { "—" }, sk.indigo)
                             DetailStat("Priority", "${batch.intOrNull("priority_score") ?: 0}", sk.teal)
                             DetailStat("Risk", risk.ifBlank { "—" }, riskTint)
                             DetailStat("Coverage", "$relevance%", relevanceColor(relevance))
                         }
                     }
                 }
+
+                // The full eligibility check — leave, client exclusions,
+                // confirmed bookings, skill floor and visa. The demand board
+                // cannot afford these per-trainer calls, so this is where the
+                // non-overridable gates are actually applied.
+                Spacer(Modifier.height(14.dp))
+                GatedCandidatesSection(
+                    response = gatedCandidates,
+                    loading = gatedCandidatesLoading,
+                    unverified = gatedCandidatesUnverified,
+                )
 
                 Box(Modifier.fillMaxWidth().glassSurface()) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

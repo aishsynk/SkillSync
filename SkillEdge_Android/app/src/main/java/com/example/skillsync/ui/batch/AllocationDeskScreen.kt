@@ -746,7 +746,10 @@ internal fun BatchCard(
 
                 Spacer(Modifier.height(9.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    MiniStat("Revenue", b.str("revenue_potential").ifBlank { "—" }, sk.indigo)
+                    // Not currency. The backend derives this band from delivery mode,
+                    // international reach and headcount, so labelling it "Revenue"
+                    // read as money on a product that deliberately excludes finance.
+                    MiniStat("Opportunity", b.str("revenue_potential").ifBlank { "—" }, sk.indigo)
                     MiniStat("Priority", "${b.intOrNull("priority_score") ?: 0}", sk.teal)
                     MiniStat("Risk", risk.ifBlank { "—" }, riskTint)
                 }

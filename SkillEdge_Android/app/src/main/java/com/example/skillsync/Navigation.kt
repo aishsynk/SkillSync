@@ -213,6 +213,9 @@ fun MainNavigation() {
                 val demandContext by allocationViewModel.demandContext.collectAsState()
                 val demandContextLoading by allocationViewModel.demandContextLoading.collectAsState()
                 val demandContextError by allocationViewModel.demandContextError.collectAsState()
+                val gatedCandidates by allocationViewModel.gatedCandidates.collectAsState()
+                val gatedLoading by allocationViewModel.gatedCandidatesLoading.collectAsState()
+                val gatedUnverified by allocationViewModel.gatedCandidatesUnverified.collectAsState()
                 val data = (allocState as? AllocationState.Success)?.data
                 val batch = data?.rows("batches")
                     ?.firstOrNull { it.str("demand_id") == screen.demandId }
@@ -226,6 +229,18 @@ fun MainNavigation() {
                 } else {
                     LaunchedEffect(screen.demandId, batch.str("course_name")) {
                         allocationViewModel.loadDemandContext(screen.email, screen.demandId, batch.str("course_name"))
+                        // Full gated evaluation for this one batch: the board
+                        // overlay cannot check leave or client exclusions.
+                        allocationViewModel.loadGatedCandidates(
+                            manager = screen.email,
+                            course = batch.str("course_name"),
+                            start = batch.str("start_date"),
+                            end = batch.str("end_date").ifBlank { batch.str("start_date") },
+                            country = batch.str("location"),
+                            customer = batch.str("customer"),
+                            deliveryMode = batch.str("delivery_mode"),
+                            international = batch.str("is_international").equals("true", true),
+                        )
                     }
                     // Candidates are this manager's reportees, which is exactly the
                     // set they may mark a skill for.
@@ -244,6 +259,9 @@ fun MainNavigation() {
                         operationalContext = demandContext,
                         operationalContextLoading = demandContextLoading,
                         operationalContextError = demandContextError,
+                        gatedCandidates = gatedCandidates,
+                        gatedCandidatesLoading = gatedLoading,
+                        gatedCandidatesUnverified = gatedUnverified,
                         onMarkSkill = { courseId, trainerEmail, level, date, who ->
                             allocationViewModel.markSkill(
                                 context, courseId, trainerEmail, level, date, who,
