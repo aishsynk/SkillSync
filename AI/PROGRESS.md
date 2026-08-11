@@ -1,5 +1,28 @@
 # SkillEdge Project Progress
 
+## 2026-08-11T12:55:00+05:30 - V2 design system shipped; two releases (v3.2.0, v3.2.1)
+
+- **Tool Used**: Claude Code (Gradle test/lint/assemble, apksigner + aapt APK forensics, gh CLI, live Render probes)
+- **Files Modified**: `theme/Type.kt`, `theme/Color.kt`, `theme/DesignSystem.kt` (created), `ui/main/ManagerCommandCentre.kt` (rewritten), `ui/main/MainScreen.kt`, `ui/trainer/Trainer360Screen.kt`, `data/models/ActionRow.kt`, `app/build.gradle.kts`, `app/src/test/.../CrashTest.kt`, `app/src/test/.../ScreenRenderTest.kt`, `AI/DESIGN_VISION_V2_2026_08_11.md` (created), `AI/DECISIONS.md`, `AI/PROGRESS.md`
+- **Work Completed**:
+  - **Design audit** — `AI/DESIGN_VISION_V2_2026_08_11.md`: UX/UI/design-system/IA audits, component library, motion tokens, per-screen redesign vision, 6-phase plan. Key findings: eight components each rendering "a number and a label", eight rendering "a pill", four separate action renderers, three page gutters, `labelText` at ~4.0:1 (under AA).
+  - **Phase 0-1 (foundation)** — type scale rebuilt (whole-sp, wide steps, light tabular numerals); `labelText` #7F8CA3 -> #9AA8BF for AA; new `theme/DesignSystem.kt` with `Severity`, `Figure`, `ToneChip`, `SectionHeading`, `SkillCard`, `StateNote`, `Layout`.
+  - **Phase 2 (dashboard)** — `ManagerCommandCentre` rewritten as a briefing: readiness hero -> severity-ranked alerts -> four-tile pulse -> capacity balance -> demand, with reference detail collapsed behind "Explore the detail". Was six sections / fifteen equal-weight panels with type down to 8sp. No derivation, drill or caption changed.
+  - **Trainer 360** — thirteen-section scroll replaced by a pinned decision header plus four tabs (Now / Capability / Performance / Actions).
+  - **Committed the stranded Android audit work** (Tasks 4, 9-15) that was sitting uncommitted: `ActionRow`, `CourseIntelligence`, `ui/common/Errors.kt`, cache-revision version guards, two unused Retrofit endpoints dropped. Fixed a pre-existing compile break this migration had left in `MainScreen.kt` and `Trainer360Screen.kt`, plus three indentation regressions.
+  - **Inverted `CrashTest`** — it asserted that an *unauthenticated* read of `/api/data/unified-manager-intelligence` succeeds, i.e. the exact PII leak closed in `e2214da`. Now asserts 401, and skips rather than fails when the host is unreachable.
+  - **Found and fixed a broken production flow** — probing all twenty endpoints `SkillEdgeApi` declares returned 401/405 for nineteen (gate working) and **404 for `POST /api/agent/ask`**. No agent route exists anywhere in `backend.py`. A sparkle FAB on every Trainer 360 screen opened a chat where every question returned a 404 bubble; the entry point is withheld until the route ships (see `AI/DECISIONS.md`). `CopilotChatSheet`/`CopilotViewModel` left in the tree for one-line restoration.
+- **Current Status**: **Both releases are live and verified.** `v3.2.0.78` (commit `6af2341`) and `v3.2.1.79` (commit `5d34c58`) published via GitHub Releases with `SkillEdge-v3.2.0.78.apk` / `SkillEdge-v3.2.1.79.apk` (12.4 MB). CI run `31472053392` succeeded. **Upgrade-in-place proven by forensics, not assumption**: signer SHA-256 `c6868b14…1808` is byte-identical to the installed v3.1.1.77 base, `applicationId` remains `com.example.skillsync`, versionCode 77 -> 78 -> 79. Gate green: 44/44 unit tests, lint clean, assembleDebug OK. Production backend healthy — `/healthz` `status: ok` v6.1.0; unauthenticated data routes 401; error envelope `{error, code}` correct.
+- **Known Gaps (not blockers, stated plainly)**:
+  1. **No on-device install test was run** — no emulator image or adb is present on this machine. Upgrade compatibility is proven cryptographically (identical signer + package + incremented versionCode), which is the mechanism Android actually enforces, but the physical install-over-the-top was not executed.
+  2. **No authenticated API data validation** — confirming dashboards render real RMS data end-to-end requires signing in with a real manager password, which I do not handle. Verified the gate and the envelope; the populated-data check needs an operator with credentials.
+  3. `POST /api/agent/ask` remains unimplemented in `backend.py`.
+- **Next Actions**:
+  1. Operator: install `SkillEdge-v3.2.1.79.apk` over an existing v3.1.1 install, confirm no uninstall prompt and that session/cache survive; sign in and confirm Dashboard, Team, Demand, Skills and Actions are populated with live RMS data.
+  2. Design Phases 3-5 remain — People compact trainer card + capability lens, Demand international/FMAT tier treatment, Actions queue model. The primitives they need are now in place.
+  3. Backend: either implement `POST /api/agent/ask` or formally drop Copilot from scope.
+  4. Still open from Task 3: set the `SKILLEDGE_RMS_*` env vars as Render secrets, then remove the plaintext fallbacks and promote `_validate_credentials` to a hard failure.
+
 ## 2026-08-11T06:15:00+05:30 - Task 3 complete: RMS credential env-var startup validation
 
 - **Tool Used**: opencode (git, Python unittest, live Render probes)
@@ -1983,16 +2006,3 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   - Built and generated `SkillEdge-v1.38.0.apk`.
   - Created a GitHub commit and pushed changes to production.
 - **Current Status**: Phase 6 is complete. Algorithm and UI fixes deployed successfully.
-
-## 2026-08-11 — V2 design system + briefing dashboard + Trainer 360 tabs
-- **Design doc**: `AI/DESIGN_VISION_V2_2026_08_11.md` (UX/UI/IA audit, component library, motion, per-screen vision, 6-phase plan).
-- **Files Modified**: `theme/Type.kt`, `theme/Color.kt`, new `theme/DesignSystem.kt`, `ui/main/ManagerCommandCentre.kt`, `ui/main/MainScreen.kt`, `ui/trainer/Trainer360Screen.kt`, `data/models/ActionRow.kt`, `ScreenRenderTest.kt`.
-- **Work Completed** (Phases 0–2 + Trainer 360; no business logic, API or repository change):
-  - Type scale rebuilt: whole-sp sizes, wide steps, light tabular display numerals.
-  - `labelText` raised #7F8CA3 → #9AA8BF to clear WCAG AA on Surface0.
-  - New `DesignSystem.kt`: `Severity`, `Figure`, `ToneChip`, `SectionHeading`, `SkillCard`, `StateNote`, `Layout` — the vocabulary replacing 8 figure and 8 chip variants.
-  - Dashboard rebuilt as a briefing: readiness hero → severity-ranked alerts → 4-tile pulse → capacity balance → demand; reference detail collapsed behind "Explore the detail". Was 6 sections / 15 equal-weight panels with 8–9.5sp text.
-  - Trainer 360: 13-section scroll → pinned decision header + 4 tabs (Now / Capability / Performance / Actions).
-  - Fixed a pre-existing `ActionRow` migration compile break in `MainScreen.kt` and `Trainer360Screen.kt`.
-- **Verification**: `:app:compileDebugKotlin` clean; 39/39 UI tests pass. `CrashTest.testDashboardCrash` fails — pre-existing, confirmed failing on the stashed baseline (hits the live RMS endpoint, now session-gated).
-- **Remaining**: Phases 3–5 — People card + capability lens, Demand international tier, Actions queue model.
