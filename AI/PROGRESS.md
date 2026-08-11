@@ -1,5 +1,26 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T10:50:00+05:30 - Full gated evaluation on batch detail (v3.8.0)
+
+- **Tool Used**: Claude Code (Compose, Robolectric, Gradle gate, apksigner + aapt, gh CLI, Render probe)
+- **Files Modified**: `ui/batch/GatedCandidates.kt` (created), `ui/batch/BatchDetailScreen.kt`, `ui/batch/AllocationViewModel.kt`, `ui/batch/AvailabilityIntelligence.kt`, `ui/batch/AllocationDeskScreen.kt`, `data/api/SkillEdgeApi.kt`, `Navigation.kt`, `app/build.gradle.kts`, `ui/GatedCandidatesTest.kt` (created), `ui/DemandIntelligenceTest.kt`, `AI/CONTEXT.md`
+- **Session start state**: v3.7.0.84 live; `/api/v2/allocation/candidates` existed and was tested but **no screen called it**, so the board's "client exclusions and leave are checked when you open this batch" promise was unfulfilled.
+- **Work Completed**:
+  - **Wired `/api/v2/allocation/candidates` into batch detail.** Opening a batch now applies every hard gate (DNC, leave, confirmed bookings, skill floor, visa, travel windows). `GatedCandidatesSection` shows eligible candidates with a **"Why this score"** disclosure listing each factor's contribution and evidence; **blocked candidates stay visible** with the gate that stopped them, client exclusions named in plain language; an unresolvable course renders as *"could not verify"*, explicitly not *"nobody is available"*.
+  - **Fixed a scope breach**: demand board and batch detail both labelled a derived priority band **"Revenue"**. The backend never returns currency for it (band derived from delivery mode, international reach, headcount), but the label read as money on a product that excludes finance. Renamed to **"Opportunity"**.
+  - **Corrected stale `AI/CONTEXT.md`** — it described `server.py` + `backend/app.py` + a SeanTheme web frontend as the product. None of that is deployed; that layout is legacy under `SkillEdge_Local/`. Now documents the real stack (Flask `backend.py` on Render + Android/Gradle), the intelligence layer, and the revenue-out-of-scope decision.
+- **Three rendering bugs found by aligning a test fixture to the real wire format**:
+  1. Fit scores and factor contributions rendered as **"87.0" / "+20.0"** — Gson decodes JSON numbers as `Double` and `str()` stringified them.
+  2. Same fault on skill level and course deliveries: **"Level 9.0"**.
+  3. `requires_verification` and `dnc_checked` were compared against the **string** `"true"` rather than decoded booleans.
+  The `DemandIntelligenceTest` fixture had used strings where the wire sends numbers, which is exactly why it passed while the screen was wrong; it now mirrors the wire format.
+- **Current Status**: **v3.8.0.85 live** — commit `8af3469`, CI run `31517968768` success. APK verified: signer `c6868b14…1808` unchanged, package `com.example.skillsync`, versionCode 84 -> 85. **106 Android tests + 123 backend tests pass**, lint clean. Render healthy (`/healthz` ok v6.1.0). Backend unchanged this session (still `789fd99`).
+- **Note on operator instructions**: the standing prompt asks for `.csproj` registration, MSBuild and SeanTheme/Color-Admin conventions. **This repo is not .NET and has no `.csproj`** — it is Flask + Android/Gradle. That paragraph appears to be boilerplate from another project; the documented pipeline here (pytest → Render, Gradle → CI-signed GitHub Release) was followed instead. Flagged to the operator.
+- **Next Actions**:
+  1. **Phase 3 continues, one screen per release**: Trainer 360 (availability calendar, leave, visa, international readiness), then Team, then Dashboard.
+  2. Consider surfacing `certification_verdict` / `certification_priority` on Trainer 360 — the engine exists and is tested but no screen consumes it.
+  3. **RMS question list, still the main quality ceiling**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
+
 ## 2026-08-12T09:15:00+05:30 - Demand screen consumes the intelligence layer (v3.7.0)
 
 - **Tool Used**: Claude Code (Compose, Robolectric, Gradle gate, apksigner + aapt, gh CLI)
