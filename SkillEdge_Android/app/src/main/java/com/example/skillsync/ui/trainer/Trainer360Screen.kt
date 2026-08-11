@@ -40,7 +40,10 @@ fun Trainer360Screen(
     viewModel: Trainer360ViewModel = viewModel(),
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    LaunchedEffect(trainerEmail, managerEmail) { viewModel.load(trainerEmail, managerEmail, context) }
+    LaunchedEffect(trainerEmail, managerEmail) {
+        viewModel.load(trainerEmail, managerEmail, context)
+        viewModel.loadReadiness(managerEmail, trainerEmail)
+    }
     RefreshOnResume(key = trainerEmail) { viewModel.syncSilently(trainerEmail, managerEmail, context) }
 
     val state by viewModel.state.collectAsState()
@@ -48,6 +51,7 @@ fun Trainer360Screen(
     val utilHistory by viewModel.utilHistory.collectAsState()
     val syllabus by viewModel.syllabus.collectAsState()
     val actions by viewModel.actions.collectAsState()
+    val readiness by viewModel.readiness.collectAsState()
     val online by com.example.skillsync.data.sync.SyncScheduler.online.collectAsState()
     StatusBarIcons(lightIcons = true)
 
@@ -152,6 +156,7 @@ fun Trainer360Screen(
                             utilHistory = utilHistory,
                             syllabus = syllabus,
                             actions = actions.map { it.asMap() },
+                            readiness = readiness,
                             onCourseTap = { viewModel.fetchSyllabus(it) },
                         )
                     }
@@ -170,6 +175,7 @@ internal fun Trainer360Content(
     utilHistory: Map<String, Any>? = null,
     syllabus: Map<String, Any>? = null,
     actions: List<Map<String, Any>> = emptyList(),
+    readiness: Map<String, Any>? = null,
     onCourseTap: (String) -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
@@ -234,7 +240,8 @@ internal fun Trainer360Content(
         ) {
             when (tab) {
                 0 -> {
-                    item { Appear(0) { UtilisationSection(util, series, delivery, utilHistory) } }
+                    item { Appear(0) { RealReadinessSection(readiness) } }
+                    item { Appear(1) { UtilisationSection(util, series, delivery, utilHistory) } }
                     item { Appear(1) { AvailabilitySection(avail) } }
                     item { Appear(2) { DeliverySection(delivery, assignments) } }
                 }

@@ -146,4 +146,23 @@ viewModelScope.launch {
             }
         }
     }
+
+    /**
+     * Real readiness: leave and commitments from the RMS calendar rather than
+     * from the off-date fields, which are empty for every reachable trainer.
+     */
+    val readiness = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Any>?>(null)
+    private var readinessKey: String? = null
+
+    fun loadReadiness(managerEmail: String, trainerEmail: String) {
+        val key = "$managerEmail|$trainerEmail"
+        if (readinessKey == key) return
+        readinessKey = key
+        viewModelScope.launch {
+            readiness.value = runCatching {
+                com.example.skillsync.data.api.RetrofitClient.instance
+                    .getTrainerReadiness(managerEmail, trainerEmail)
+            }.getOrNull()
+        }
+    }
 }

@@ -89,6 +89,13 @@ interface SkillEdgeApi {
      * score. Returns 422 when the course cannot be resolved, which means
      * "could not verify", never "nobody is available".
      */
+    /** Real leave, commitments and certification state for one trainer. */
+    @GET("api/v2/trainer/readiness")
+    suspend fun getTrainerReadiness(
+        @Query("manager") manager: String,
+        @Query("email") email: String,
+    ): Map<String, Any>
+
     @GET("api/v2/allocation/candidates")
     suspend fun getAllocationCandidates(
         @Query("manager") manager: String,
