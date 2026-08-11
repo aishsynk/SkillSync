@@ -104,3 +104,79 @@ class SkillMarkingReliabilityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BulkSkillAssign(unittest.TestCase):
+    """
+    §7.6's write. Partial failure is the expected case, so every row must
+    report its own outcome rather than one aggregate verdict.
+    """
+
+    def setUp(self):
+        backend.app.config["TESTING"] = True
+        self.client = backend.app.test_client()
+
+    def _post(self, body):
+        return self.client.post("/api/v2/skills/bulk-assign", json=body)
+
+    def test_requires_a_session(self):
+        self.assertEqual(401, self._post({"course_id": "17", "trainers": []}).status_code)
+
+    def test_rejects_a_non_numeric_course(self):
+        with patch.object(backend, "_v2_manager_session", return_value=({}, None)):
+            r = self._post({"course_id": "abc", "trainers": [{"trainer_email": "a@koenig-solutions.com", "skill_level": 5}]})
+        self.assertEqual(400, r.status_code)
+
+    def test_rejects_an_empty_selection(self):
+        with patch.object(backend, "_v2_manager_session", return_value=({}, None)):
+            self.assertEqual(400, self._post({"course_id": "17", "trainers": []}).status_code)
+
+    def test_caps_the_batch_size(self):
+        rows = [{"trainer_email": f"t{i}@koenig-solutions.com", "skill_level": 5} for i in range(61)]
+        with patch.object(backend, "_v2_manager_session", return_value=({}, None)):
+            self.assertEqual(400, self._post({"course_id": "17", "trainers": rows}).status_code)
+
+    def test_each_row_reports_its_own_outcome(self):
+        rows = [
+            {"trainer_email": "good@koenig-solutions.com", "skill_level": 8},
+            {"trainer_email": "bad@gmail.com", "skill_level": 8},
+            {"trainer_email": "level@koenig-solutions.com", "skill_level": 99},
+        ]
+        with patch.object(backend, "_v2_manager_session", return_value=({}, None)), \
+             patch.object(backend, "_rms", return_value=[{"Status": "Success"}]), \
+             patch.object(backend, "_write_status", return_value=("Success", "Recorded")), \
+             patch.object(backend, "_cache_purge"):
+            body = self._post({"course_id": "17", "trainers": rows}).get_json()
+
+        by_email = {r["trainer_email"]: r for r in body["results"]}
+        self.assertTrue(by_email["good@koenig-solutions.com"]["ok"])
+        self.assertFalse(by_email["bad@gmail.com"]["ok"])
+        self.assertIn("Koenig", by_email["bad@gmail.com"]["message"])
+        self.assertFalse(by_email["level@koenig-solutions.com"]["ok"])
+        self.assertEqual(1, body["succeeded"])
+        self.assertEqual(2, body["failed"])
+
+    def test_an_unreachable_rms_never_reports_success(self):
+        with patch.object(backend, "_v2_manager_session", return_value=({}, None)), \
+             patch.object(backend, "_rms", return_value=None):
+            body = self._post({
+                "course_id": "17",
+                "trainers": [{"trainer_email": "a@koenig-solutions.com", "skill_level": 5}],
+            }).get_json()
+        row = body["results"][0]
+        self.assertFalse(row["ok"])
+        self.assertFalse(row["verified"])
+        self.assertEqual("RMS_UNREACHABLE", row["code"])
+
+    def test_the_response_states_that_it_only_adds(self):
+        # RMS has no remove or update endpoint; the payload must say so rather
+        # than let a caller assume a bulk "set" semantic.
+        with patch.object(backend, "_v2_manager_session", return_value=({}, None)), \
+             patch.object(backend, "_rms", return_value=[{"Status": "Success"}]), \
+             patch.object(backend, "_write_status", return_value=("Success", "ok")), \
+             patch.object(backend, "_cache_purge"):
+            body = self._post({
+                "course_id": "17",
+                "trainers": [{"trainer_email": "a@koenig-solutions.com", "skill_level": 5}],
+            }).get_json()
+        self.assertIn("only adds", body["note"])

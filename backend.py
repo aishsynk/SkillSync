@@ -4604,6 +4604,103 @@ def v2_capacity_plan():
     return jsonify(plan), 200
 
 
+@app.route('/api/v2/skills/bulk-assign', methods=['POST'])
+def v2_bulk_assign_skill():
+    """
+    One skill, many reportees — the write behind design vision §7.6.
+
+    RMS exposes only a single-record write (key 255), so the fan-out happens
+    here rather than as N round trips from the phone. Concurrency is held to
+    four: this writes to production RMS for every row, and a manager selecting
+    forty people must not become forty simultaneous writes against a system
+    that normally answers in two to five seconds.
+
+    Every row reports its own outcome. A partial failure is the expected case,
+    not an edge case — one trainer's write can be refused while the rest
+    succeed — and a bulk action that reported a single aggregate success would
+    hide exactly that.
+
+    There is no remove or update endpoint anywhere in the RMS estate, so this
+    route deliberately only adds. See `AI/DECISIONS.md`.
+    """
+    session, error = _v2_manager_session("")
+    if error:
+        return error
+
+    body = request.get_json(silent=True) or {}
+    course_id = str(body.get("course_id", "")).strip()
+    rows = body.get("trainers")
+    if not course_id.isdigit():
+        return error_response("INVALID_INPUT", "course_id must be numeric", 400)
+    if not isinstance(rows, list) or not rows:
+        return error_response("INVALID_INPUT", "trainers must be a non-empty list", 400)
+    if len(rows) > 60:
+        return error_response("TOO_MANY", "at most 60 trainers per request", 400)
+
+    from_date = str(body.get("from_date", "")).strip() or _iso(datetime.utcnow().date())
+    approved = str(body.get("officially_approved", "")).strip()
+
+    prepared, rejected = [], []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        email = str(r.get("trainer_email", "")).strip().lower()
+        try:
+            level = int(r.get("skill_level"))
+        except (TypeError, ValueError):
+            rejected.append({"trainer_email": email, "ok": False,
+                             "message": "skill_level must be a number"})
+            continue
+        if not email.endswith("@koenig-solutions.com"):
+            rejected.append({"trainer_email": email, "ok": False,
+                             "message": "not a Koenig address"})
+        elif not 1 <= level <= 10:
+            rejected.append({"trainer_email": email, "ok": False,
+                             "message": "skill_level must be between 1 and 10"})
+        else:
+            prepared.append((email, level))
+
+    def write_one(item):
+        email, level = item
+        result = _rms("addTrainerSkill", {
+            "CourseId":           course_id,
+            "TrainerEmail":       email,
+            "SkillLevel":         str(level),
+            "OfficiallyApproved": approved,
+            "FromDate":           _iso(_parse_date(from_date)),
+        }, timeout=6, attempts=1)
+        if result is None:
+            return {"trainer_email": email, "skill_level": level, "ok": False,
+                    "verified": False, "code": "RMS_UNREACHABLE",
+                    "message": "RMS did not answer in time. No success assumed."}
+        status, rms_message = _write_status(result)
+        refused = status.lower() == "error"
+        if not refused:
+            _cache_purge(email)
+        return {"trainer_email": email, "skill_level": level,
+                "ok": not refused, "verified": not refused,
+                "message": rms_message or ("Recorded" if not refused else "Refused by RMS")}
+
+    written = []
+    if prepared:
+        with ThreadPoolExecutor(max_workers=min(4, len(prepared))) as pool:
+            written.extend(pool.map(write_one, prepared))
+
+    results = written + rejected
+    succeeded = sum(1 for r in results if r.get("ok"))
+    return jsonify({
+        "schema_version": "2.0",
+        "course_id": course_id,
+        "requested": len(rows),
+        "succeeded": succeeded,
+        "failed": len(results) - succeeded,
+        "results": results,
+        "note": ("RMS has no remove or update skill endpoint, so this operation "
+                 "only adds. Existing records are not modified."),
+        "generated_at": datetime.utcnow().isoformat(),
+    }), 200
+
+
 @app.route('/api/v2/team/readiness', methods=['GET'])
 def v2_team_readiness():
     """
