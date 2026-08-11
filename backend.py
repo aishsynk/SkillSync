@@ -3943,9 +3943,17 @@ def availability_verdict(free_dates, schedule, days):
     if not days:
         return {"status": "unknown", "reason": "batch dates unknown",
                 "blocked_days": [], "soft_conflicts": []}
-    if not free_dates:
+    # None and the empty set mean different things and must not be collapsed.
+    # None is "RMS returned no availability row for this trainer", which is
+    # unknown. An empty set is "RMS returned a row listing no free days", which
+    # is a definite answer: they are not free. Treating the second as unknown
+    # let a fully booked trainer through the gate as a viable candidate.
+    if free_dates is None:
         return {"status": "unknown", "reason": "no availability record for this course",
                 "blocked_days": [], "soft_conflicts": []}
+    if not free_dates:
+        return {"status": "unavailable", "reason": "no free days in the requested window",
+                "blocked_days": [d.isoformat() for d in sorted(days)], "soft_conflicts": []}
 
     required = set(days)
     leave = sorted(required & schedule.get("leave_dates", set()))
@@ -4061,6 +4069,167 @@ def international_verdict(candidate, country, days):
     return verdict
 
 
+def parse_off_dates(raw):
+    """
+    Off-date strings from trainerDetails into a date set.
+
+    Handles the shapes RMS is documented to use — a comma or semicolon list,
+    and "a to b" / "a - b" ranges — because the real format could not be
+    confirmed: sampling every trainer reachable from this account (reportees,
+    the assignment feed and the course pool) found these fields null in every
+    case. The parser is therefore defensive by necessity, and the travel-window
+    gate built on it is inert until RMS populates the data. International
+    eligibility currently rests on the visa and free-date signals from key 171,
+    which are populated.
+    """
+    out = set()
+    text = str(raw or "").strip()
+    if not text or text.lower() in ("null", "none"):
+        return out
+
+    def one(token):
+        token = token.strip()
+        for fmt in ("%Y-%m-%d", "%d-%b-%Y", "%d %b %Y", "%d/%m/%Y", "%Y/%m/%d"):
+            try:
+                return datetime.strptime(token, fmt).date()
+            except ValueError:
+                continue
+        return None
+
+    for chunk in _re.split(r"[;,]", text):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        span = _re.split(r"\s+(?:to|-|–)\s+", chunk)
+        if len(span) == 2:
+            a, b = one(span[0]), one(span[1])
+            if a and b and b >= a and (b - a).days <= 400:
+                out.update(a + timedelta(days=i) for i in range((b - a).days + 1))
+                continue
+        d = one(chunk)
+        if d:
+            out.add(d)
+    return out
+
+
+def _exam_hints(rows):
+    """
+    {normalised course: exam name} mined from RC-schedule rows (key 111).
+
+    This is the only surviving route to exam *identity*. The endpoint that
+    should carry the course-to-exam mapping (key 215) turned out to be a
+    mutation — it links an exam to a course rather than reporting one — so the
+    name is inferred from what past deliveries of the same course actually
+    linked to, and every consumer must label it as inferred.
+    """
+    hints = {}
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        course = _norm_course(r.get("CourseName"))
+        exam = str(r.get("Exam") or "").strip()
+        if course and exam:
+            hints.setdefault(course, exam)
+    return hints
+
+
+def certification_verdict(course, held_names, exam_policy=None, exam_hints=None):
+    """
+    Whether a certification gap on this course is real, and which exam closes it.
+
+    Only 1,446 of 11,007 catalogue courses actually require an exam, so the
+    requirement flag is checked first: reporting a gap on a course that needs no
+    certification is noise that trains managers to ignore the signal.
+    """
+    key = _norm_course(course)
+    policy = (exam_policy or {}).get(key)
+
+    # Three states, not two. The exam-policy catalogue (key 213) does not use
+    # the same course names as the delivery catalogue: "AZ-305T00: Designing
+    # Microsoft Azure Infrastructure Solutions" has no entry there at all,
+    # while 213 carries "AZ-305 - Exam Prep". Treating a missing entry as
+    # "no exam required" silently converts every unmatched course into "no
+    # gap", which under-reports exactly the certification risk this engine
+    # exists to find. Absent means unknown, and unknown asserts nothing.
+    if policy is None:
+        required = None
+    else:
+        required = bool(policy.get("required"))
+
+    held = any(_norm_course(h) == key or key in _norm_course(h) for h in (held_names or []))
+    exam = (exam_hints or {}).get(key, "")
+
+    return {
+        "course": course,
+        "exam_required": required,               # True / False / None
+        "certification_held": held,
+        # A gap is asserted only when the requirement is known to be true.
+        "gap": bool(required is True and not held),
+        "policy_known": policy is not None,
+        "exam_name": exam,
+        # Never presented as authoritative — see _exam_hints.
+        "exam_source": "inferred_from_delivery_history" if exam else "unknown",
+        "vendor": (policy or {}).get("vendor", ""),
+    }
+
+
+def certification_priority(verdicts, demand_by_course=None, blocked_counts=None):
+    """
+    Rank real gaps by what they actually block.
+
+    Deliberately free of any financial input: priority is pipeline pressure and
+    how many people the gap blocks, never the value of the batch.
+    """
+    demand_by_course = demand_by_course or {}
+    blocked_counts = blocked_counts or {}
+    ranked = []
+    for v in verdicts:
+        if not v.get("gap"):
+            continue
+        key = _norm_course(v["course"])
+        demand = int(demand_by_course.get(key, 0))
+        blocked = int(blocked_counts.get(key, 0))
+        ranked.append(dict(v, demand_count=demand, blocked_trainers=blocked,
+                           priority_score=demand * 3 + blocked))
+    return sorted(ranked, key=lambda v: (-v["priority_score"], v["course"]))
+
+
+def active_sc_operational(page_size=50):
+    """
+    Operational fields from the active-SC feed (key 13).
+
+    Total Fee and Currency are dropped here, at the boundary, and never enter
+    the response, any score or any cache. SkillEdge is a delivery intelligence
+    product, not a revenue product; the useful signals in this feed are who owns
+    the account and how long a demand has been waiting.
+    """
+    rows = _rms("activeSCDate", {"PageNumber": "1", "PageSize": str(page_size)})
+    if not isinstance(rows, list):
+        return []
+    today = datetime.utcnow().date()
+    out = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        created = None
+        for fmt in ("%d %b %Y", "%Y-%m-%d", "%d-%b-%Y"):
+            try:
+                created = datetime.strptime(str(r.get("SCCreatedDate") or "").strip(), fmt).date()
+                break
+            except ValueError:
+                continue
+        out.append({
+            "course_name": str(r.get("CourseName") or "").strip(),
+            "csm": str(r.get("CSM") or "").strip(),
+            "assignment_id": str(r.get("AssignmentId") or "").strip(),
+            "sc_id": str(r.get("SCId") or "").strip(),
+            "created_date": created.isoformat() if created else "",
+            "demand_age_days": (today - created).days if created else None,
+            # "Total Fee" and "Currency" are intentionally absent.
+        })
+    return out
+
+
 def evaluate_candidate(candidate, schedule, batch, required_level=None):
     """
     One trainer against one batch: hard gates first, then weighted fit.
@@ -4087,9 +4256,25 @@ def evaluate_candidate(candidate, schedule, batch, required_level=None):
         blockers.append({"gate": "dnc",
                          "detail": f"{batch.get('customer')} has marked this trainer do-not-call"})
 
-    avail = availability_verdict(candidate.get("free_dates") or set(), schedule, days)
+    # Pass the value through untouched: "or set()" here would erase the
+    # None-versus-empty distinction availability_verdict depends on.
+    avail = availability_verdict(candidate.get("free_dates"), schedule, days)
     if avail["status"] in ("unavailable", "partially_available"):
         blockers.append({"gate": "availability", "detail": avail["reason"]})
+
+    # Travel window. Domestic roaming blackouts apply to any batch away from
+    # base; international ones only to international batches. Inert while RMS
+    # returns these fields empty — see parse_off_dates.
+    off = candidate.get("off_dates") or {}
+    roaming_block = sorted(set(days) & parse_off_dates(off.get("roaming")))
+    if roaming_block:
+        blockers.append({"gate": "travel_window",
+                         "detail": f"unavailable to travel on {len(roaming_block)} day(s)"})
+    if is_international:
+        intl_block = sorted(set(days) & parse_off_dates(off.get("international_roaming")))
+        if intl_block:
+            blockers.append({"gate": "international_travel_window",
+                             "detail": f"international travel blocked on {len(intl_block)} day(s)"})
 
     if required_level is not None and candidate.get("skill_level") is not None:
         if candidate["skill_level"] < required_level:
@@ -4146,7 +4331,22 @@ def evaluate_candidate(candidate, schedule, batch, required_level=None):
         elif fit == "workable":
             add("Time zone", 5, f"{intl['timezone_detail']}, unsocial hours")
         elif fit == "unsocial":
+            # An unsocial window is only workable if the trainer has not
+            # blocked that shift. Night/morning/evening IL off-dates are the
+            # per-shift signal; overlapping them turns a penalty into a gate.
+            shift_blocked = (set(days) & parse_off_dates(off.get("night_il"))) or \
+                            (set(days) & parse_off_dates(off.get("morning_il")))
+            if shift_blocked:
+                blockers.append({"gate": "shift_window",
+                                 "detail": "trainer has blocked the required night or early shift"})
             add("Time zone", -5, f"{intl['timezone_detail']}, night or early shift")
+
+    if blockers:
+        return {
+            "trainer_name": candidate.get("trainer_name", ""),
+            "eligible": False, "blockers": blockers, "availability": avail,
+            "international": intl, "fit": 0, "factors": [],
+        }
 
     if client and client in schedule.get("specified_clients", set()):
         add("Client preference", 10, f"{batch.get('customer')} has asked for this trainer")
@@ -4290,6 +4490,101 @@ def v2_capacity_plan():
     plan = _capacity_plan_from_allocation(payload)
     plan["ready"] = True
     return jsonify(plan), 200
+
+
+@app.route('/api/v2/allocation/candidates', methods=['GET'])
+def v2_allocation_candidates():
+    """
+    The candidate pool for one demand, evaluated by the intelligence layer.
+
+    Params: manager, course, start, end, and optionally country, customer,
+    delivery_mode, international, level.
+
+    This is the first route to answer "who can take this batch" from real
+    availability rather than from a utilisation percentage. It returns
+    eligibility, the gates that failed, and the per-factor breakdown behind
+    every score, so a manager can disagree with one axis rather than with a
+    number they cannot audit.
+
+    An unresolvable course returns 422 rather than an empty pool: reporting
+    "nobody is available" when the truth is "we could not check" is the worst
+    failure an allocation tool can have.
+    """
+    manager = request.args.get('manager', '').strip().lower()
+    _, error = _v2_manager_session(manager)
+    if error:
+        return error
+
+    course = request.args.get('course', '').strip()
+    if not course:
+        return error_response("COURSE_REQUIRED", "course query param required", 400)
+
+    start = _parse_date(request.args.get('start', ''))
+    end = _parse_date(request.args.get('end', '')) or start
+    if not start:
+        return error_response("DATES_REQUIRED", "valid start date required", 400)
+
+    pool, why = _free_schedule(course)
+    if why:
+        return jsonify({
+            "schema_version": "2.0", "ready": False,
+            "code": "COURSE_UNRESOLVED", "message": why,
+            "candidates": [], "note": "Could not verify availability; this is not an empty pool.",
+        }), 422
+
+    batch = {
+        "start_date": start, "end_date": end,
+        "country": request.args.get('country', '').strip(),
+        "customer": request.args.get('customer', '').strip(),
+        "delivery_mode": request.args.get('delivery_mode', '').strip(),
+        "international": request.args.get('international', '').strip().lower() in ("1", "true", "yes"),
+    }
+    try:
+        required_level = int(request.args.get('level', '') or 0) or None
+    except ValueError:
+        required_level = None
+
+    # The reportee roster is the scope: a manager evaluates their own team.
+    # Names are the only join key key 171 offers, so the pool is filtered by
+    # name and anyone unmatched is reported rather than silently dropped.
+    roster = {}
+    for r in (_rms("reportees", {"email": manager}) or []):
+        if isinstance(r, dict) and r.get("TrainerName"):
+            roster[str(r["TrainerName"]).strip().lower()] = str(r.get("OffEmail") or "").strip()
+
+    results, unmatched = [], []
+    for key, cand in pool.items():
+        email = roster.get(key)
+        if roster and not email:
+            unmatched.append(cand["trainer_name"])
+            continue
+        sched = {"leave_dates": set(), "confirmed_dates": set(), "tentative_dates": set(),
+                 "dnc_clients": set(), "specified_clients": set(), "modes": [], "rows": 0}
+        if email:
+            sched, _ = _rc_schedule(email, start, end)
+            cand = dict(cand, off_dates=_off_dates(email), utilisation=_safe_util(email))
+        verdict = evaluate_candidate(cand, sched, batch, required_level)
+        verdict["trainer_email"] = email
+        results.append(verdict)
+
+    eligible = [r for r in results if r["eligible"]]
+    blocked = [r for r in results if not r["eligible"]]
+    eligible.sort(key=lambda r: -r["fit"])
+
+    return jsonify({
+        "schema_version": "2.0",
+        "ready": True,
+        "course_resolved": next(iter(pool.values()))["resolved_course"] if pool else "",
+        "match_confidence": next(iter(pool.values()))["match_confidence"] if pool else "",
+        "counts": {"pool": len(pool), "eligible": len(eligible),
+                   "blocked": len(blocked), "outside_team": len(unmatched)},
+        "candidates": eligible,
+        "blocked": blocked,
+        "note": ("Availability comes from the RMS free-date calendar and leave records, "
+                 "not from utilisation. Trainers with no visa record are shown and flagged, "
+                 "never excluded."),
+        "generated_at": datetime.utcnow().isoformat(),
+    }), 200
 
 
 @app.route('/api/data/trainer-skills', methods=['GET'])

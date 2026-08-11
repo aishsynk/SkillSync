@@ -67,8 +67,15 @@ class AvailabilityIsNotUtilisation(unittest.TestCase):
         self.assertEqual([self.start.isoformat()], v["blocked_days"])
 
     def test_no_availability_record_is_unknown_not_unavailable(self):
-        v = backend.availability_verdict(set(), schedule(), self.batch_days)
+        # None means RMS returned no row for this trainer.
+        v = backend.availability_verdict(None, schedule(), self.batch_days)
         self.assertEqual("unknown", v["status"])
+
+    def test_a_row_listing_no_free_days_is_unavailable_not_unknown(self):
+        # An empty set is a definite answer, not a missing one. Collapsing the
+        # two let a fully booked trainer pass the eligibility gate.
+        v = backend.availability_verdict(set(), schedule(), self.batch_days)
+        self.assertEqual("unavailable", v["status"])
 
     def test_unknown_batch_dates_are_unknown(self):
         self.assertEqual("unknown", backend.availability_verdict(self.free, schedule(), [])["status"])
