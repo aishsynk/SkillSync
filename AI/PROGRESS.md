@@ -1,5 +1,21 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T09:15:00+05:30 - Demand screen consumes the intelligence layer (v3.7.0)
+
+- **Tool Used**: Claude Code (Compose, Robolectric, Gradle gate, apksigner + aapt, gh CLI)
+- **Files Modified**: `ui/batch/AvailabilityIntelligence.kt` (created), `ui/batch/AllocationDeskScreen.kt`, `app/build.gradle.kts`, `ui/DemandIntelligenceTest.kt` (created)
+- **Work Completed**: First screen to render the intelligence layer. Demand only, per the one-page-per-release rule.
+  - Candidate rows now show **real availability** for the batch's exact dates (free / free with provisional clashes / partly free / unavailable with reason / unknown), **visa state** (available / not available / unknown and verify), **time-zone fit**, **skill level** and **deliveries of this specific course**.
+  - **Utilisation removed from the candidate line.** It described how busy someone had been, not whether they can take the batch.
+  - The older assignment-feed availability line is now a **fallback**, used only when key 171 returned no row. Showing both invited two contradictory availability claims with no way to tell which to believe.
+  - **`CoverageVerdictStrip`** separates two previously indistinguishable states that lead to opposite actions: *"No trainer in RMS holds this course"* (hire or train) versus *"Availability not verified"* (catalogue miss, nothing concluded).
+  - **`UncheckedNotice`** states that client exclusions and leave are checked on open. DNC is non-overridable and the board does not evaluate it; silence about that would be worse than not checking.
+- **Current Status**: **v3.7.0.84 live** — commit `9fcc8f7`, CI run `31516260311` success. APK verified: signer `c6868b14…1808` unchanged, package `com.example.skillsync`, versionCode 83 -> 84. Gate green: 11 new Compose tests (98 Android total), lint clean. Backend at `789fd99` serving the fields.
+- **Next Actions**:
+  1. **Phase 3 continues, one screen per release**: Trainer 360 (availability calendar, leave, visa, international readiness), then Team, then Dashboard.
+  2. Wire `/api/v2/allocation/candidates` into the batch detail screen so opening a batch runs the **full gated evaluation** including DNC and leave — currently the route exists and is tested but no screen calls it.
+  3. **RMS question list, still the main quality ceiling**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
+
 ## 2026-08-12T07:40:00+05:30 - Demand board wired to the intelligence layer (backend only)
 
 - **Tool Used**: Claude Code (backend.py, pytest, live RMS timing, Render probes)
