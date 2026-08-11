@@ -1,5 +1,19 @@
 # SkillEdge Project Progress
 
+## 2026-08-11T23:30:00+05:30 - Full product and API audit; V2 vision (no code)
+
+- **Tool Used**: Claude Code (read of all 37 `trainer_portal_api_details` docs, `backend.py`, full Android source)
+- **Files Modified**: `AI/PRODUCT_AUDIT_V2_2026_08_11.md` (created), `AI/PROGRESS.md`
+- **Work Completed**: Operator halted feature work and asked for a ground-up product audit, a complete audit of the API portal, and a V2 vision. Delivered as a 10-part document. Hard findings:
+  - **37 documented APIs. 27 wired. 4 of those never called. 10 never wired. Effective usage 23/37 = 62%.**
+  - Never wired: 215 Exam Course Linked, 172 Latest Course Version, 114 Course & Technology, 205 Course and Domain, 164 Course List, 206 Course Module, 156 Course Content URL, 171 Trainer Free Schedule, 111 Trainer RC Schedule, 72 Unique Cert Count.
+  - Dormant: **13 Get Active SC Date (`Total Fee`, `Currency` — the only money in the estate)**, 90 Trainer availability (`MTI_Issue`), 93 Upcoming Assignments, 278 Recording Details.
+  - **Fields fetched but never surfaced to Android**: `InternationaRoamingOffDates`, `RoamingOffDates`, `Night/Morning/EveningILOffDates`, `QubitsScore`, `Is Future Skill`, `Future Skill Date`. `techcallrating` and `MTI_Issue` have **zero references anywhere in the codebase**.
+  - **Root cause of the international/FMAT complaint identified**: `_rank_batch` scores skill, Qubits, utilisation, language, level and feedback — it has **no travel, time-zone, MTI, fee or trainer-type input**. The globe badge marks a batch international while the ranker has no concept of international. Visual treatment cannot fix this; the model must change first.
+  - **Root cause of the dashboard complaint identified**: it has no unit of consequence. Every element is a measurement, none is money or time-to-impact. "8 unallocated batches" is unactionable; "₹12L starts inside 14 days" is not — and we never fetch the fee.
+- **Current Status**: No code changed. v3.6.0.83 remains the live release. The audit supersedes `AI/DESIGN_VISION_V2_2026_08_11.md`, which addressed presentation only and did not question the data foundation.
+- **Next Actions**: Blocked on five operator decisions in §10 of the audit — chiefly (1) whether revenue may be exposed in the app, which gates the whole Phase 1 foundation, (2) live probe confirmation that the 14 unused APIs return data for this account, (3) RMS-team sign-off on a bulk skill-write endpoint, (4) whether visa/passport status exists anywhere in RMS, (5) screen order for Phases 2 to 4.
+
 ## 2026-08-11T21:10:00+05:30 - In-app delivery agent with a learning loop (v3.6.0)
 
 - **Tool Used**: Claude Code (Gradle gate, apksigner + aapt, gh CLI)
