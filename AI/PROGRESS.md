@@ -1,5 +1,22 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T14:25:00+05:30 - Manager note, Trainer 360 verdict, Plan rebuild (v3.13.0)
+
+- **Tool Used**: Claude Code (Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)
+- **Files Modified**: `ui/report/WeeklyMessage.kt`, `ui/report/WeeklyReportScreen.kt`, `ui/trainer/ReadinessSection.kt`, `ui/trainer/Trainer360Screen.kt`, `ui/batch/AllocationDeskScreen.kt`, `ui/WeeklyMessageTest.kt`, `ui/ScreenRenderTest.kt`, `app/build.gradle.kts`
+- **Note on process**: operator asked for all three items in parallel, so this release breaks the usual one-screen-per-release rule **at their explicit instruction**.
+- **Work Completed**:
+  1. **Messages** — the `[My Message]` input from the house-style brief now exists: a note typed on the weekly report page leads every composed message, with the generated summary following as context, and is held to the same house style. **Contraction expansion is now case-preserving** — a plain ignore-case replace turned "Don't worry" into "do not worry", dropping the capital at the start of the manager's own sentence. Closings carry **light emphasis** in Teams style, with bold still reserved for the single action.
+  2. **Trainer 360** — a **verdict bar** now leads the screen above the score grid: free / committed / on leave / blocked by client exclusion, with certification gaps and open actions as a follow-up line. The screen previously opened with identity and a grid of numbers, answering "what are this person's metrics" rather than "can they take work and what needs doing".
+  3. **Plan** — the eight-week outlook led with four unlabelled counters and a legend-less bar chart. Now **conclusion-first** (how many weeks are over capacity), bars carry a legend, and availability confidence is a sentence rather than a bare "75%" that read as a score instead of a caveat.
+- **Three bugs fixed while doing it**: "1 week **are** over capacity" grammar; the Plan rewrite had **dropped the backend's own confidence note** explaining why coverage is conservative (restored rather than deleting the test that caught it); and the case-preservation bug above.
+- **Current Status**: **v3.13.0.90 live** — commit `e4417e8`, CI success. APK verified: signer `c6868b14…1808`, versionCode 89 -> 90. **136 backend + 136 Android tests pass**, lint clean. Render healthy.
+- **Still not built, and still needs an LLM**: free-form/Hinglish rewriting of `[User Message]`. The composer folds the manager's note in verbatim (house-style sanitised) but cannot reinterpret it. See `AI/DECISIONS.md`.
+- **Open question put to the operator, unanswered**: whether underline markers should be emitted for dates despite Teams and Viber not rendering them (they would paste as literal characters). Currently dates are written out in words instead.
+- **Next Actions**:
+  1. Await operator feedback on whether Trainer 360 and Plan now read correctly, since "not appropriate" was the original framing and this was my interpretation of it.
+  2. **RMS question list, unchanged and still the quality ceiling**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
+
 ## 2026-08-12T13:45:00+05:30 - Dashboard availability; Phase 3 screens complete (v3.12.0)
 
 - **Tool Used**: Claude Code (Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)
