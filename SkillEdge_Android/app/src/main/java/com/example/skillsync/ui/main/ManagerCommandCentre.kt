@@ -81,11 +81,31 @@ fun ManagerCommandCentre(
     onOpenDemand: () -> Unit,
     onOpenWeeklyReport: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
+    /**
+     * Real calendar availability per trainer email. Named explicitly because
+     * `readiness` in this function is already the team capability score.
+     */
+    calendarReadiness: Map<String, Map<String, Any>> = emptyMap(),
 ) {
     val sk = MaterialTheme.skill
     val openActions = actions.filter { it.str("lifecycle_state").ifBlank { "open" } !in setOf("closed", "resolved") }
     val available = states.filter { it.str("current_status") == "free" }
     val deployed = states.count { it.str("current_status") != "free" }
+
+    // Real availability from the RMS calendar, where it has loaded. `free` above
+    // is an RMS status flag, not a statement about the dates ahead: someone
+    // marked free can still be on approved leave next week. These counts are
+    // used only when the calendar actually answered, so the dashboard never
+    // downgrades to a worse signal than it had before.
+    fun days(row: Map<String, Any>, key: String) = (row[key] as? Number)?.toInt() ?: 0
+    val onLeave = calendarReadiness.values.count { days(it, "leave_days") > 0 }
+    val committed = calendarReadiness.values.count {
+        days(it, "leave_days") == 0 && days(it, "confirmed_days") > 0
+    }
+    val clear = calendarReadiness.values.count {
+        it["verified"] == true && days(it, "leave_days") == 0 && days(it, "confirmed_days") == 0
+    }
+    val calendarKnown = calendarReadiness.isNotEmpty()
     val overloaded = ops.filter { it.intOrNull("current_utilization")?.let { u -> u > 85 } == true }
     val active = batches.filter { it.str("engagement_state") == "current" }
     val upcoming = batches.filter { it.str("engagement_state") == "upcoming" }
@@ -173,6 +193,11 @@ fun ManagerCommandCentre(
 
         // ── 4 · Where is the slack? ─────────────────────────────────────────
         CapacityBalance(ops, demand.size, available.size, onDrill)
+
+        // ── 4b · Who is actually free ───────────────────────────────────────
+        if (calendarKnown) {
+            CalendarAvailability(onLeave, committed, clear, calendarReadiness.size)
+        }
 
         // ── 5 · What is coming? ─────────────────────────────────────────────
         DemandGlance(demand, active.size, upcoming.size, onOpenDemand)
@@ -603,6 +628,11 @@ private fun CapacityBalance(
                 Slice("Stretched", stretched.size, sk.crit),
             )
         )
+        Text(
+            "Workload bands. Availability is separate — see below.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.skill.labelText,
+        )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             listOf("Bench" to bench, "Optimal" to optimal, "Stretched" to stretched).forEach { (label, rows) ->
                 Figure(
@@ -615,6 +645,40 @@ private fun CapacityBalance(
                 )
             }
         }
+    }
+}
+
+/**
+ * Availability read from the RMS calendar rather than from a status flag.
+ *
+ * Kept distinct from the capacity bands above, which measure workload. The two
+ * answer different questions and conflating them is the error this layer was
+ * built to remove: a trainer inside a healthy workload band can still be on
+ * approved leave for the whole of next week.
+ */
+@Composable
+private fun CalendarAvailability(onLeave: Int, committed: Int, clear: Int, checked: Int) {
+    val sk = MaterialTheme.skill
+    SectionHeading(
+        "Who is actually free",
+        when {
+            onLeave > 0 -> "$onLeave on leave in the next 90 days, $clear with nothing booked."
+            clear == checked -> "Nobody has leave or commitments booked."
+            else -> "$clear of $checked have nothing booked."
+        },
+        trailing = "$checked checked",
+    )
+    SkillCard(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.md)) {
+            Figure(clear.toString(), "Clear", FigureSize.Small, Modifier.weight(1f), sk.aqua)
+            Figure(committed.toString(), "Committed", FigureSize.Small, Modifier.weight(1f), sk.sky)
+            Figure(onLeave.toString(), "On leave", FigureSize.Small, Modifier.weight(1f),
+                if (onLeave == 0) sk.good else sk.warn)
+        }
+        Text(
+            "From approved leave and confirmed bookings in RMS, not from utilisation.",
+            style = MaterialTheme.typography.bodySmall, color = sk.labelText,
+        )
     }
 }
 

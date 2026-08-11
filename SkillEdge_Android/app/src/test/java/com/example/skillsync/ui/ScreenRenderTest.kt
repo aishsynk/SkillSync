@@ -266,6 +266,47 @@ class ScreenRenderTest {
      * first version of this screen drifted back into a flat stack of equal
      * panels, so the order is pinned here rather than left to convention.
      */
+    /** Doubles, as Gson decodes them from the wire. */
+    private fun calendar(leave: Int, confirmed: Int, clear: Int): Map<String, Map<String, Any>> =
+        buildMap {
+            repeat(leave) { put("l$it@k.com", mapOf(
+                "verified" to true, "leave_days" to 3.0, "confirmed_days" to 0.0)) }
+            repeat(confirmed) { put("c$it@k.com", mapOf(
+                "verified" to true, "leave_days" to 0.0, "confirmed_days" to 5.0)) }
+            repeat(clear) { put("f$it@k.com", mapOf(
+                "verified" to true, "leave_days" to 0.0, "confirmed_days" to 0.0)) }
+        }
+
+    @Test
+    fun dashboard_showsRealAvailabilitySeparatelyFromWorkloadBands() {
+        // Capacity bands measure workload; leave and bookings measure
+        // availability. Conflating them is the error this layer removes.
+        compose.setContent {
+            SkillSyncTheme {
+                DashboardTab(
+                    data = dashboardPayload(), profile = managerProfile(),
+                    capability = capabilityPayload(), capabilityLoading = false,
+                    email = "aishwar.c@koenig-solutions.com",
+                    onTrainerClick = { _, _ -> }, onOpenProfile = {}, onDrill = {},
+                    calendarReadiness = calendar(leave = 1, confirmed = 2, clear = 3),
+                )
+            }
+        }
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("WHO IS ACTUALLY FREE"))
+        compose.onNodeWithText("WHO IS ACTUALLY FREE").assertExists()
+        compose.onNodeWithText("1 on leave in the next 90 days, 3 with nothing booked.").assertExists()
+        compose.onNodeWithText(
+            "From approved leave and confirmed bookings in RMS, not from utilisation."
+        ).assertExists()
+    }
+
+    @Test
+    fun dashboard_omitsRealAvailabilityWhenTheCalendarHasNotLoaded() {
+        // Absent data must not render as "nobody is free".
+        compose.setContent { SkillSyncTheme { Dashboard() } }
+        compose.onAllNodesWithText("WHO IS ACTUALLY FREE").assertCountEquals(0)
+    }
+
     @Test
     fun dashboard_followsTheBriefingOrder() {
         compose.setContent { SkillSyncTheme { Dashboard() } }

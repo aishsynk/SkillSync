@@ -75,7 +75,8 @@ fun MainScreen(
     LaunchedEffect(email, tab) {
         viewModel.loadData(email, context)
         if (tab == HomeTab.DEMAND || tab == HomeTab.SEARCH) allocationViewModel.load(email, context)
-        if (tab == HomeTab.TEAM) viewModel.loadTeamReadiness(email)
+        // Dashboard needs it too: the "who is actually free" block reads it.
+        if (tab == HomeTab.TEAM || tab == HomeTab.DASHBOARD) viewModel.loadTeamReadiness(email)
         if (tab == HomeTab.COURSES || tab == HomeTab.TEAM || tab == HomeTab.SEARCH) viewModel.ensureCapability(email, context)
         if (tab == HomeTab.DASHBOARD || tab == HomeTab.TEAM || tab == HomeTab.SEARCH) {
             viewModel.ensureTeamIntelligence(email, context)
@@ -436,6 +437,7 @@ fun MainScreen(
                                         onOpenDemand = { onTabChange(HomeTab.DEMAND) },
                                         onOpenWeeklyReport = onOpenWeeklyReport,
                                         onOpenCopilot = onOpenCopilot,
+                                        calendarReadiness = teamReadiness,
                                         fromCache = s.fromCache,
                                         cachedAt = s.cachedAt,
                                     )
@@ -646,6 +648,7 @@ internal fun DashboardTab(
     onOpenDemand: () -> Unit = {},
     onOpenWeeklyReport: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
+    calendarReadiness: Map<String, Map<String, Any>> = emptyMap(),
     /** Disk-write time of the payload, so the hero can state a real "as of". */
     fromCache: Boolean = false,
     cachedAt: Long = 0L,
@@ -723,6 +726,7 @@ internal fun DashboardTab(
                     onOpenDemand = onOpenDemand,
                     onOpenWeeklyReport = onOpenWeeklyReport,
                     onOpenCopilot = onOpenCopilot,
+                    calendarReadiness = calendarReadiness,
                 )
             }
         }
