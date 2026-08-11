@@ -1,5 +1,26 @@
 # SkillEdge Project Progress
 
+## 2026-08-11T14:40:00+05:30 - Dashboard rewritten to the V2 briefing spec (v3.3.0)
+
+- **Tool Used**: Claude Code (Gradle test/lint/assemble, apksigner + aapt, gh CLI)
+- **Files Modified**: `ui/main/ManagerCommandCentre.kt` (full rewrite), `theme/DesignSystem.kt`, `ui/main/MainScreen.kt`, `app/build.gradle.kts`, `ui/ScreenRenderTest.kt`, `AI/PROGRESS.md`
+- **Work Completed**: The first V2 pass reorganised the existing command centre instead of rebuilding it, so most of `AI/DESIGN_VISION_V2_2026_08_11.md` §7.1/§10 was never implemented. Rewritten against the brief:
+  - Hero now **replaces** the `ProfileHeader` + `CommandHero` stack rather than sitting below it — identity, notification bell and freshness stamp fold into one card.
+  - One-sentence brief in the specified shape ("N of M deployed · utilisation X% and rising · …").
+  - **Attention strip** — horizontal `LazyRow`, max three cards, each with its recommended action as a primary button (uses the real `recommended_action` field where RMS returns one).
+  - **Pulse** is now the four tiles the brief names: Strength, Utilisation, Cert coverage, At risk.
+  - **Capacity balance** is bench / optimal / stretched off `capacity_bucket`, with the bar's reading as the headline.
+  - **Demand** states unallocated count, how much is FMAT/ILT, and one CTA into the pipeline (`HomeTab.DEMAND`).
+  - Explore's utilisation chart uses `CorridorBars` so the 70–85% target band is visible.
+  - Motion: `Modifier.pressable` (0.98 / 100ms) on tappable cards; `rememberCriticalPulse` reserved for `Severity.Critical`.
+  - Freshness uses `DashboardState.cachedAt` (real disk-write time). The payload's `from_cache`/`cache.age` remain untrusted per the 2026-08-10 audit.
+- **Honest deviation from the brief**: §7.1 asks for a sparkline **and** delta on all four pulse tiles. Only `utilization_history` exists in the payload, so only Utilisation carries a real trend; the other three state their baseline in words. A fabricated sparkline would be worse than none. Closing this needs the backend to return history for strength, coverage and risk.
+- **Current Status**: **v3.3.0.80 live** — commit `65fc08e`, CI run `31473922628` success, `SkillEdge-v3.3.0.80.apk` published. Upgrade verified by forensics: signer `c6868b14…1808` identical to the installed base, package `com.example.skillsync`, versionCode 79 -> 80. Gate green: 30/30 UI tests (three new structural guards: briefing block order, action buttons on attention cards, single demand CTA), 44 total unit tests, lint clean.
+- **Next Actions**:
+  1. Operator: install over an existing build and confirm the briefing renders with live RMS data — particularly that `capacity_bucket` and `recommended_action` are populated, since the attention strip and capacity bar read from them.
+  2. Apply the same rewrite discipline to Team, Demand and Actions (design Phases 3–5) — they are still the pre-V2 layouts.
+  3. Backend: return history series for strength / cert coverage / risk so the pulse row can carry sparklines on all four tiles as the brief specifies.
+
 ## 2026-08-11T12:55:00+05:30 - V2 design system shipped; two releases (v3.2.0, v3.2.1)
 
 - **Tool Used**: Claude Code (Gradle test/lint/assemble, apksigner + aapt APK forensics, gh CLI, live Render probes)
