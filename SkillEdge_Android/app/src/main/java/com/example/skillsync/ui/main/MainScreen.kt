@@ -119,8 +119,8 @@ fun MainScreen(
 
     // Which KPI the manager tapped; drives the drill-down sheet.
     var drill by remember { mutableStateOf<Drill?>(null) }
+    val notify = com.example.skillsync.ui.components.LocalNotify.current
 
-    var bannerMessage by remember { mutableStateOf<String?>(null) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showNotificationsSheet by remember { mutableStateOf(false) }
     var peopleWorkspace by rememberSaveable { mutableStateOf("PORTFOLIO") }
@@ -131,26 +131,24 @@ fun MainScreen(
             // System notification — fires even if the manager is on a
             // different screen than the dashboard right now.
             com.example.skillsync.util.LocalNotificationService.showNotification(context, event)
-            // In-app banner for immediate visibility while the app is open.
-            bannerMessage = event.message
+            // In-app toast for immediate visibility while the app is open. The
+            // engine's own title is kept — it already says what changed.
+            notify.info(event.title, event.message)
         }
     }
 
     if (showLogoutConfirm) {
-        AlertDialog(
-            onDismissRequest = { showLogoutConfirm = false },
-            title = { Text("Confirm Logout") },
-            text = { Text("Are you sure you want to log out of SkillEdge?") },
-            confirmButton = {
-                Button(onClick = { 
-                    showLogoutConfirm = false
-                    onLogout()
-                }) { Text("Logout") }
+        com.example.skillsync.ui.components.SkillAlertDialog(
+            severity = com.example.skillsync.theme.Severity.Warning,
+            title = "Sign out?",
+            message = "Your cached team data stays on this device, so the next sign-in is instant.",
+            confirmLabel = "Sign out",
+            destructive = true,
+            onConfirm = {
+                showLogoutConfirm = false
+                onLogout()
             },
-            dismissButton = {
-                TextButton(onClick = { showLogoutConfirm = false }) { Text("Cancel") }
-            },
-            containerColor = MaterialTheme.skill.cardBg
+            onDismiss = { showLogoutConfirm = false },
         )
     }
 
@@ -442,12 +440,6 @@ fun MainScreen(
     }
 
     }
-        
-        // Show banner overlaying everything
-        com.example.skillsync.ui.components.TopBannerNotification(
-            message = bannerMessage,
-            onDismiss = { bannerMessage = null }
-        )
     }
 
     drill?.let { DrillSheet(it) { drill = null } }

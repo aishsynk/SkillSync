@@ -86,19 +86,22 @@ fun BatchDetailScreen(
         BatchShare.htmlMessage(shareBatch, recipient = target?.first ?: "Team")
 
     // Confirm or explain the RMS write, then reset so the dialog can reopen.
-    val snackbar = remember { SnackbarHostState() }
+    // Material's default snackbar was the only surface in the app that did not
+    // use the design tokens, and it gave a confirmed write, an unconfirmed one
+    // and an outright failure the same neutral styling.
+    val notify = com.example.skillsync.ui.components.LocalNotify.current
     LaunchedEffect(markState) {
         when (markState) {
             is MarkState.Done -> {
-                snackbar.showSnackbar(markState.message, duration = SnackbarDuration.Short)
+                notify.success("Skill saved to RMS", markState.message)
                 onClearMark()
             }
             is MarkState.Unconfirmed -> {
-                snackbar.showSnackbar(markState.message, duration = SnackbarDuration.Long)
+                notify.warn("Saved, but not confirmed", markState.message)
                 onClearMark()
             }
             is MarkState.Failed -> {
-                snackbar.showSnackbar("Not saved: ${markState.message}", duration = SnackbarDuration.Long)
+                notify.error("Not saved", markState.message)
                 onClearMark()
             }
             else -> Unit
@@ -113,7 +116,6 @@ fun BatchDetailScreen(
         AuroraBackground()
         Scaffold(
             containerColor = Color.Transparent,
-            snackbarHost = { SnackbarHost(snackbar) },
             topBar = {
                 TopAppBar(
                     title = {

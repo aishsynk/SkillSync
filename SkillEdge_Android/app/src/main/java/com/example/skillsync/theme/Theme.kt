@@ -1,6 +1,9 @@
 package com.example.skillsync.theme
 
 import android.app.Activity
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -57,12 +60,30 @@ fun SkillSyncTheme(
     @Suppress("UNUSED_PARAMETER") darkTheme: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    CompositionLocalProvider(LocalSkillColors provides CommandSkillColors) {
+    val notify = com.example.skillsync.ui.components.rememberNotifyState()
+    CompositionLocalProvider(
+        LocalSkillColors provides CommandSkillColors,
+        com.example.skillsync.ui.components.LocalNotify provides notify,
+    ) {
         MaterialTheme(
             colorScheme = CommandScheme,
             typography = Typography,
-            content = content,
-        )
+        ) {
+            // The toast host is mounted once, above every screen, so a message
+            // raised as the user navigates is not torn down with the screen
+            // that raised it. Screens call `LocalNotify.current.success(…)`
+            // and never own notification plumbing themselves.
+            androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
+                content()
+                com.example.skillsync.ui.components.ToastHost(
+                    notify,
+                    androidx.compose.ui.Modifier
+                        .align(androidx.compose.ui.Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(top = Space.sm),
+                )
+            }
+        }
     }
 }
 

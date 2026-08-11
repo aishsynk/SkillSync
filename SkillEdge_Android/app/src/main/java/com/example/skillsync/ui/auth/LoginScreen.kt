@@ -2,12 +2,8 @@ package com.example.skillsync.ui.auth
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -21,12 +17,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -40,8 +36,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -57,30 +51,42 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.R
-import com.example.skillsync.theme.BrandCyan
+import com.example.skillsync.theme.AuroraBackground
+import com.example.skillsync.theme.Radii
+import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.StatusBarIcons
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.Appear
+import com.example.skillsync.ui.components.LocalNotify
 import com.example.skillsync.ui.components.Motion
 import com.example.skillsync.ui.components.SkillSyncLogo
 import com.example.skillsync.ui.components.SkillSyncWordmark
 import com.example.skillsync.ui.components.rememberShake
 
+/**
+ * Sign-in.
+ *
+ * Rebuilt on the shared scale and the shared ground. The previous version drew
+ * its own animated aurora with hard pixel offsets (`180f + a * 460f`), which
+ * meant the glow landed in a different place on every screen size and did not
+ * match the ground every other screen sits on. It also mixed 10/12/22/26/34dp
+ * spacing and put its error state on Material's `errorContainer` rather than on
+ * the design system's status colours.
+ *
+ * Layout is now a single centred column on the 8pt scale: brand block, form
+ * card capped at 420dp, footer. Failures surface twice — inline against the
+ * field that caused them, and as a toast, so the reason survives the user
+ * looking away from the form.
+ */
 @Composable
 fun LoginScreen(
     onLoginSuccess: (email: String) -> Unit,
@@ -89,151 +95,125 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     val loginState by viewModel.loginState.collectAsState()
     val keyboard = LocalSoftwareKeyboardController.current
+    val notify = LocalNotify.current
 
-    val isDark = MaterialTheme.colorScheme.background.luminanceIsDark()
-    StatusBarIcons(lightIcons = isDark)
-
-    LaunchedEffect(loginState) {
-        if (loginState is LoginState.Success) {
-            keyboard?.hide()
-            onLoginSuccess((loginState as LoginState.Success).email)
-        }
-    }
+    StatusBarIcons()
 
     val errorMessage = (loginState as? LoginState.Error)?.message
     val shake by rememberShake(errorMessage)
 
+    LaunchedEffect(loginState) {
+        when (val s = loginState) {
+            is LoginState.Success -> {
+                keyboard?.hide()
+                notify.success("Signed in", "Loading your delivery intelligence…")
+                onLoginSuccess(s.email)
+            }
+            is LoginState.Error -> notify.error("Sign-in failed", s.message)
+            else -> Unit
+        }
+    }
+
     Box(Modifier.fillMaxSize()) {
+        // The same ground every other screen stands on.
         AuroraBackground()
 
-        // heightIn(min = maxHeight) inside the scroll is what makes Arrangement.Center
-        // work: the column fills the viewport when content is short, and scrolls once
-        // the keyboard is up or the content outgrows the screen.
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()
                 .safeDrawingPadding()
                 .imePadding()
         ) {
+            // heightIn(min = viewport) is what lets Arrangement.Center work
+            // inside a scroller: the column fills the screen when the content is
+            // short, and scrolls once the keyboard is up.
             val viewport = maxHeight
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
                     .heightIn(min = viewport)
-                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                    .padding(horizontal = Space.xl, vertical = Space.xxl),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Appear(index = 0) {
-                    SkillSyncLogo(size = 132.dp, floating = true)
-                }
-                Spacer(Modifier.height(18.dp))
+                Appear(index = 0) { SkillSyncLogo(size = 116.dp, floating = true) }
+                Spacer(Modifier.height(Space.lg))
                 Appear(index = 1) { SkillSyncWordmark() }
-
-                Spacer(Modifier.height(34.dp))
-
+                Spacer(Modifier.height(Space.sm))
                 Appear(index = 2) {
-                    Box(
-                        modifier = Modifier
+                    Text(
+                        "DELIVERY INTELLIGENCE",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.skill.ice,
+                    )
+                }
+
+                Spacer(Modifier.height(Space.xxl))
+
+                Appear(index = 3) {
+                    Column(
+                        Modifier
                             .fillMaxWidth()
-                            .widthIn(max = 460.dp)
+                            .widthIn(max = 420.dp)
                             .graphicsLayer { translationX = shake }
-                            .glassSurface(RoundedCornerShape(com.example.skillsync.theme.Radii.hero)),
+                            .glassSurface(RoundedCornerShape(Radii.hero))
+                            .padding(Space.xl),
                     ) {
-                        Column(Modifier.padding(22.dp)) {
-                            Text(
-                                "Sign in",
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                "Managers and Trainer Plus accounts only.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.skill.subText,
-                            )
+                        Text(
+                            "Sign in",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.skill.bodyText,
+                        )
+                        Spacer(Modifier.height(Space.xs))
+                        Text(
+                            "Managers and Trainer Plus accounts only.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.skill.subText,
+                        )
 
-                            Spacer(Modifier.height(20.dp))
+                        Spacer(Modifier.height(Space.lg))
 
-                            EmailField(
-                                value = email,
-                                onValueChange = { email = it },
-                                isError = errorMessage != null,
-                                onSubmit = { viewModel.login(email) },
-                            )
+                        EmailField(
+                            value = email,
+                            onValueChange = { email = it },
+                            isError = errorMessage != null,
+                            onSubmit = { viewModel.login(email) },
+                        )
 
-                            AnimatedVisibility(
-                                visible = errorMessage != null,
-                                enter = fadeIn(tween(Motion.FAST)) + expandVertically(tween(Motion.NORMAL)),
-                                exit = fadeOut(tween(Motion.FAST)) + shrinkVertically(tween(Motion.FAST)),
-                            ) {
-                                ErrorBanner(errorMessage.orEmpty())
-                            }
-
-                            Spacer(Modifier.height(18.dp))
-
-                            SignInButton(
-                                state = loginState,
-                                enabled = email.isNotBlank(),
-                                onClick = {
-                                    keyboard?.hide()
-                                    viewModel.login(email)
-                                },
-                            )
+                        AnimatedVisibility(
+                            visible = errorMessage != null,
+                            enter = fadeIn(tween(Motion.FAST)) + expandVertically(tween(Motion.NORMAL)),
+                            exit = fadeOut(tween(Motion.FAST)) + shrinkVertically(tween(Motion.FAST)),
+                        ) {
+                            InlineError(errorMessage.orEmpty())
                         }
+
+                        Spacer(Modifier.height(Space.lg))
+
+                        SignInButton(
+                            state = loginState,
+                            enabled = email.isNotBlank(),
+                            onClick = {
+                                keyboard?.hide()
+                                viewModel.login(email)
+                            },
+                        )
                     }
                 }
 
-                Spacer(Modifier.height(26.dp))
+                Spacer(Modifier.height(Space.xl))
 
-                Appear(index = 3) {
+                Appear(index = 4) {
                     Text(
-                        "Koenig Solutions · Delivery Intelligence",
+                        "Koenig Solutions",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.skill.subText,
+                        color = MaterialTheme.skill.labelText,
                     )
                 }
             }
         }
     }
-}
-
-/** Slow-drifting brand-tinted glows behind the form. */
-@Composable
-private fun AuroraBackground() {
-    val t = rememberInfiniteTransition(label = "aurora")
-    val a by t.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(9000, easing = Motion.Standard), RepeatMode.Reverse),
-        label = "a",
-    )
-    val b by t.animateFloat(
-        initialValue = 1f, targetValue = 0f,
-        animationSpec = infiniteRepeatable(tween(12000, easing = Motion.Standard), RepeatMode.Reverse),
-        label = "b",
-    )
-    val bg = MaterialTheme.colorScheme.background
-
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(bg)
-            .background(
-                Brush.radialGradient(
-                    colors = listOf(BrandCyan.copy(alpha = 0.26f), Color.Transparent),
-                    center = Offset(180f + a * 460f, 200f + a * 220f),
-                    radius = 760f,
-                )
-            )
-            .background(
-                Brush.radialGradient(
-                    colors = listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.20f), Color.Transparent),
-                    center = Offset(860f - b * 520f, 1500f - b * 380f),
-                    radius = 880f,
-                )
-            )
-    )
 }
 
 @Composable
@@ -243,6 +223,7 @@ private fun EmailField(
     isError: Boolean,
     onSubmit: () -> Unit,
 ) {
+    val sk = MaterialTheme.skill
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
 
@@ -255,50 +236,65 @@ private fun EmailField(
             Icon(
                 painter = painterResource(R.drawable.ic_mail),
                 contentDescription = null,
-                tint = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.skill.subText,
+                tint = when {
+                    isError -> sk.crit
+                    focused -> sk.brand
+                    else -> sk.labelText
+                },
                 modifier = Modifier.size(20.dp),
             )
         },
         singleLine = true,
         isError = isError,
         interactionSource = interaction,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(Radii.chip),
+        textStyle = MaterialTheme.typography.bodyLarge,
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.Email,
             imeAction = ImeAction.Done,
         ),
         keyboardActions = KeyboardActions(onDone = { onSubmit() }),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-            focusedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.04f),
+            focusedBorderColor = sk.brand,
+            unfocusedBorderColor = sk.glassBorder,
+            errorBorderColor = sk.crit,
+            focusedLabelColor = sk.brand,
+            unfocusedLabelColor = sk.labelText,
+            focusedTextColor = sk.bodyText,
+            unfocusedTextColor = sk.bodyText,
+            cursorColor = sk.brand,
+            focusedContainerColor = sk.brand.copy(alpha = 0.05f),
         ),
         modifier = Modifier.fillMaxWidth(),
     )
 }
 
+/**
+ * The failure, pinned to the field that caused it. The toast says the same
+ * thing louder; this is what remains on screen while the user retypes.
+ */
 @Composable
-private fun ErrorBanner(message: String) {
+private fun InlineError(message: String) {
+    val sk = MaterialTheme.skill
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 12.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.errorContainer)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(top = Space.md)
+            .background(sk.crit.copy(alpha = 0.12f), RoundedCornerShape(Radii.chip))
+            .padding(horizontal = Space.md, vertical = Space.sm),
         verticalAlignment = Alignment.Top,
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_alert),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.error,
+            tint = sk.crit,
             modifier = Modifier.size(16.dp),
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(Space.sm))
         Text(
             text = message,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onErrorContainer,
+            color = sk.bodyText,
         )
     }
 }
@@ -309,6 +305,7 @@ private fun SignInButton(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
+    val sk = MaterialTheme.skill
     val loading = state is LoginState.Loading
     val success = state is LoginState.Success
     val scale by animateFloatAsState(
@@ -320,10 +317,12 @@ private fun SignInButton(
     Button(
         onClick = onClick,
         enabled = enabled && !loading && !success,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(Radii.chip),
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+            containerColor = sk.brand,
+            contentColor = sk.frost,
+            disabledContainerColor = sk.brand.copy(alpha = 0.30f),
+            disabledContentColor = sk.frost.copy(alpha = 0.55f),
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -343,25 +342,20 @@ private fun SignInButton(
             label = "button",
         ) { phase ->
             when (phase) {
-                ButtonPhase.IDLE -> Text(
-                    "Sign in",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                )
+                ButtonPhase.IDLE -> Text("Sign in", style = MaterialTheme.typography.labelLarge)
                 ButtonPhase.LOADING -> Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.onPrimary,
+                        color = sk.frost,
                         strokeWidth = 2.dp,
                         modifier = Modifier.size(18.dp),
                     )
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(Space.md))
                     Text("Verifying access…", style = MaterialTheme.typography.labelLarge)
                 }
                 ButtonPhase.DONE -> Icon(
                     painter = painterResource(R.drawable.ic_check),
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary,
+                    tint = sk.frost,
                     modifier = Modifier.size(22.dp),
                 )
             }
@@ -370,6 +364,3 @@ private fun SignInButton(
 }
 
 private enum class ButtonPhase { IDLE, LOADING, DONE }
-
-private fun Color.luminanceIsDark(): Boolean =
-    (0.299f * red + 0.587f * green + 0.114f * blue) < 0.5f
