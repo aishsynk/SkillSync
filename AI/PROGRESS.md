@@ -1,5 +1,26 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T00:40:00+05:30 - Live API validation; product repositioned away from revenue (no code)
+
+- **Tool Used**: Claude Code (live authenticated probes against `api.koenig-solutions.com`)
+- **Files Modified**: `AI/API_VALIDATION_2026_08_11.md` (created), `AI/PROGRESS.md`
+- **Operator decisions recorded**:
+  - **Decision 1 — revenue is OUT of scope.** SkillEdge is not a finance/CRM/revenue product. `Total Fee` and `Currency` must not be surfaced. The product is a **Delivery Intelligence and Resource Readiness Platform**: delivery intelligence, resource planning, trainer intelligence, capability management, readiness, allocation, demand coverage, certification intelligence, capacity planning. The V2 framing in `AI/PRODUCT_AUDIT_V2_2026_08_11.md` ("revenue-protection system") is **superseded** and must be re-written.
+  - **Decision 2 — validate every unused API live.** Done, results below.
+- **Validation results (evidence, not documentation)**:
+  - **Working, high value (6)**: **171 Trainer Free Schedule**, **111 Trainer RC Schedule**, 114 Course & Technology (19,921 rows / 1,068 technologies), 164 Course List (12,103 rows), 206 Course Module, 156 Course Content URL.
+  - **API 171 answers the visa question**: returns `Visa` as `[{"Country","VisaExpiryDate","StayPeriod"}]`, plus `Trainer Free Date` (a real comma-separated availability calendar), `TrainerTimezone`, `NearestCity`, `Skill Level`, `#Assignment for the Course`. Course-first query shape. **This is the international allocation engine.**
+  - **API 111 returns 35 fields / 61 rows for one trainer over two months**, including **`LeaveStatus`/`LeaveAppliedDate`/`LeaveApprovedDate`/`LeaveApprovedBy`** (real absence data), `AssociatedType`, `QuotationStatus` (confirmed vs tentative), **`SpecifiedTrainer`** and **`DNC`** (client preference and exclusion), `DeliveryMode`, `QubitScore`, `Exam`, `HrsPerDay`.
+  - **Empty for every parameter tried (5)**: 90, 172, 205, 72, 93. Not proven broken; unusable with the parameters available. Consolidated question list for the RMS team is in the report.
+  - **API 172 was ranked ★★★★★ in the audit on documentation alone and returns nothing live** — the exact failure mode the operator warned about.
+  - **API 215 is a MUTATION, not a lookup.** Returns `{"Status":1,"Message":"Exam and course linked successfully."}`. **Disclosure: it was called once during discovery with an empty `examid`, believed to be a read. Likely a no-op, but the RMS team should confirm no unintended exam link was created against course id 17.** Now excluded alongside 255.
+- **Current Status**: No code changed; v3.6.0.83 remains live. The international matching problem is **now solvable with data fetchable today** — nine new ranking parameters identified (visa, free dates, time zone, location, course-specific experience, leave, confirmed-vs-tentative, client preference, client exclusion), requiring only that 171 and 111 be wired and `_rank_batch` rewritten as a transparent multi-factor model.
+- **Next Actions**:
+  1. **Operator's last message was truncated mid-sentence** at "Before any major UI work, please provide: 1." — the requested deliverable list is unknown and must be re-asked before starting.
+  2. Rewrite the V2 vision to the Delivery Intelligence and Resource Readiness framing (drop revenue entirely).
+  3. Phase 1 on evidence: wire 171 + 111, rewrite `_rank_batch` transparently, wire 114 + 164, wire 13 with fee/currency stripped at the backend boundary (keep `CSM`, `SCCreatedDate`).
+  4. Take the five empty APIs and 215's true contract to the RMS team as one question list.
+
 ## 2026-08-11T23:30:00+05:30 - Full product and API audit; V2 vision (no code)
 
 - **Tool Used**: Claude Code (read of all 37 `trainer_portal_api_details` docs, `backend.py`, full Android source)
