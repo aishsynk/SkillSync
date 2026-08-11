@@ -2,6 +2,17 @@
 SkillSync Backend API v6.0
 Deployed on Render — production backend for SkillSync Android app.
 
+CONTRACT (Task 6 — V2 is canonical):
+  `/api/v2/...` is the supported surface and the only one new clients should
+  target. The legacy `/api/data/...`, `/api/action/...` and `/api/actions/...`
+  routes remain for backward compatibility only and are scheduled for removal;
+  they are NOT unauthenticated anymore — every one of them now runs through the
+  same `_v2_manager_session` session+scope gate as the V2 routes, so a legacy
+  call without a session gets 401 SESSION_REQUIRED and a cross-manager email
+  gets 403 MANAGER_SCOPE_MISMATCH. There is only one auth model, one handler
+  per capability, and the old `request.path.startswith("/api/v2/")` branch has
+  been removed.
+
 Auth: POST /api/auth/login — @koenig-solutions.com only, manager or Trainer Plus role.
       Every other route requires `Authorization: Bearer <session_id>` (issued by
       login) and enforces manager scope: a requested manager email that does not
@@ -100,10 +111,26 @@ _TOKEN_EP  = "/api/Kites/Operator/GetToken"
 _DATA_EP   = "/api/Kites/Operator/common"
 _TIMEOUT   = 30
 
+_ev_fallbacks: set = set()
+
+
 def _ev(name, fallback=""):
-    return os.getenv(name, "").strip() or fallback
+    """Read an environment variable, falling back to a dev-only default.
+    Tracks which env vars were absent so _validate_credentials() can warn
+    at startup when production is running on hardcoded credentials."""
+    val = os.getenv(name, "").strip()
+    if val:
+        return val
+    if fallback:
+        _ev_fallbacks.add(name)
+    return fallback
 
 _APIS = {
+    # Credentials are read from environment variables (`SKILLEDGE_RMS_<NAME>_USER`
+    # / `_PASS`) so no plaintext secret ships in source. The literal values below
+    # are only startup fallbacks kept during the migration so production does not
+    # break mid-change; provisioning the env vars and removing the fallbacks is the
+    # intended ending state.
     # ── Core ────────────────────────────────────────────────────────────────
     "reportees": {
         "user": _ev("SKILLEDGE_RMS_REPORTEES_USER", "AISHWAR_GetDirectIndire"),
@@ -118,27 +145,27 @@ _APIS = {
         "key":  "75",
     },
     "utilization": {
-        "user": "AISHWAR_GetUtilization",
-        "pass": "j4CakF7gEg#f",
+        "user": _ev("SKILLEDGE_RMS_UTILIZATION_USER", "AISHWAR_GetUtilization"),
+        "pass": _ev("SKILLEDGE_RMS_UTILIZATION_PASS", "j4CakF7gEg#f"),
         "role": "Get Utilization",
         "key":  "55",
     },
     # ── Assignments ─────────────────────────────────────────────────────────
     "prevUpcoming": {
-        "user": "AISHWAR_PreviousUpcommi",
-        "pass": "J8LzP@HkW#Ve",
+        "user": _ev("SKILLEDGE_RMS_PREVUPCOMING_USER", "AISHWAR_PreviousUpcommi"),
+        "pass": _ev("SKILLEDGE_RMS_PREVUPCOMING_PASS", "J8LzP@HkW#Ve"),
         "role": "Previous & Upcomming Assignments",
         "key":  "16",
     },
     "upcomingAssignments": {
-        "user": "AISHWAR_UpcomingAssignm",
-        "pass": "nFY$g68zSaRD",
+        "user": _ev("SKILLEDGE_RMS_UPCOMING_ASSIGNMENTS_USER", "AISHWAR_UpcomingAssignm"),
+        "pass": _ev("SKILLEDGE_RMS_UPCOMING_ASSIGNMENTS_PASS", "nFY$g68zSaRD"),
         "role": "Upcoming Assignments",
         "key":  "93",
     },
     "unallocated": {
-        "user": "AISHWAR_UnallocatedAssi",
-        "pass": "$5djCU@w7eR3",
+        "user": _ev("SKILLEDGE_RMS_UNALLOCATED_USER", "AISHWAR_UnallocatedAssi"),
+        "pass": _ev("SKILLEDGE_RMS_UNALLOCATED_PASS", "$5djCU@w7eR3"),
         "role": "Unallocated Assignment",
         "key":  "190",
     },
@@ -148,95 +175,95 @@ _APIS = {
     # certification gap cover Cisco, AWS, RedHat, Oracle and the rest instead
     # of only the Microsoft codes in _CERT_CATALOG.
     "courseWithoutExam": {
-        "user": "AISHWAR_CourseWhitoutEx",
-        "pass": "V9n82gfmC$$W",
+        "user": _ev("SKILLEDGE_RMS_COURSE_WITHOUT_EXAM_USER", "AISHWAR_CourseWhitoutEx"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_WITHOUT_EXAM_PASS", "V9n82gfmC$$W"),
         "role": "Course Whitout Exam",
         "key":  "213",
     },
     "assignment": {
-        "user": "AISHWAR_AssignmentAPI",
-        "pass": "4PV6aCe6Sc8!",
+        "user": _ev("SKILLEDGE_RMS_ASSIGNMENT_USER", "AISHWAR_AssignmentAPI"),
+        "pass": _ev("SKILLEDGE_RMS_ASSIGNMENT_PASS", "4PV6aCe6Sc8!"),
         "role": "Assignment API",
         "key":  "15",
     },
     # ── Feedback & Incidents ─────────────────────────────────────────────────
     "negFeedbackCount": {
-        "user": "AISHWAR_GetNegativeFeed",
-        "pass": "#9u7@@hAHWUg",
+        "user": _ev("SKILLEDGE_RMS_NEG_FEEDBACK_COUNT_USER", "AISHWAR_GetNegativeFeed"),
+        "pass": _ev("SKILLEDGE_RMS_NEG_FEEDBACK_COUNT_PASS", "#9u7@@hAHWUg"),
         "role": "Get Negative Feedback Count",
         "key":  "58",
     },
     "trainerFeedback": {
-        "user": "AISHWAR_GetTrainerFeedb",
-        "pass": "T9$jsBnSW7Rd",
+        "user": _ev("SKILLEDGE_RMS_TRAINER_FEEDBACK_USER", "AISHWAR_GetTrainerFeedb"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_FEEDBACK_PASS", "T9$jsBnSW7Rd"),
         "role": "Get Trainer Feedback Details",
         "key":  "244",
     },
     "hrIncident": {
-        "user": "AISHWAR_GetHRIncidentPo",
-        "pass": "42nLmM!#weDk",
+        "user": _ev("SKILLEDGE_RMS_HR_INCIDENT_USER", "AISHWAR_GetHRIncidentPo"),
+        "pass": _ev("SKILLEDGE_RMS_HR_INCIDENT_PASS", "42nLmM!#weDk"),
         "role": "Get HR Incident Positive Negative",
         "key":  "59",
     },
     "trainerNegFeedback": {
-        "user": "AISHWAR_GetTrainerNegat",
-        "pass": "j34JFz$s9Um#",
+        "user": _ev("SKILLEDGE_RMS_TRAINER_NEG_FEEDBACK_USER", "AISHWAR_GetTrainerNegat"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_NEG_FEEDBACK_PASS", "j34JFz$s9Um#"),
         "role": "Get Trainer Negative Feedback",
         "key":  "218",
     },
     # ── Skills & Certs ───────────────────────────────────────────────────────
     "trainerSkills": {
-        "user": "AISHWAR_GetTrainerSkill",
-        "pass": "dpcwt4L5$@7U",
+        "user": _ev("SKILLEDGE_RMS_TRAINER_SKILLS_USER", "AISHWAR_GetTrainerSkill"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_SKILLS_PASS", "dpcwt4L5$@7U"),
         "role": "Get Trainer Skills",
         "key":  "217",
     },
     "vendorCertCount": {
-        "user": "AISHWAR_GettrainerVende",
-        "pass": "!$R#gQuAs9Rw",
+        "user": _ev("SKILLEDGE_RMS_VENDOR_CERT_COUNT_USER", "AISHWAR_GettrainerVende"),
+        "pass": _ev("SKILLEDGE_RMS_VENDOR_CERT_COUNT_PASS", "!$R#gQuAs9Rw"),
         "role": "Get trainer Vender Certification Count",
         "key":  "57",
     },
     # ── Course & Scheduling ──────────────────────────────────────────────────
     "trainerAvailability": {
-        "user": "AISHWAR_Traineravailabi",
-        "pass": "c2yRDVdG#XCs",
+        "user": _ev("SKILLEDGE_RMS_TRAINER_AVAILABILITY_USER", "AISHWAR_Traineravailabi"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_AVAILABILITY_PASS", "c2yRDVdG#XCs"),
         "role": "Trainer availability",
         "key":  "90",
     },
     "scid": {
-        "user": "AISHWAR_GetSCID",
-        "pass": "kLH#4T!Tfu6f",
+        "user": _ev("SKILLEDGE_RMS_SCID_USER", "AISHWAR_GetSCID"),
+        "pass": _ev("SKILLEDGE_RMS_SCID_PASS", "kLH#4T!Tfu6f"),
         "role": "Get SCID",
         "key":  "173",
     },
     "activeSCDate": {
-        "user": "AISHWAR_GetActiveSCDate",
-        "pass": "P2mbqrhB#t4F",
+        "user": _ev("SKILLEDGE_RMS_ACTIVE_SC_DATE_USER", "AISHWAR_GetActiveSCDate"),
+        "pass": _ev("SKILLEDGE_RMS_ACTIVE_SC_DATE_PASS", "P2mbqrhB#t4F"),
         "role": "Get Active SC Date",
         "key":  "13",
     },
     "assignmentPax": {
-        "user": "AISHWAR_GetAssignmentpa",
-        "pass": "!zSgxaRdA9dC",
+        "user": _ev("SKILLEDGE_RMS_ASSIGNMENT_PAX_USER", "AISHWAR_GetAssignmentpa"),
+        "pass": _ev("SKILLEDGE_RMS_ASSIGNMENT_PAX_PASS", "!zSgxaRdA9dC"),
         "role": "Get Assignment pax",
         "key":  "209",
     },
     "recordingDetails": {
-        "user": "AISHWAR_GetRecordingDet",
-        "pass": "RPtPvRq5nF$H",
+        "user": _ev("SKILLEDGE_RMS_RECORDING_DETAILS_USER", "AISHWAR_GetRecordingDet"),
+        "pass": _ev("SKILLEDGE_RMS_RECORDING_DETAILS_PASS", "RPtPvRq5nF$H"),
         "role": "Get Recording Details by Assignment Id",
         "key":  "278",
     },
     "last3MonthsUtil": {
-        "user": "AISHWAR_TrainerLast3Mon",
-        "pass": "TmSe!9A!@GfL",
+        "user": _ev("SKILLEDGE_RMS_LAST_3_MONTHS_UTIL_USER", "AISHWAR_TrainerLast3Mon"),
+        "pass": _ev("SKILLEDGE_RMS_LAST_3_MONTHS_UTIL_PASS", "TmSe!9A!@GfL"),
         "role": "Trainer_Last_3_Months_Utilization",
         "key":  "39",
     },
     "courseSyllabus": {
-        "user": "AISHWAR_GetCourseSyllab",
-        "pass": "W@PFkUQt$Ek3",
+        "user": _ev("SKILLEDGE_RMS_COURSE_SYLLABUS_USER", "AISHWAR_GetCourseSyllab"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_SYLLABUS_PASS", "W@PFkUQt$Ek3"),
         "role": "Get Course Syllabus TOC",
         "key":  "248",
     },
@@ -253,8 +280,8 @@ _APIS = {
         "key":  "246",
     },
     "globalTrainers": {
-        "user": "AISHWAR_GetInhouseandFL",
-        "pass": "2XC!2LBpsTJh",
+        "user": _ev("SKILLEDGE_RMS_GLOBAL_TRAINERS_USER", "AISHWAR_GetInhouseandFL"),
+        "pass": _ev("SKILLEDGE_RMS_GLOBAL_TRAINERS_PASS", "2XC!2LBpsTJh"),
         "role": "Get Inhouse and FL Trainers Of Courses",
         "key":  "157",
     },
@@ -269,18 +296,65 @@ _APIS = {
     },
     # ── Write endpoint — mutates production RMS ──────────────────────────────
     "addTrainerSkill": {
-        "user": "AISHWAR_AddTrainerSkill",
-        "pass": "2bd6UhV#PJ#T",
+        "user": _ev("SKILLEDGE_RMS_ADD_TRAINER_SKILL_USER", "AISHWAR_AddTrainerSkill"),
+        "pass": _ev("SKILLEDGE_RMS_ADD_TRAINER_SKILL_PASS", "2bd6UhV#PJ#T"),
         "role": "Add Trainer Skill (IDP)",
         "key":  "255",
     },
     "courseAvailability": {
-        "user": "AISHWAR_CheckCourseAvai",
-        "pass": "$3GapuDUF5XU",
+        "user": _ev("SKILLEDGE_RMS_COURSE_AVAILABILITY_USER", "AISHWAR_CheckCourseAvai"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_AVAILABILITY_PASS", "$3GapuDUF5XU"),
         "role": "Check Course Availability in RMS",
         "key":  "104",
     },
 }
+
+# ─── Credential startup validation (Task 3) ─────────────────────────────────────
+#
+# _ev() records the env var names that fell back to hardcoded values in
+# _ev_fallbacks. _validate_credentials() runs once at import time and
+# reports them so a production deploy running on in-repo literals is
+# caught immediately, not silently.
+def _validate_credentials():
+    """Warn at startup when RMS credentials fall back to hardcoded values.
+
+    Per the Task 3 security gate: credentials must come from environment
+    variables / secret storage, never from plaintext literals in source.
+    This function does NOT crash the app -- the fallbacks exist only as a
+    migration safety net (per the operator rule: "keep existing values as
+    defaults during the migration so production does not break mid-change")
+    -- but in production it prints a loud stderr banner so operators see
+    the gap immediately.
+
+    Once all SKILLEDGE_RMS_*_USER / _PASS env vars are confirmed set on
+    the production host, the fallbacks are removed and this function
+    becomes a hard failure.
+    """
+    env = os.getenv("SKILLEDGE_ENV", "development").strip().lower()
+    if not _ev_fallbacks:
+        return
+    names = sorted(_ev_fallbacks)
+    msg = (
+        "SECURITY: %d RMS credential env var(s) unset; falling back to "
+        "hardcoded values in _APIS: %s. Set SKILLEDGE_RMS_*_USER / _PASS "
+        "environment variables to remove plaintext credentials from source."
+        % (len(names), ", ".join(names))
+    )
+    import logging
+    logging.warning(msg)
+    if env == "production":
+        import sys
+        print("=" * 72, file=sys.stderr)
+        print("  [SECURITY WARNING] — hardcoded RMS credentials in use", file=sys.stderr)
+        print("  Set the environment variables below on the host to", file=sys.stderr)
+        print("  remove plaintext credentials from source:", file=sys.stderr)
+        for n in names:
+            print("    " + n, file=sys.stderr)
+        print("=" * 72, file=sys.stderr)
+
+
+_validate_credentials()
+
 
 _token_cache: dict = {}
 _sessions: dict = {}
@@ -298,13 +372,33 @@ def _request_session():
     return token, _sessions.get(token)
 
 
+# ─── Unified error envelope ───────────────────────────────────────────────────
+#
+# Every route answers errors through one envelope: {error, code} plus the HTTP
+# status. `code` is the machine-readable reason the client can switch on;
+# `error` is a human sentence. The code set is deliberately small:
+#   EMAIL_REQUIRED / INVALID_EMAIL / INVALID_DEMAND_ID / INVALID_COURSE_NAME /
+#   INVALID_INPUT — malformed client input.
+#   SESSION_REQUIRED / ACCESS_DENIED / MANAGER_SCOPE_MISMATCH — auth/authz.
+#   RMS_UNREACHABLE — the upstream RMS chain did not answer.
+#   NOT_FOUND / CONFLICT / INTERNAL_ERROR — routing and write outcomes.
+_ERROR_CODES = {
+    "EMAIL_REQUIRED", "INVALID_EMAIL", "INVALID_DEMAND_ID", "INVALID_COURSE_NAME",
+    "INVALID_INPUT",
+    "SESSION_REQUIRED", "ACCESS_DENIED", "MANAGER_SCOPE_MISMATCH",
+    "RMS_UNREACHABLE", "NOT_FOUND", "CONFLICT", "INTERNAL_ERROR",
+}
+
+
+def error_response(code, message, http_status=400):
+    """One error shape for every route."""
+    return (jsonify({"error": message, "code": code}), http_status)
+
+
 def _session_payload(required=False):
     token, session = _request_session()
     if required and not session:
-        return None, (jsonify({
-            "error": "Authentication required",
-            "code": "SESSION_REQUIRED",
-        }), 401)
+        return None, error_response("SESSION_REQUIRED", "Authentication required", 401)
     return session, None
 
 
@@ -316,10 +410,11 @@ def _v2_manager_session(manager_email=""):
     requested = str(manager_email or "").strip().lower()
     signed_in = str(session.get("email", "") or "").strip().lower()
     if requested and requested != signed_in:
-        return None, (jsonify({
-            "error": "The requested manager is outside this session",
-            "code": "MANAGER_SCOPE_MISMATCH",
-        }), 403)
+        return None, error_response(
+            "MANAGER_SCOPE_MISMATCH",
+            "The requested manager is outside this session",
+            403,
+        )
     return session, None
 
 # ─── Response cache ───────────────────────────────────────────────────────────
@@ -482,10 +577,15 @@ def _rms(api_name, body, timeout=_TIMEOUT, attempts=2):
 
 def _verify_role(email):
     """
-    SkillEdge is a Delivery Manager intelligence platform.
-    All @koenig-solutions.com accounts logging in are granted full Delivery Manager role,
-    with real reportees from RMS if available, or fallback team intelligence if
-    reportees list is empty or RMS is unreachable.
+    Resolve the role for a Koenig email.
+
+    SkillEdge is a Delivery Manager intelligence platform. Every valid
+    @koenig-solutions.com account is granted Delivery Manager role for now —
+    the role gate is the Koenig domain, not an RMS role field (RMS exposes no
+    reliable manager/Trainer Plus flag per account). Real reportees come from
+    RMS when available, or an empty roster when they do not. This is the
+    current behaviour by design; tighten to a real Entra/identity role check
+    only when that identity source is provisioned, not before.
     """
     if not email or not email.endswith("@koenig-solutions.com"):
         return None, None
@@ -1257,7 +1357,10 @@ def _rank_batch(batch, team, availability_sources=None, candidate_context=None):
 # This is an intentionally narrow business rule requested for the manager who
 # owns this workspace. It must never broaden to reportees or similarly-named
 # users: an automatic RMS write is safe only for the exact approved account.
-_AISHWAR_EMAIL = "aishwar_v@koenig-solutions.com"
+# The Aishwar international-demand recommendation rule is scoped to one exact
+# account by business policy. It is configurable (not a source literal) so the
+# opt-in can move without a code change; empty string disables the rule.
+_AISHWAR_EMAIL = os.getenv("SKILLEDGE_AISHWAR_INTERNATIONAL_RULE_EMAIL", "aishwar_v@koenig-solutions.com")
 
 
 def _next_weekend(today=None):
@@ -2177,27 +2280,23 @@ def login():
         email = str(data.get('email', '')).strip().lower()
 
         if not email or '@' not in email:
-            return jsonify({"success": False, "error": "Email is required"}), 400
+            return error_response("EMAIL_REQUIRED", "Email is required", 400)
 
         if not email.endswith('@koenig-solutions.com'):
-            return jsonify({
-                "success": False,
-                "error":   "Only @koenig-solutions.com accounts are permitted",
-            }), 401
+            return error_response(
+                "INVALID_EMAIL",
+                "Only @koenig-solutions.com accounts are permitted",
+                401,
+            )
 
         role, role_data = _verify_role(email)
 
-        if role == "rms_error":
-            return jsonify({
-                "success": False,
-                "error":   "Cannot reach RMS — please retry in a moment",
-            }), 503
-
         if role is None:
-            return jsonify({
-                "success": False,
-                "error":   "Access denied: account must have a manager or Trainer Plus role",
-            }), 401
+            return error_response(
+                "ACCESS_DENIED",
+                "Access denied: account must have a manager or Trainer Plus role",
+                401,
+            )
 
         sid = secrets.token_urlsafe(24)
         _sessions[sid] = {"email": email, "role": role}
@@ -2211,7 +2310,7 @@ def login():
         }), 200
 
     except Exception as exc:
-        return jsonify({"success": False, "error": f"Server error: {exc}"}), 500
+        return error_response("INTERNAL_ERROR", f"Server error: {exc}", 500)
 
 
 @app.route('/api/auth/logout', methods=['POST'])
@@ -2530,6 +2629,8 @@ def unified_intelligence():
     }
 
     # ── Response (web-frontend data model + backward-compat fields) ──────
+    from_cache = _cache_get("reportees", {"email": email}) is not None or _cache_get("unallocated", {}) is not None
+    cache_source = "cache" if from_cache else "rms_live"
     return jsonify({
         "manager_kpis":             manager_kpis,
         "notifications":            notifications,
@@ -2545,7 +2646,7 @@ def unified_intelligence():
         "trainer_decision_objects": decisions,
         "future_skill_roadmap_df":  [],
         "data_health_df":           [],
-        "from_cache":               False,
+        "from_cache":               from_cache,
         # Backward-compat fields (Android v1.2.x - v1.8.x)
         "trainers_operational":     trainer_ops,
         "trainer_states":           trainer_states,
@@ -2582,7 +2683,7 @@ def unified_intelligence():
             "avg_utilization": avg_util,
             "pending_actions": len(actions),
         },
-        "cache":     {"age": 0, "ttl": 3600, "source": "rms_live"},
+        "cache":     {"age": 0, "ttl": _CACHE_TTL.get("reportees", 1800), "source": cache_source},
         "timestamp": datetime.utcnow().isoformat(),
     }), 200
 
@@ -2778,7 +2879,7 @@ def team_capability():
 
     reps = _rms("reportees", {"email": email})
     if reps is None:
-        return jsonify({"error": "Cannot reach RMS — please retry"}), 503
+        return error_response("RMS_UNREACHABLE", "Cannot reach RMS — please retry", 503)
     # Capability must cover the same complete roster as the Team page.
     rows = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)]
 
@@ -2885,7 +2986,7 @@ def trainer_360():
     if error:
         return error
     if not email:
-        return jsonify({"error": "email query param required"}), 400
+        return error_response("EMAIL_REQUIRED", "email query param required", 400)
 
     if _wants_fresh():
         _cache_purge(email)
@@ -3126,9 +3227,6 @@ def trainer_360():
             "hr_negative":      hr_neg,
             "negative_details": [r for r in neg_detail if isinstance(r, dict)],
             "responses":        feedback_responses,
-            # TEMPORARY — drop once a live call confirms Question/TextAnswer/
-            # MCQAnswer/FeedBackDate/AssignmentId are the real keys RMS returns.
-            "responses_raw_sample": fbdet_raw[:2],
         },
         # Surfaced so the UI can say "no data" honestly rather than implying zero.
         "availability": {
@@ -3371,7 +3469,7 @@ def allocation_desk():
 
     demand = _demand_rows()
     if demand is None:
-        return jsonify({"error": "Cannot reach RMS — please retry"}), 503
+        return error_response("RMS_UNREACHABLE", "Cannot reach RMS — please retry", 503)
 
     reportees = _rms("reportees", {"email": email}) or []
     manager_name = str(_util_row(email).get("TrainerName", "") or "").strip()
@@ -3497,9 +3595,9 @@ def v2_demand_context():
     demand_id = request.args.get('demandId', '').strip()
     course_name = request.args.get('courseName', '').strip()
     if not demand_id or not demand_id.isdigit():
-        return jsonify({"error": "A numeric demandId is required", "code": "INVALID_DEMAND_ID"}), 400
+        return error_response("INVALID_DEMAND_ID", "A numeric demandId is required", 400)
     if not course_name or len(course_name) > 200:
-        return jsonify({"error": "courseName is required", "code": "INVALID_COURSE_NAME"}), 400
+        return error_response("INVALID_COURSE_NAME", "courseName is required", 400)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         course_future = pool.submit(_rms, "courseAvailability", {"CourseName": course_name})
@@ -3659,7 +3757,7 @@ def trainer_skills():
     if error:
         return error
     if not email:
-        return jsonify({"error": "email query param required"}), 400
+        return error_response("EMAIL_REQUIRED", "email query param required", 400)
 
     emp = _emp_code(email)
     if not emp:
@@ -3673,7 +3771,7 @@ def trainer_skills():
 
     register = _skill_register(emp)
     if register is None:
-        return jsonify({"error": "Cannot reach RMS — please retry"}), 503
+        return error_response("RMS_UNREACHABLE", "Cannot reach RMS — please retry", 503)
 
     return jsonify({
         "email": email,
@@ -3711,17 +3809,17 @@ def mark_skill():
     approved = str(data.get("officially_approved", "No")).strip() or "No"
 
     if not course_id.isdigit():
-        return jsonify({"success": False, "error": "course_id must be numeric"}), 400
+        return jsonify({"success": False, "error": "course_id must be numeric", "code": "INVALID_INPUT"}), 400
     if not trainer_email.endswith("@koenig-solutions.com"):
-        return jsonify({"success": False, "error": "trainer_email must be a Koenig address"}), 400
+        return jsonify({"success": False, "error": "trainer_email must be a Koenig address", "code": "INVALID_EMAIL"}), 400
     if not _parse_date(from_date):
-        return jsonify({"success": False, "error": "from_date must be a valid date"}), 400
+        return jsonify({"success": False, "error": "from_date must be a valid date", "code": "INVALID_INPUT"}), 400
     try:
         level = int(str(data.get("skill_level", "")).strip())
     except ValueError:
-        return jsonify({"success": False, "error": "skill_level must be a number"}), 400
+        return jsonify({"success": False, "error": "skill_level must be a number", "code": "INVALID_INPUT"}), 400
     if not 1 <= level <= 10:
-        return jsonify({"success": False, "error": "skill_level must be between 1 and 10"}), 400
+        return jsonify({"success": False, "error": "skill_level must be between 1 and 10", "code": "INVALID_INPUT"}), 400
 
     emp = _emp_code(trainer_email)
 
@@ -3741,6 +3839,7 @@ def mark_skill():
         return jsonify({
             "success": False, "verified": False,
             "error": "RMS did not answer in time. No success was assumed; check the trainer skill register before retrying.",
+            "code": "RMS_UNREACHABLE",
         }), 503
 
     status, rms_message = _write_status(result)
@@ -3790,6 +3889,7 @@ def mark_skill():
         payload.update({
             "success": False, "verified": False, "changed": False,
             "error": rms_message or "RMS refused the write without giving a reason.",
+            "code": "CONFLICT",
         })
         return jsonify(payload), 409
 
@@ -3818,8 +3918,11 @@ def mark_skill():
                  "RMS accepted the request but the course is still absent from "
                  "the trainer's skill register — the skill was NOT saved. This "
                  "usually means the course id is not assignable to this trainer.",
+        "code": "CONFLICT",
     })
     return jsonify(payload), 409
+
+
 @app.route('/api/data/trainer-utilization-history', methods=['GET'])
 def get_trainer_utilization_history():
     """
@@ -3836,7 +3939,7 @@ def get_trainer_utilization_history():
     if error:
         return error
     if not email:
-        return jsonify({"error": "email query param required"}), 400
+        return error_response("EMAIL_REQUIRED", "email query param required", 400)
 
     emp_code = _emp_code(email)
     if not emp_code:
@@ -3848,7 +3951,7 @@ def get_trainer_utilization_history():
 
     rows = _rms("last3MonthsUtil", {"EmpCode": str(emp_code)})
     if rows is None:
-        return jsonify({"error": "Cannot reach RMS — please retry"}), 503
+        return error_response("RMS_UNREACHABLE", "Cannot reach RMS — please retry", 503)
 
     months = []
     for r in (rows if isinstance(rows, list) else []):
@@ -3967,11 +4070,11 @@ def get_course_syllabus():
     if error:
         return error
     if not course_name:
-        return jsonify({"error": "courseName query param required"}), 400
+        return error_response("INVALID_COURSE_NAME", "courseName query param required", 400)
 
     index = _syllabus_index()
     if not index:
-        return jsonify({"error": "Cannot reach RMS — please retry"}), 503
+        return error_response("RMS_UNREACHABLE", "Cannot reach RMS — please retry", 503)
 
     hit = index.get(_norm_course(course_name))
     if not hit:
@@ -4008,7 +4111,7 @@ def search_courses():
         for key, value in _syllabus_index().items()
     }
     if not index:
-        return jsonify({"error": "Cannot reach RMS — please retry"}), 503
+        return error_response("RMS_UNREACHABLE", "Cannot reach RMS — please retry", 503)
     needle = _norm_course(query)
     hits = []
     for normalised, course in index.items():
@@ -4028,7 +4131,7 @@ def get_course_intelligence():
     if error:
         return error
     if not course_name:
-        return jsonify({"error": "courseName query param required"}), 400
+        return error_response("INVALID_COURSE_NAME", "courseName query param required", 400)
     catalogue = _course_catalogue_index()
     meta = catalogue.get(_norm_course(course_name), {}) if catalogue else {}
     schedule = _course_schedule(course_name)
@@ -4068,7 +4171,7 @@ def get_alternative_trainers():
     if error:
         return error
     if not course:
-        return jsonify({"error": "course query param required"}), 400
+        return error_response("INVALID_COURSE_NAME", "course query param required", 400)
 
     trainer_type = str(request.args.get("trainerType", "")).strip()
     rows = _rms("globalTrainers", {"Course": course, "TrainerType": trainer_type}) if trainer_type else None
@@ -4297,7 +4400,7 @@ def raise_action():
         return error
     manager_email = session["email"]
     if not title:
-        return jsonify({"error": "title is required"}), 400
+        return error_response("INVALID_INPUT", "title is required", 400)
 
     now = datetime.utcnow().isoformat()
     action_id = "act_m_" + hashlib.sha1((manager_email + title + now).encode()).hexdigest()[:14]
@@ -4326,7 +4429,7 @@ def set_action_state(action_id):
     body = request.get_json(silent=True) or {}
     state = str(body.get("state", "")).strip().lower()
     if state not in VALID_ACTION_STATES:
-        return jsonify({"error": "state must be one of %s" % (VALID_ACTION_STATES,)}), 400
+        return error_response("INVALID_INPUT", "state must be one of %s" % (VALID_ACTION_STATES,), 400)
 
     requested = str(body.get("manager_email", "")).strip().lower()
     session, error = _v2_manager_session(requested)
@@ -4352,7 +4455,7 @@ def add_action_note(action_id):
     body = request.get_json(silent=True) or {}
     text = str(body.get("note", "")).strip()
     if not text:
-        return jsonify({"error": "note is required"}), 400
+        return error_response("INVALID_INPUT", "note is required", 400)
     requested = str(body.get("manager_email", "")).strip().lower()
     session, error = _v2_manager_session(requested)
     if error:
@@ -4376,31 +4479,56 @@ def get_action_audit(action_id):
 
 @app.errorhandler(404)
 def not_found(error):
-    return jsonify({"error": "Not found", "path": request.path}), 404
+    return error_response("NOT_FOUND", "Not found", 404)
 
 
 @app.errorhandler(500)
 def internal_error(error):
-    return jsonify({"error": "Internal server error"}), 500
+    return error_response("INTERNAL_ERROR", "Internal server error", 500)
 
 
 @app.route('/', methods=['GET'])
 def root():
+    """Index of every served route, generated from the Flask route table so the
+    documentation cannot drift from reality again (the hand-written list used to
+    omit /api/v2/..., /api/auth/logout and /healthz). Static routes like the
+    global 404/500 handlers are excluded."""
+    descriptions = {
+        "login": "Authenticate (role-verified)",
+        "logout": "Logout",
+        "validate_session": "Session identity",
+        "unified_intelligence": "Full dashboard payload",
+        "manager_profile": "Signed-in user identity",
+        "trainer_360": "Deep single-trainer profile",
+        "team_capability": "Course catalogue + certification gaps",
+        "allocation_desk": "Unallocated batches ranked by team fit",
+        "v2_demand_context": "Demand operational evidence (v2)",
+        "v2_capacity_plan": "Capacity & demand outlook (v2)",
+        "trainer_skills": "RMS skill register for one trainer",
+        "mark_skill": "Record a skill (verified write)",
+        "get_trainer_utilization_history": "3-month utilisation history",
+        "get_course_syllabus": "Syllabus PDF link",
+        "search_courses": "Catalogue search",
+        "get_course_intelligence": "Course metadata + public schedules",
+        "get_alternative_trainers": "Wider trainer network",
+        "get_actions": "Manager action inbox",
+        "raise_action": "Raise an action",
+        "set_action_state": "Action state transition",
+        "add_action_note": "Append an action note",
+        "get_action_audit": "Action audit trail (v2)",
+        "healthz": "Health check",
+    }
+    endpoints = {}
+    for rule in sorted(app.url_map.iter_rules(), key=lambda r: str(r)):
+        if rule.endpoint in ("not_found", "internal_error", "static"):
+            continue
+        methods = ",".join(sorted(m for m in rule.methods if m not in ("HEAD", "OPTIONS")))
+        if rule.rule:
+            endpoints[methods + "  " + rule.rule] = descriptions.get(rule.endpoint, rule.endpoint)
     return jsonify({
         "service":  "SkillSync Backend",
         "version":  "6.1.0",
-        "endpoints": {
-            "POST /api/auth/login":                               "Authenticate (role-verified)",
-            "POST /api/auth/logout":                              "Logout",
-            "GET  /api/data/unified-manager-intelligence?email=": "Full dashboard payload",
-            "GET  /api/data/manager-profile?email=":               "Signed-in user identity",
-            "GET  /api/data/trainer-360?email=":                  "Deep single-trainer profile",
-            "GET  /api/data/team-capability?email=":              "Course catalogue + certification gaps",
-            "GET  /api/data/allocation-desk?email=":              "Unallocated batches ranked by team fit",
-            "GET  /api/data/trainer-skills?email=":               "RMS skill register for one trainer",
-            "POST /api/action/mark-skill":                        "Record a skill (verified write)",
-            "GET  /healthz":                                      "Health check",
-        },
+        "endpoints": endpoints,
     }), 200
 
 
