@@ -251,7 +251,7 @@ private fun CapabilityPortfolio(portfolio: Map<*, *>?) {
                     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Row {
                             Text(row.str("vendor"), style = MaterialTheme.typography.labelSmall, color = sk.bodyText, modifier = Modifier.weight(1f), maxLines = 1)
-                            Text("$pct% depth · ${row.int("single_owner")} single · ${row.int("certification_exposed")} exposed", style = MaterialTheme.typography.labelSmall, color = tint, fontSize = 9.sp)
+                            Text("$pct% depth · ${row.int("single_owner")} single · ${row.int("certification_exposed")} exposed", style = MaterialTheme.typography.labelSmall, color = tint)
                         }
                         LinearProgressIndicator(
                             progress = { pct / 100f },
@@ -275,7 +275,7 @@ private fun CapabilityPortfolio(portfolio: Map<*, *>?) {
             Text(
                 if (confidence?.str("status") == "verified") "Verified from current RMS capability evidence"
                 else confidence?.str("note").orEmpty().ifBlank { "Capability evidence is incomplete" },
-                style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 9.sp,
+                style = MaterialTheme.typography.labelSmall, color = sk.subText,
             )
         }
     }
@@ -311,7 +311,7 @@ private fun CatalogueSummary(kpis: Map<*, *>?, courses: List<Map<*, *>>) {
                 Text(
                     "$single course${if (single == 1) "" else "s"} rest on one trainer — losing them " +
                         "means losing the course.",
-                    style = MaterialTheme.typography.labelSmall, color = sk.amber, fontSize = 9.5.sp,
+                    style = MaterialTheme.typography.labelSmall, color = sk.amber,
                 )
             }
         }
@@ -327,7 +327,7 @@ private fun CatalogueFigure(label: String, value: String, tint: Color) {
         )
         Text(
             label, style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.skill.subText, fontSize = 9.sp,
+            color = MaterialTheme.skill.subText,
         )
     }
 }
@@ -421,7 +421,6 @@ private fun CourseCard(course: Map<*, *>, onTrainerClick: (String, String) -> Un
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = if (certified > 0) sk.green else sk.red,
-                            fontSize = 9.sp,
                         )
                     }
                 }
@@ -481,7 +480,6 @@ private fun CourseCard(course: Map<*, *>, onTrainerClick: (String, String) -> Un
                                         if (o.bool("approved")) "approved" else null,
                                     ).joinToString(" · ").ifBlank { "no delivery history" },
                                     style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                                    fontSize = 9.sp,
                                 )
                             }
                             if (examCode.isNotBlank()) {
@@ -697,7 +695,7 @@ private fun Tag(text: String, tint: Color) {
     Surface(color = tint.copy(alpha = 0.13f), shape = RoundedCornerShape(6.dp)) {
         Text(
             text,
-            style = MaterialTheme.typography.labelSmall, color = tint, fontSize = 9.sp,
+            style = MaterialTheme.typography.labelSmall, color = tint,
             maxLines = 1,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
         )

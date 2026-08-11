@@ -24,6 +24,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.R
 import com.example.skillsync.theme.Layout
+import com.example.skillsync.theme.SectionHeading
+import com.example.skillsync.theme.SkillCard
+import com.example.skillsync.theme.ToneChip
+import com.example.skillsync.theme.Radii
+import com.example.skillsync.theme.heroSurface
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.StatusBarIcons
 import com.example.skillsync.theme.skill
@@ -63,10 +68,10 @@ fun Trainer360Screen(
                     Column {
                         Text(
                             trainerName.ifBlank { "Trainer" },
-                            fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White,
+                            fontWeight = FontWeight.Bold, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
-                        Text("Trainer 360", fontSize = 9.5.sp, color = Color.White.copy(alpha = 0.78f))
+                        Text("Trainer 360", color = Color.White.copy(alpha = 0.78f))
                     }
                 },
                 navigationIcon = {
@@ -335,7 +340,7 @@ private fun DecisionLine(label: String, value: String, tint: Color) {
 private fun OverviewMetric(label: String, value: String, tint: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(value, style = MaterialTheme.typography.titleMedium, color = tint, fontWeight = FontWeight.Bold)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText, fontSize = 8.sp)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText)
     }
 }
 
@@ -349,7 +354,7 @@ private fun ProfileGroupHeader(title: String, subtitle: String, tint: Color) {
         Spacer(Modifier.width(10.dp))
         Column {
             Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.skill.frost, fontWeight = FontWeight.Bold)
-            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText, fontSize = 9.sp)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText)
         }
     }
 }
@@ -365,48 +370,63 @@ private fun IdentityCard(
 ) {
     val sk = MaterialTheme.skill
     val name = identity?.str("name").orEmpty().ifBlank { "Trainer" }
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = sk.heroBg),
+
+    // The hero uses the app's shared surface rather than a Material Card with a
+    // two-colour gradient of its own, so this screen finally belongs to the same
+    // product as Today and Demand. Four equal figures across the bottom is also
+    // gone: utilisation, peak, courses and certificates were given identical
+    // weight, which told the manager nothing about what mattered.
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .heroSurface()
+            .padding(Space.lg),
+        verticalArrangement = Arrangement.spacedBy(Space.md),
     ) {
-        Column(
-            Modifier
-                .background(Brush.linearGradient(listOf(sk.heroBg, sk.heroBgAlt)))
-                .padding(16.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Avatar(name, identity?.str("photo_url"), 58.dp)
-                Spacer(Modifier.width(13.dp))
-                Column(Modifier.weight(1f)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Avatar(name, identity?.str("photo_url"), 56.dp)
+            Spacer(Modifier.width(Space.md))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    name,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = sk.heroText,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                identity?.str("designation")?.takeIf { it.isNotBlank() }?.let {
                     Text(
-                        name,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.ExtraBold, color = sk.heroText,
+                        it,
+                        style = MaterialTheme.typography.bodyMedium, color = sk.heroMuted,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
-                    identity?.str("designation")?.takeIf { it.isNotBlank() }?.let {
-                        Text(it, style = MaterialTheme.typography.labelMedium, color = sk.heroMuted)
-                    }
+                }
+                identity?.str("email")?.takeIf { it.isNotBlank() }?.let {
                     Text(
-                        identity?.str("email").orEmpty(),
-                        style = MaterialTheme.typography.labelSmall, color = sk.heroMuted,
-                        fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        it,
+                        style = MaterialTheme.typography.labelSmall, color = sk.ice,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
-            Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                HeroFigure(
-                    "Utilisation",
-                    if (util?.bool("available") == true) "${util.int("current")}%" else "—",
-                    sk.teal,
-                )
-                HeroFigure("Peak", "${util?.int("peak") ?: 0}%", sk.blue)
-                HeroFigure("Courses", "${cap?.int("total_courses") ?: 0}", sk.indigo)
-                HeroFigure("Certs", "${certs?.int("count") ?: 0}", sk.amber)
+        }
+
+        // Utilisation leads because it is the only figure here that moves week
+        // to week; the rest are context and are sized accordingly.
+        Row(verticalAlignment = Alignment.Bottom) {
+            com.example.skillsync.theme.Figure(
+                value = if (util?.bool("available") == true) "${util.int("current")}%" else "—",
+                label = "Utilisation",
+                size = com.example.skillsync.theme.FigureSize.Large,
+                tint = sk.heroText,
+                modifier = Modifier.weight(1f),
+            )
+            Row(
+                Modifier.weight(1.4f),
+                horizontalArrangement = Arrangement.spacedBy(Space.lg),
+            ) {
+                Figure("Peak", "${util?.int("peak") ?: 0}%", sk.ice)
+                Figure("Courses", "${cap?.int("total_courses") ?: 0}", sk.ice)
+                Figure("Certs", "${certs?.int("count") ?: 0}", sk.ice)
             }
         }
     }
@@ -523,7 +543,7 @@ private fun UtilisationSection(
                 Text(
                     "Next month (trend projection): ${projection.projected}% · ${projection.direction}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = tint, fontSize = 9.sp,
+                    color = tint,
                 )
             }
         } else {
@@ -594,7 +614,7 @@ private fun CapabilityMetrics(metrics: Map<*, *>?) {
                 )
                 Text(
                     if (teamSize > 1) "of $teamSize in team" else "team ranking",
-                    style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 9.sp,
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
                 )
             }
         }
@@ -734,7 +754,7 @@ private fun DeliveryReadinessSection(
                     Text(
                         "Confidence: $it%",
                         style = MaterialTheme.typography.labelSmall,
-                        color = sk.subText, fontSize = 9.sp,
+                        color = sk.subText,
                     )
                 }
             }
@@ -816,7 +836,6 @@ private fun DeliveryReadinessSection(
                                 priority.ifBlank { rec.str("recommendation_type").ifBlank { "Action" } },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = priorityColor, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                fontSize = 8.5.sp,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             )
                         }
@@ -937,14 +956,13 @@ private fun CertificationSection(certs: Map<*, *>?) {
                         Text(
                             "teaches ${m.str("because")}" +
                                 (m.int("delivered").takeIf { it > 0 }?.let { " · $it delivered" } ?: ""),
-                            style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                            fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.labelSmall, color = sk.subText, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
                     if (high) {
                         Text(
                             "HIGH", style = MaterialTheme.typography.labelSmall,
-                            color = sk.red, fontWeight = FontWeight.Bold, fontSize = 8.sp,
+                            color = sk.red, fontWeight = FontWeight.Bold,
                         )
                     }
                 }
@@ -972,7 +990,7 @@ private fun CertificationSection(certs: Map<*, *>?) {
                             Text(
                                 "natural next step from $it",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = sk.subText, fontSize = 9.sp,
+                                color = sk.subText,
                             )
                         }
                     }
@@ -1211,9 +1229,8 @@ private fun RiskIndicator(
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = tint,
-                fontSize = 18.sp,
             )
-            Text(label, style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 8.5.sp)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = sk.subText)
         }
     }
 }
@@ -1274,7 +1291,7 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
                     if (r.str("date").isNotBlank()) {
                         Text(
                             r.str("date"),
-                            style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 9.sp,
+                            style = MaterialTheme.typography.labelSmall, color = sk.subText,
                         )
                     }
                 }
@@ -1304,7 +1321,7 @@ private fun ManagerActionsSection(actions: List<Map<String, Any>>) {
                             Text(it, style = MaterialTheme.typography.labelSmall, color = sk.subText)
                         }
                         val context = listOf(action.str("category"), action.str("lifecycle_state")).filter { it.isNotBlank() }.joinToString(" · ")
-                        if (context.isNotBlank()) Text(context, style = MaterialTheme.typography.labelSmall, color = tint, fontSize = 9.sp)
+                        if (context.isNotBlank()) Text(context, style = MaterialTheme.typography.labelSmall, color = tint)
                     }
                 }
             }
@@ -1372,88 +1389,75 @@ private fun AvailabilitySection(avail: Map<*, *>?) {
 
 // ── Pieces ────────────────────────────────────────────────────────────────────
 
+/**
+ * Hero figure. Light weight and tight tracking so a number reads as a value;
+ * the old version was ExtraBold at titleLarge with a 9sp caption, which made
+ * every figure shout and the label unreadable.
+ */
 @Composable
 private fun HeroFigure(label: String, value: String, tint: Color) {
-    Column {
-        Text(
-            value, style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.ExtraBold, color = tint,
-        )
-        Text(
-            label, style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.skill.heroMuted, fontSize = 9.sp,
-        )
-    }
+    com.example.skillsync.theme.Figure(
+        value = value, label = label,
+        size = com.example.skillsync.theme.FigureSize.Medium, tint = tint,
+    )
 }
-
 @Composable
 private fun Figure(label: String, value: String, tint: Color) {
-    Column {
-        Text(
-            value, style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold, color = tint,
-        )
-        Text(
-            label, style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.skill.subText, fontSize = 9.sp,
-        )
-    }
+    com.example.skillsync.theme.Figure(
+        value = value, label = label,
+        size = com.example.skillsync.theme.FigureSize.Small, tint = tint,
+    )
 }
-
+/** Section label. One tracking and weight for every label on the screen. */
 @Composable
 private fun Label(text: String) {
     Text(
         text.uppercase(),
         style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.skill.subText,
-        fontWeight = FontWeight.Bold, fontSize = 9.sp,
+        color = MaterialTheme.skill.labelText,
     )
 }
-
 @Composable
 private fun CodeChip(code: String, tint: Color) {
-    Surface(color = tint.copy(alpha = 0.16f), shape = RoundedCornerShape(6.dp)) {
-        Text(
-            code,
-            style = MaterialTheme.typography.labelSmall, color = tint,
-            fontWeight = FontWeight.Bold, fontSize = 9.5.sp,
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-        )
-    }
+    ToneChip(code, tint)
 }
-
 /** Skips itself when the value is blank, so the card never shows empty rows. */
 @Composable
 private fun DetailRow(label: String, value: String) {
     if (value.isBlank()) return
-    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = Space.xs),
+        verticalAlignment = Alignment.Top,
+    ) {
         Text(
-            label, style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.skill.subText, modifier = Modifier.width(118.dp),
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.skill.labelText,
+            modifier = Modifier.width(124.dp),
         )
         Text(
-            value, style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.skill.bodyText, modifier = Modifier.weight(1f),
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.skill.bodyText,
+            modifier = Modifier.weight(1f),
         )
     }
 }
-
+/**
+ * Every section on this screen.
+ *
+ * Was a Material `Card` with an opaque fill, a 10dp radius and 1dp elevation —
+ * the only surface in the app not using the glass treatment, so Trainer 360
+ * looked like a different product from Demand and Today. The heading now sits
+ * outside the card on the shared `SectionHeading`, which gives the screen a
+ * scannable left edge instead of titles buried inside boxes.
+ */
 @Composable
 private fun SectionCard(title: String, subtitle: String?, body: @Composable ColumnScope.() -> Unit) {
-    Card(
-        Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.skill.cardBg),
-        elevation = CardDefaults.cardElevation(1.dp),
-    ) {
-        Column(Modifier.padding(14.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.skill.bodyText)
-            if (!subtitle.isNullOrBlank()) {
-                Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText)
-            }
-            Spacer(Modifier.height(10.dp))
-            body()
-        }
+    Column(Modifier.fillMaxWidth()) {
+        SectionHeading(title, subtitle?.takeIf { it.isNotBlank() })
+        Spacer(Modifier.height(Space.sm))
+        SkillCard(Modifier.fillMaxWidth(), content = body)
     }
 }
 
@@ -1567,7 +1571,7 @@ private fun FlowChips(items: List<String>, tint: Color) {
                         Text(
                             it,
                             style = MaterialTheme.typography.labelSmall, color = tint,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 9.5.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                         )
                     }

@@ -230,7 +230,6 @@ internal fun AllocationDeskContent(
                             "$total unallocated · ranked against your team's capability",
                             style = MaterialTheme.typography.labelSmall,
                             color = sk.labelText,
-                            fontSize = 10.sp,
                         )
                         Spacer(Modifier.height(14.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -260,7 +259,7 @@ internal fun AllocationDeskContent(
                     OutlinedTextField(
                         value = query,
                         onValueChange = { query = it },
-                        placeholder = { Text("Search course, vendor, mode, ref", fontSize = 12.sp) },
+                        placeholder = { Text("Search course, vendor, mode, ref") },
                         leadingIcon = {
                             Icon(painterResource(R.drawable.ic_search), null, tint = sk.subText, modifier = Modifier.size(16.dp))
                         },
@@ -279,7 +278,6 @@ internal fun AllocationDeskContent(
                         ) {
                             Text(
                                 if (activeFilterCount > 0) "Filters ($activeFilterCount)" else "Filters",
-                                fontSize = 12.sp,
                                 color = if (activeFilterCount > 0) sk.teal else sk.subText,
                                 fontWeight = FontWeight.Bold,
                             )
@@ -382,7 +380,7 @@ private fun FilterBottomSheet(
                     FilterChip(
                         selected = matchBand == band,
                         onClick = { onBandChange(band) },
-                        label = { Text(band.label, fontSize = 11.sp) },
+                        label = { Text(band.label) },
                     )
                 }
             }
@@ -488,7 +486,7 @@ private fun ActiveFilterChip(label: String, onRemove: () -> Unit) {
             Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = sk.teal, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = sk.teal, fontWeight = FontWeight.Bold)
             Spacer(Modifier.width(4.dp))
             Text("×", style = MaterialTheme.typography.labelSmall, color = sk.teal, fontWeight = FontWeight.ExtraBold)
         }
@@ -558,8 +556,7 @@ private fun StatFigure(value: String, label: String, tint: Color, modifier: Modi
     Column(modifier) {
         Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = tint)
         Text(
-            label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.labelText,
-            fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
+            label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.labelText, fontWeight = FontWeight.Bold,
         )
     }
 }
@@ -569,12 +566,12 @@ private fun MiniStat(label: String, value: String, tint: Color) {
     Column {
         Text(
             value, style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold, color = tint, fontSize = 11.5.sp,
+            fontWeight = FontWeight.Bold, color = tint,
         )
         Text(
             label.uppercase(), style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.skill.labelText, fontSize = 8.sp,
-            fontWeight = FontWeight.Bold, letterSpacing = 0.06.em,
+            color = MaterialTheme.skill.labelText,
+            fontWeight = FontWeight.Bold,
         )
     }
 }
@@ -658,7 +655,7 @@ internal fun BatchCard(
                             color = sk.crit, fontWeight = FontWeight.ExtraBold,
                             modifier = Modifier.weight(1f),
                         )
-                        Text("${b.int("relevance")}%", color = sk.crit, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp)
+                        Text("${b.int("relevance")}%", color = sk.crit, fontWeight = FontWeight.ExtraBold)
                     }
                     Spacer(Modifier.height(9.dp))
                 }
@@ -679,7 +676,7 @@ internal fun BatchCard(
                                 Surface(color = sk.teal, shape = RoundedCornerShape(4.dp)) {
                                     Text(
                                         "★ PRIORITY", style = MaterialTheme.typography.labelSmall,
-                                        color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                                        color = Color.White, fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
                                     )
                                 }
@@ -693,7 +690,7 @@ internal fun BatchCard(
                                     Text(
                                         mode.uppercase(), style = MaterialTheme.typography.labelSmall,
                                         color = if (isPriority) sk.teal else sk.subText,
-                                        fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
                                     )
                                 }
@@ -737,7 +734,7 @@ internal fun BatchCard(
                         Text(
                             coverageLabel,
                             style = MaterialTheme.typography.labelSmall,
-                            color = coverageTint, fontWeight = FontWeight.Bold, fontSize = 9.sp,
+                            color = coverageTint, fontWeight = FontWeight.Bold,
                             textAlign = androidx.compose.ui.text.style.TextAlign.End,
                             modifier = Modifier.widthIn(max = 88.dp),
                         )
@@ -767,8 +764,7 @@ internal fun BatchCard(
                     Spacer(Modifier.height(7.dp))
                     Text(
                         "RECOMMENDED TRAINERS",
-                        style = MaterialTheme.typography.labelSmall, color = sk.labelText,
-                        fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
+                        style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.height(5.dp))
                     UncheckedNotice(b)
@@ -814,7 +810,7 @@ internal fun BatchCard(
                                                 c.intOrNull("suitability_score")?.let { "$it suitability" },
                                             ).joinToString(" · "),
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = sk.subText, fontSize = 9.sp,
+                                            color = sk.subText,
                                             maxLines = 1,
                                         )
                                     }
@@ -853,14 +849,14 @@ internal fun BatchCard(
                                             "Skill ${parts.int("skill")} · Ready ${parts.int("readiness")} · " +
                                                 "Avail ${parts.int("availability")} · Cert ${parts.int("certification")} · Lang ${parts.int("language")}",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = sk.subText, fontSize = 8.sp, maxLines = 1,
+                                            color = sk.subText, maxLines = 1,
                                         )
                                     }
                                 }
                                 Text(
                                     if (blocked) "Blocked" else c.str("coverage"),
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = dotTint, fontSize = 9.5.sp,
+                                    color = dotTint,
                                 )
                             }
 
@@ -924,7 +920,6 @@ internal fun BatchCard(
                                     if (managerRecommendation.bool("availability_verified")) "availability verified" else "availability unverified",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (managerRecommendation.bool("availability_verified")) sk.green else sk.warn,
-                                fontSize = 8.5.sp,
                             )
                         }
                     }
@@ -1082,8 +1077,7 @@ private fun GlobalPriorityRibbon(batch: Map<*, *>) {
         Text(
             "GLOBAL PRIORITY",
             style = MaterialTheme.typography.labelSmall,
-            color = sk.frost, fontWeight = FontWeight.ExtraBold,
-            letterSpacing = 0.08.em, modifier = Modifier.weight(1f),
+            color = sk.frost, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f),
         )
         Surface(color = sk.aqua.copy(alpha = 0.18f), shape = RoundedCornerShape(6.dp)) {
             Row(Modifier.padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1091,7 +1085,7 @@ private fun GlobalPriorityRibbon(batch: Map<*, *>) {
                 Spacer(Modifier.width(4.dp))
                 Text(
                     if (batch.str("delivery_mode_kind") == "FMAT") "TRAVEL REQUIRED" else "INTERNATIONAL DELIVERY",
-                    color = sk.aqua, fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                    color = sk.aqua, fontWeight = FontWeight.Bold,
                 )
             }
         }
@@ -1119,8 +1113,8 @@ private fun InternationalBadge() {
             )
             Spacer(Modifier.width(3.dp))
             Text(
-                "GLOBAL OPPORTUNITY", color = sk.sky, fontSize = 8.sp,
-                fontWeight = FontWeight.Bold, letterSpacing = 0.05.em,
+                "GLOBAL OPPORTUNITY", color = sk.sky,
+                fontWeight = FontWeight.Bold,
             )
         }
     }
@@ -1159,7 +1153,6 @@ private fun InternationalOpportunityBanner(batch: Map<*, *>) {
                     "INTERNATIONAL ${batch.str("delivery_mode_kind")} OPPORTUNITY",
                     style = MaterialTheme.typography.labelSmall,
                     color = sk.sky, fontWeight = FontWeight.ExtraBold,
-                    fontSize = 9.sp, letterSpacing = 0.06.em,
                 )
                 Text(
                     batch.str("location").ifBlank { "Foreign location" },
@@ -1173,7 +1166,7 @@ private fun InternationalOpportunityBanner(batch: Map<*, *>) {
                     else
                         "INTERNATIONAL CLASSROOM · Confirm travel, location and trainer readiness",
                     style = MaterialTheme.typography.labelSmall,
-                    color = sk.subText, fontSize = 8.5.sp, maxLines = 2,
+                    color = sk.subText, maxLines = 2,
                 )
             }
             Surface(color = sk.indigo.copy(alpha = 0.16f), shape = RoundedCornerShape(7.dp)) {
@@ -1217,8 +1210,7 @@ private fun LazyListScope.globalPrioritySection(
             Text(
                 "ALL OTHER DEMAND",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.skill.labelText,
-                fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.skill.labelText, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 9.dp),
             )
             HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.skill.cardBorder)
@@ -1249,12 +1241,11 @@ private fun GlobalPriorityHeader(batches: List<Map<*, *>>) {
                     "GLOBAL PRIORITY DESK",
                     style = MaterialTheme.typography.titleSmall,
                     color = Color.White, fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 0.04.em,
                 )
                 Text(
                     "International FMAT & ILT · travel, visa and allocation decisions first",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.76f), fontSize = 9.sp,
+                    color = Color.White.copy(alpha = 0.76f),
                     maxLines = 2,
                 )
             }
@@ -1353,7 +1344,6 @@ private fun ModeSectionHeader(
                 subtitle,
                 style = MaterialTheme.typography.labelSmall,
                 color = sk.labelText,
-                fontSize = 9.5.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -1365,7 +1355,6 @@ private fun ModeSectionHeader(
                     style = MaterialTheme.typography.labelSmall,
                     color = sk.indigo,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 9.sp,
                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
                 )
             }

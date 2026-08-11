@@ -117,8 +117,8 @@ internal fun TeamMemberCard(
                     Text(
                         statusLabel.uppercase(),
                         style = MaterialTheme.typography.labelSmall,
-                        color = statusColor, fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 0.07.em,
+                        color = statusColor,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                     )
                 }
@@ -134,11 +134,11 @@ internal fun TeamMemberCard(
                         Text(
                             "$health",
                             style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold, color = healthColor, fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold, color = healthColor,
                         )
                         Text(
                             healthBucket.uppercase(), style = MaterialTheme.typography.labelSmall,
-                            color = healthColor, fontSize = 6.5.sp, fontWeight = FontWeight.Bold,
+                            color = healthColor, fontWeight = FontWeight.Bold,
                             maxLines = 1,
                         )
                     }
@@ -150,7 +150,7 @@ internal fun TeamMemberCard(
                 Text(
                     designation,
                     style = MaterialTheme.typography.labelSmall,
-                    color = sk.subText, fontSize = 9.sp,
+                    color = sk.subText,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -216,7 +216,7 @@ internal fun TeamMemberCard(
                 Text(
                     curCourse,
                     style = MaterialTheme.typography.labelSmall,
-                    color = sk.frost, fontSize = 9.5.sp, fontWeight = FontWeight.Medium,
+                    color = sk.frost, fontWeight = FontWeight.Medium,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text(
@@ -227,20 +227,20 @@ internal fun TeamMemberCard(
                         else -> "ends in $daysLeft days"
                     },
                     style = MaterialTheme.typography.labelSmall,
-                    color = sk.labelText, fontSize = 8.5.sp,
+                    color = sk.labelText,
                 )
             } else {
                 Text(
                     "No current assignment",
                     style = MaterialTheme.typography.labelSmall,
-                    color = sk.subText, fontSize = 9.5.sp,
+                    color = sk.subText,
                 )
             }
             Spacer(Modifier.height(3.dp))
             Text(
                 "$upcoming upcoming",
                 style = MaterialTheme.typography.labelSmall,
-                color = if (upcoming > 0) sk.sky else sk.subText, fontSize = 8.5.sp,
+                color = if (upcoming > 0) sk.sky else sk.subText,
                 fontWeight = if (upcoming > 0) FontWeight.SemiBold else FontWeight.Normal,
             )
 
@@ -273,7 +273,7 @@ internal fun TeamMemberCard(
                     Text(
                         label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = tint, fontSize = 8.5.sp,
+                        color = tint,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
@@ -282,7 +282,7 @@ internal fun TeamMemberCard(
                     Text(
                         "$exclusions client exclusion${if (exclusions == 1) "" else "s"}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = sk.crit, fontSize = 8.5.sp,
+                        color = sk.crit,
                     )
                 }
             }
@@ -291,7 +291,7 @@ internal fun TeamMemberCard(
                 Text(
                     "Next · $nextCourse",
                     style = MaterialTheme.typography.labelSmall,
-                    color = sk.sky, fontSize = 8.5.sp,
+                    color = sk.sky,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -304,8 +304,7 @@ internal fun TeamMemberCard(
                     "available" -> sk.aqua
                     "conflict" -> sk.crit
                     else -> sk.warn
-                },
-                fontSize = 8.5.sp, fontWeight = FontWeight.SemiBold,
+                }, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
 
@@ -321,8 +320,7 @@ internal fun TeamMemberCard(
                 ) {
                     Text(
                         "$feedbackRisk risk", style = MaterialTheme.typography.labelSmall,
-                        color = when (feedbackRisk) { "High" -> sk.crit; "Medium" -> sk.warn; else -> sk.aqua },
-                        fontSize = 7.5.sp, fontWeight = FontWeight.Bold,
+                        color = when (feedbackRisk) { "High" -> sk.crit; "Medium" -> sk.warn; else -> sk.aqua }, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                     )
                 }
@@ -330,8 +328,7 @@ internal fun TeamMemberCard(
                     Surface(color = sk.crit.copy(alpha = 0.14f), shape = RoundedCornerShape(5.dp)) {
                         Text(
                             "$openActionCount action${if (openActionCount == 1) "" else "s"}",
-                            style = MaterialTheme.typography.labelSmall, color = sk.crit,
-                            fontSize = 7.5.sp, fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelSmall, color = sk.crit, fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                         )
                     }
@@ -357,7 +354,7 @@ internal fun TeamMemberCard(
                     Text(
                         recommended,
                         style = MaterialTheme.typography.labelSmall,
-                        color = healthColor, fontSize = 8.5.sp, fontWeight = FontWeight.SemiBold,
+                        color = healthColor, fontWeight = FontWeight.SemiBold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -371,12 +368,12 @@ private fun MiniMetric(label: String, value: String, tint: Color, modifier: Modi
     Column(modifier) {
         Text(
             label, style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.skill.ice, fontSize = 7.5.sp,
-            fontWeight = FontWeight.Bold, letterSpacing = 0.1.em,
+            color = MaterialTheme.skill.ice,
+            fontWeight = FontWeight.Bold,
         )
         Text(
             value, style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold, color = tint, fontSize = 14.sp,
+            fontWeight = FontWeight.Bold, color = tint,
         )
     }
 }

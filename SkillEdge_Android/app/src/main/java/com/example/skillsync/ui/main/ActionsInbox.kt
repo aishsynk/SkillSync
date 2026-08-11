@@ -145,7 +145,7 @@ internal fun ActionsInbox(
                                 error, style = MaterialTheme.typography.bodySmall,
                                 color = sk.crit, modifier = Modifier.weight(1f),
                             )
-                            TextButton(onClick = onDismissError) { Text("Dismiss", fontSize = 11.sp) }
+                            TextButton(onClick = onDismissError) { Text("Dismiss") }
                         }
                     }
                 }
@@ -254,14 +254,13 @@ private fun ActionCard(
                 Text(
                     action.str("category").uppercase(),
                     style = MaterialTheme.typography.labelSmall,
-                    color = edge, fontSize = 8.5.sp, fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.1.em,
+                    color = edge, fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.width(8.dp))
                 if (action.str("source") == "raised") {
                     Text(
                         "RAISED BY YOU", style = MaterialTheme.typography.labelSmall,
-                        color = sk.labelText, fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                        color = sk.labelText, fontWeight = FontWeight.Bold,
                     )
                 }
                 Spacer(Modifier.weight(1f))
@@ -318,7 +317,7 @@ private fun ActionCard(
                         Text(
                             "due ${due.shortDate()}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = sk.labelText, fontSize = 9.5.sp,
+                            color = sk.labelText,
                         )
                         Spacer(Modifier.width(12.dp))
                     }
@@ -326,7 +325,7 @@ private fun ActionCard(
                         Text(
                             "${notes.size} follow-up${if (notes.size == 1) "" else "s"}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = sk.labelText, fontSize = 9.5.sp,
+                            color = sk.labelText,
                         )
                     }
                 }
@@ -351,7 +350,7 @@ private fun ActionCard(
 @Composable
 private fun QuickAction(label: String, tint: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     TextButton(onClick = onClick, modifier = modifier) {
-        Text(label, color = tint, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = tint, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -367,8 +366,7 @@ private fun StatePill(state: String) {
             .padding(horizontal = 8.dp, vertical = 3.dp),
     ) {
         Text(
-            label, style = MaterialTheme.typography.labelSmall, color = tint,
-            fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.05.em,
+            label, style = MaterialTheme.typography.labelSmall, color = tint, fontWeight = FontWeight.Bold,
         )
     }
 }
@@ -388,7 +386,6 @@ private fun StateChip(label: String, count: Int, selected: Boolean, onClick: () 
                 label, style = MaterialTheme.typography.labelMedium,
                 color = if (selected) sk.sky else sk.labelText,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                fontSize = 11.5.sp,
             )
             if (count > 0) {
                 Spacer(Modifier.width(6.dp))
@@ -398,7 +395,7 @@ private fun StateChip(label: String, count: Int, selected: Boolean, onClick: () 
                         .padding(horizontal = 5.dp, vertical = 1.dp),
                 ) {
                     Text(
-                        "$count", fontSize = 8.5.sp, fontWeight = FontWeight.Bold,
+                        "$count", fontWeight = FontWeight.Bold,
                         color = if (selected) Color.White else sk.frost,
                     )
                 }
@@ -421,7 +418,6 @@ private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) 
             label, style = MaterialTheme.typography.labelSmall,
             color = if (selected) sk.ice else sk.subText,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            fontSize = 10.5.sp,
         )
     }
 }
@@ -446,8 +442,7 @@ private fun ActionDetailSheet(
         ) {
             Text(
                 action.str("category").uppercase(),
-                style = MaterialTheme.typography.labelSmall, color = sk.ice,
-                fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.12.em,
+                style = MaterialTheme.typography.labelSmall, color = sk.ice, fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(5.dp))
             Text(
@@ -487,8 +482,7 @@ private fun ActionDetailSheet(
             Spacer(Modifier.height(16.dp))
             Text(
                 "MOVE THIS ACTION", style = MaterialTheme.typography.labelSmall,
-                color = sk.ice, fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                letterSpacing = 0.12.em,
+                color = sk.ice, fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(8.dp))
             Row(
@@ -507,7 +501,7 @@ private fun ActionDetailSheet(
                         shape = RoundedCornerShape(Radii.chip),
                         border = androidx.compose.foundation.BorderStroke(1.dp, stateTint(st).copy(alpha = 0.5f)),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = stateTint(st)),
-                    ) { Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+                    ) { Text(label, fontWeight = FontWeight.SemiBold) }
                 }
             }
 
@@ -515,8 +509,8 @@ private fun ActionDetailSheet(
             OutlinedTextField(
                 value = note,
                 onValueChange = { note = it },
-                label = { Text("Follow-up note", fontSize = 12.sp) },
-                placeholder = { Text("What did you do, or what is next?", fontSize = 12.sp) },
+                label = { Text("Follow-up note") },
+                placeholder = { Text("What did you do, or what is next?") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 minLines = 2,
@@ -533,8 +527,7 @@ private fun ActionDetailSheet(
                 Spacer(Modifier.height(18.dp))
                 Text(
                     "FOLLOW-UP TRAIL", style = MaterialTheme.typography.labelSmall,
-                    color = sk.ice, fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.12.em,
+                    color = sk.ice, fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.height(8.dp))
                 notes.reversed().forEach { n ->
@@ -543,7 +536,7 @@ private fun ActionDetailSheet(
                         Text(
                             n.str("at").shortDate(),
                             style = MaterialTheme.typography.labelSmall,
-                            color = sk.subText, fontSize = 9.sp,
+                            color = sk.subText,
                         )
                     }
                     HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.4f), thickness = 0.5.dp)
@@ -554,7 +547,7 @@ private fun ActionDetailSheet(
                 Spacer(Modifier.height(14.dp))
                 Text(
                     "${history.size} audited event${if (history.size == 1) "" else "s"} on record",
-                    style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 10.sp,
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
                 )
             }
         }
@@ -585,20 +578,20 @@ private fun RaiseActionSheet(
 
             OutlinedTextField(
                 value = title, onValueChange = { title = it },
-                label = { Text("What needs doing?", fontSize = 12.sp) },
+                label = { Text("What needs doing?") },
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
                 singleLine = true,
             )
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(
                 value = detail, onValueChange = { detail = it },
-                label = { Text("Detail (optional)", fontSize = 12.sp) },
+                label = { Text("Detail (optional)") },
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
                 minLines = 2,
             )
 
             Spacer(Modifier.height(14.dp))
-            Text("TYPE", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Text("TYPE", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -610,7 +603,7 @@ private fun RaiseActionSheet(
             }
 
             Spacer(Modifier.height(12.dp))
-            Text("PRIORITY", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            Text("PRIORITY", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 listOf("high", "medium", "low").forEach {

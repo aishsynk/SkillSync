@@ -123,10 +123,9 @@ fun BatchDetailScreen(
                 TopAppBar(
                     title = {
                         Column {
-                            Text("Demand detail", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = sk.frost)
+                            Text("Demand detail", fontWeight = FontWeight.SemiBold, color = sk.frost)
                             Text(
-                                "Ref ${batch.str("demand_id")}",
-                                fontSize = 9.5.sp, color = sk.labelText,
+                                "Ref ${batch.str("demand_id")}", color = sk.labelText,
                             )
                         }
                     },
@@ -161,7 +160,7 @@ fun BatchDetailScreen(
                         }
                         Text(
                             coverageLabel, style = MaterialTheme.typography.labelSmall,
-                            color = coverageTint, fontWeight = FontWeight.Bold, fontSize = 11.sp,
+                            color = coverageTint, fontWeight = FontWeight.Bold,
                         )
                         Spacer(Modifier.height(6.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -228,12 +227,12 @@ fun BatchDetailScreen(
                     Column(Modifier.padding(16.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("START", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.1.em)
+                                Text("START", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontWeight = FontWeight.Bold)
                                 Text(batch.str("start_date").takeIf { it.isNotBlank() }?.shortDate() ?: "—", style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.SemiBold)
                             }
                             Icon(painterResource(R.drawable.ic_chevron), null, tint = sk.subText, modifier = Modifier.size(16.dp))
                             Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                                Text("END", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.1.em)
+                                Text("END", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontWeight = FontWeight.Bold)
                                 Text(batch.str("end_date").takeIf { it.isNotBlank() }?.shortDate() ?: "—", style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.SemiBold)
                             }
                             batch.intOrNull("days")?.let {
@@ -282,7 +281,7 @@ fun BatchDetailScreen(
                         Spacer(Modifier.height(2.dp))
                         Text(
                             "Ranked by skill fit, readiness, availability and language — includes you",
-                            style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontSize = 10.sp,
+                            style = MaterialTheme.typography.labelSmall, color = sk.labelText,
                         )
                         Spacer(Modifier.height(10.dp))
                         if (candidates.isEmpty()) {
@@ -332,7 +331,7 @@ fun BatchDetailScreen(
                                     TextButton(onClick = {
                                         shareTarget = c.str("trainer_name") to c.str("trainer_email")
                                         showMessagePreview = true
-                                    }) { Text("Message", fontSize = 11.sp, color = sk.sky) }
+                                    }) { Text("Message", color = sk.sky) }
                                 }
                             }
                         }
@@ -478,8 +477,8 @@ private fun DetailStat(label: String, value: String, tint: Color) {
         Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = tint)
         Text(
             label.uppercase(), style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.skill.labelText, fontSize = 8.sp,
-            fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
+            color = MaterialTheme.skill.labelText,
+            fontWeight = FontWeight.Bold,
         )
     }
 }
@@ -524,9 +523,7 @@ private fun FactGrid(facts: List<Pair<String, String>>) {
                             label.uppercase(),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.skill.ice,
-                            fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.09.em,
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
@@ -610,7 +607,7 @@ private fun ActionBar(actions: List<ActionItem>) {
                     Text(
                         a.label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = sk.labelText, fontSize = 9.5.sp, maxLines = 1,
+                        color = sk.labelText, maxLines = 1,
                     )
                 }
             }

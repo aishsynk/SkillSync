@@ -729,20 +729,22 @@ class ScreenRenderTest {
         listOf("Current assignment", "Future availability").forEach {
             compose.onAllNodesWithText(it).onFirst().assertExists()
         }
-        // Now
-        listOf("Utilisation", "Delivery").forEach { label ->
+        // Now. Section titles are small-caps since the screen moved onto the
+        // shared SectionHeading, which is what gives every surface in the app
+        // the same scannable left edge.
+        listOf("UTILISATION", "DELIVERY").forEach { label ->
             compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(label))
             compose.onAllNodesWithText(label).onFirst().assertExists()
         }
         // Capability
         compose.onNodeWithText("Capability").performClick()
-        listOf("Certifications", "Personal details").forEach { label ->
+        listOf("CERTIFICATIONS", "PERSONAL DETAILS").forEach { label ->
             compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(label))
             compose.onAllNodesWithText(label).onFirst().assertExists()
         }
         // Performance
         compose.onNodeWithText("Performance").performClick()
-        listOf("Capability metrics", "Feedback & incidents").forEach { label ->
+        listOf("CAPABILITY METRICS", "FEEDBACK & INCIDENTS").forEach { label ->
             compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(label))
             compose.onAllNodesWithText(label).onFirst().assertExists()
         }
