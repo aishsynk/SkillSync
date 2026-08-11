@@ -169,6 +169,39 @@ _APIS = {
         "role": "Unallocated Assignment",
         "key":  "190",
     },
+    # ── Availability & international eligibility ─────────────────────────────
+    # The two endpoints the 2026-08-11 audit found unwired, both validated live
+    # the same day. Together they replace utilisation-as-availability, which is
+    # the single largest correctness error in the product: a trainer at 80% can
+    # be free on the dates that matter, and one at 40% can be on leave.
+    #
+    # 171 is course-first and returns the whole skilled pool, not only the free
+    # ones: 37 rows for AZ-305, 21 for CKA. Per trainer it carries a literal
+    # free-date calendar (~155 days), TrainerTimezone (100% populated),
+    # NearestCity, Skill Level, course-specific assignment count, and Visa as
+    # [{Country, VisaExpiryDate, StayPeriod, AssociateCountries}] (~48%).
+    #
+    # It requires an EXACT catalogue course name. "AZ-305T00: …" returns 37
+    # rows; "AI-102T00: …", "AZ-104T00: …" and "CCNA - …" all return 0. That is
+    # why _resolve_course_name exists and why a miss must read "cannot verify",
+    # never "nobody available".
+    "trainerFreeSchedule": {
+        "user": _ev("SKILLEDGE_RMS_TRAINER_FREE_SCHEDULE_USER", "AISHWAR_GetTrainerFreeS"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_FREE_SCHEDULE_PASS", "J6FLKGx!exA7"),
+        "role": "Get Trainer Free Shedule and Details",
+        "key":  "171",
+    },
+    # 111 is the day-level operational calendar: 61 rows x 35 fields for one
+    # trainer over two months. Carries LeaveStatus and its applied/approved
+    # dates, AssociatedType, QuotationStatus (confirmed vs tentative),
+    # DeliveryMode, QubitScore, Exam, and the two client-relationship fields
+    # nothing else exposes — SpecifiedTrainer (preference) and DNC (exclusion).
+    "trainerRCSchedule": {
+        "user": _ev("SKILLEDGE_RMS_TRAINER_RC_SCHEDULE_USER", "AISHWAR_TrainerRCSchedu"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_RC_SCHEDULE_PASS", "jGErt8!Agr$a"),
+        "role": "Trainer RC Schedule",
+        "key":  "111",
+    },
     # Course-level exam policy for the whole catalogue. Verified live
     # 2026-08-08: 10,934 rows across 438 vendors, fields Courseid / CName /
     # "Exam Required or Not" / CourseStatus / Vendor. This is what lets the
@@ -446,6 +479,13 @@ _CACHE_TTL = {
     "courseCatalogue":   21600,  # 8.8k-row catalogue metadata; changes rarely
     "courseSchedule":      900,  # public dates change during the day
     "last3MonthsUtil":    1800,  # same volatility as the utilisation rollup
+    # Availability is the most volatile thing in the product — a leave approval
+    # or a new booking invalidates it — but 171 is a per-course call and a
+    # 40-batch demand board means 40 of them, so it cannot be uncached.
+    # 10 minutes is the compromise: fresh enough for a day's allocation work,
+    # cheap enough for a full board refresh.
+    "trainerFreeSchedule": 600,
+    "trainerRCSchedule":   600,
     # "trainerSkills" intentionally omitted — see above.
     # "addTrainerSkill" is a write and must never be served from cache.
 }
@@ -3635,6 +3675,514 @@ def v2_demand_context():
         "note": "Unavailable fields are unverified, not assumed empty.",
         "generated_at": datetime.utcnow().isoformat(),
     }), 200
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# INTELLIGENCE LAYER
+#
+# Utilisation is not availability.
+#
+# A trainer at 80% can be free on the dates that matter; one at 40% can be
+# unavailable because of leave, travel, an existing booking or a client
+# exclusion. Everything below is built on real dates from RMS keys 171 and 111
+# rather than on inference from a utilisation percentage, which is the largest
+# correctness error the 2026-08-11 audit found.
+#
+# Three rules hold throughout:
+#
+#   1. Hard gates run before any scoring. A DNC trainer at 95% fit must never
+#      outrank a clear trainer at 80% — a client exclusion is not a weight.
+#   2. Unknown is a first-class state, distinct from zero and from false. Only
+#      ~48% of trainers carry a visa record; treating absence as ineligible
+#      would silently hide half the bench, so unknown surfaces as
+#      "verification required" and never as exclusion.
+#   3. Every verdict carries its evidence. A score a manager cannot audit is a
+#      score they cannot overrule.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _resolve_course_name(name):
+    """
+    Map a loose course name onto the exact RMS catalogue string.
+
+    RMS key 171 needs an exact match: "AZ-305T00: Designing Microsoft Azure
+    Infrastructure Solutions" returns 37 candidates, while "AZ-104T00: …",
+    "AI-102T00: …" and "CCNA - …" each return zero. Passing an unresolved name
+    straight through would report an empty pool as "nobody is available", which
+    is the most dangerous possible failure for an allocation tool.
+
+    Returns (exact_name, confidence) where confidence is:
+      "exact"    — the catalogue holds this name verbatim
+      "resolved" — matched on a normalised or prefix basis
+      ""         — no match; the caller must report "cannot verify"
+    """
+    raw = str(name or "").strip()
+    if not raw:
+        return "", ""
+    index = _course_catalogue_index()
+    if not index:
+        return raw, ""
+
+    key = _norm_course(raw)
+    hit = index.get(key)
+    if hit and hit.get("course_name"):
+        return hit["course_name"], "exact"
+
+    # Course codes are the reliable handle: managers say "AZ-305", RMS stores
+    # "AZ-305T00: Designing Microsoft Azure Infrastructure Solutions".
+    code = _re.match(r"^\s*([a-z]{2,4}[\s\-]?\d{2,4})", raw.lower())
+    if code:
+        token = _re.sub(r"[\s\-]", "", code.group(1))
+        for k, v in index.items():
+            compact = _re.sub(r"[\s\-]", "", k)
+            if compact.startswith(token):
+                return v["course_name"], "resolved"
+
+    for k, v in index.items():
+        if k.startswith(key) or key.startswith(k):
+            return v["course_name"], "resolved"
+
+    # Managers routinely drop the code and say only the title — "Designing
+    # Microsoft Azure Infrastructure Solutions" for "AZ-305T00: Designing …".
+    # Neither string is a prefix of the other, so containment is checked last,
+    # and only for names long enough that a coincidental hit is implausible.
+    if len(key) >= 12:
+        for k, v in index.items():
+            if key in k:
+                return v["course_name"], "resolved"
+    return "", ""
+
+
+def _parse_free_dates(value):
+    """
+    RMS key 171 returns availability as a comma-separated date list, e.g.
+    "2026-08-15,2026-08-16,…" — typically ~155 days per trainer.
+    """
+    out = set()
+    for part in str(value or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        for fmt in ("%Y-%m-%d", "%d-%b-%Y", "%d %b %Y"):
+            try:
+                out.add(datetime.strptime(part, fmt).date())
+                break
+            except ValueError:
+                continue
+    return out
+
+
+def _parse_visa(value):
+    """
+    Visa records from key 171:
+      [{"Country","VisaExpiryDate","StayPeriod","AssociateCountries"}]
+
+    AssociateCountries matters — an Australia visa was observed live also
+    covering "Philippines,Egypt", so matching only on Country would wrongly
+    block eligible trainers.
+    """
+    raw = value
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            return []
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for v in raw:
+        if not isinstance(v, dict):
+            continue
+        expiry = None
+        for fmt in ("%d %b %Y", "%Y-%m-%d", "%d-%b-%Y"):
+            try:
+                expiry = datetime.strptime(str(v.get("VisaExpiryDate") or "").strip(), fmt).date()
+                break
+            except ValueError:
+                continue
+        stay = _re.search(r"(\d+)", str(v.get("StayPeriod") or ""))
+        associates = [a.strip().lower() for a in
+                      str(v.get("AssociateCountries") or "").split(",") if a.strip()]
+        out.append({
+            "country": str(v.get("Country") or "").strip(),
+            "expiry": expiry,
+            "stay_days": int(stay.group(1)) if stay else None,
+            "associates": associates,
+        })
+    return out
+
+
+def _parse_skill_level(value):
+    """
+    Skill level is 1–10, but a future skill is encoded inside the same string:
+    "1 (Future Skill: 08-Sep-2026)". Parsing it as an int would silently drop
+    the succession signal, so both are returned.
+    """
+    s = str(value or "").strip()
+    level = None
+    m = _re.match(r"^\s*(\d+)", s)
+    if m:
+        level = int(m.group(1))
+    future = _re.search(r"future skill\s*:\s*([0-9a-z\- ]+)", s, _re.I)
+    future_date = None
+    if future:
+        for fmt in ("%d-%b-%Y", "%Y-%m-%d", "%d %b %Y"):
+            try:
+                future_date = datetime.strptime(future.group(1).strip(), fmt).date()
+                break
+            except ValueError:
+                continue
+    return level, future_date
+
+
+def _free_schedule(course_name):
+    """
+    The candidate pool for a course, keyed by lowercase trainer name.
+
+    Returns ({}, reason) when the pool cannot be established, so callers can
+    distinguish "no trainer is free" from "we could not check".
+    """
+    exact, confidence = _resolve_course_name(course_name)
+    if not exact:
+        return {}, f"course '{course_name}' not found in the RMS catalogue"
+    rows = _rms("trainerFreeSchedule", {"course": exact})
+    if not isinstance(rows, list):
+        return {}, "trainer free schedule unavailable"
+    out = {}
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        name = str(r.get("TrainerName") or "").strip()
+        if not name:
+            continue
+        level, future_date = _parse_skill_level(r.get("Skill Level"))
+        out[name.lower()] = {
+            "trainer_name": name,
+            "skill_level": level,
+            "future_skill_date": future_date.isoformat() if future_date else "",
+            "total_assignments": r.get("Total #Assignment"),
+            "course_assignments": r.get("#Assignment for the Course"),
+            "location": str(r.get("Location") or "").strip(),
+            "nearest_city": str(r.get("NearestCity") or "").strip(),
+            "timezone": str(r.get("TrainerTimezone") or "").strip(),
+            "free_dates": _parse_free_dates(r.get("Trainer Free Date")),
+            "visa": _parse_visa(r.get("Visa")),
+            "resolved_course": exact,
+            "match_confidence": confidence,
+        }
+    return out, ""
+
+
+def _rc_schedule(email, start, end):
+    """
+    Day-level operational calendar for one trainer (RMS key 111).
+
+    Extracts only what changes an allocation decision: approved or applied
+    leave, confirmed versus tentative bookings, and the two client-relationship
+    signals nothing else in the estate exposes — SpecifiedTrainer (this client
+    asked for them) and DNC (this client refuses them).
+    """
+    rows = _rms("trainerRCSchedule", {
+        "traineremail": email,
+        "fromDate": start.isoformat() if hasattr(start, "isoformat") else str(start),
+        "toDate": end.isoformat() if hasattr(end, "isoformat") else str(end),
+    })
+    out = {"leave_dates": set(), "confirmed_dates": set(), "tentative_dates": set(),
+           "dnc_clients": set(), "specified_clients": set(), "modes": [], "rows": 0}
+    if not isinstance(rows, list):
+        return out, "schedule unavailable"
+
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        out["rows"] += 1
+        day = None
+        for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d", "%d-%b-%Y"):
+            try:
+                day = datetime.strptime(str(r.get("Date") or "").strip(), fmt).date()
+                break
+            except ValueError:
+                continue
+
+        if str(r.get("LeaveStatus") or "").strip():
+            if day:
+                out["leave_dates"].add(day)
+        elif day and str(r.get("AssociatedType") or "").strip().lower() != "free":
+            # Tentative work is a soft conflict, not an absence. Treating a
+            # provisional booking as unavailable is how a bench looks emptier
+            # than it is.
+            if str(r.get("QuotationStatus") or "").strip().lower() == "confirmed":
+                out["confirmed_dates"].add(day)
+            else:
+                out["tentative_dates"].add(day)
+
+        if str(r.get("DNC") or "").strip():
+            out["dnc_clients"].add(str(r.get("DNC")).strip().lower())
+        if str(r.get("SpecifiedTrainer") or "").strip():
+            out["specified_clients"].add(str(r.get("SpecifiedTrainer")).strip().lower())
+        mode = str(r.get("DeliveryMode") or "").strip()
+        if mode:
+            out["modes"].append(mode)
+    return out, ""
+
+
+def _delivery_days(start, end):
+    """Every calendar day a batch occupies, inclusive."""
+    if not start or not end or end < start:
+        return []
+    return [start + timedelta(days=i) for i in range((end - start).days + 1)]
+
+
+def availability_verdict(free_dates, schedule, days):
+    """
+    Real availability for a specific set of delivery days.
+
+    This is the function that replaces capacity_bucket and current_status as
+    the answer to "are they free". It answers for *these dates*, because
+    availability is a property of a batch, not of a person.
+    """
+    if not days:
+        return {"status": "unknown", "reason": "batch dates unknown",
+                "blocked_days": [], "soft_conflicts": []}
+    if not free_dates:
+        return {"status": "unknown", "reason": "no availability record for this course",
+                "blocked_days": [], "soft_conflicts": []}
+
+    required = set(days)
+    leave = sorted(required & schedule.get("leave_dates", set()))
+    booked = sorted(required & schedule.get("confirmed_dates", set()))
+    soft = sorted(required & schedule.get("tentative_dates", set()))
+    not_free = sorted(d for d in required if d not in free_dates)
+
+    hard = sorted(set(leave) | set(booked) | set(not_free))
+    if not hard and not soft:
+        return {"status": "available", "reason": "", "blocked_days": [], "soft_conflicts": []}
+    if not hard and soft:
+        return {"status": "available_with_conflicts",
+                "reason": f"{len(soft)} day(s) provisionally booked",
+                "blocked_days": [], "soft_conflicts": [d.isoformat() for d in soft]}
+    if len(hard) >= len(required):
+        reason = ("on approved leave" if leave else
+                  "already committed" if booked else "not free on these dates")
+        return {"status": "unavailable", "reason": reason,
+                "blocked_days": [d.isoformat() for d in hard],
+                "soft_conflicts": [d.isoformat() for d in soft]}
+    return {"status": "partially_available",
+            "reason": f"unavailable on {len(hard)} of {len(required)} day(s)",
+            "blocked_days": [d.isoformat() for d in hard],
+            "soft_conflicts": [d.isoformat() for d in soft]}
+
+
+# Rough offsets, enough to classify a delivery window as comfortable or
+# unsocial. RMS reports Windows time-zone names, not IANA identifiers.
+_TZ_OFFSETS = {
+    "india standard time": 5.5, "gmt standard time": 0.0, "utc": 0.0,
+    "e. africa standard time": 3.0, "arabian standard time": 4.0,
+    "singapore standard time": 8.0, "china standard time": 8.0,
+    "tokyo standard time": 9.0, "aus eastern standard time": 10.0,
+    "eastern standard time": -5.0, "central standard time": -6.0,
+    "mountain standard time": -7.0, "pacific standard time": -8.0,
+    "w. europe standard time": 1.0, "central europe standard time": 1.0,
+    "romance standard time": 1.0, "greenwich standard time": 0.0,
+}
+
+_REGION_OFFSETS = {
+    "india": 5.5, "uae": 4.0, "dubai": 4.0, "saudi": 3.0, "qatar": 3.0,
+    "uk": 0.0, "london": 0.0, "ireland": 0.0, "germany": 1.0, "france": 1.0,
+    "netherlands": 1.0, "singapore": 8.0, "malaysia": 8.0, "australia": 10.0,
+    "usa": -5.0, "us": -5.0, "canada": -5.0, "new york": -5.0,
+    "south africa": 2.0, "kenya": 3.0, "egypt": 2.0, "philippines": 8.0,
+}
+
+
+def _tz_offset(name, table):
+    key = str(name or "").strip().lower()
+    if not key:
+        return None
+    if key in table:
+        return table[key]
+    for k, v in table.items():
+        if k in key or key in k:
+            return v
+    return None
+
+
+def international_verdict(candidate, country, days):
+    """
+    Whether a trainer can actually deliver this batch abroad.
+
+    Visa absence is deliberately NOT treated as ineligibility. Roughly half of
+    trainers carry no visa record, and missing data means unrecorded at least
+    as often as it means unavailable — excluding them would hide a large part
+    of the pool and quietly produce wrong allocations. Unknown surfaces as
+    "verification required" instead, which is a manager's decision to make.
+    """
+    country_key = str(country or "").strip().lower()
+    visas = candidate.get("visa") or []
+    end = max(days) if days else None
+
+    verdict = {"visa": "unknown", "visa_detail": "", "timezone_fit": "unknown",
+               "timezone_detail": "", "requires_verification": True}
+
+    if not country_key:
+        verdict["visa_detail"] = "destination country not stated"
+    elif not visas:
+        verdict["visa_detail"] = "no visa record held for this trainer"
+    else:
+        match = None
+        for v in visas:
+            if v["country"].lower() == country_key or country_key in v["associates"]:
+                match = v
+                break
+        if not match:
+            verdict["visa"] = "not_available"
+            verdict["visa_detail"] = f"no visa covering {country}"
+            verdict["requires_verification"] = False
+        elif match["expiry"] and end and match["expiry"] < end:
+            verdict["visa"] = "not_available"
+            verdict["visa_detail"] = f"visa expires {match['expiry'].isoformat()}, before the batch ends"
+            verdict["requires_verification"] = False
+        elif match["stay_days"] and days and match["stay_days"] < len(days):
+            verdict["visa"] = "not_available"
+            verdict["visa_detail"] = f"permitted stay {match['stay_days']} days is shorter than the batch"
+            verdict["requires_verification"] = False
+        else:
+            verdict["visa"] = "available"
+            via = "" if match["country"].lower() == country_key else f" (via {match['country']} visa)"
+            verdict["visa_detail"] = f"valid to {match['expiry'].isoformat() if match['expiry'] else 'unknown date'}{via}"
+            verdict["requires_verification"] = False
+
+    t_off = _tz_offset(candidate.get("timezone"), _TZ_OFFSETS)
+    r_off = _tz_offset(country, _REGION_OFFSETS)
+    if t_off is not None and r_off is not None:
+        gap = abs(t_off - r_off)
+        verdict["timezone_fit"] = ("comfortable" if gap <= 3
+                                   else "workable" if gap <= 6 else "unsocial")
+        verdict["timezone_detail"] = f"{gap:g}h offset"
+    return verdict
+
+
+def evaluate_candidate(candidate, schedule, batch, required_level=None):
+    """
+    One trainer against one batch: hard gates first, then weighted fit.
+
+    The gate/score split is the whole point. A do-not-call is a client's
+    decision, not a signal to be traded off against skill — so a DNC trainer at
+    95% fit must never appear above a clear trainer at 80%. Gates return
+    eligible=False with a stated blocker and no score is computed at all.
+
+    Everything that survives the gates is scored transparently: each factor
+    reports its own contribution and the evidence behind it, so a manager can
+    disagree with one axis rather than with an opaque number.
+    """
+    start, end = batch.get("start_date"), batch.get("end_date")
+    days = _delivery_days(start, end)
+    country = batch.get("country") or batch.get("location") or ""
+    is_international = bool(batch.get("international"))
+
+    blockers = []
+
+    # ── Hard gates ───────────────────────────────────────────────────────────
+    client = str(batch.get("customer") or "").strip().lower()
+    if client and client in schedule.get("dnc_clients", set()):
+        blockers.append({"gate": "dnc",
+                         "detail": f"{batch.get('customer')} has marked this trainer do-not-call"})
+
+    avail = availability_verdict(candidate.get("free_dates") or set(), schedule, days)
+    if avail["status"] in ("unavailable", "partially_available"):
+        blockers.append({"gate": "availability", "detail": avail["reason"]})
+
+    if required_level is not None and candidate.get("skill_level") is not None:
+        if candidate["skill_level"] < required_level:
+            blockers.append({
+                "gate": "skill_level",
+                "detail": f"skill level {candidate['skill_level']} is below the required {required_level}",
+            })
+
+    intl = international_verdict(candidate, country, days) if is_international else None
+    if intl and intl["visa"] == "not_available":
+        blockers.append({"gate": "visa", "detail": intl["visa_detail"]})
+
+    if blockers:
+        return {
+            "trainer_name": candidate.get("trainer_name", ""),
+            "eligible": False,
+            "blockers": blockers,
+            "availability": avail,
+            "international": intl,
+            "fit": 0,
+            "factors": [],
+        }
+
+    # ── Weighted fit ─────────────────────────────────────────────────────────
+    factors = []
+
+    def add(name, contribution, evidence):
+        if contribution:
+            factors.append({"name": name, "contribution": round(contribution),
+                            "evidence": evidence})
+
+    course_runs = candidate.get("course_assignments")
+    try:
+        course_runs = int(course_runs)
+    except (TypeError, ValueError):
+        course_runs = 0
+    add("Course experience", min(course_runs, 10) * 2,
+        f"{course_runs} prior deliveries of this course")
+
+    level = candidate.get("skill_level")
+    if level is not None:
+        headroom = level - (required_level or 0)
+        add("Skill level", min(max(headroom, 0), 6) * 3, f"skill level {level}")
+
+    if intl:
+        if intl["visa"] == "available":
+            add("Visa", 10, intl["visa_detail"])
+        elif intl["visa"] == "unknown":
+            # Surfaced, never excluded — but it does not earn points either.
+            add("Visa", 0, "verification required")
+        fit = intl.get("timezone_fit")
+        if fit == "comfortable":
+            add("Time zone", 10, intl["timezone_detail"])
+        elif fit == "workable":
+            add("Time zone", 5, f"{intl['timezone_detail']}, unsocial hours")
+        elif fit == "unsocial":
+            add("Time zone", -5, f"{intl['timezone_detail']}, night or early shift")
+
+    if client and client in schedule.get("specified_clients", set()):
+        add("Client preference", 10, f"{batch.get('customer')} has asked for this trainer")
+
+    mode = str(batch.get("delivery_mode") or "").strip().lower()
+    if mode:
+        delivered = sum(1 for m in schedule.get("modes", []) if m.strip().lower() == mode)
+        if delivered:
+            add("Delivery mode fit", min(delivered, 6) * 2,
+                f"{delivered} prior {batch.get('delivery_mode')} deliveries")
+
+    # Utilisation is a tiebreaker, not a gate. This is the demotion the audit
+    # called for: a busy trainer who is free on the dates is still a candidate.
+    util = candidate.get("utilisation")
+    if isinstance(util, (int, float)):
+        if util > 85:
+            add("Load headroom", -3, f"{util:g}% utilised")
+        elif util < 50:
+            add("Load headroom", 5, f"{util:g}% utilised, room to take work")
+
+    if avail["status"] == "available_with_conflicts":
+        add("Provisional bookings", -4, avail["reason"])
+
+    base = 50
+    fit = max(0, min(100, base + sum(f["contribution"] for f in factors)))
+
+    return {
+        "trainer_name": candidate.get("trainer_name", ""),
+        "eligible": True,
+        "blockers": [],
+        "availability": avail,
+        "international": intl,
+        "fit": fit,
+        "factors": sorted(factors, key=lambda f: -abs(f["contribution"])),
+        "requires_verification": bool(intl and intl.get("requires_verification")),
+    }
 
 
 def _capacity_plan_from_allocation(payload, today=None, weeks=8):
