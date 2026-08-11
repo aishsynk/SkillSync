@@ -2,8 +2,12 @@ package com.example.skillsync.ui.main
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -15,60 +19,89 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.skillsync.R
 import com.example.skillsync.theme.Figure
 import com.example.skillsync.theme.FigureSize
+import com.example.skillsync.theme.Layout
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.SectionHeading
 import com.example.skillsync.theme.Severity
 import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.Space
+import com.example.skillsync.theme.Surface0
 import com.example.skillsync.theme.ToneChip
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.heroSurface
+import com.example.skillsync.theme.pressable
+import com.example.skillsync.theme.rememberCriticalPulse
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
 
 /**
- * The manager's briefing.
+ * The manager's briefing — the whole of the Today surface.
  *
- * This surface used to render six section titles and fifteen equal-weight
- * panels in one scroll, at type sizes down to 8sp — every reading given the
- * same emphasis, so nothing was emphasised. It now answers five questions in
- * descending order of urgency, and everything that is reference rather than
- * decision sits behind [ExploreSection], collapsed by default.
+ * Built to answer six questions in descending urgency, and nothing else above
+ * the fold (see `AI/DESIGN_VISION_V2_2026_08_11.md` §7.1 and §10):
  *
- * No derivation below has changed: the same rows, filters, drills and captions
- * feed the same figures. Only weight, order and grouping are different.
+ *  1. Are we healthy?   → readiness ring + one sentence. The only large element.
+ *  2. What is on fire?  → up to three critical cards, each with its action.
+ *  3. What is moving?   → four KPI tiles, sparkline and delta where a baseline
+ *                         genuinely exists.
+ *  4. Where is slack?   → bench / optimal / stretched, interpretation as headline.
+ *  5. What is coming?   → unallocated count, how much is international, one CTA.
+ *  6. What else?        → collapsed Explore.
+ *
+ * Identity and the notification bell are folded into the hero rather than
+ * sitting in a separate header row above it, so the first screenful is entirely
+ * information and none of it is chrome.
+ *
+ * Nothing here derives a new number. Every value, drill and caption comes from
+ * the same payload fields the previous layout used.
  */
 @Composable
 fun ManagerCommandCentre(
+    email: String,
+    profile: Map<String, Any>?,
     kpis: Map<*, *>?, capKpis: Map<*, *>?, capabilityLoading: Boolean,
     ops: List<Map<*, *>>, states: List<Map<*, *>>, batches: List<Map<*, *>>,
     demand: List<Map<*, *>>, capTrainers: List<Map<*, *>>,
-    actions: List<Map<String, Any>>, onDrill: (Drill) -> Unit,
+    actions: List<Map<String, Any>>,
+    fromCache: Boolean, cachedAt: Long,
+    onDrill: (Drill) -> Unit,
     onTrainerClick: (String, String) -> Unit,
+    onOpenProfile: () -> Unit,
+    onOpenNotifications: () -> Unit,
+    onOpenDemand: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
     val openActions = actions.filter { it.str("lifecycle_state").ifBlank { "open" } !in setOf("closed", "resolved") }
     val available = states.filter { it.str("current_status") == "free" }
+    val deployed = states.count { it.str("current_status") != "free" }
     val overloaded = ops.filter { it.intOrNull("current_utilization")?.let { u -> u > 85 } == true }
     val active = batches.filter { it.str("engagement_state") == "current" }
     val upcoming = batches.filter { it.str("engagement_state") == "upcoming" }
     val gaps = capTrainers.sumOf { it.obj("certification")?.int("gap_count") ?: 0 }
     val readiness = capKpis?.intOrNull("team_readiness_score") ?: kpis?.intOrNull("team_readiness_score")
     val utilisation = kpis?.intOrNull("avg_team_utilization")
+    val coverage = capKpis?.intOrNull("avg_trainer_coverage_pct") ?: kpis?.intOrNull("cert_coverage_pct")
+    val atRisk = ops.filter { it.str("feedback_risk").equals("High", true) }
 
-    val highRisk = ops.filter { it.str("feedback_risk").equals("High", true) }
-    val watch = ops.filter { it.str("capacity_bucket") in setOf("Light", "Stretched") && it !in highRisk }
-    val needs = ops.filter { it.str("recommended_action").isNotBlank() && it !in highRisk && it !in watch }
-    val healthy = ops.filter { it !in highRisk && it !in watch && it !in needs }
+    val utilHistory = remember(kpis) {
+        (kpis?.get("utilization_history") as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }.orEmpty()
+    }
+    // The one real month-over-month baseline the payload carries. Nothing else
+    // in the response has history, so nothing else claims a trend.
+    val utilDelta = if (utilHistory.size >= 2) {
+        utilHistory.last() - utilHistory[utilHistory.lastIndex - 1]
+    } else null
 
-    // LazyColumn treats this entire command centre as one item, so it needs one
-    // explicit measuring parent; sibling roots would share a single item slot.
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(Space.lg),
@@ -76,135 +109,77 @@ fun ManagerCommandCentre(
 
         // ── 1 · Are we healthy? ─────────────────────────────────────────────
         BriefingHero(
+            email = email,
+            profile = profile,
             readiness = readiness,
             utilisation = utilisation,
+            utilDelta = utilDelta,
             team = ops.size,
-            free = available.size,
-            overload = overloaded.size,
-            demand = demand.size,
-            actions = openActions.size,
+            deployed = deployed,
+            atRisk = atRisk.size,
+            unallocated = demand.size,
+            openActions = openActions.size,
+            fromCache = fromCache,
+            cachedAt = cachedAt,
+            onOpenProfile = onOpenProfile,
+            onOpenNotifications = onOpenNotifications,
         )
 
         // ── 2 · What is on fire? ────────────────────────────────────────────
-        val alerts = buildAlerts(highRisk, overloaded, demand, openActions, gaps)
+        val alerts = buildAlerts(atRisk, overloaded, demand, openActions, gaps, onDrill, onOpenDemand)
         if (alerts.isNotEmpty()) {
-            SectionHeading("Needs you today", alerts.first().headline, trailing = "${alerts.size} open")
-            alerts.take(3).forEach { alert ->
-                key(alert.headline) {
-                    SkillCard(
-                        severity = alert.severity,
-                        strong = alert.severity == Severity.Critical,
-                        padding = Space.md,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(alert.drill?.let { d -> Modifier.clickable { onDrill(d) } } ?: Modifier),
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                alert.headline,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = sk.bodyText,
-                                modifier = Modifier.weight(1f),
-                            )
-                            ToneChip(alert.severity.label, alert.severity.tint())
-                        }
-                        Text(alert.detail, style = MaterialTheme.typography.bodySmall, color = sk.subText)
-                    }
-                }
-            }
+            SectionHeading(
+                "Needs you today",
+                alerts.first().headline,
+                trailing = if (alerts.size > 3) "${alerts.size} total" else null,
+            )
+            AttentionStrip(alerts.take(3))
         }
 
         // ── 3 · What is moving? ─────────────────────────────────────────────
         SectionHeading("Pulse", trailing = if (capabilityLoading) "refreshing" else null)
-        PulseGrid(
+        PulseRow(
             listOf(
-                MiniKpi("Team strength", ops.size.toString(), "reportees", sk.sky, drill("Team strength", ops)),
-                MiniKpi(
+                PulseTileData(
+                    "Strength", ops.size.toString(),
+                    baseline = "$deployed deployed · ${available.size} free",
+                    tint = sk.sky, drill = drill("Team strength", ops),
+                ),
+                PulseTileData(
                     "Utilisation", utilisation?.let { "$it%" } ?: "—",
-                    "${kpis?.intOrNull("utilization_sample") ?: 0} of ${ops.size} measured",
-                    utilisationColour(utilisation, sk), drill("Team utilisation", ops, true),
+                    baseline = "${kpis?.intOrNull("utilization_sample") ?: 0} of ${ops.size} measured",
+                    tint = utilisationColour(utilisation, sk),
+                    series = utilHistory,
+                    delta = utilDelta?.let { d -> (if (d >= 0) "▲ +$d" else "▼ $d") + " vs last month" },
+                    deltaGood = (utilDelta ?: 0) >= 0,
+                    drill = drill("Team utilisation", ops, true),
                 ),
-                MiniKpi(
-                    "Unallocated demand", demand.size.toString(), "batches need owners",
-                    if (demand.isEmpty()) sk.good else sk.crit, demandDrill(demand),
+                PulseTileData(
+                    "Cert coverage", coverage?.let { "$it%" } ?: "—",
+                    baseline = if (gaps > 0) "$gaps ${plural(gaps, "gap", "gaps")} open" else "no open gaps",
+                    tint = if (gaps == 0) sk.good else sk.warn,
                 ),
-                MiniKpi(
-                    "Open actions", openActions.size.toString(), "requiring attention",
-                    if (openActions.isEmpty()) sk.good else sk.warn, actionDrill(openActions),
+                PulseTileData(
+                    "At risk", atRisk.size.toString(),
+                    baseline = if (atRisk.isEmpty()) "no feedback flags" else "high feedback risk",
+                    tint = if (atRisk.isEmpty()) sk.good else sk.crit,
+                    drill = if (atRisk.isEmpty()) null else drill("At risk", atRisk),
                 ),
             ),
             onDrill,
         )
 
         // ── 4 · Where is the slack? ─────────────────────────────────────────
-        val balance = when {
-            available.isEmpty() && demand.isNotEmpty() ->
-                "No verified free trainer against ${demand.size} open ${plural(demand.size, "batch", "batches")}."
-            overloaded.isNotEmpty() && available.isNotEmpty() ->
-                "${available.size} free while ${overloaded.size} are over 85% — the gap is coverage, not headcount."
-            demand.isEmpty() -> "All visible demand is covered."
-            else -> "${available.size} free against ${demand.size} unallocated ${plural(demand.size, "batch", "batches")}."
-        }
-        SectionHeading("Capacity balance", balance)
-        SkillCard(Modifier.fillMaxWidth()) {
-            DistributionBar(
-                listOf(
-                    Slice("Healthy", healthy.size, sk.good),
-                    Slice("Watchlist", watch.size, sk.warn),
-                    Slice("Needs attention", needs.size, sk.warn),
-                    Slice("High risk", highRisk.size, sk.crit),
-                )
-            )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                listOf("Healthy" to healthy, "Watch" to watch, "Attention" to needs, "Risk" to highRisk)
-                    .forEach { (label, rows) ->
-                        Figure(
-                            value = rows.size.toString(),
-                            label = label,
-                            size = FigureSize.Small,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { onDrill(drill(label, rows)) },
-                        )
-                    }
-            }
-        }
+        CapacityBalance(ops, demand.size, available.size, onDrill)
 
         // ── 5 · What is coming? ─────────────────────────────────────────────
-        val international = demand.count { it.str("delivery_mode").uppercase() in setOf("FMAT", "ILT") }
-        SectionHeading(
-            "Demand",
-            if (demand.isEmpty()) "Nothing waiting for an owner."
-            else "$international of ${demand.size} unallocated ${plural(demand.size, "batch", "batches")} are FMAT or ILT — review those first.",
-        )
-        SkillCard(Modifier.fillMaxWidth()) {
-            BarChart(
-                listOf("FMAT", "ILT", "ILO", "Unknown").map { mode ->
-                    BarDatum(
-                        mode,
-                        demand.count { it.str("delivery_mode").ifBlank { "Unknown" }.equals(mode, true) },
-                        when (mode) {
-                            "FMAT" -> sk.crit; "ILT" -> sk.warn; "ILO" -> sk.sky; else -> sk.subText
-                        },
-                    )
-                },
-                height = 92.dp,
-            )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.lg)) {
-                Figure(active.size.toString(), "Active", FigureSize.Small, Modifier.weight(1f), sk.aqua)
-                Figure(upcoming.size.toString(), "Upcoming", FigureSize.Small, Modifier.weight(1f), sk.sky)
-                Figure(
-                    kpis?.intOrNull("training_days_delivered")?.toString() ?: "—",
-                    "Days delivered", FigureSize.Small, Modifier.weight(1f), sk.brand,
-                )
-            }
-        }
+        DemandGlance(demand, active.size, upcoming.size, onOpenDemand)
 
         // ── 6 · Everything else ─────────────────────────────────────────────
         ExploreSection(
             kpis = kpis, capKpis = capKpis, capabilityLoading = capabilityLoading,
             ops = ops, upcoming = upcoming, capTrainers = capTrainers, gaps = gaps,
-            openActions = openActions, highRisk = highRisk,
+            openActions = openActions, atRisk = atRisk, utilHistory = utilHistory,
             onDrill = onDrill, onTrainerClick = onTrainerClick,
         )
     }
@@ -212,19 +187,34 @@ fun ManagerCommandCentre(
 
 private fun plural(n: Int, one: String, many: String) = if (n == 1) one else many
 
+/** Freshness stamp, or null when the payload carries no write time at all. */
+private fun freshnessAge(epochMillis: Long): String? =
+    if (epochMillis <= 0L) null else relativeAge(epochMillis)
+
 // ── 1 · Briefing hero ───────────────────────────────────────────────────────
 
 /**
- * The only large element on the screen. A ring for the single health reading, a
- * sentence for what it means, and the three supporting counts — so "is my org
- * healthy?" is answered before any scrolling happens.
+ * Identity, freshness, the readiness ring and the one-sentence brief.
+ *
+ * This replaces the old `ProfileHeader` + `CommandHero` + KPI-grid stack: three
+ * separate blocks that between them spent most of the first screenful on chrome
+ * and repeated the same figures twice.
  */
 @Composable
 private fun BriefingHero(
-    readiness: Int?, utilisation: Int?, team: Int, free: Int,
-    overload: Int, demand: Int, actions: Int,
+    email: String,
+    profile: Map<String, Any>?,
+    readiness: Int?, utilisation: Int?, utilDelta: Int?,
+    team: Int, deployed: Int, atRisk: Int, unallocated: Int, openActions: Int,
+    fromCache: Boolean, cachedAt: Long,
+    onOpenProfile: () -> Unit,
+    onOpenNotifications: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
+    val name = profile?.str("name").orEmpty()
+        .ifBlank { email.substringBefore("@").replace(".", " ").replaceFirstChar { it.uppercase() } }
+    val age = freshnessAge(cachedAt)
+
     Column(
         Modifier
             .fillMaxWidth()
@@ -232,109 +222,276 @@ private fun BriefingHero(
             .padding(Space.lg),
         verticalArrangement = Arrangement.spacedBy(Space.md),
     ) {
+        // Identity row — folded in, so it costs no extra vertical band.
         Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.clip(RoundedCornerShape(Radii.chip)).clickable(onClick = onOpenProfile),
+                contentAlignment = Alignment.BottomEnd,
+            ) {
+                Avatar(name = name, photoUrl = profile?.str("photo_url").orEmpty(), size = 36.dp)
+            }
+            Spacer(Modifier.width(Space.md))
             Column(Modifier.weight(1f)) {
                 Text(
-                    "TEAM READINESS",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.ice,
+                    name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = sk.heroText,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
+                Text(
+                    // A single "as of" stamp. The payload's own from_cache /
+                    // cache.age fields are static literals that misreport
+                    // freshness, so this uses the real disk-write time instead.
+                    when {
+                        age == null -> "DELIVERY MANAGER · LIVE"
+                        fromCache -> "OFFLINE COPY · $age".uppercase()
+                        else -> "LIVE · UPDATED $age".uppercase()
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (fromCache) sk.warn else sk.ice,
+                    maxLines = 1,
+                )
+            }
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(Radii.icon))
+                    .background(Color.White.copy(alpha = 0.10f))
+                    .border(1.dp, sk.ice.copy(alpha = 0.24f), RoundedCornerShape(Radii.icon))
+                    .clickable(onClick = onOpenNotifications),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painterResource(R.drawable.ic_alert),
+                    contentDescription = "Alerts",
+                    tint = sk.ice,
+                    modifier = Modifier.size(17.dp),
+                )
+                if (openActions > 0) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 4.dp, y = (-4).dp)
+                            .defaultMinSize(minWidth = 16.dp, minHeight = 16.dp)
+                            .clip(CircleShape)
+                            .background(sk.crit)
+                            .border(2.dp, Surface0, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "$openActions",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 3.dp),
+                        )
+                    }
+                }
+            }
+        }
+
+        // The readiness reading — the largest thing on the screen.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("TEAM READINESS", style = MaterialTheme.typography.labelSmall, color = sk.ice)
                 Text(
                     readiness?.toString() ?: "—",
                     style = MaterialTheme.typography.displayLarge.copy(fontFeatureSettings = "tnum"),
                     color = sk.heroText,
                 )
+                if (utilDelta != null) {
+                    Text(
+                        (if (utilDelta >= 0) "▲ +$utilDelta%" else "▼ $utilDelta%") + " utilisation vs last month",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (utilDelta >= 0) sk.aqua else sk.warn,
+                    )
+                }
             }
-            ReadinessRing(readiness, utilisation, size = 84.dp)
+            ReadinessRing(readiness, utilisation, size = 92.dp)
         }
+
+        // The brief itself — the sentence a manager can read and act on.
         Text(
-            when {
-                actions > 0 -> "$actions ${plural(actions, "action needs", "actions need")} attention. $free of $team trainers are verified free, while $demand ${plural(demand, "batch needs", "batches need")} allocation."
-                overload > 0 -> "$overload trainers are overloaded. Rebalance upcoming work before assigning $demand open ${plural(demand, "batch", "batches")}."
-                else -> "Team operations are stable. $free of $team trainers are free and $demand ${plural(demand, "batch awaits", "batches await")} allocation."
-            },
+            buildList {
+                add("$deployed of $team deployed")
+                utilisation?.let {
+                    add("utilisation $it%" + when {
+                        utilDelta == null -> ""
+                        utilDelta > 0 -> " and rising"
+                        utilDelta < 0 -> " and falling"
+                        else -> " and flat"
+                    })
+                }
+                if (atRisk > 0) add("$atRisk ${plural(atRisk, "trainer", "trainers")} at risk")
+                if (unallocated > 0) add("$unallocated ${plural(unallocated, "demand", "demands")} unallocated")
+                if (atRisk == 0 && unallocated == 0) add("nothing waiting on you")
+            }.joinToString(" · "),
             style = MaterialTheme.typography.bodyMedium,
             color = sk.heroMuted,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(Space.xl)) {
-            Figure(team.toString(), "Strength", FigureSize.Small, tint = sk.heroText)
-            Figure(free.toString(), "Free now", FigureSize.Small, tint = sk.heroText)
-            Figure(utilisation?.let { "$it%" } ?: "—", "Utilisation", FigureSize.Small, tint = sk.heroText)
-        }
     }
 }
 
-// ── 2 · Alerts ──────────────────────────────────────────────────────────────
+// ── 2 · Attention strip ─────────────────────────────────────────────────────
 
 private data class Alert(
     val severity: Severity,
     val headline: String,
     val detail: String,
-    val drill: Drill?,
+    val actionLabel: String,
+    val onAction: () -> Unit,
 )
 
 /**
- * Triage. Ordered by [Severity.weight] so a feedback incident always outranks
- * an unallocated batch, regardless of the order the API returned rows in.
+ * Triage, ordered by [Severity.weight] so a feedback incident always outranks
+ * an unallocated batch regardless of the order rows arrived in.
+ *
+ * [actionLabel] is the recommended next step, and it is the card's primary
+ * button — the point of the strip is that a manager can act from it, not merely
+ * read it.
  */
 private fun buildAlerts(
-    highRisk: List<Map<*, *>>,
+    atRisk: List<Map<*, *>>,
     overloaded: List<Map<*, *>>,
     demand: List<Map<*, *>>,
     openActions: List<Map<String, Any>>,
     gaps: Int,
+    onDrill: (Drill) -> Unit,
+    onOpenDemand: () -> Unit,
 ): List<Alert> = buildList {
-    if (highRisk.isNotEmpty()) add(
-        Alert(
-            Severity.Critical,
-            "${highRisk.size} ${plural(highRisk.size, "trainer is", "trainers are")} at high feedback risk",
-            highRisk.take(3).joinToString(" · ") { it.str("trainer_name") },
-            drill("High feedback risk", highRisk),
+    if (atRisk.isNotEmpty()) {
+        val d = drill("High feedback risk", atRisk)
+        add(
+            Alert(
+                Severity.Critical,
+                "${atRisk.size} ${plural(atRisk.size, "trainer is", "trainers are")} at high feedback risk",
+                // The recommendation RMS itself returned, where it returned one.
+                atRisk.firstOrNull()?.str("recommended_action")?.takeIf { it.isNotBlank() }
+                    ?: atRisk.take(3).joinToString(" · ") { it.str("trainer_name") },
+                "Review trainers",
+            ) { onDrill(d) }
         )
-    )
-    if (overloaded.isNotEmpty()) add(
-        Alert(
-            Severity.Warning,
-            "${overloaded.size} ${plural(overloaded.size, "trainer is", "trainers are")} over 85% utilised",
-            "Rebalance before assigning new work.",
-            drill("Overloaded", overloaded, true),
+    }
+    if (overloaded.isNotEmpty()) {
+        val d = drill("Overloaded", overloaded, true)
+        add(
+            Alert(
+                Severity.Warning,
+                "${overloaded.size} ${plural(overloaded.size, "trainer is", "trainers are")} over 85% utilised",
+                "Rebalance upcoming work before assigning anything new.",
+                "Rebalance",
+            ) { onDrill(d) }
         )
-    )
-    if (demand.isNotEmpty()) add(
-        Alert(
-            Severity.Warning,
-            "${demand.size} ${plural(demand.size, "batch has", "batches have")} no owner",
-            demand.take(3).joinToString(" · ") { it.str("course_name").ifBlank { it.str("demand_id") } },
-            demandDrill(demand),
+    }
+    if (demand.isNotEmpty()) {
+        val intl = demand.count { it.str("delivery_mode").uppercase() in setOf("FMAT", "ILT") }
+        add(
+            Alert(
+                Severity.Warning,
+                "${demand.size} ${plural(demand.size, "batch has", "batches have")} no owner",
+                if (intl > 0) "$intl ${plural(intl, "is", "are")} FMAT or ILT — the highest-value work."
+                else demand.take(3).joinToString(" · ") { it.str("course_name").ifBlank { it.str("demand_id") } },
+                "Allocate",
+                onOpenDemand,
+            )
         )
-    )
-    if (gaps > 0) add(
-        Alert(
-            Severity.Watch,
-            "$gaps certification ${plural(gaps, "gap", "gaps")} across the team",
-            "Gaps block allocation to accredited demand.",
-            null,
+    }
+    if (gaps > 0) {
+        add(
+            Alert(
+                Severity.Watch,
+                "$gaps certification ${plural(gaps, "gap", "gaps")} across the team",
+                "Gaps block allocation to accredited demand.",
+                "See coverage",
+            ) { }
         )
-    )
-    if (openActions.isNotEmpty()) add(
-        Alert(
-            Severity.Info,
-            "${openActions.size} open manager ${plural(openActions.size, "action", "actions")}",
-            openActions.take(2).joinToString(" · ") { it.str("title").ifBlank { "Manager action" } },
-            actionDrill(openActions),
+    }
+    if (openActions.isNotEmpty()) {
+        val d = actionDrill(openActions)
+        add(
+            Alert(
+                Severity.Info,
+                "${openActions.size} open manager ${plural(openActions.size, "action", "actions")}",
+                openActions.take(2).joinToString(" · ") { it.str("title").ifBlank { "Manager action" } },
+                "Open queue",
+            ) { onDrill(d) }
         )
-    )
+    }
 }.sortedBy { it.severity.weight }
 
-// ── 3 · Pulse ───────────────────────────────────────────────────────────────
+/**
+ * A horizontal strip rather than a vertical stack: three critical items stacked
+ * vertically pushed the pulse row off the first screen, and the whole point of
+ * the layout is that health and triage are visible together.
+ */
+@Composable
+private fun AttentionStrip(alerts: List<Alert>) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(Space.md),
+        contentPadding = PaddingValues(end = Space.sm),
+    ) {
+        items(alerts, key = { it.headline }) { alert ->
+            val tint = alert.severity.tint()
+            val pulse = rememberCriticalPulse(alert.severity == Severity.Critical)
+            Column(
+                Modifier
+                    .width(272.dp)
+                    .accentGlass(tint, strong = alert.severity == Severity.Critical)
+                    .pressable(alert.onAction)
+                    .padding(Space.lg),
+                verticalArrangement = Arrangement.spacedBy(Space.sm),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(8.dp)
+                            .alpha(pulse)
+                            .background(tint, CircleShape)
+                    )
+                    Spacer(Modifier.width(Space.sm))
+                    ToneChip(alert.severity.label, tint)
+                }
+                Text(
+                    alert.headline,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.skill.bodyText,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    alert.detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.skill.subText,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                FilledTonalButton(
+                    onClick = alert.onAction,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(Radii.chip),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = tint.copy(alpha = 0.18f),
+                        contentColor = tint,
+                    ),
+                ) { Text(alert.actionLabel, style = MaterialTheme.typography.labelLarge) }
+            }
+        }
+    }
+}
 
-private data class MiniKpi(
-    val label: String, val value: String, val caption: String,
-    val tint: Color, val drill: Drill?,
+// ── 3 · Pulse row ───────────────────────────────────────────────────────────
+
+private data class PulseTileData(
+    val label: String,
+    val value: String,
+    val baseline: String,
+    val tint: Color,
+    val series: List<Int> = emptyList(),
+    val delta: String? = null,
+    val deltaGood: Boolean = true,
+    val drill: Drill? = null,
 )
 
 @Composable
-private fun PulseGrid(items: List<MiniKpi>, onDrill: (Drill) -> Unit) {
+private fun PulseRow(items: List<PulseTileData>, onDrill: (Drill) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         items.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
@@ -345,16 +502,24 @@ private fun PulseGrid(items: List<MiniKpi>, onDrill: (Drill) -> Unit) {
     }
 }
 
+/**
+ * Value, then evidence.
+ *
+ * A sparkline and a delta are drawn only where the payload actually carries a
+ * history — today that is utilisation alone. The other three tiles state their
+ * baseline in words ("8 of 10 measured", "3 gaps open") rather than showing an
+ * invented trend line, because a fabricated sparkline is worse than none.
+ */
 @Composable
-private fun PulseTile(item: MiniKpi, modifier: Modifier, onDrill: (Drill) -> Unit) {
+private fun PulseTile(item: PulseTileData, modifier: Modifier, onDrill: (Drill) -> Unit) {
     val sk = MaterialTheme.skill
     val target = item.drill
     Column(
         modifier
+            .height(132.dp)
             .glassSurface(RoundedCornerShape(Radii.kpi))
-            .then(if (target != null) Modifier.clickable { onDrill(target) } else Modifier)
+            .then(if (target != null) Modifier.pressable { onDrill(target) } else Modifier)
             .padding(Space.md),
-        verticalArrangement = Arrangement.spacedBy(Space.xs),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(6.dp).background(item.tint, RoundedCornerShape(3.dp)))
@@ -363,38 +528,147 @@ private fun PulseTile(item: MiniKpi, modifier: Modifier, onDrill: (Drill) -> Uni
                 item.label.uppercase(),
                 style = MaterialTheme.typography.labelSmall,
                 color = sk.labelText,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
+        Spacer(Modifier.height(Space.xs))
         Text(
             item.value,
             style = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = "tnum"),
             color = item.tint,
         )
         Text(
-            item.caption,
+            item.delta ?: item.baseline,
             style = MaterialTheme.typography.bodySmall,
-            color = sk.subText,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            color = if (item.delta != null) (if (item.deltaGood) sk.aqua else sk.warn) else sk.subText,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
+        Spacer(Modifier.weight(1f))
+        if (item.series.size >= 2) {
+            Sparkline(item.series, item.tint, endpointTint = sk.cyan, height = 24.dp)
+        }
+    }
+}
+
+// ── 4 · Capacity balance ────────────────────────────────────────────────────
+
+/**
+ * Bench / optimal / stretched, straight off `capacity_bucket`, with the reading
+ * of the bar as the section headline. The bar is evidence for a claim the
+ * manager has already absorbed, not a puzzle to solve.
+ */
+@Composable
+private fun CapacityBalance(
+    ops: List<Map<*, *>>,
+    unallocated: Int,
+    free: Int,
+    onDrill: (Drill) -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    val bench = ops.filter { it.str("capacity_bucket") == "On Bench" }
+    val stretched = ops.filter { it.str("capacity_bucket") == "Stretched" }
+    val optimal = ops.filter { it !in bench && it !in stretched }
+
+    val headline = when {
+        bench.isNotEmpty() && unallocated > 0 ->
+            "${bench.size} on bench while $unallocated ${plural(unallocated, "batch is", "batches are")} unallocated — the gap is coverage, not headcount."
+        stretched.isNotEmpty() && free > 0 ->
+            "${stretched.size} stretched while ${free} sit free — the work is unevenly spread."
+        stretched.isNotEmpty() ->
+            "${stretched.size} ${plural(stretched.size, "trainer is", "trainers are")} carrying more than their share."
+        bench.isNotEmpty() -> "${bench.size} on bench and no demand waiting."
+        else -> "The whole team is inside a healthy load band."
+    }
+
+    SectionHeading("Capacity balance", headline)
+    SkillCard(Modifier.fillMaxWidth()) {
+        DistributionBar(
+            listOf(
+                Slice("Bench", bench.size, sk.warn),
+                Slice("Optimal", optimal.size, sk.good),
+                Slice("Stretched", stretched.size, sk.crit),
+            )
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+            listOf("Bench" to bench, "Optimal" to optimal, "Stretched" to stretched).forEach { (label, rows) ->
+                Figure(
+                    value = rows.size.toString(),
+                    label = label,
+                    size = FigureSize.Small,
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(if (rows.isEmpty()) Modifier else Modifier.pressable { onDrill(drill(label, rows)) }),
+                )
+            }
+        }
+    }
+}
+
+// ── 5 · Demand at a glance ──────────────────────────────────────────────────
+
+/**
+ * How much work is waiting, how much of it is the high-value international
+ * kind, and one way through to act on it.
+ */
+@Composable
+private fun DemandGlance(
+    demand: List<Map<*, *>>,
+    active: Int,
+    upcoming: Int,
+    onOpenDemand: () -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    val international = demand.count { it.str("delivery_mode").uppercase() in setOf("FMAT", "ILT") }
+
+    SectionHeading(
+        "Demand",
+        if (demand.isEmpty()) "Nothing is waiting for an owner."
+        else if (international > 0)
+            "$international of ${demand.size} unallocated ${plural(demand.size, "batch is", "batches are")} FMAT or ILT — review those first."
+        else "${demand.size} unallocated ${plural(demand.size, "batch", "batches")}, none international.",
+    )
+    SkillCard(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.lg)) {
+            Figure(
+                demand.size.toString(), "Unallocated", FigureSize.Medium, Modifier.weight(1f),
+                if (demand.isEmpty()) sk.good else sk.crit,
+            )
+            Figure(
+                international.toString(), "International", FigureSize.Medium, Modifier.weight(1f),
+                if (international > 0) sk.cyan else sk.subText,
+            )
+            Figure(active.toString(), "Active", FigureSize.Medium, Modifier.weight(1f), sk.aqua)
+            Figure(upcoming.toString(), "Upcoming", FigureSize.Medium, Modifier.weight(1f), sk.sky)
+        }
+        FilledTonalButton(
+            onClick = onOpenDemand,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(Radii.chip),
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = sk.brand.copy(alpha = 0.20f),
+                contentColor = sk.ice,
+            ),
+        ) {
+            Text(
+                if (demand.isEmpty()) "Open demand pipeline" else "Allocate ${demand.size} open ${plural(demand.size, "batch", "batches")}",
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
     }
 }
 
 // ── 6 · Explore ─────────────────────────────────────────────────────────────
 
 /**
- * Reference material, not decisions: trend, top performers, certification
- * coverage, readiness distribution and the action breakdown. Collapsed by
- * default so the briefing above stays a briefing, expandable for the manager
- * who wants the evidence.
+ * Reference material, not decisions. Collapsed by default so the briefing above
+ * stays a briefing, expandable for the manager who wants the evidence.
  */
 @Composable
 private fun ExploreSection(
     kpis: Map<*, *>?, capKpis: Map<*, *>?, capabilityLoading: Boolean,
     ops: List<Map<*, *>>, upcoming: List<Map<*, *>>, capTrainers: List<Map<*, *>>,
-    gaps: Int, openActions: List<Map<String, Any>>, highRisk: List<Map<*, *>>,
+    gaps: Int, openActions: List<Map<String, Any>>, atRisk: List<Map<*, *>>,
+    utilHistory: List<Int>,
     onDrill: (Drill) -> Unit, onTrainerClick: (String, String) -> Unit,
 ) {
     val sk = MaterialTheme.skill
@@ -404,7 +678,7 @@ private fun ExploreSection(
         Modifier
             .fillMaxWidth()
             .glassSurface(RoundedCornerShape(Radii.card))
-            .clickable { open = !open }
+            .pressable { open = !open }
             .padding(Space.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -424,17 +698,26 @@ private fun ExploreSection(
     AnimatedVisibility(open) {
         Column(verticalArrangement = Arrangement.spacedBy(Space.lg)) {
 
-            val history = (kpis?.get("utilization_history") as? List<*>)
-                ?.mapNotNull { (it as? Number)?.toInt() }.orEmpty()
-            SectionHeading("Utilisation", "Measured over the available RMS window")
-            SkillCard(Modifier.fillMaxWidth()) {
-                TrendChart(
-                    points = history.mapIndexed { i, v ->
-                        TrendPoint(if (i == history.lastIndex) "Now" else "M${i + 1}", v)
+            // Target corridor drawn behind the bars, so "healthy" is legible
+            // without knowing that 70-85% is the band you are aiming for.
+            if (utilHistory.size >= 2) {
+                val last = utilHistory.last()
+                SectionHeading(
+                    "Utilisation",
+                    when {
+                        last in 70..85 -> "Inside the 70–85% target corridor."
+                        last > 85 -> "Above the target corridor — the team is running hot."
+                        else -> "Below the target corridor — there is unsold capacity."
                     },
-                    tint = utilisationColour(history.lastOrNull(), sk),
-                    height = 76.dp,
                 )
+                SkillCard(Modifier.fillMaxWidth()) {
+                    CorridorBars(
+                        values = utilHistory,
+                        labels = utilHistory.indices.map { i ->
+                            if (i == utilHistory.lastIndex) "NOW" else "M${i + 1}"
+                        },
+                    )
+                }
             }
 
             TopPerformersPanel(ops, capTrainers, onTrainerClick)
@@ -445,7 +728,8 @@ private fun ExploreSection(
             val blocked = (capTrainers.size - ready - developing).coerceAtLeast(0)
             SectionHeading(
                 "Certification",
-                if (capabilityLoading) "Refreshing capability data" else "$gaps ${plural(gaps, "gap requires", "gaps require")} follow-up",
+                if (capabilityLoading) "Refreshing capability data"
+                else "$gaps ${plural(gaps, "gap requires", "gaps require")} follow-up",
             )
             SkillCard(Modifier.fillMaxWidth()) {
                 val slices = listOf(
@@ -478,7 +762,7 @@ private fun ExploreSection(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .clickable { onDrill(batchDrill("Upcoming delivery", listOf(b))) },
+                            .pressable { onDrill(batchDrill("Upcoming delivery", listOf(b))) },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -500,7 +784,7 @@ private fun ExploreSection(
             SectionHeading(
                 "Action centre",
                 "${openActions.size} open across six management themes",
-                trailing = if (highRisk.isEmpty()) null else "${highRisk.size} at risk",
+                trailing = if (atRisk.isEmpty()) null else "${atRisk.size} at risk",
             )
             SkillCard(Modifier.fillMaxWidth()) {
                 BarChart(
@@ -559,7 +843,7 @@ private fun TopPerformersPanel(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clickable { onTrainerClick(email, trainer.str("trainer_name")) },
+                    .pressable { onTrainerClick(email, trainer.str("trainer_name")) },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -598,11 +882,7 @@ private fun ActionPreview(a: Map<String, Any>) {
     val sk = MaterialTheme.skill
     val high = a.str("priority").equals("high", true)
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier
-                .size(6.dp)
-                .background(if (high) sk.crit else sk.warn, RoundedCornerShape(3.dp))
-        )
+        Box(Modifier.size(6.dp).background(if (high) sk.crit else sk.warn, RoundedCornerShape(3.dp)))
         Spacer(Modifier.width(Space.sm))
         Column(Modifier.weight(1f)) {
             Text(
@@ -621,5 +901,4 @@ private fun ActionPreview(a: Map<String, Any>) {
 
 private fun drill(title: String, rows: List<Map<*, *>>, util: Boolean = false) = Drill(title, "Tap a trainer for detail", rows.map { DrillRow(it.str("trainer_name").ifBlank { it.str("official_email") }, if (util) "${it.intOrNull("current_utilization")?.let { u -> "$u%" } ?: "not measured"} • ${it.str("capacity_bucket")}" else listOf(it.str("capacity_bucket"), it.str("recommended_action")).filter { s -> s.isNotBlank() }.joinToString(" • "), it.str("official_email").ifBlank { it.str("trainer_email") }) })
 private fun batchDrill(title: String, rows: List<Map<*, *>>) = Drill(title, "Delivery schedule", rows.map { DrillRow(it.str("course_name").ifBlank { "Unnamed course" }, listOf(it.str("trainer_name"), it.str("delivery_mode"), it.str("start_at")).filter(String::isNotBlank).joinToString(" • ")) })
-private fun demandDrill(rows: List<Map<*, *>>) = Drill("Unallocated demand", "Batches waiting for a suitable owner", rows.map { DrillRow(it.str("course_name").ifBlank { it.str("demand_id") }, listOf(it.str("delivery_mode"), it.str("location"), it.str("start_date")).filter(String::isNotBlank).joinToString(" • ")) })
 private fun actionDrill(rows: List<Map<String, Any>>) = Drill("Action centre", "Open decisions requiring manager attention", rows.map { DrillRow(it.str("title").ifBlank { "Manager action" }, listOf(it.str("trainer_name"), it.str("category"), it.str("priority")).filter(String::isNotBlank).joinToString(" • "), it.str("trainer_email").takeIf(String::isNotBlank)) })

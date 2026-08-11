@@ -1,6 +1,15 @@
 package com.example.skillsync.theme
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,9 +20,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -237,4 +249,44 @@ fun StateNote(
 object Layout {
     val gutter = Space.lg
     val section = Space.lg
+}
+
+// ── Motion ──────────────────────────────────────────────────────────────────
+
+/**
+ * Press feedback for any tappable card: a 0.98 scale over 100ms.
+ *
+ * Compose's ripple is invisible on a dark translucent surface, so without this
+ * a card that opens a drill-down felt identical to one that did nothing.
+ */
+@Composable
+fun Modifier.pressable(onClick: () -> Unit): Modifier {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.98f else 1f,
+        animationSpec = tween(100),
+        label = "press",
+    )
+    return this
+        .graphicsLayer { scaleX = scale; scaleY = scale }
+        .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+}
+
+/**
+ * Slow alpha breath, reserved for [Severity.Critical]. Capped to one element on
+ * screen by convention — a dashboard where several things pulse reads as noise
+ * rather than as urgency.
+ */
+@Composable
+fun rememberCriticalPulse(active: Boolean): Float {
+    if (!active) return 1f
+    val t = rememberInfiniteTransition(label = "pulse")
+    val a by t.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2000), RepeatMode.Reverse),
+        label = "pulseAlpha",
+    )
+    return a
 }

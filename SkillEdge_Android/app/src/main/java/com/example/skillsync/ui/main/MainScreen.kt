@@ -427,7 +427,10 @@ fun MainScreen(
                                         onDrill = { drill = it },
                                         onLoadCapability = { viewModel.ensureCapability(email, context) },
                                         onOpenTeam = { onTabChange(HomeTab.TEAM) },
-                                        onOpenNotifications = { showNotificationsSheet = true }
+                                        onOpenNotifications = { showNotificationsSheet = true },
+                                        onOpenDemand = { onTabChange(HomeTab.DEMAND) },
+                                        fromCache = s.fromCache,
+                                        cachedAt = s.cachedAt,
                                     )
                                 }
                             }
@@ -639,6 +642,10 @@ internal fun DashboardTab(
     onLoadCapability: () -> Unit = {},
     onOpenTeam: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
+    onOpenDemand: () -> Unit = {},
+    /** Disk-write time of the payload, so the hero can state a real "as of". */
+    fromCache: Boolean = false,
+    cachedAt: Long = 0L,
 ) {
     val sk = MaterialTheme.skill
     val ops = data.rows("trainer_operations_df")
@@ -688,20 +695,13 @@ internal fun DashboardTab(
         ),
         verticalArrangement = Arrangement.spacedBy(com.example.skillsync.theme.Layout.section)
     ) {
+        // Identity, freshness and the readiness reading are one block now —
+        // ProfileHeader no longer renders separately above the briefing.
         item {
-            ProfileHeader(
-                email = email,
-                profile = profile,
-                kpis = kpis,
-                capKpis = capKpis,
-                onOpenProfile = onOpenProfile,
-                onOpenNotifications = onOpenNotifications,
-            )
-        }
-
-        item {
-            Appear(1) {
+            Appear(0) {
                 ManagerCommandCentre(
+                    email = email,
+                    profile = profile,
                     kpis = kpis,
                     capKpis = capKpis,
                     capabilityLoading = capabilityLoading,
@@ -711,8 +711,13 @@ internal fun DashboardTab(
                     demand = data.rows("unallocated_demand_df"),
                     capTrainers = capTrainers,
                     actions = actions,
+                    fromCache = fromCache,
+                    cachedAt = cachedAt,
                     onDrill = onDrill,
                     onTrainerClick = onTrainerClick,
+                    onOpenProfile = onOpenProfile,
+                    onOpenNotifications = onOpenNotifications,
+                    onOpenDemand = onOpenDemand,
                 )
             }
         }

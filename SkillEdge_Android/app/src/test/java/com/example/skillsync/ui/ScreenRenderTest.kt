@@ -260,11 +260,58 @@ class ScreenRenderTest {
         )
     }
 
+    /**
+     * The briefing order from `AI/DESIGN_VISION_V2_2026_08_11.md` §10: health,
+     * then triage, then what is moving, then slack, then what is coming. The
+     * first version of this screen drifted back into a flat stack of equal
+     * panels, so the order is pinned here rather than left to convention.
+     */
+    @Test
+    fun dashboard_followsTheBriefingOrder() {
+        compose.setContent { SkillSyncTheme { Dashboard() } }
+        val tops = listOf("TEAM READINESS", "NEEDS YOU TODAY", "PULSE", "CAPACITY BALANCE", "DEMAND")
+            .map { compose.onNodeWithText(it).fetchSemanticsNode().boundsInRoot.top }
+        assertTrue("Briefing blocks are out of order: $tops", tops.zipWithNext().all { (a, b) -> b > a })
+    }
+
+    /** An attention card a manager cannot act from is just a notification. */
+    @Test
+    fun dashboard_attentionCardsCarryTheirRecommendedAction() {
+        compose.setContent { SkillSyncTheme { Dashboard() } }
+        compose.onNodeWithText("NEEDS YOU TODAY").assertExists()
+        // The fixture carries one unallocated batch, so the allocate action is
+        // the one that must surface as a button on the strip.
+        compose.onAllNodesWithText("Allocate").onFirst().assertExists()
+    }
+
+    /** Demand summarises, then offers exactly one way through to the pipeline. */
+    @Test
+    fun dashboard_demandSummaryOffersASingleRouteIntoThePipeline() {
+        var openedDemand = false
+        compose.setContent {
+            SkillSyncTheme {
+                DashboardTab(
+                    data = dashboardPayload(), profile = managerProfile(),
+                    capability = capabilityPayload(), capabilityLoading = false,
+                    email = "aishwar.c@koenig-solutions.com",
+                    onTrainerClick = { _, _ -> }, onOpenProfile = {}, onDrill = {},
+                    onOpenDemand = { openedDemand = true },
+                )
+            }
+        }
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("INTERNATIONAL"))
+        compose.onNodeWithText("Allocate 1 open batch").performClick()
+        assertTrue("Demand CTA must route into the pipeline", openedDemand)
+    }
+
     @Test
     fun dashboard_identifiesTheSignedInManager() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
         compose.onNodeWithText("Aishwar Nigam").assertExists()
-        compose.onNodeWithText("Delivery Manager · Live").assertExists()
+        // Identity now lives inside the briefing hero, and the subtitle is a
+        // real freshness stamp rather than a static "Live" label. With no cache
+        // timestamp in the fixture it falls back to the role line.
+        compose.onNodeWithText("DELIVERY MANAGER · LIVE").assertExists()
     }
 
     /**
@@ -325,11 +372,10 @@ class ScreenRenderTest {
     @Test
     fun dashboard_rendersEveryManagerKpi() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
-        // Hero carries the health reading; the pulse row carries the four
-        // figures that move. Both are above the fold by design.
-        listOf("STRENGTH", "FREE NOW")
-            .forEach { compose.onNodeWithText(it).assertExists() }
-        listOf("TEAM STRENGTH", "UNALLOCATED DEMAND", "OPEN ACTIONS", "UTILISATION")
+        // Hero carries the single health reading; the pulse row carries the four
+        // figures the design brief names. Both sit above the fold by design.
+        compose.onNodeWithText("TEAM READINESS").assertExists()
+        listOf("STRENGTH", "UTILISATION", "CERT COVERAGE", "AT RISK")
             .forEach { compose.onAllNodesWithText(it).onFirst().assertExists() }
         compose.onAllNodesWithText("Critical pulse").assertCountEquals(0)
     }
@@ -375,7 +421,8 @@ class ScreenRenderTest {
                 )
             }
         }
-        compose.onNodeWithText("TEAM STRENGTH").performClick()
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("STRENGTH"))
+        compose.onNodeWithText("STRENGTH").performClick()
         org.junit.Assert.assertNotNull(opened)
     }
 
@@ -692,8 +739,8 @@ class ScreenRenderTest {
     fun dashboard_usesCompactSemanticKpisAndRestoresTopPerformers() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
         // Pulse tiles share a row, so their tops must agree before anything scrolls.
-        val strength = compose.onNodeWithText("UNALLOCATED DEMAND").fetchSemanticsNode().boundsInRoot
-        val capacity = compose.onNodeWithText("OPEN ACTIONS").fetchSemanticsNode().boundsInRoot
+        val strength = compose.onNodeWithText("CERT COVERAGE").fetchSemanticsNode().boundsInRoot
+        val capacity = compose.onNodeWithText("AT RISK").fetchSemanticsNode().boundsInRoot
         assertTrue("Pulse tiles are not aligned", kotlin.math.abs(strength.top - capacity.top) < 2f)
 
         expandExplore()
