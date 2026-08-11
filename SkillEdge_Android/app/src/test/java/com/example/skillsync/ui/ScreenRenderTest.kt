@@ -535,10 +535,13 @@ class ScreenRenderTest {
         compose.onNodeWithText("Sort: Health").assertExists()
         compose.onNodeWithText("1 of 1 trainers").assertExists()
         compose.onAllNodesWithText("Abhinav Samant").onFirst().assertExists()
-        listOf("UTIL", "READY", "CERTS", "GAPS", "Low risk", "1 action").forEach {
+        // The compact card carries three micro-figures and a severity headline.
+        // Readiness score, risk text and the recommended action moved to the
+        // profile: fourteen fields at equal weight ranked nothing, which is the
+        // problem §7.2 exists to fix.
+        listOf("UTIL", "CERTS", "GAPS").forEach {
             compose.onNodeWithText(it).assertExists()
         }
-        compose.onNodeWithText("Available", substring = true).assertExists()
     }
 
     @Test
@@ -888,12 +891,11 @@ class ScreenRenderTest {
                 )
             }
         }
-        compose.onNodeWithText("INTERNATIONAL FMAT OPPORTUNITY").assertExists()
-        compose.onNodeWithText("GLOBAL OPPORTUNITY").assertExists()
-        compose.onNodeWithText("GLOBAL PRIORITY").assertExists()
-        compose.onNodeWithText("TRAVEL REQUIRED", substring = true).assertExists()
+        // International is a card class now, not a badge: a full-bleed ribbon
+        // owns the top edge and a globe medallion anchors the destination line.
+        compose.onNodeWithText("INTERNATIONAL FMAT").assertExists()
         compose.onNodeWithText("London, United Kingdom").assertExists()
-        compose.onNodeWithText("Visa and schedule readiness", substring = true).assertExists()
+        compose.onNodeWithText("Travel readiness not checked").assertExists()
         compose.onNodeWithText("Global Network Search").assertDoesNotExist()
     }
 

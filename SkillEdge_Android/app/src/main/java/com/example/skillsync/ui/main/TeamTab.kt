@@ -169,10 +169,21 @@ internal fun TeamTab(
                 matchesReadiness && matchesRisk && matchesSkill && matchesCert && matchesGaps
         }.let { list ->
             when (f.sort) {
-                TeamSort.HEALTH -> list.sortedBy { t ->
-                    val email = t.str("official_email").lowercase()
-                    trainerHealth(t, capMap[email], deliveryMap[email]).first
-                }
+                // Ranked by who needs the manager, using the same severity
+                // precedence the card stripe, the agent and the weekly message
+                // use — so a trainer flagged on one surface is flagged on all.
+                TeamSort.HEALTH -> list.sortedWith(
+                    compareBy(
+                        { t ->
+                            val email = t.str("official_email").lowercase()
+                            teamCardSeverity(
+                                t, capMap[email], readiness[email],
+                                actionsByTrainer[email]?.size ?: 0,
+                            ).weight
+                        },
+                        { t -> t.str("trainer_name") },
+                    )
+                )
                 TeamSort.UTILISATION -> list.sortedByDescending { it.int("current_utilization") }
                 TeamSort.NAME -> list.sortedBy { it.str("trainer_name") }
                 TeamSort.STATUS -> list.sortedBy {

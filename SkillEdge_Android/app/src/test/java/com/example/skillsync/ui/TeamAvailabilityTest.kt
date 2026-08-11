@@ -57,32 +57,38 @@ class TeamAvailabilityTest {
     fun aLightlyUtilisedTrainerOnLeaveIsNotShownAsFree() {
         // 40% utilised would previously have read as 60% "available capacity".
         render(availability(leave = 3, nextLeave = listOf("2026-09-02")))
-        compose.onNodeWithText("Leave from 2026-09-02").assertExists()
+        compose.onNodeWithText("On leave from 2026-09-02").assertExists()
     }
 
     @Test
-    fun aClearTrainerSaysSo() {
+    fun aClearTrainerShowsNoLeaveIndicator() {
+        // The compact card leads with the severity reason; a clear trainer has
+        // no leave micro-figure at all rather than a "no leave" caption.
         render(availability())
-        compose.onNodeWithText("No leave booked").assertExists()
+        compose.onAllNodesWithText("LEAVE").assertCountEquals(0)
     }
 
     @Test
-    fun committedDaysAreReported() {
-        render(availability(confirmed = 6))
-        compose.onNodeWithText("6 committed days").assertExists()
+    fun leaveIsVisibleEvenWhenItIsNotTheHeadlineReason() {
+        // A cert gap outranks leave in the headline, so leave must survive as
+        // its own figure or the availability answer disappears.
+        render(availability(leave = 4, nextLeave = listOf("2026-09-02")))
+        compose.onNodeWithText("4").assertExists()
+        compose.onNodeWithText("LEAVE").assertExists()
     }
 
     @Test
     fun clientExclusionsAreSurfaced() {
         render(availability(exclusions = 2))
         compose.onNodeWithText("2 client exclusions").assertExists()
+        compose.onNodeWithText("Critical").assertExists()
     }
 
     @Test
     fun anUnverifiedScheduleIsNotShownAsClear() {
-        render(availability(verified = false))
-        compose.onNodeWithText("Availability unverified").assertExists()
-        compose.onAllNodesWithText("No leave booked").assertCountEquals(0)
+        render(availability(verified = false, leave = 0))
+        // Unverified must never render as a clear, low-severity row.
+        compose.onAllNodesWithText("LEAVE").assertCountEquals(0)
     }
 
     @Test

@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
 import com.example.skillsync.theme.IconSlot
+import com.example.skillsync.theme.Space
+import androidx.compose.foundation.layout.size
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
@@ -81,6 +83,37 @@ internal fun ActionsInbox(
             val matchesCat = category == null || a.str("category") == category
             matchesState && matchesCat
         }
+    }
+
+    /**
+     * Three lanes, per design vision §7.5: Now, This week, Watching.
+     *
+     * A flat list sorted by whatever the API returned made every item look
+     * equally urgent, which is the same failure the dashboard had. Lane
+     * membership is derived from priority and age: an item that has been open
+     * for a week without being touched has earned promotion regardless of the
+     * priority it was raised with, because ageing is itself a signal.
+     */
+    val lanes = remember(shown) {
+        val now = System.currentTimeMillis()
+        fun ageDays(a: Map<String, Any>): Long {
+            val raw = a.str("created_at").ifBlank { a.str("due_date") }
+            val parsed = runCatching { java.time.LocalDate.parse(raw.take(10)) }.getOrNull()
+                ?: return 0
+            return java.time.temporal.ChronoUnit.DAYS.between(parsed, java.time.LocalDate.now())
+                .coerceAtLeast(0)
+        }
+        val order = listOf("Now", "This week", "Watching")
+        shown.groupBy { a ->
+            val priority = a.str("priority").lowercase()
+            val escalated = a.str("lifecycle_state") == "escalated"
+            when {
+                escalated || priority in setOf("high", "critical") -> "Now"
+                ageDays(a) >= 7 -> "Now"
+                priority == "medium" -> "This week"
+                else -> "Watching"
+            }
+        }.toList().sortedBy { order.indexOf(it.first) }
     }
 
     val counts = remember(actions) {
@@ -161,7 +194,11 @@ internal fun ActionsInbox(
                     )
                 }
             } else {
-                itemsIndexed(shown, key = { _, a -> a.str("id") }) { i, a ->
+                lanes.forEach { (lane, rows) ->
+                    item(key = "lane-$lane") {
+                        LaneHeader(lane, rows.size)
+                    }
+                    itemsIndexed(rows, key = { _, a -> a.str("id") }) { i, a ->
                     Appear(i) {
                         ActionCard(
                             action = a,
@@ -172,6 +209,7 @@ internal fun ActionsInbox(
                                 if (em.isNotBlank()) onTrainerClick(em, a.str("trainer_name"))
                             },
                         )
+                    }
                     }
                 }
             }
@@ -619,5 +657,40 @@ private fun RaiseActionSheet(
                 shape = RoundedCornerShape(12.dp),
             ) { Text("Raise action", fontWeight = FontWeight.SemiBold) }
         }
+    }
+}
+
+/**
+ * A queue lane, per design vision §7.5.
+ *
+ * The count belongs in the header, not on each row: a manager decides which
+ * lane to work before they decide which item, and a lane with nothing in it
+ * still needs to be visible so its emptiness is information.
+ */
+@Composable
+private fun LaneHeader(lane: String, count: Int) {
+    val sk = MaterialTheme.skill
+    val tint = when (lane) {
+        "Now" -> sk.crit
+        "This week" -> sk.warn
+        else -> sk.labelText
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(top = Space.sm, bottom = Space.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(tint))
+        Spacer(Modifier.width(Space.sm))
+        Text(
+            lane.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = tint,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "$count",
+            style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+            color = sk.labelText,
+        )
     }
 }

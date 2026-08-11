@@ -623,6 +623,10 @@ internal fun BatchCard(
             )
             .clickable(onClick = onClick),
     ) {
+      Column {
+        // Full-bleed ribbon: an international batch is a different class of
+        // card, and the top edge is what makes that legible before any text.
+        if (globalFeatured) InternationalRibbon(b)
         Row {
             // Coverage is the primary scan signal — can my team even do this —
             // so it owns the leading edge, same convention as the roster card.
@@ -636,8 +640,10 @@ internal fun BatchCard(
             )
             Column(Modifier.padding(start = 14.dp, top = 13.dp, end = 13.dp, bottom = 13.dp).fillMaxWidth()) {
                 if (globalFeatured) {
-                    GlobalPriorityRibbon(b)
-                    Spacer(Modifier.height(10.dp))
+                    // The card class, not a badge: ribbon owns the top edge and
+                    // the destination block carries a real travel verdict.
+                    InternationalDestination(b)
+                    Spacer(Modifier.height(Space.sm))
                 }
                 if (leastMatch) {
                     Row(
@@ -926,6 +932,7 @@ internal fun BatchCard(
                 }
             }
         }
+      }
     }
 }
 

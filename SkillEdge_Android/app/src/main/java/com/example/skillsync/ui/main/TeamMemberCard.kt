@@ -1,38 +1,59 @@
 package com.example.skillsync.ui.main
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
-import com.example.skillsync.R
 import com.example.skillsync.theme.Radii
-import com.example.skillsync.theme.accentGlass
+import com.example.skillsync.theme.Severity
+import com.example.skillsync.theme.Space
+import com.example.skillsync.theme.ToneChip
+import com.example.skillsync.theme.glassSurface
+import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.*
+import com.example.skillsync.ui.components.Avatar
+import com.example.skillsync.ui.components.Sparkline
+import com.example.skillsync.ui.components.int
+import com.example.skillsync.ui.components.intOrNull
+import com.example.skillsync.ui.components.list
+import com.example.skillsync.ui.components.obj
+import com.example.skillsync.ui.components.str
+import com.example.skillsync.ui.components.strings
 
 /**
- * One trainer, at half screen width, on the manager's team command surface.
+ * The roster card, rebuilt to `AI/DESIGN_VISION_V2_2026_08_11.md` §7.2.
  *
- * Two of these sit per row, so everything here has to earn its space. It shows
- * the six things a manager needs to compare people against each other —
- * health, status, utilisation, readiness, certificates held versus gaps, and
- * what is coming up — plus a flag when the trainer needs a decision. Anything
- * that does not help compare two people belongs on the trainer-360 profile,
- * not here.
+ * The previous card was a 379-line block that rendered fourteen fields at
+ * roughly equal weight: designation, status label, current course, days left,
+ * next course, utilisation bar, readiness score and bucket, certificates held,
+ * gaps, feedback risk, availability string, next available date, upcoming
+ * count and a recommended action. A manager scanning ten of them could not
+ * tell who needed them, because nothing on the card ranked anything.
+ *
+ * This is one compact row. Severity owns the leading edge, so urgency is read
+ * as position and shape before any text. Three micro-figures carry the numbers
+ * that actually differ between people, a sparkline carries direction, and
+ * everything else moved to the profile — which is one tap away and exists for
+ * exactly that.
  */
 @Composable
 internal fun TeamMemberCard(
@@ -41,321 +62,95 @@ internal fun TeamMemberCard(
     capability: Map<*, *>? = null,
     delivery: Map<*, *>? = null,
     openActionCount: Int = 0,
-    /**
-     * Real availability row from /api/v2/team/readiness. The card already has
-     * a `readiness` (capability score) and an `availability` (a status string),
-     * hence the explicit name.
-     */
+    /** Real availability row from `/api/v2/team/readiness`. */
     calendarAvailability: Map<String, Any>? = null,
     onClick: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
     val name = trainer.str("trainer_name")
-    val designation = trainer.str("designation")
     val util = trainer.intOrNull("current_utilization")
-    val upcoming = trainer.int("upcoming_count")
-    val statusLabel = state?.str("status_label") ?: "Unknown"
-    val status = state?.str("current_status") ?: "unknown"
-    val cur = state?.obj("current_batch")
-    val next = state?.obj("next_batch")
-    val curCourse = cur?.str("course_name").orEmpty()
-    val nextCourse = next?.str("course_name").orEmpty()
-    val daysLeft = cur?.intOrNull("days_left")
-
     val cert = capability?.obj("certification")
-    val held = cert?.list("held")?.size ?: 0
     val gaps = cert?.int("gap_count") ?: 0
-    val readiness = capability?.intOrNull("readiness_score")
-    val readinessBucket = capability?.str("readiness_bucket").orEmpty()
-    val feedbackRisk = trainer.str("feedback_risk").ifBlank { "Unknown" }
-    val availability = trainer.str("availability_status").ifBlank { "Unverified" }
-    val nextAvailable = trainer.str("next_available_date")
+    val held = cert?.list("held")?.size ?: 0
 
-    val recommended = trainer.str("recommended_action")
-        .takeIf { it.isNotBlank() && it != "Monitor performance" }
+    val severity = teamCardSeverity(trainer, capability, calendarAvailability, openActionCount)
+    val tint = severity.tint()
 
-    val (health, healthBucket) = trainerHealth(trainer, capability, delivery)
-    val healthColor = when (healthBucket) {
-        "Healthy" -> sk.aqua
-        "Watchlist" -> sk.sky
-        "Needs Attention" -> sk.warn
-        else -> sk.crit
-    }
-    val statusColor = when (status) {
-        "teaching_now" -> sk.cyan
-        "scheduled_today" -> sk.sky
-        "preparing" -> sk.ice
-        "free" -> sk.aqua
-        else -> sk.labelText
-    }
+    // The one line that says why this person is where they are in the list.
+    val headline = teamCardHeadline(trainer, state, calendarAvailability, gaps, openActionCount)
 
-    Box(
+    // Direction, not just position. Rendered only when RMS returned a real
+    // series — an invented trend is worse than none.
+    val series = trainer.list("utilization_series")
+        .mapNotNull { it.intOrNull("utilization") }
+
+    Row(
         Modifier
             .fillMaxWidth()
-            .accentGlass(healthColor, RoundedCornerShape(Radii.card), strong = healthBucket == "High Risk")
-            .clickable(onClick = onClick),
+            .height(104.dp)
+            .glassSurface(RoundedCornerShape(Radii.card))
+            .pressable(onClick),
     ) {
+        // Severity as position and shape, not only colour.
         Box(
             Modifier
-                .width(3.dp)
+                .width(4.dp)
                 .fillMaxHeight()
-                .background(Brush.verticalGradient(listOf(healthColor, healthColor.copy(alpha = 0.2f))))
+                .background(Brush.verticalGradient(listOf(tint, tint.copy(alpha = 0.25f))))
         )
-        Column(Modifier.padding(start = 12.dp, top = 11.dp, end = 10.dp, bottom = 11.dp)) {
-            // ── Identity + health ───────────────────────────────────────────
+
+        Column(
+            Modifier
+                .weight(1f)
+                .padding(horizontal = Space.md, vertical = Space.sm),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Avatar(name, capability?.str("photo_url"), 30.dp)
-                Spacer(Modifier.width(8.dp))
+                Avatar(name, capability?.str("photo_url"), 32.dp)
+                Spacer(Modifier.width(Space.sm))
                 Column(Modifier.weight(1f)) {
                     Text(
                         name,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = sk.frost,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = sk.bodyText,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        statusLabel.uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = statusColor,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                    )
-                }
-                Surface(
-                    color = healthColor.copy(alpha = 0.14f),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, healthColor.copy(alpha = 0.35f)),
-                ) {
-                    Column(
-                        Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(
-                            "$health",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold, color = healthColor,
-                        )
-                        Text(
-                            healthBucket.uppercase(), style = MaterialTheme.typography.labelSmall,
-                            color = healthColor, fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                        )
-                    }
-                }
-            }
-
-            if (designation.isNotBlank()) {
-                Spacer(Modifier.height(5.dp))
-                Text(
-                    designation,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.subText,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            Spacer(Modifier.height(9.dp))
-
-            // ── Utilisation and readiness, side by side for comparison ──────
-            Row(Modifier.fillMaxWidth()) {
-                MiniMetric(
-                    "UTIL",
-                    util?.let { "$it%" } ?: "—",
-                    when {
-                        util == null -> sk.subText
-                        util > 85 -> sk.crit
-                        util >= 60 -> sk.aqua
-                        util >= 30 -> sk.warn
-                        else -> sk.subText
-                    },
-                    Modifier.weight(1f),
-                )
-                MiniMetric(
-                    "READY",
-                    readiness?.toString() ?: "—",
-                    when {
-                        readiness == null -> sk.subText
-                        readiness >= 70 -> sk.aqua
-                        readiness >= 45 -> sk.warn
-                        else -> sk.crit
-                    },
-                    Modifier.weight(1f),
-                )
-            }
-            util?.let {
-                Spacer(Modifier.height(5.dp))
-                LinearProgressIndicator(
-                    progress = { (it / 100f).coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth().height(3.dp).clip(CircleShape),
-                    color = when { it > 85 -> sk.crit; it >= 60 -> sk.aqua; else -> sk.warn },
-                    trackColor = sk.cardBorder.copy(alpha = 0.5f),
-                )
-            }
-
-            Spacer(Modifier.height(7.dp))
-
-            // ── Credentials: manager KPIs, not profile-only detail ─────────
-            Row(Modifier.fillMaxWidth()) {
-                MiniMetric(
-                    "CERTS", if (capability == null) "…" else "$held",
-                    if (held > 0) sk.ice else sk.subText, Modifier.weight(1f),
-                )
-                MiniMetric(
-                    "GAPS", if (capability == null) "…" else "$gaps",
-                    if (gaps > 0) sk.warn else sk.aqua, Modifier.weight(1f),
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
-            HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.45f), thickness = 0.5.dp)
-            Spacer(Modifier.height(7.dp))
-
-            // ── What they are on now, and what is next ──────────────────────
-            if (curCourse.isNotBlank()) {
-                Text(
-                    curCourse,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.frost, fontWeight = FontWeight.Medium,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    when {
-                        daysLeft == null -> "end date unknown"
-                        daysLeft <= 0 -> "ends today"
-                        daysLeft == 1 -> "ends tomorrow"
-                        else -> "ends in $daysLeft days"
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.labelText,
-                )
-            } else {
-                Text(
-                    "No current assignment",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.subText,
-                )
-            }
-            Spacer(Modifier.height(3.dp))
-            Text(
-                "$upcoming upcoming",
-                style = MaterialTheme.typography.labelSmall,
-                color = if (upcoming > 0) sk.sky else sk.subText,
-                fontWeight = if (upcoming > 0) FontWeight.SemiBold else FontWeight.Normal,
-            )
-
-            // Real availability from the RMS calendar. The utilisation bar
-            // above is a workload reading, and until now it was the only
-            // availability signal on this card — the same error corrected on
-            // Demand, where a trainer at 40% could be on leave.
-            val r: Map<*, *>? = calendarAvailability
-            if (r != null) {
-                val leaveDays = r.int("leave_days")
-                val exclusions = r.int("client_exclusions")
-                val verified = r["verified"] == true
-                val nextLeave = r.strings("next_leave").firstOrNull()
-                val confirmed = r.int("confirmed_days")
-                val (tint, label) = when {
-                    !verified -> sk.labelText to "Availability unverified"
-                    leaveDays > 0 -> sk.warn to
-                        (nextLeave?.let { "Leave from $it" } ?: "$leaveDays leave days")
-                    confirmed > 0 -> sk.sky to "$confirmed committed days"
-                    else -> sk.aqua to "No leave booked"
-                }
-                Spacer(Modifier.height(3.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(5.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(tint)
-                    )
-                    Spacer(Modifier.width(5.dp))
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = tint,
+                        headline,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (severity == Severity.Good) sk.subText else tint,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
                     )
                 }
-                if (exclusions > 0) {
-                    Text(
-                        "$exclusions client exclusion${if (exclusions == 1) "" else "s"}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = sk.crit,
-                    )
-                }
-            }
-            if (nextCourse.isNotBlank()) {
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    "Next · $nextCourse",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.sky,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            Spacer(Modifier.height(5.dp))
-            Text(
-                if (nextAvailable.isNotBlank()) "$availability · ${nextAvailable.shortDate()}" else availability,
-                style = MaterialTheme.typography.labelSmall,
-                color = when (availability.lowercase()) {
-                    "available" -> sk.aqua
-                    "conflict" -> sk.crit
-                    else -> sk.warn
-                }, fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-
-            Spacer(Modifier.height(5.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Surface(
-                    color = when (feedbackRisk) {
-                        "High" -> sk.crit.copy(alpha = 0.14f)
-                        "Medium" -> sk.warn.copy(alpha = 0.14f)
-                        else -> sk.aqua.copy(alpha = 0.10f)
-                    },
-                    shape = RoundedCornerShape(5.dp),
-                ) {
-                    Text(
-                        "$feedbackRisk risk", style = MaterialTheme.typography.labelSmall,
-                        color = when (feedbackRisk) { "High" -> sk.crit; "Medium" -> sk.warn; else -> sk.aqua }, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-                    )
-                }
-                if (openActionCount > 0) {
-                    Surface(color = sk.crit.copy(alpha = 0.14f), shape = RoundedCornerShape(5.dp)) {
-                        Text(
-                            "$openActionCount action${if (openActionCount == 1) "" else "s"}",
-                            style = MaterialTheme.typography.labelSmall, color = sk.crit, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-                        )
-                    }
+                if (severity != Severity.Good) {
+                    ToneChip(severity.label, tint)
                 }
             }
 
-            // ── Action flag, only when one is genuinely required ────────────
-            if (recommended != null) {
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(healthColor.copy(alpha = 0.11f))
-                        .padding(horizontal = 7.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        painterResource(R.drawable.ic_flag), null,
-                        tint = healthColor, modifier = Modifier.size(10.dp),
-                    )
-                    Spacer(Modifier.width(5.dp))
-                    Text(
-                        recommended,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = healthColor, fontWeight = FontWeight.SemiBold,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Micro(util?.let { "$it%" } ?: "—", "util", sk)
+                Spacer(Modifier.width(Space.lg))
+                Micro("$held", "certs", sk)
+                Spacer(Modifier.width(Space.lg))
+                Micro(if (gaps == 0) "0" else "$gaps", "gaps", sk, warn = gaps > 0)
+
+                // Leave is shown whenever it exists, not only when it happens
+                // to be the top severity reason. A trainer with a certification
+                // gap *and* leave next week would otherwise have the leave
+                // hidden by the headline, which is the availability question
+                // the manager most needs answered.
+                val leaveDays = (calendarAvailability?.get("leave_days") as? Number)?.toInt() ?: 0
+                if (leaveDays > 0) {
+                    Spacer(Modifier.width(Space.lg))
+                    Micro("$leaveDays", "leave", sk, warn = true)
+                }
+
+                Spacer(Modifier.weight(1f))
+                if (series.size >= 2) {
+                    Sparkline(
+                        series, tint, endpointTint = sk.cyan,
+                        height = 18.dp,
+                        modifier = Modifier.width(56.dp),
                     )
                 }
             }
@@ -363,17 +158,79 @@ internal fun TeamMemberCard(
     }
 }
 
+/** A number and a three-letter label, sized so the number dominates. */
 @Composable
-private fun MiniMetric(label: String, value: String, tint: Color, modifier: Modifier = Modifier) {
-    Column(modifier) {
+private fun Micro(
+    value: String,
+    label: String,
+    sk: com.example.skillsync.theme.SkillColors,
+    warn: Boolean = false,
+) {
+    Row(verticalAlignment = Alignment.Bottom) {
         Text(
-            label, style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.skill.ice,
-            fontWeight = FontWeight.Bold,
+            value,
+            style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
+            color = if (warn) sk.warn else sk.bodyText,
         )
+        Spacer(Modifier.width(3.dp))
         Text(
-            value, style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold, color = tint,
+            label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = sk.labelText,
         )
+    }
+}
+
+/**
+ * Where this person sits in the manager's attention order.
+ *
+ * Deliberately the same precedence the agent and the weekly message use, so a
+ * trainer flagged on one surface is flagged on all of them.
+ */
+internal fun teamCardSeverity(
+    trainer: Map<*, *>,
+    capability: Map<*, *>?,
+    calendarAvailability: Map<String, Any>?,
+    openActionCount: Int,
+): Severity {
+    val gaps = capability?.obj("certification")?.int("gap_count") ?: 0
+    val exclusions = (calendarAvailability?.get("client_exclusions") as? Number)?.toInt() ?: 0
+    return when {
+        trainer.str("feedback_risk").equals("High", true) -> Severity.Critical
+        exclusions > 0 -> Severity.Critical
+        gaps > 0 -> Severity.Warning
+        trainer.str("capacity_bucket").equals("Stretched", true) -> Severity.Warning
+        trainer.str("capacity_bucket").equals("On Bench", true) -> Severity.Watch
+        openActionCount > 0 -> Severity.Info
+        else -> Severity.Good
+    }
+}
+
+/** One sentence explaining the severity, in the manager's language. */
+internal fun teamCardHeadline(
+    trainer: Map<*, *>,
+    state: Map<*, *>?,
+    calendarAvailability: Map<String, Any>?,
+    gaps: Int,
+    openActionCount: Int,
+): String {
+    val exclusions = (calendarAvailability?.get("client_exclusions") as? Number)?.toInt() ?: 0
+    val leave = (calendarAvailability?.get("leave_days") as? Number)?.toInt() ?: 0
+    val nextLeave = calendarAvailability?.let {
+        @Suppress("UNCHECKED_CAST")
+        (it["next_leave"] as? List<String>)?.firstOrNull()
+    }
+    val current = state?.obj("current_batch")?.str("course_name").orEmpty()
+
+    return when {
+        trainer.str("feedback_risk").equals("High", true) -> "Feedback flagged for review"
+        exclusions > 0 -> "$exclusions client exclusion${if (exclusions == 1) "" else "s"}"
+        gaps > 0 -> "$gaps certification gap${if (gaps == 1) "" else "s"} open"
+        trainer.str("capacity_bucket").equals("Stretched", true) -> "Carrying more than their share"
+        leave > 0 -> nextLeave?.let { "On leave from $it" } ?: "$leave days of leave booked"
+        trainer.str("capacity_bucket").equals("On Bench", true) -> "Available, nothing booked"
+        openActionCount > 0 -> "$openActionCount open action${if (openActionCount == 1) "" else "s"}"
+        current.isNotBlank() -> "Delivering $current"
+        else -> state?.str("status_label").orEmpty().ifBlank { "On track" }
     }
 }
