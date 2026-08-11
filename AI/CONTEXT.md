@@ -14,46 +14,74 @@ For the exact account `aishwar_v@koenig-solutions.com`, a foreign-location FMAT 
 ## What it is
 
 AI-assisted delivery-intelligence workspace for Koenig Solutions delivery managers.
-A manager logs in with their official email; the backend fetches scoped reportees from
-live RMS APIs, runs intelligence engines, and serves a unified payload that powers a
-SeanTheme Color Admin dashboard frontend.
+A manager signs in with their official email; the backend fetches scoped reportees from
+live RMS APIs, runs the intelligence engines, and serves a unified payload that powers
+the **Android app** — the shipped product. The SeanTheme web dashboard it once served
+is legacy and lives under `SkillEdge_Local/`.
 
-## Run
+**Product scope (operator decision, 2026-08-11):** a Delivery Intelligence and Resource
+Readiness Platform. Delivery intelligence, resource planning, trainer readiness,
+capability management, demand coverage, allocation, certification intelligence and
+capacity planning. **Not** finance, payroll, sales, CRM or revenue: `Total Fee` and
+`Currency` are stripped at the backend boundary and must never reach the device.
+
+## Stack and entry points (corrected 2026-08-12)
+
+The shipped product is an **Android app** backed by a **single-file Flask service**.
+This section previously described `server.py` + `backend/app.py` + a SeanTheme
+Color Admin web frontend; that layout now lives only under `SkillEdge_Local/`
+and is **not** what is deployed. It is **not a .NET project** — there is no
+`.csproj` and no MSBuild step.
+
+**Backend** — `backend.py` at the repo root, deployed to Render.
 
 ```bash
-python server.py
-# then open http://localhost:8765/ (redirects to login)
+python -m pytest tests/ -q          # 123 tests
 ```
 
-`server.py` is the single entry point; it puts `backend/` on the import path and starts
-`backend/app.py`. Config via environment variables (see `.env.example`); dev defaults run
-on port 8765. Production mode (`SKILLEDGE_ENV=production`) requires all RMS credentials.
+Production: `https://skilledge-backend-fpcl.onrender.com`, auto-deploys on push
+to `main`. `SKILLEDGE_ENV=production` requires the `SKILLEDGE_RMS_*_USER` /
+`_PASS` env vars; plaintext fallbacks in `_APIS` remain as migration defaults
+until those are set as Render secrets.
+
+**Android** — `SkillEdge_Android/`, Gradle, Kotlin + Compose.
+
+```bash
+cd SkillEdge_Android
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+```
+
+Release APKs are built and published **only by CI** (`.github/workflows/android-release.yml`)
+so every build carries the same signing key. Never attach an APK to a chat.
 
 ## Key structure
 
-- `server.py` — entry point
-- `backend/app.py` — HTTP server: auth, RMS relay, unified endpoint, static serving
-- `backend/intelligence.py` — unified intelligence build pipeline
-- `backend/api/` — RMS client + credential config
-- `backend/services/` — auth, cache, rms, static, scope, fetch, unified services
-- `backend/shared/` — scoring, normalizers, explainability, intelligence modules
-- `backend/intelligence_engines/` — engine modules
-- `backend/knowledge/` — domain graphs
-- `frontend/pages/` — active product pages (index, login, team, etc.)
-- `frontend/deprecated/` — legacy pages that client-redirect to current ones
-- `frontend/js/` — app.js, api.js (shared client)
-- `frontend/assets/` — SeanTheme Color Admin assets (served at /assets/*)
-- `docs/` — architecture, status, planning & review docs
-- `tests/smoke_test.py` — end-to-end smoke test against a running server
-- `runtime/cache/` — per-manager intelligence cache (regenerated)
-- `runtime/logs/` — rotating server logs
+- `backend.py` — the whole service: auth, RMS relay, intelligence layer, all routes
+- `action_store.py` — SQLite persistence for the manager action inbox
+- `tests/` — pytest suite covering routes, security gates and the intelligence layer
+- `trainer_portal_api_details/` — the 37 RMS API contract documents (credentials live here)
+- `SkillEdge_Android/app/src/main/java/com/example/skillsync/`
+  - `theme/` — design tokens, `DesignSystem.kt`, severity, motion
+  - `ui/main/` — dashboard, team, courses, actions
+  - `ui/batch/` — demand board, batch detail, availability intelligence
+  - `ui/trainer/` — Trainer 360
+  - `ui/report/` — weekly copy-and-send messages
+  - `ui/ai/` + `ai/` — the deterministic delivery agent and its learning loop
+  - `ui/components/` — charts, notifications, shared primitives
+- `SkillEdge_Local/` — **legacy** local web app (SeanTheme Color Admin). Not deployed.
 
-## Serving model
+## The intelligence layer (added 2026-08-12)
 
-- `/assets/*` served from `frontend/assets/` preserving SeanTheme layout so existing URLs work.
-- Other page paths resolved in order: `frontend/pages/` → `frontend/deprecated/` → `frontend/`
-  (covers shared `/js/*`). So `/team.html` serves the active page, `/trainers.html` serves the
-  deprecated redirect, `/js/api.js` serves the shared client.
+Availability is computed from real RMS dates, never inferred from utilisation.
+Lives in `backend.py`; Android renders verdicts and never re-derives them.
+
+- `_free_schedule` (RMS key 171) — per-course candidate pool: free-date calendar,
+  visa incl. associate countries, timezone, nearest city, skill level
+- `_rc_schedule` (RMS key 111) — leave, confirmed vs tentative, `SpecifiedTrainer`, `DNC`
+- `availability_verdict` / `international_verdict` / `evaluate_candidate`
+- `certification_verdict` / `certification_priority`
+- `enrich_demand_with_availability` — additive overlay on the demand board
+- `GET /api/v2/allocation/candidates` — full gated evaluation for one batch
 
 ## Key endpoints
 
