@@ -1,5 +1,28 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T04:00:00+05:30 - Phase 1a: availability and international engines (backend only)
+
+- **Tool Used**: Claude Code (backend.py, pytest, live RMS end-to-end verification)
+- **Files Modified**: `backend.py`, `tests/test_intelligence_layer.py` (created)
+- **Operator decisions confirmed**: DNC absolute and non-overridable; unknown visa shown and flagged, never silently excluded; Phase 1 may be entirely backend. Priority order: data correctness > intelligence > recommendation > business logic > UX > visual.
+- **Work Completed**:
+  - Wired **API 171** (`trainerFreeSchedule`) and **API 111** (`trainerRCSchedule`) with 600s cache TTL — availability is volatile but 171 is per-course, so a 40-batch board means 40 calls.
+  - `_resolve_course_name` — exact, course-code, prefix and containment resolution. **Required**, because 171 returns 0 rows for an inexact name.
+  - `_parse_free_dates`, `_parse_visa` (incl. `AssociateCountries`), `_parse_skill_level` (recovers the future-skill date embedded in the level string).
+  - `_free_schedule`, `_rc_schedule` — typed extraction of leave, confirmed vs tentative, DNC and SpecifiedTrainer.
+  - **`availability_verdict`** — the "utilisation is not availability" fix. Answers for a specific set of delivery days from real free dates, leave and commitments. Returns available / available_with_conflicts / partially_available / unavailable / unknown, naming the blocked days.
+  - **`international_verdict`** — visa (with associate countries, expiry vs batch end, stay length vs batch length), plus timezone fit comfortable/workable/unsocial.
+  - **`evaluate_candidate`** — hard gates (DNC, availability, skill floor, visa) then weighted fit with per-factor contributions and evidence. **Utilisation demoted from gate to tiebreaker (7 points).**
+- **Two bugs caught by live testing that unit tests could not have caught**:
+  1. **I transcribed the API 171 credentials from a pattern instead of reading the portal doc.** Every call silently returned zero rows. Correct user is `AISHWAR_GetTrainerFreeS`. This is exactly the failure mode the verification standard exists to catch.
+  2. The resolver could not match a title given without its code; containment matching added, guarded by a minimum length so "azure" cannot resolve to an arbitrary Azure course.
+- **Live verification**: 37 candidates for AZ-305 (visa 18/37, timezone 37/37, free dates 37/37, one trainer with 175 free days to 2027-02-11); visa parsed with associates `['philippines','egypt']`; RC schedule 61 rows with 4 leave days, 4 confirmed, 3 tentative; end-to-end evaluation correctly blocked a real candidate on a 2-of-4-day conflict while reporting visa valid to 2030 and a 4.5h timezone offset; adding DNC produced a second blocker and fit 0.
+- **Current Status**: 94 backend tests pass (58 pre-existing + 36 new). Pushed `057a4c6`; Render redeployed and healthy (`/healthz` ok v6.1.0, auth gate 401). **No version bump or APK — backend only**, and the Android app does not yet consume these engines.
+- **Next Actions**:
+  1. **Phase 1b**: CertificationEngine (213 promoted, exam identity inferred from 111 `Exam` and labelled as inferred); expose the hidden roaming/IL off-date fields; wire API 13 with fee/currency stripped at the boundary.
+  2. **Phase 2**: replace `_rank_batch` with `evaluate_candidate` across the allocation desk, and expose the factor breakdown through a versioned endpoint.
+  3. RMS question list still outstanding: read-only course→exam mapping; params for 90/172/205/72/93; whether a missing `Visa` means "none" or "unrecorded"; whether `TravelDetails`/`TimeZone` on 111 are dead columns; rate limits for per-course 171 calls.
+
 ## 2026-08-12T02:15:00+05:30 - Intelligence Layer V2 design; all 14 operator deliverables (no code)
 
 - **Tool Used**: Claude Code (further live probes of API 171 semantics and API 213 policy, then design)
