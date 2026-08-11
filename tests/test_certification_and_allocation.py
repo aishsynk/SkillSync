@@ -233,5 +233,60 @@ class CandidateRoute(unittest.TestCase):
         self.assertEqual(401, r.status_code)
 
 
+class DemandOverlay(unittest.TestCase):
+    """
+    The board overlay is additive and states what it did not check. Key 111 is
+    per-trainer-per-batch and too costly for a whole board, so DNC and leave
+    are not applied here — that must be declared, not left implicit.
+    """
+
+    def _board(self, pool, why=""):
+        demand = [{
+            "course_name": "Course X", "start_date": "2026-09-01", "end_date": "2026-09-03",
+            "is_international": True, "country": "UAE",
+            "candidates": [{"trainer_name": "Good Trainer (You)", "match": 80}],
+        }]
+        with mock.patch.object(backend, "_free_schedule", return_value=(pool, why)):
+            return backend.enrich_demand_with_availability(demand)
+
+    def test_existing_candidate_keys_are_preserved(self):
+        start = date(2026, 9, 1)
+        pool = {"good trainer": {
+            "trainer_name": "Good Trainer", "skill_level": 9, "course_assignments": 4,
+            "free_dates": {start + timedelta(days=i) for i in range(10)},
+            "visa": [], "timezone": "India Standard Time",
+            "nearest_city": "Pune", "future_skill_date": "",
+        }}
+        cand = self._board(pool)[0]["candidates"][0]
+        self.assertEqual(80, cand["match"], "the overlay must not modify existing keys")
+        self.assertEqual("available", cand["real_availability"]["status"])
+        self.assertEqual(9, cand["skill_level"])
+        self.assertEqual("unknown", cand["visa_status"])
+
+    def test_the_overlay_declares_that_dnc_and_leave_were_not_checked(self):
+        b = self._board({})[0]
+        self.assertFalse(b["availability_intelligence"]["dnc_checked"])
+        self.assertFalse(b["availability_intelligence"]["leave_checked"])
+
+    def test_an_unresolved_course_reports_unknown_per_candidate(self):
+        b = self._board({}, why="course 'Course X' not found")[0]
+        self.assertEqual("unresolved", b["availability_intelligence"]["source"])
+        self.assertEqual("unknown", b["candidates"][0]["real_availability"]["status"])
+
+    def test_no_skilled_trainers_is_distinct_from_could_not_check(self):
+        # Opposite facts for a manager: one needs a catalogue fix, the other
+        # needs hiring or training. Collapsing them hides which.
+        checked = self._board({})[0]["availability_intelligence"]
+        self.assertEqual("no_skilled_trainers", checked["source"])
+        unchecked = self._board({}, why="not found")[0]["availability_intelligence"]
+        self.assertEqual("unresolved", unchecked["source"])
+
+    def test_a_trainer_absent_from_the_pool_is_unknown_not_available(self):
+        pool = {"someone else": {"trainer_name": "Someone Else", "free_dates": set(),
+                                 "visa": [], "timezone": ""}}
+        cand = self._board(pool)[0]["candidates"][0]
+        self.assertEqual("unknown", cand["real_availability"]["status"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -3596,6 +3596,15 @@ def allocation_desk():
     # deterministic instead of reshuffling equal rows.
     demand.sort(key=_demand_sort_key)
 
+    # Overlay real availability from the RMS free-date calendar. Additive only,
+    # and never fatal: if key 171 is unreachable the board still renders with
+    # the existing signals rather than failing the whole request.
+    try:
+        enrich_demand_with_availability(demand)
+    except Exception:
+        import logging as _logging
+        _logging.exception("availability enrichment failed; serving board without it")
+
     payload = {
         "manager": email,
         "team_size": len(team),
@@ -4228,6 +4237,109 @@ def active_sc_operational(page_size=50):
             # "Total Fee" and "Currency" are intentionally absent.
         })
     return out
+
+
+def enrich_demand_with_availability(demand):
+    """
+    Add real availability and international verdicts to an existing demand board.
+
+    Scope is deliberate. Key 171 is one call per *course*, so the cost here is
+    bounded by the number of distinct courses on the board and is cached for
+    ten minutes. Key 111 is one call per *trainer per batch*, which is
+    multiplicative and would turn a forty-batch board into hundreds of calls —
+    so the DNC, leave and tentative-booking signals are not applied here. They
+    belong to /api/v2/allocation/candidates, which evaluates one batch on
+    demand and can afford them.
+
+    That distinction is recorded on every candidate as `dnc_checked: false`
+    rather than left implicit, because a board that silently omitted a
+    non-overridable gate would be worse than one that never claimed to apply it.
+
+    Existing keys are never modified — this only adds — so the current Android
+    client keeps working unchanged.
+    """
+    # One call per distinct course, fetched in parallel. Measured live at ~2.9s
+    # each: sequentially a six-batch board took 17.3s and a forty-batch board
+    # would have taken two minutes, which is not a board a manager would wait
+    # for. The ten-minute cache then makes subsequent renders free.
+    courses = []
+    for b in demand or []:
+        if isinstance(b, dict):
+            c = b.get("course_name") or ""
+            if c and c not in courses:
+                courses.append(c)
+
+    pools = {}
+    if courses:
+        # Warm the course catalogue before fanning out. Every _free_schedule
+        # call resolves through it, so on a cold cache all N threads raced to
+        # fetch the same 8,800-row payload at once — which is why the first
+        # parallel attempt was no faster than the sequential one.
+        try:
+            _course_catalogue_index()
+        except Exception:
+            pass
+        with ThreadPoolExecutor(max_workers=min(8, len(courses))) as pool_exec:
+            futures = {c: pool_exec.submit(_free_schedule, c) for c in courses}
+            for c, fut in futures.items():
+                try:
+                    pools[c] = fut.result()
+                except Exception:
+                    pools[c] = ({}, "availability lookup failed")
+
+    for b in demand or []:
+        if not isinstance(b, dict):
+            continue
+        course = b.get("course_name") or ""
+        pool, why = pools.get(course, ({}, "availability lookup failed"))
+
+        start = _parse_date(b.get("start_date") or b.get("start_at") or "")
+        end = _parse_date(b.get("end_date") or b.get("end_at") or "") or start
+        days = _delivery_days(start, end) if start else []
+        country = b.get("country") or b.get("location") or ""
+        is_intl = bool(b.get("is_international"))
+
+        # Three outcomes, not two. "Could not check the course" and "checked,
+        # and no trainer holds this skill" are opposite facts for a manager:
+        # the first needs a catalogue fix, the second needs hiring or training.
+        if why:
+            source = "unresolved"
+        elif pool:
+            source = "rms_free_schedule"
+        else:
+            source = "no_skilled_trainers"
+
+        b["availability_intelligence"] = {
+            "source": source,
+            "note": why or ("no trainer in RMS holds this course" if not pool else ""),
+            "pool_size": len(pool),
+            "dnc_checked": False,
+            "leave_checked": False,
+        }
+
+        for cand in b.get("candidates") or []:
+            if not isinstance(cand, dict):
+                continue
+            name = str(cand.get("trainer_name") or "").replace(" (You)", "").strip().lower()
+            row = pool.get(name)
+            if not row:
+                cand["real_availability"] = {"status": "unknown",
+                                             "reason": why or "trainer not in the RMS pool for this course"}
+                continue
+            verdict = availability_verdict(row.get("free_dates"), {}, days)
+            cand["real_availability"] = verdict
+            cand["skill_level"] = row.get("skill_level")
+            cand["course_deliveries"] = row.get("course_assignments")
+            cand["nearest_city"] = row.get("nearest_city")
+            cand["trainer_timezone"] = row.get("timezone")
+            if row.get("future_skill_date"):
+                cand["future_skill_date"] = row["future_skill_date"]
+            if is_intl:
+                intl = international_verdict(row, country, days)
+                cand["international_readiness"] = intl
+                cand["visa_status"] = intl["visa"]
+                cand["requires_visa_verification"] = intl["requires_verification"]
+    return demand
 
 
 def evaluate_candidate(candidate, schedule, batch, required_level=None):

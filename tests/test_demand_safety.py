@@ -62,7 +62,11 @@ class DemandSafetyTests(unittest.TestCase):
             rms_roles.append(role)
             if role == "reportees":
                 return []
-            if role in {"prevUpcoming", "trainerDetails"}:
+            # Read-only endpoints the availability overlay adds. The guard this
+            # test exists for is unchanged: a Demand GET must never reach a
+            # write, which is asserted on addTrainerSkill below.
+            if role in {"prevUpcoming", "trainerDetails",
+                        "courseCatalogue", "trainerFreeSchedule", "trainerRCSchedule"}:
                 return None
             raise AssertionError(f"unexpected RMS role from Demand GET: {role}")
 
