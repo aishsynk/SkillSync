@@ -163,7 +163,9 @@ val CommandSkillColors = SkillColors(
     good        = StatusGood,
     warn        = StatusWarn,
     crit        = StatusCrit,
-    labelText   = Color(0xFF7F8CA3),
+    // Raised from #7F8CA3, which sat at ~4.0:1 on Surface0 — under AA for the
+    // small caps labels it is used for. #9AA8BF clears 4.5:1.
+    labelText   = Color(0xFF9AA8BF),
 )
 
 // Both entry points resolve to the command scheme; the app has one identity.

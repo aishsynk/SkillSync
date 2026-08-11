@@ -6,6 +6,9 @@ import com.example.skillsync.data.DataSource
 import com.example.skillsync.data.ManagerRepository
 import com.example.skillsync.data.api.RetrofitClient
 import com.example.skillsync.data.cache.LocalCache
+import com.example.skillsync.data.models.ActionRow
+import com.example.skillsync.data.models.parseActions
+import com.example.skillsync.ui.common.userMessage
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,8 +65,8 @@ class MainScreenViewModel(
     private val _capabilityLoading = MutableStateFlow(false)
     val capabilityLoading: StateFlow<Boolean> = _capabilityLoading
 
-    private val _teamActions = MutableStateFlow<List<Map<String, Any>>>(emptyList())
-    val teamActions: StateFlow<List<Map<String, Any>>> = _teamActions
+    private val _teamActions = MutableStateFlow<List<ActionRow>>(emptyList())
+    val teamActions: StateFlow<List<ActionRow>> = _teamActions
 
     private val _teamDataError = MutableStateFlow<String?>(null)
     val teamDataError: StateFlow<String?> = _teamDataError
@@ -72,6 +75,14 @@ class MainScreenViewModel(
     val refreshing: StateFlow<Boolean> = _refreshing
 
     private var loadedFor: String? = null
+
+    /**
+     * Disk-write time of the revision currently held in memory for each cache
+     * key. A background WorkManager run must not overwrite a fresher foreground
+     * fetch that raced it — we only adopt a persisted snapshot that is genuinely
+     * newer than the one already on screen.
+     */
+    private val lastAdoptedAt = mutableMapOf<String, Long>()
 
     /**
      * First load for [email]; a no-op once that email's data is already on
@@ -88,11 +99,13 @@ class MainScreenViewModel(
         loadedFor = email
         viewModelScope.launch {
             if (_uiState.value !is DashboardState.Success) {
-                val cached = LocalCache.loadMap(dashboardCacheKey(email))
+                val key = dashboardCacheKey(email)
+                val cached = LocalCache.loadMap(key)
+                lastAdoptedAt[key] = LocalCache.savedAt(key)
                 _uiState.value = if (cached != null) {
                     DashboardState.Success(
                         cached, fromCache = true,
-                        cachedAt = LocalCache.savedAt(dashboardCacheKey(email)),
+                        cachedAt = LocalCache.savedAt(key),
                     )
                 } else {
                     DashboardState.Loading
@@ -152,18 +165,28 @@ class MainScreenViewModel(
     /** Adopt WorkManager's persisted revision without another network request. */
     fun adoptBackgroundSync(email: String) {
         viewModelScope.launch {
-            LocalCache.loadMap(dashboardCacheKey(email))?.let { data ->
+            adoptIfNewer(dashboardCacheKey(email)) { data ->
                 val previous = (_uiState.value as? DashboardState.Success)?.intelligenceData
                 if (previous != data) _uiState.value = DashboardState.Success(data)
             }
-            LocalCache.loadMap(profileCacheKey(email))?.let { if (_profile.value != it) _profile.value = it }
-            LocalCache.loadMap(capabilityCacheKey(email))?.let { if (_capability.value != it) _capability.value = it }
-            LocalCache.loadMap("actions_$email")?.let { body ->
-                @Suppress("UNCHECKED_CAST")
-                val rows = (body["actions"] as? List<Map<String, Any>>).orEmpty()
+            adoptIfNewer(profileCacheKey(email)) { if (_profile.value != it) _profile.value = it }
+            adoptIfNewer(capabilityCacheKey(email)) { if (_capability.value != it) _capability.value = it }
+            adoptIfNewer("actions_$email") { body ->
+                val rows = parseActions(body)
                 if (_teamActions.value != rows) _teamActions.value = rows
             }
         }
+    }
+
+    /** Applies a persisted snapshot only when it is newer than what we hold,
+     *  so a background write that lost the race to a foreground fetch can
+     *  never flip fresher data off screen. */
+    private suspend fun adoptIfNewer(key: String, apply: (Map<String, Any>) -> Unit) {
+        val savedAt = LocalCache.savedAt(key)
+        if (savedAt <= (lastAdoptedAt[key] ?: 0L)) return
+        val data = LocalCache.loadMap(key) ?: return
+        lastAdoptedAt[key] = savedAt
+        apply(data)
     }
 
     private suspend fun fetchAll(email: String, context: android.content.Context, fresh: Boolean = false) = coroutineScope {
@@ -190,6 +213,7 @@ class MainScreenViewModel(
         if (!fresh && _uiState.value !is DashboardState.Success) {
             val cached = LocalCache.loadMap(dashboardCacheKey(email))
             if (cached != null) {
+                lastAdoptedAt[dashboardCacheKey(email)] = LocalCache.savedAt(dashboardCacheKey(email))
                 _uiState.value = DashboardState.Success(
                     cached,
                     fromCache = true,
@@ -221,11 +245,14 @@ class MainScreenViewModel(
                     cachedAt = result.cachedAt,
                 )
             }
+            // In-memory is now as fresh as any persisted revision, so a
+            // background adopt must not swap in an older disk snapshot.
+            lastAdoptedAt[dashboardCacheKey(email)] = System.currentTimeMillis()
             com.example.skillsync.data.SessionManager.setLastSyncTime(System.currentTimeMillis())
         } catch (e: Exception) {
             // Leave UI in its current state (likely cached Success)
             if (_uiState.value !is DashboardState.Success) {
-                _uiState.value = DashboardState.Error(e.localizedMessage ?: "Failed to load dashboard data")
+                _uiState.value = DashboardState.Error(e.userMessage("load dashboard data"))
             }
         }
     }
@@ -239,7 +266,10 @@ class MainScreenViewModel(
 
         try {
             val result = repository.managerProfile(email, fresh)
-            if (result.data != null) _profile.value = result.data
+            if (result.data != null) {
+                _profile.value = result.data
+                lastAdoptedAt[profileCacheKey(email)] = System.currentTimeMillis()
+            }
         } catch (_: Exception) {
             // Ignore error
         }
@@ -255,12 +285,15 @@ class MainScreenViewModel(
         _capabilityLoading.value = true
         try {
             val result = repository.teamIntelligence(email, fresh)
-            if (result.capability != null) _capability.value = result.capability
+            if (result.capability != null) {
+                _capability.value = result.capability
+                lastAdoptedAt[capabilityCacheKey(email)] = System.currentTimeMillis()
+            }
             _teamActions.value = result.actions
             _teamDataError.value = listOfNotNull(result.capabilityError, result.actionsError)
                 .distinct().joinToString(" · ").takeIf { it.isNotBlank() }
         } catch (e: Exception) {
-            _teamDataError.value = e.localizedMessage ?: "Could not load team intelligence"
+            _teamDataError.value = e.userMessage("load team intelligence")
         } finally {
             _capabilityLoading.value = false
         }

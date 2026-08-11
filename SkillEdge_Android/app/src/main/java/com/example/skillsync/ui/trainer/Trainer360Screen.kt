@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.R
+import com.example.skillsync.theme.Layout
+import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.StatusBarIcons
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
@@ -159,7 +162,7 @@ fun Trainer360Screen(
                             data = s.data,
                             utilHistory = utilHistory,
                             syllabus = syllabus,
-                            actions = actions,
+                            actions = actions.map { it.asMap() },
                             onCourseTap = { viewModel.fetchSyllabus(it) },
                         )
                     }
@@ -198,35 +201,70 @@ internal fun Trainer360Content(
     val assignments = delivery?.list("assignments").orEmpty()
     
 
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        item { Appear(0) { IdentityCard(identity, util, cap, certs) } }
-        item { Appear(1) { ProfileOverview(metrics, util, delivery, certs, avail, actions) } }
+    // The screen exists to answer two questions — "can this person take the
+    // batch?" and "what do I do about them?" — so both are settled by the
+    // pinned header, and the thirteen sections that used to be one eight-screen
+    // scroll are grouped behind four tabs instead of stacked.
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val tabs = listOf("Now", "Capability", "Performance", "Actions")
 
-        item { ProfileGroupHeader("Profile", "Identity, experience and working context", sk.sky) }
-        item { Appear(2) { PersonalDetails(identity) } }
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.padding(horizontal = Layout.gutter, vertical = Space.md)) {
+            IdentityCard(identity, util, cap, certs)
+            Spacer(Modifier.height(Space.md))
+            ProfileOverview(metrics, util, delivery, certs, avail, actions)
+        }
 
-        item { ProfileGroupHeader("Performance", "Capacity, readiness and delivery risk", sk.teal) }
-        item { Appear(3) { UtilisationSection(util, series, delivery, utilHistory) } }
-        item { Appear(4) { CapabilityMetrics(metrics) } }
-        item { Appear(5) { DeliveryReadinessSection(deliveryReadiness, feedback) } }
-        item { Appear(6) { RiskSection(metrics, feedback) } }
+        TabRow(
+            selectedTabIndex = tab,
+            containerColor = Color.Transparent,
+            contentColor = sk.sky,
+        ) {
+            tabs.forEachIndexed { i, title ->
+                Tab(
+                    selected = tab == i,
+                    onClick = { tab = i },
+                    text = {
+                        Text(
+                            title,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (tab == i) sk.frost else sk.labelText,
+                        )
+                    },
+                )
+            }
+        }
 
-        item { ProfileGroupHeader("Credentials & capability", "What this trainer can confidently teach", sk.indigo) }
-        item { Appear(7) { CertificationSection(certs) } }
-        item { Appear(8) { CapabilitySection(cap, courses, onCourseTap, syllabus) } }
-
-        item { ProfileGroupHeader("Delivery record", "Assignments, learner signal and availability", sk.aqua) }
-        item { Appear(9) { DeliverySection(delivery, assignments) } }
-        item { Appear(10) { FeedbackSection(feedback) } }
-        item { Appear(11) { AvailabilitySection(avail) } }
-
-        item { ProfileGroupHeader("Manager decisions", "Real open actions requiring attention", sk.warn) }
-        item { Appear(12) { ManagerActionsSection(actions) } }
-        item { Spacer(Modifier.height(20.dp)) }
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = Layout.gutter, end = Layout.gutter,
+                top = Space.md, bottom = Space.xxl,
+            ),
+            verticalArrangement = Arrangement.spacedBy(Layout.section),
+        ) {
+            when (tab) {
+                0 -> {
+                    item { Appear(0) { UtilisationSection(util, series, delivery, utilHistory) } }
+                    item { Appear(1) { AvailabilitySection(avail) } }
+                    item { Appear(2) { DeliverySection(delivery, assignments) } }
+                }
+                1 -> {
+                    item { Appear(0) { CertificationSection(certs) } }
+                    item { Appear(1) { CapabilitySection(cap, courses, onCourseTap, syllabus) } }
+                    item { Appear(2) { PersonalDetails(identity) } }
+                }
+                2 -> {
+                    item { Appear(0) { DeliveryReadinessSection(deliveryReadiness, feedback) } }
+                    item { Appear(1) { CapabilityMetrics(metrics) } }
+                    item { Appear(2) { RiskSection(metrics, feedback) } }
+                    item { Appear(3) { FeedbackSection(feedback) } }
+                }
+                else -> {
+                    item { Appear(0) { ManagerActionsSection(actions) } }
+                }
+            }
+        }
     }
 }
 

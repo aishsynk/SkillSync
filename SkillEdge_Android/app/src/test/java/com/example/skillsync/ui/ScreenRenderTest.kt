@@ -275,9 +275,22 @@ class ScreenRenderTest {
     @Test
     fun dashboard_showsDeliveryAndCapacityDecisions() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
-        compose.onNodeWithText("Capacity vs demand").assertExists()
-        compose.onNodeWithText("Upcoming delivery calendar").assertExists()
-        compose.onNodeWithText("Active deliveries").assertExists()
+        compose.onNodeWithText("CAPACITY BALANCE").assertExists()
+        compose.onNodeWithText("DEMAND").assertExists()
+        compose.onNodeWithText("ACTIVE").assertExists()
+        expandExplore()
+        compose.onNodeWithText("UPCOMING DELIVERY").assertExists()
+    }
+
+    /**
+     * Reference detail lives behind "Explore the detail" so the briefing above
+     * stays a briefing. Tests that assert on it have to open it first, exactly
+     * as a manager would.
+     */
+    private fun expandExplore() {
+        compose.onAllNodes(hasScrollAction()).onFirst()
+            .performScrollToNode(hasText("Explore the detail"))
+        compose.onNodeWithText("Explore the detail").performClick()
     }
 
     @Test
@@ -312,8 +325,12 @@ class ScreenRenderTest {
     @Test
     fun dashboard_rendersEveryManagerKpi() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
-        listOf("Team strength", "Available capacity", "Utilisation", "Active deliveries", "Unallocated demand", "Actions")
+        // Hero carries the health reading; the pulse row carries the four
+        // figures that move. Both are above the fold by design.
+        listOf("STRENGTH", "FREE NOW")
             .forEach { compose.onNodeWithText(it).assertExists() }
+        listOf("TEAM STRENGTH", "UNALLOCATED DEMAND", "OPEN ACTIONS", "UTILISATION")
+            .forEach { compose.onAllNodesWithText(it).onFirst().assertExists() }
         compose.onAllNodesWithText("Critical pulse").assertCountEquals(0)
     }
 
@@ -339,8 +356,9 @@ class ScreenRenderTest {
                 )
             }
         }
-        compose.onNodeWithText("Certification coverage").assertExists()
-        compose.onNodeWithText("Team readiness distribution").assertExists()
+        expandExplore()
+        compose.onNodeWithText("CERTIFICATION").assertExists()
+        compose.onAllNodesWithText("Ready").onFirst().assertExists()
         // Never a placeholder where the payload already carries the number.
         compose.onAllNodesWithText("Tap to load").assertCountEquals(0)
     }
@@ -357,7 +375,7 @@ class ScreenRenderTest {
                 )
             }
         }
-        compose.onNodeWithText("Team strength").performClick()
+        compose.onNodeWithText("TEAM STRENGTH").performClick()
         org.junit.Assert.assertNotNull(opened)
     }
 
@@ -414,10 +432,12 @@ class ScreenRenderTest {
             SkillSyncTheme {
                 TeamTab(
                     dashboardPayload(), capabilityPayload(),
-                    actions = listOf(mapOf(
-                        "trainer_email" to "abhinav.samant@koenig-solutions.com",
-                        "lifecycle_state" to "open",
-                    )),
+                    actions = listOf(
+                        com.example.skillsync.data.models.ActionRow(
+                            trainerEmail = "abhinav.samant@koenig-solutions.com",
+                            lifecycleState = "open",
+                        )
+                    ),
                 ) { _, _ -> }
             }
         }
@@ -612,17 +632,34 @@ class ScreenRenderTest {
         compose.onAllNodesWithText("Abhinav Samant").onFirst().assertExists()
         compose.onNodeWithText("Corporate Trainer").assertExists()
         compose.onNodeWithText("MANAGER DECISION COCKPIT").assertExists()
-        compose.onNodeWithText("Current assignment").assertExists()
-        compose.onNodeWithText("Future availability").assertExists()
-        listOf(
-            "Profile", "Performance", "Credentials & capability", "Delivery record", "Manager decisions",
-            "Personal details", "Utilisation", "Capability metrics",
-            "Certifications", "Capability", "Delivery",
-            "Feedback & incidents", "Availability",
-        ).forEach { label ->
+        // The pinned header answers "can they take the batch?"; the four tabs
+        // carry what used to be an eight-screen scroll.
+        listOf("Now", "Capability", "Performance", "Actions")
+            .forEach { compose.onNodeWithText(it).assertExists() }
+
+        // Pinned header — outside the scroller, so it is asserted directly.
+        listOf("Current assignment", "Future availability").forEach {
+            compose.onAllNodesWithText(it).onFirst().assertExists()
+        }
+        // Now
+        listOf("Utilisation", "Delivery").forEach { label ->
             compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(label))
             compose.onAllNodesWithText(label).onFirst().assertExists()
         }
+        // Capability
+        compose.onNodeWithText("Capability").performClick()
+        listOf("Certifications", "Personal details").forEach { label ->
+            compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(label))
+            compose.onAllNodesWithText(label).onFirst().assertExists()
+        }
+        // Performance
+        compose.onNodeWithText("Performance").performClick()
+        listOf("Capability metrics", "Feedback & incidents").forEach { label ->
+            compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(label))
+            compose.onAllNodesWithText(label).onFirst().assertExists()
+        }
+        // Actions
+        compose.onNodeWithText("Actions").performClick()
         compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Close AI-102 certification gap"))
         compose.onNodeWithText("Close AI-102 certification gap").assertExists()
         compose.onNodeWithText("Quarterly skill validation & career planning").assertDoesNotExist()
@@ -632,21 +669,19 @@ class ScreenRenderTest {
     @Test
     fun dashboard_isAManagerCommandCentreNotCriticalPulse() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
-        compose.onNodeWithText("Manager brief").assertExists()
-        compose.onNodeWithText("Team health & risk matrix").assertExists()
-        compose.onNodeWithText("Demand coverage heatmap").assertExists()
-        compose.onNodeWithText("Upcoming delivery calendar").assertExists()
-        compose.onNodeWithText("Actions requiring attention").assertExists()
+        compose.onNodeWithText("TEAM READINESS").assertExists()
+        compose.onNodeWithText("PULSE").assertExists()
+        compose.onNodeWithText("CAPACITY BALANCE").assertExists()
+        compose.onNodeWithText("DEMAND").assertExists()
+        expandExplore()
+        compose.onNodeWithText("ACTION CENTRE").assertExists()
         compose.onAllNodesWithText("Critical pulse").assertCountEquals(0)
     }
 
     @Test
     fun dashboard_commandSectionsAreVerticallyOrderedAndDoNotOverlap() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
-        val titles = listOf(
-            "Executive summary", "Team health & capacity", "Demand intelligence",
-            "Delivery operations", "Certification & readiness", "Action centre",
-        )
+        val titles = listOf("PULSE", "CAPACITY BALANCE", "DEMAND")
         val tops = titles.map { title ->
             compose.onNodeWithText(title).fetchSemanticsNode().boundsInRoot.top
         }
@@ -656,13 +691,16 @@ class ScreenRenderTest {
     @Test
     fun dashboard_usesCompactSemanticKpisAndRestoresTopPerformers() {
         compose.setContent { SkillSyncTheme { Dashboard() } }
-        compose.onNodeWithText("Utilisation trend").assertExists()
-        compose.onNodeWithText("Top performers").assertExists()
-        compose.onNodeWithText("Carrying delivery · ranked by measured utilisation").assertExists()
+        // Pulse tiles share a row, so their tops must agree before anything scrolls.
+        val strength = compose.onNodeWithText("UNALLOCATED DEMAND").fetchSemanticsNode().boundsInRoot
+        val capacity = compose.onNodeWithText("OPEN ACTIONS").fetchSemanticsNode().boundsInRoot
+        assertTrue("Pulse tiles are not aligned", kotlin.math.abs(strength.top - capacity.top) < 2f)
+
+        expandExplore()
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("TOP PERFORMERS"))
+        compose.onNodeWithText("TOP PERFORMERS").assertExists()
+        compose.onNodeWithText("Carrying delivery, ranked by measured utilisation").assertExists()
         compose.onAllNodesWithText("Abhinav Samant").onFirst().assertExists()
-        val strength = compose.onNodeWithText("Team strength").fetchSemanticsNode().boundsInRoot
-        val capacity = compose.onNodeWithText("Available capacity").fetchSemanticsNode().boundsInRoot
-        assertTrue("Executive KPI tiles are not aligned", kotlin.math.abs(strength.top - capacity.top) < 2f)
     }
 
     @Test
@@ -686,6 +724,7 @@ class ScreenRenderTest {
     @Test
     fun trainer360_showsCertificationGapAnalysis() {
         compose.setContent { SkillSyncTheme { Trainer360Content(trainer360Payload()) } }
+        compose.onNodeWithText("Capability").performClick()
         compose.onNodeWithText("TEACHING ACCREDITATION").assertExists()
         compose.onNodeWithText("MCT").assertExists()
         compose.onNodeWithText("CERTIFICATIONS HELD").assertExists()
@@ -703,6 +742,7 @@ class ScreenRenderTest {
     @Test
     fun trainer360_showsCapabilityMetrics() {
         compose.setContent { SkillSyncTheme { Trainer360Content(trainer360Payload()) } }
+        compose.onNodeWithText("Performance").performClick()
         compose.onAllNodesWithText("Developing").onFirst().assertExists()
         compose.onAllNodesWithText("Low").onFirst().assertExists()
         compose.onNodeWithText("skill match").assertExists()
@@ -714,6 +754,7 @@ class ScreenRenderTest {
     @Test
     fun trainer360_distinguishesNoDataFromCleanRecord() {
         compose.setContent { SkillSyncTheme { Trainer360Content(trainer360Payload()) } }
+        compose.onNodeWithText("Performance").performClick()
         compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(
             hasText("RMS returned no feedback records", substring = true),
         )

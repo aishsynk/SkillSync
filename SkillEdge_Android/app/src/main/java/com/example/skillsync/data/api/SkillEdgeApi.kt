@@ -21,9 +21,6 @@ interface SkillEdgeApi {
     @POST("api/auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
 
-    @GET("api/auth/session")
-    suspend fun validateSession(): Map<String, Any>
-
     @POST("api/auth/logout")
     suspend fun logout(): Map<String, Any>
 
@@ -84,10 +81,6 @@ interface SkillEdgeApi {
 
     @GET("api/v2/planning/capacity")
     suspend fun getCapacityPlan(@Query("manager") manager: String): CapacityPlanResponse
-
-    /** RMS skill register for one trainer — the read-back behind a skill write. */
-    @GET("api/data/trainer-skills")
-    suspend fun getTrainerSkills(@Query("email") email: String): Map<String, Any>
 
     /**
      * Writes a skill to production RMS. Returns a raw [retrofit2.Response] because

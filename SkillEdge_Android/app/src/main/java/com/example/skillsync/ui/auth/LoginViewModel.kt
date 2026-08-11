@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.skillsync.data.api.LoginRequest
 import com.example.skillsync.data.api.RetrofitClient
+import com.example.skillsync.ui.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -43,11 +44,11 @@ class LoginViewModel : ViewModel() {
                     401  -> "Access denied — must be a @koenig-solutions.com manager or Trainer Plus"
                     503  -> "RMS service unavailable — please retry in a moment"
                     400  -> "Invalid email address"
-                    else -> "Login failed (${e.code()})"
+                    else -> e.userMessage("sign in")
                 }
                 _loginState.value = LoginState.Error(msg)
             } catch (e: Exception) {
-                _loginState.value = LoginState.Error(e.localizedMessage ?: "Network error — check your connection")
+                _loginState.value = LoginState.Error(e.userMessage("sign in"))
             }
         }
     }

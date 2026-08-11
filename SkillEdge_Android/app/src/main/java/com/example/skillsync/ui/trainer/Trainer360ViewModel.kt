@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.skillsync.data.api.RetrofitClient
 import com.example.skillsync.data.ManagerRepository
 import com.example.skillsync.data.cache.LocalCache
+import com.example.skillsync.data.models.ActionRow
+import com.example.skillsync.ui.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -38,8 +40,8 @@ class Trainer360ViewModel(
      *  in flight so the sheet can distinguish loading from "no syllabus". */
     val syllabus = MutableStateFlow<Map<String, Any>?>(null)
 
-    /** Real open manager Actions for this trainer; never generated in the UI. */
-    val actions = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+/** Real open manager Actions for this trainer; never generated in the UI. */
+    val actions = MutableStateFlow<List<ActionRow>>(emptyList())
 
     fun load(trainerEmail: String, managerEmail: String = "", context: android.content.Context) {
         if (loadedFor == trainerEmail && _state.value is Trainer360State.Success) return
@@ -86,11 +88,11 @@ class Trainer360ViewModel(
             actions.value = emptyList()
             return
         }
-        viewModelScope.launch {
+viewModelScope.launch {
             val result = repository.actions(managerEmail)
             actions.value = result.data.orEmpty().filter { action ->
-                action["trainer_email"]?.toString()?.trim()?.lowercase() == trainerEmail.lowercase() &&
-                    action["lifecycle_state"]?.toString()?.lowercase() !in setOf("closed", "resolved")
+                action.trainerEmail.lowercase() == trainerEmail.lowercase() &&
+                    action.lifecycleState.lowercase() !in setOf("closed", "resolved")
             }
         }
     }
@@ -140,7 +142,7 @@ class Trainer360ViewModel(
             )
         } catch (e: Exception) {
             if (_state.value !is Trainer360State.Success) {
-                _state.value = Trainer360State.Error(e.localizedMessage ?: "Failed to load trainer profile")
+                _state.value = Trainer360State.Error(e.userMessage("load the trainer profile"))
             }
         }
     }

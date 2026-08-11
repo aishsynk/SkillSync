@@ -6,6 +6,8 @@ import com.example.skillsync.data.api.MarkSkillRequest
 import com.example.skillsync.data.api.MarkSkillResponse
 import com.example.skillsync.data.api.CapacityPlanResponse
 import com.example.skillsync.data.cache.LocalCache
+import com.example.skillsync.data.models.ActionRow
+import com.example.skillsync.data.models.parseActions
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
@@ -23,7 +25,7 @@ data class RepositoryResult<T>(
 /** Typed aggregate needed by the Team command page. */
 data class TeamIntelligence(
     val capability: Map<String, Any>?,
-    val actions: List<Map<String, Any>>,
+    val actions: List<ActionRow>,
     val capabilityError: String? = null,
     val actionsError: String? = null,
 )
@@ -81,19 +83,21 @@ class ManagerRepository(
     suspend fun searchCourses(query: String) =
         cachedMap("course_search_${query.lowercase()}", false) { api.searchCourses(query) }.data.orEmpty()
 
-    suspend fun courseIntelligence(courseName: String) =
-        cachedMap("course_intelligence_${courseName.lowercase()}", false) { api.getCourseIntelligence(courseName) }.data.orEmpty()
+    /**
+     * Returns the parsed result rather than an empty map so the caller can
+     * distinguish "RMS has no schedule" from "the request failed". Turning a
+     * failure into an empty dataset is what let a screen lie about its source.
+     */
+    suspend fun courseIntelligence(courseName: String): RepositoryResult<Map<String, Any>> =
+        cachedMap("course_intelligence_${courseName.lowercase()}", false) { api.getCourseIntelligence(courseName) }
 
     /** Production skill writes share the repository boundary with all reads. */
     suspend fun markSkill(request: MarkSkillRequest): retrofit2.Response<MarkSkillResponse> =
         api.markSkill(request)
 
-    suspend fun actions(email: String, fresh: Boolean = false): RepositoryResult<List<Map<String, Any>>> = try {
+    suspend fun actions(email: String, fresh: Boolean = false): RepositoryResult<List<ActionRow>> = try {
         val result = cachedMap("actions_$email", fresh) { api.getActions(email) }
-        val body = result.data ?: return RepositoryResult(null, result.source, result.cachedAt, result.error)
-        @Suppress("UNCHECKED_CAST")
-        val rows = (body["actions"] as? List<Map<String, Any>>).orEmpty()
-        RepositoryResult(rows, result.source, result.cachedAt, result.error)
+        RepositoryResult(parseActions(result.data), result.source, result.cachedAt, result.error)
     } catch (e: Exception) {
         RepositoryResult(null, DataSource.LIVE, error = e.localizedMessage ?: "Could not load actions")
     }

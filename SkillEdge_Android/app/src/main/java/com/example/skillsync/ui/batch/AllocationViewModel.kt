@@ -7,6 +7,8 @@ import com.example.skillsync.data.api.MarkSkillRequest
 import com.example.skillsync.data.api.MarkSkillResponse
 import com.example.skillsync.data.api.RetrofitClient
 import com.example.skillsync.data.ManagerRepository
+import com.example.skillsync.data.models.CourseIntelligence
+import com.example.skillsync.ui.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -54,6 +56,14 @@ class AllocationViewModel(
     private var loadedFor: String? = null
 
     /**
+     * Persisted-write time of the allocation board currently in memory. A
+     * background sync may only swap it for a genuinely newer revision — never
+     * for an older snapshot whose file happened to change during a network
+     * flap (which flipped seen/unseen batches mid-tab before).
+     */
+    private var lastAdoptedAt = 0L
+
+    /**
      * { available, trainers, note } for the wider-network lookup; null while
      * the request is in flight. `available: false` means RMS would not answer
      * the question at all — which is not the same as an empty trainer list,
@@ -63,7 +73,7 @@ class AllocationViewModel(
 
     val courseSearchResults = MutableStateFlow<List<Map<String, Any>>>(emptyList())
     val courseSearchLoading = MutableStateFlow(false)
-    val courseIntelligence = MutableStateFlow<Map<String, Any>?>(null)
+    val courseIntelligence = MutableStateFlow<CourseIntelligence?>(null)
     val courseIntelligenceLoading = MutableStateFlow(false)
     val demandContext = MutableStateFlow<com.example.skillsync.data.api.DemandContextResponse?>(null)
     val demandContextLoading = MutableStateFlow(false)
@@ -111,14 +121,15 @@ class AllocationViewModel(
         if (courseName.isBlank()) return
         viewModelScope.launch {
             courseIntelligenceLoading.value = true
+            // A failed lookup must surface as [CourseIntelligence.Unverified],
+            // never as a hand-built "empty" payload the sheet would misread as
+            // "RMS has no schedule for this course".
             courseIntelligence.value = try {
-                repository.courseIntelligence(courseName)
+                repository.courseIntelligence(courseName).data
+                    ?.let { CourseIntelligence.from(it) }
+                    ?: CourseIntelligence.Unverified(courseName)
             } catch (_: Exception) {
-                mapOf(
-                    "course_name" to courseName, "schedule_dates" to emptyList<String>(),
-                    "schedule_available" to false,
-                    "note" to "Course schedule could not be verified."
-                )
+                CourseIntelligence.Unverified(courseName)
             }
             courseIntelligenceLoading.value = false
         }
@@ -131,6 +142,7 @@ class AllocationViewModel(
         // The network pass below updates it silently when it completes.
         com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))?.let { cached ->
             _newIds.value = SeenBatches.diffAndRemember(context, email, cached)
+            lastAdoptedAt = com.example.skillsync.data.cache.LocalCache.savedAt(cacheKey(email))
             _state.value = AllocationState.Success(cached)
             viewModelScope.launch { fetchCapacityPlan(email) }
         }
@@ -162,9 +174,12 @@ class AllocationViewModel(
 
     fun adoptBackgroundSync(email: String, context: Context) {
         viewModelScope.launch {
+            val savedAt = com.example.skillsync.data.cache.LocalCache.savedAt(cacheKey(email))
+            if (savedAt <= lastAdoptedAt) return@launch
             com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))?.let { cached ->
                 val previous = (_state.value as? AllocationState.Success)?.data
                 if (previous != cached) {
+                    lastAdoptedAt = savedAt
                     _newIds.value = SeenBatches.diffAndRemember(context, email, cached)
                     _state.value = AllocationState.Success(cached)
                 }
@@ -178,6 +193,7 @@ class AllocationViewModel(
             val cached = com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))
             if (cached != null) {
                 _newIds.value = SeenBatches.diffAndRemember(context, email, cached)
+                lastAdoptedAt = com.example.skillsync.data.cache.LocalCache.savedAt(cacheKey(email))
                 _state.value = AllocationState.Success(cached)
             }
         }
@@ -210,13 +226,12 @@ class AllocationViewModel(
                 return
             }
             _newIds.value = SeenBatches.diffAndRemember(context, email, data)
+            lastAdoptedAt = System.currentTimeMillis()
             _state.value = AllocationState.Success(data)
             fetchCapacityPlan(email)
         } catch (e: Exception) {
             if (_state.value !is AllocationState.Success) {
-                _state.value = AllocationState.Error(
-                    e.localizedMessage ?: "Could not load unallocated batches"
-                )
+                _state.value = AllocationState.Error(e.userMessage("load unallocated batches"))
             }
         }
     }

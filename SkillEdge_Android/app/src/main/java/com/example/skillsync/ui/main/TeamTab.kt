@@ -90,7 +90,7 @@ private val STATUS_OPTIONS = listOf(
 internal fun TeamTab(
     data: Map<String, Any>,
     capability: Map<String, Any>?,
-    actions: List<Map<String, Any>> = emptyList(),
+    actions: List<com.example.skillsync.data.models.ActionRow> = emptyList(),
     loading: Boolean = false,
     dataError: String? = null,
     onTrainerClick: (String, String) -> Unit,
@@ -107,8 +107,8 @@ internal fun TeamTab(
     val deliveryMap = data.rows("delivery_intelligence_df")
         .associateBy { it.str("trainer_email").lowercase() }
     val actionsByTrainer = actions
-        .filter { it.str("lifecycle_state") !in listOf("closed", "resolved") }
-        .groupBy { it.str("trainer_email").lowercase() }
+        .filter { it.lifecycleState !in listOf("closed", "resolved") }
+        .groupBy { it.trainerEmail.lowercase() }
 
     var filters by remember { mutableStateOf(TeamFilters()) }
     var sheetOpen by remember { mutableStateOf(false) }

@@ -1,30 +1,42 @@
 package com.example.skillsync
 
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import org.junit.Assert.assertEquals
+import org.junit.Assume.assumeNoException
 import org.junit.Test
 import java.net.HttpURLConnection
 import java.net.URL
-import java.io.InputStreamReader
 
+/**
+ * Production guard on the manager-intelligence endpoint.
+ *
+ * This test used to fetch `/api/data/unified-manager-intelligence` with no
+ * credentials and assert the payload parsed — which is to say it asserted the
+ * exact PII leak that audit Task 1 closed (commit `e2214da`). Once the route
+ * moved behind `_v2_manager_session`, the old test failed for the right reason,
+ * so it is inverted here: an unauthenticated read must be refused.
+ *
+ * The call is a real network round-trip, so an unreachable host skips the test
+ * rather than failing it — Render cold starts must not break an APK build.
+ */
 class CrashTest {
+
     @Test
-    fun testDashboardCrash() {
-        val url = URL("https://skilledge-backend-fpcl.onrender.com/api/data/unified-manager-intelligence?email=aishwar_v@koenig-solutions.com")
-        val conn = url.openConnection() as HttpURLConnection
-        conn.requestMethod = "GET"
-        
-        try {
-            val reader = InputStreamReader(conn.inputStream)
-            val type = object : TypeToken<Map<String, Any>>() {}.type
-            val data: Map<String, Any> = Gson().fromJson(reader, type)
-            
-            val ops = (data["trainers_operational"] as? List<*>)?.filterIsInstance<Map<*, *>>() ?: emptyList()
-            println("Operational count: ${ops.size}")
-            
+    fun unifiedManagerIntelligence_refusesUnauthenticatedReads() {
+        val url = URL(
+            "https://skilledge-backend-fpcl.onrender.com" +
+                "/api/data/unified-manager-intelligence?email=aishwar_v@koenig-solutions.com"
+        )
+        val status = try {
+            (url.openConnection() as HttpURLConnection).run {
+                requestMethod = "GET"
+                connectTimeout = 15_000
+                readTimeout = 15_000
+                responseCode.also { disconnect() }
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
-            throw e
+            assumeNoException("Backend unreachable — skipping the live auth probe", e)
+            return
         }
+        assertEquals("Manager PII must never be readable without a session", 401, status)
     }
 }

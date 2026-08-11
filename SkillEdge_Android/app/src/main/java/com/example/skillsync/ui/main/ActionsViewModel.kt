@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.skillsync.data.api.RetrofitClient
 import com.example.skillsync.data.ManagerRepository
+import com.example.skillsync.data.models.ActionRow
+import com.example.skillsync.data.models.parseActions
+import com.example.skillsync.ui.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -24,8 +27,8 @@ class ActionsViewModel(
     private val repository: ManagerRepository = ManagerRepository(),
 ) : ViewModel() {
 
-    private val _actions = MutableStateFlow<List<Map<String, Any>>>(emptyList())
-    val actions: StateFlow<List<Map<String, Any>>> = _actions
+    private val _actions = MutableStateFlow<List<ActionRow>>(emptyList())
+    val actions: StateFlow<List<ActionRow>> = _actions
 
     /** True only on the very first load, when there is nothing to show yet. */
     private val _initialLoading = MutableStateFlow(false)
@@ -39,14 +42,19 @@ class ActionsViewModel(
 
     private var loadedFor: String? = null
 
+    /** Comment: see [MainScreenViewModel] — same version guard around adopting
+     *  a persisted revision so a background write never overrides newer data
+     *  that a foreground refresh raced in first. */
+    private var lastAdoptedAt = 0L
+
     fun load(managerEmail: String) {
         if (loadedFor == managerEmail && _actions.value.isNotEmpty()) return
         loadedFor = managerEmail
         viewModelScope.launch {
             val cached = com.example.skillsync.data.cache.LocalCache.loadMap("actions_$managerEmail")
             if (cached != null) {
-                @Suppress("UNCHECKED_CAST")
-                _actions.value = (cached["actions"] as? List<Map<String, Any>>).orEmpty()
+                lastAdoptedAt = com.example.skillsync.data.cache.LocalCache.savedAt("actions_$managerEmail")
+                _actions.value = parseActions(cached)
             }
             if (_actions.value.isEmpty()) _initialLoading.value = true
             fetch(managerEmail)
@@ -64,9 +72,12 @@ class ActionsViewModel(
 
     fun adoptBackgroundSync(managerEmail: String) {
         viewModelScope.launch {
-            val body = com.example.skillsync.data.cache.LocalCache.loadMap("actions_$managerEmail") ?: return@launch
-            @Suppress("UNCHECKED_CAST")
-            val rows = (body["actions"] as? List<Map<String, Any>>).orEmpty()
+            val key = "actions_$managerEmail"
+            val savedAt = com.example.skillsync.data.cache.LocalCache.savedAt(key)
+            if (savedAt <= lastAdoptedAt) return@launch
+            val body = com.example.skillsync.data.cache.LocalCache.loadMap(key) ?: return@launch
+            lastAdoptedAt = savedAt
+            val rows = parseActions(body)
             if (_actions.value != rows) _actions.value = rows
         }
     }
@@ -77,11 +88,12 @@ class ActionsViewModel(
             val rows = result.data ?: throw IllegalStateException(result.error ?: "Could not load actions")
             // Only replace on success. A failed refresh leaves the existing
             // inbox on screen rather than emptying it.
+            lastAdoptedAt = System.currentTimeMillis()
             _actions.value = rows
             _error.value = null
         } catch (e: Exception) {
             if (_actions.value.isEmpty()) {
-                _error.value = e.localizedMessage ?: "Could not load actions"
+                _error.value = e.userMessage("load actions")
             }
         }
     }
@@ -96,7 +108,7 @@ class ActionsViewModel(
     ) {
         val before = _actions.value
         _actions.value = before.map {
-            if (it["id"] == actionId) it + mapOf("lifecycle_state" to state) else it
+            if (it.id == actionId) it.copy(lifecycleState = state) else it
         }
         viewModelScope.launch {
             try {
@@ -112,7 +124,7 @@ class ActionsViewModel(
                 fetch(managerEmail)          // reconcile with the server's truth
             } catch (e: Exception) {
                 _actions.value = before      // the change never landed
-                _error.value = "Could not update: ${e.localizedMessage ?: "request failed"}"
+                _error.value = e.userMessage("update this action")
             }
         }
     }
@@ -126,7 +138,7 @@ class ActionsViewModel(
                 )
                 fetch(managerEmail)
             } catch (e: Exception) {
-                _error.value = "Could not save note: ${e.localizedMessage ?: "request failed"}"
+                _error.value = e.userMessage("save this note")
             }
         }
     }
@@ -158,7 +170,7 @@ class ActionsViewModel(
                 )
                 fetch(managerEmail)
             } catch (e: Exception) {
-                _error.value = "Could not raise action: ${e.localizedMessage ?: "request failed"}"
+                _error.value = e.userMessage("raise this action")
             }
         }
     }

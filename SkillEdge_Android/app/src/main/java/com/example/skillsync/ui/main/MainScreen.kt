@@ -373,13 +373,13 @@ fun MainScreen(
                                 dashboard = d,
                                 capability = capability,
                                 allocation = (allocState as? AllocationState.Success)?.data,
-                                actions = inboxActions,
+                                actions = inboxActions.map { it.asMap() },
                                 onTrainer = onTrainerClick,
                                 onDemand = onBatchClick,
                             )
                             HomeTab.ACTIONS -> ActionsInbox(
                                 managerEmail = email,
-                                actions = inboxActions,
+                                actions = inboxActions.map { it.asMap() },
                                 initialLoading = inboxLoading,
                                 error = inboxError,
                                 onSetState = { id, st, note ->
@@ -402,7 +402,7 @@ fun MainScreen(
                                 if (todayWorkspace == "QUEUE") {
                                     ActionsInbox(
                                         managerEmail = email,
-                                        actions = inboxActions,
+                                        actions = inboxActions.map { it.asMap() },
                                         initialLoading = inboxLoading,
                                         error = inboxError,
                                         onSetState = { id, st, note -> actionsViewModel.setState(email, id, st, note) },
@@ -419,7 +419,7 @@ fun MainScreen(
                                         profile = profile,
                                         capability = capability,
                                         capabilityLoading = capLoading,
-                                        actions = inboxActions,
+                                        actions = inboxActions.map { it.asMap() },
                                         email = email,
                                         onTrainerClick = onTrainerClick,
                                         onOpenProfile = { onTrainerClick(email, profile?.str("name").orEmpty()) },
@@ -680,8 +680,13 @@ internal fun DashboardTab(
 
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(
+            start = com.example.skillsync.theme.Layout.gutter,
+            end = com.example.skillsync.theme.Layout.gutter,
+            top = com.example.skillsync.theme.Space.xs,
+            bottom = com.example.skillsync.theme.Space.xxl,
+        ),
+        verticalArrangement = Arrangement.spacedBy(com.example.skillsync.theme.Layout.section)
     ) {
         item {
             ProfileHeader(

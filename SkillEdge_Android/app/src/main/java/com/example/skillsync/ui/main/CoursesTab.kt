@@ -26,6 +26,7 @@ import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
 import com.example.skillsync.ui.batch.MarkState
+import com.example.skillsync.data.models.CourseIntelligence
 import java.util.Calendar
 
 private enum class CourseSort(val label: String) {
@@ -49,7 +50,7 @@ internal fun CoursesTab(
     markState: MarkState = MarkState.Idle,
     courseSearchResults: List<Map<String, Any>> = emptyList(),
     courseSearchLoading: Boolean = false,
-    courseIntelligence: Map<String, Any>? = null,
+    courseIntelligence: CourseIntelligence? = null,
     courseIntelligenceLoading: Boolean = false,
     onSearchCourses: (String) -> Unit = {},
     onLoadCourseIntelligence: (String) -> Unit = {},
@@ -513,7 +514,7 @@ internal fun SkillAssignmentDialog(
     people: List<Pair<String, String>>,
     results: List<Map<String, Any>>,
     searching: Boolean,
-    intelligence: Map<String, Any>?,
+    intelligence: CourseIntelligence?,
     intelligenceLoading: Boolean,
     markState: MarkState,
     onSearch: (String) -> Unit,
@@ -585,28 +586,45 @@ internal fun SkillAssignmentDialog(
                         }
                     }
                 }
-                if (selectedCourse != null) {
+if (selectedCourse != null) {
                     if (intelligenceLoading) {
                         LinearProgressIndicator(Modifier.fillMaxWidth())
-                    } else intelligence?.let { info ->
-                        val dates = info.strings("schedule_dates")
-                        Surface(color = sk.teal.copy(alpha = 0.09f), shape = RoundedCornerShape(8.dp)) {
-                            Column(Modifier.fillMaxWidth().padding(9.dp)) {
-                                Text(
-                                    listOfNotNull(
-                                        info.str("vendor").takeIf { it.isNotBlank() },
-                                        info["duration_days"]?.toString()?.takeIf { it.isNotBlank() }?.let { "$it days" },
-                                    ).joinToString(" · ").ifBlank { "Verified RMS course" },
-                                    style = MaterialTheme.typography.labelSmall, color = sk.bodyText,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                Text(
-                                    if (dates.isNotEmpty()) "Next public schedule: ${dates.first()}" else
-                                        info.str("note").ifBlank { "No public schedule is currently returned by RMS." },
-                                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                                )
+                    } else when (val info = intelligence) {
+                        is CourseIntelligence.Unverified -> {
+                            Surface(color = sk.warn.copy(alpha = 0.10f), shape = RoundedCornerShape(8.dp)) {
+                                Column(Modifier.fillMaxWidth().padding(9.dp)) {
+                                    Text(
+                                        "Schedule not verified",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = sk.warn, fontWeight = FontWeight.Bold,
+                                    )
+                                    Text(
+                                        info.note.ifBlank { "Could not confirm this course with RMS right now." },
+                                        style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                                    )
+                                }
                             }
                         }
+                        is CourseIntelligence.Verified -> {
+                            Surface(color = sk.teal.copy(alpha = 0.09f), shape = RoundedCornerShape(8.dp)) {
+                                Column(Modifier.fillMaxWidth().padding(9.dp)) {
+                                    Text(
+                                        listOfNotNull(
+                                            info.vendor.takeIf { it.isNotBlank() },
+                                            info.durationDays?.let { "$it days" },
+                                        ).joinToString(" · ").ifBlank { "Verified RMS course" },
+                                        style = MaterialTheme.typography.labelSmall, color = sk.bodyText,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    Text(
+                                        if (info.scheduleDates.isNotEmpty()) "Next public schedule: ${info.scheduleDates.first()}"
+                                        else info.note.ifBlank { "No public schedule is currently returned by RMS." },
+                                        style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                                    )
+                                }
+                            }
+                        }
+                        null -> Unit
                     }
                 }
                 Text("TEAM MEMBERS (${selectedPeople.size} SELECTED)", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)

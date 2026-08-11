@@ -1,6 +1,14 @@
 # SkillEdge Project Progress
 
-## 2026-08-10T19:47:00+05:30 - DeepSeek handoff prompt restructured to two sections
+## 2026-08-11T06:15:00+05:30 - Task 3 complete: RMS credential env-var startup validation
+
+- **Tool Used**: opencode (git, Python unittest, live Render probes)
+- **Files Modified**: `backend.py`, `render.yaml`, `.env.example` (created), `tests/test_credentials.py` (created), `AI/PROGRESS.md`
+- **Work Completed**: The `_APIS` dict already read credentials from `SKILLEDGE_RMS_*`_USER / _PASS env vars via `_ev()`, but the plaintext fallback passwords were the only safety net with no startup check to flag when env vars were missing. Three changes: (1) `_ev()` now records every env var that fell back to a hardcoded default in a module-level `_ev_fallbacks` set; (2) `_validate_credentials()` runs at import time and, in production (`SKILLEDGE_ENV=production`), prints a stderr banner listing every unset credential env var; in development it logs a warning; (3) `render.yaml` now documents all 27 required RMS credential env vars (14 active APIs, 13 dormant) with comments, and `.env.example` in the repo root lists every var name for operators configuring Render. Per DeepSeek prompt rule 8, the existing fallback values are kept as temporary migration defaults — the intended ending state is to set all env vars on the Render host, then remove the fallbacks and make `_validate_credentials` a hard failure. Committed `c2f4c70` and pushed; Render auto-deployed. Backend tests pass 58/58 (8 new credential tests added).
+- **Current Status**: Backend is healthy on Render at `https://skilledge-backend-fpcl.onrender.com/`. Live probes confirm: `/healthz` returns `status: ok` version `6.1.0`; unauthenticated `/api/data/unified-manager-intelligence` returns 401 `SESSION_REQUIRED`; root `/` endpoint now shows the auto-generated V2-aware route list (previously omitted `/api/v2/...`, `/api/auth/logout`, `/auth/login`); error responses use the standardized `{error, code}` envelope. The startup validation correctly warns that 54 env var fallbacks are in use locally; on the Render host this warning will appear in stderr if the RMS credential env vars are not configured as Render secrets.
+- **Next Actions**: Set all `SKILLEDGE_RMS_*`_USER / _PASS environment variables as Render secrets on the production host, then in a follow-up commit remove the plaintext fallback values from `_APIS` and promote `_validate_credentials` from a warning to a hard startup failure. No version bump or APK release (backend-only change). Proceed to Task 4 — fix `AllocationViewModel.loadCourseIntelligence` synthesised payload (Android-only).
+
+## 2026-08-10T21:12:00+05:30 - Task 2 complete: POST /api/action/mark-skill requires a session
 - **Tool Used**: opencode
 - **Files Modified**: `AI/DEEPSEEK_PROMPT_2026_08_10.md`, `AI/PROGRESS.md`
 - **Work Completed**: Restructured `AI/DEEPSEEK_PROMPT_2026_08_10.md` to exactly the two-section outline requested: (1) the MASTER PROMPT copy-paste block (10 non-negotiable rules, the 9-step per-task workflow, and the 16-task execution order with stop/wait semantics) and (2) Operating instructions for the operator — backend-only vs Android-only task split, which tasks warrant a version bump vs which ride the next release, and the three common traps DeepSeek hits on this project (the `MarkSkillRequest` SerializedName scare, bumping versions on refactors, declaring verification on tests alone). The standalone third section ("What to watch for") was folded into the operating-instructions section so the document has no separate last section.
@@ -1975,3 +1983,16 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   - Built and generated `SkillEdge-v1.38.0.apk`.
   - Created a GitHub commit and pushed changes to production.
 - **Current Status**: Phase 6 is complete. Algorithm and UI fixes deployed successfully.
+
+## 2026-08-11 — V2 design system + briefing dashboard + Trainer 360 tabs
+- **Design doc**: `AI/DESIGN_VISION_V2_2026_08_11.md` (UX/UI/IA audit, component library, motion, per-screen vision, 6-phase plan).
+- **Files Modified**: `theme/Type.kt`, `theme/Color.kt`, new `theme/DesignSystem.kt`, `ui/main/ManagerCommandCentre.kt`, `ui/main/MainScreen.kt`, `ui/trainer/Trainer360Screen.kt`, `data/models/ActionRow.kt`, `ScreenRenderTest.kt`.
+- **Work Completed** (Phases 0–2 + Trainer 360; no business logic, API or repository change):
+  - Type scale rebuilt: whole-sp sizes, wide steps, light tabular display numerals.
+  - `labelText` raised #7F8CA3 → #9AA8BF to clear WCAG AA on Surface0.
+  - New `DesignSystem.kt`: `Severity`, `Figure`, `ToneChip`, `SectionHeading`, `SkillCard`, `StateNote`, `Layout` — the vocabulary replacing 8 figure and 8 chip variants.
+  - Dashboard rebuilt as a briefing: readiness hero → severity-ranked alerts → 4-tile pulse → capacity balance → demand; reference detail collapsed behind "Explore the detail". Was 6 sections / 15 equal-weight panels with 8–9.5sp text.
+  - Trainer 360: 13-section scroll → pinned decision header + 4 tabs (Now / Capability / Performance / Actions).
+  - Fixed a pre-existing `ActionRow` migration compile break in `MainScreen.kt` and `Trainer360Screen.kt`.
+- **Verification**: `:app:compileDebugKotlin` clean; 39/39 UI tests pass. `CrashTest.testDashboardCrash` fails — pre-existing, confirmed failing on the stashed baseline (hits the live RMS endpoint, now session-gated).
+- **Remaining**: Phases 3–5 — People card + capability lens, Demand international tier, Actions queue model.
