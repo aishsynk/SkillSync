@@ -79,6 +79,7 @@ fun ManagerCommandCentre(
     onOpenProfile: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenDemand: () -> Unit,
+    onOpenWeeklyReport: () -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
     val openActions = actions.filter { it.str("lifecycle_state").ifBlank { "open" } !in setOf("closed", "resolved") }
@@ -174,6 +175,15 @@ fun ManagerCommandCentre(
 
         // ── 5 · What is coming? ─────────────────────────────────────────────
         DemandGlance(demand, active.size, upcoming.size, onOpenDemand)
+
+        // ── 5b · Who is carrying the work ───────────────────────────────────
+        // Promoted out of the collapsed Explore section: a manager asked for
+        // their top five to be permanently visible, and a roster hidden behind
+        // a disclosure is a roster nobody reads.
+        TopPerformersPanel(ops, capTrainers, onTrainerClick)
+
+        // ── 5c · The weekly message ─────────────────────────────────────────
+        WeeklyReportCta(onOpenWeeklyReport)
 
         // ── 6 · Everything else ─────────────────────────────────────────────
         ExploreSection(
@@ -657,6 +667,38 @@ private fun DemandGlance(
     }
 }
 
+/**
+ * Route into the weekly copy and send messages. Sits in the briefing rather
+ * than in a menu because it is a Monday morning job, and the dashboard is
+ * where the manager already is on a Monday morning.
+ */
+@Composable
+private fun WeeklyReportCta(onOpen: () -> Unit) {
+    val sk = MaterialTheme.skill
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .glassSurface(RoundedCornerShape(Radii.card))
+            .pressable(onOpen)
+            .padding(Space.lg),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                "Weekly report",
+                style = MaterialTheme.typography.titleMedium,
+                color = sk.bodyText,
+            )
+            Text(
+                "One message for the team, one for each reportee. Ready to copy.",
+                style = MaterialTheme.typography.bodySmall,
+                color = sk.subText,
+            )
+        }
+        Text("Open", style = MaterialTheme.typography.labelMedium, color = sk.sky)
+    }
+}
+
 // ── 6 · Explore ─────────────────────────────────────────────────────────────
 
 /**
@@ -719,8 +761,6 @@ private fun ExploreSection(
                     )
                 }
             }
-
-            TopPerformersPanel(ops, capTrainers, onTrainerClick)
 
             val coverage = capKpis?.intOrNull("avg_trainer_coverage_pct") ?: kpis?.intOrNull("cert_coverage_pct")
             val ready = capTrainers.count { it.int("readiness_score") >= 75 }

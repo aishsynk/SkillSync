@@ -24,8 +24,8 @@ android {
         applicationId = "com.example.skillsync"
         minSdk = 24
         targetSdk = 34
-        versionCode = 81
-        versionName = "3.4.0"
+        versionCode = 82
+        versionName = "3.5.0"
     }
 
     signingConfigs {
@@ -51,6 +51,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // java.time is API 26; this app ships to minSdk 24. Desugaring backports
+        // it rather than the alternative of hand-rolling date maths on Calendar,
+        // which is where date bugs come from.
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
       compose = true
@@ -132,6 +136,9 @@ dependencies {
 
   // WorkManager for background notifications
   implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+  // Backports java.time to API 24 — see isCoreLibraryDesugaringEnabled above.
+  coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
   // Trainer profile photos come from RMS as plain URLs.
   implementation(libs.coil.compose)

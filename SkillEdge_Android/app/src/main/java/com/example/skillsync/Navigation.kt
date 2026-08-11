@@ -67,10 +67,11 @@ fun MainNavigation() {
     }
 
     // Hardware/gesture back returns from a pushed detail screen to the shell.
-    BackHandler(enabled = current is Trainer360 || current is BatchDetail) {
+    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport) {
         current = when (val c = current) {
             is Trainer360 -> Main(c.email, HomeTab.TEAM)
             is BatchDetail -> Main(c.email, HomeTab.DEMAND)
+            is WeeklyReport -> Main(c.email, HomeTab.DASHBOARD)
             else -> c
         }
     }
@@ -145,11 +146,30 @@ fun MainNavigation() {
                     current = Trainer360(screen.email, trainerEmail, trainerName)
                 },
                 onBatchClick = { demandId -> current = BatchDetail(screen.email, demandId) },
+                onOpenWeeklyReport = { current = WeeklyReport(screen.email) },
                 onLogout = { current = Login },
                 modifier = Modifier,
                 viewModel = mainViewModel,
                 allocationViewModel = allocationViewModel,
             )
+
+            is WeeklyReport -> {
+                val dash by mainViewModel.uiState.collectAsState()
+                val capability by mainViewModel.capability.collectAsState()
+                val weeklyActions by mainViewModel.teamActions.collectAsState()
+                val payload = (dash as? com.example.skillsync.ui.main.DashboardState.Success)?.intelligenceData
+                if (payload == null) {
+                    LaunchedEffect(screen.email) { mainViewModel.loadData(screen.email, context) }
+                    androidx.compose.material3.CircularProgressIndicator()
+                } else {
+                    com.example.skillsync.ui.report.WeeklyReportScreen(
+                        data = payload,
+                        capability = capability,
+                        actions = weeklyActions.map { it.asMap() },
+                        onBack = { current = Main(screen.email, HomeTab.DASHBOARD) },
+                    )
+                }
+            }
 
             is Trainer360 -> Trainer360Screen(
                 trainerEmail = screen.trainerEmail,

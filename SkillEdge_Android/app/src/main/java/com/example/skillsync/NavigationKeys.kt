@@ -14,6 +14,9 @@ import kotlinx.serialization.Serializable
 /** Full detail + actions for one unallocated batch, keyed by its assignment id. */
 @Serializable data class BatchDetail(val email: String, val demandId: String) : NavKey
 
+/** Weekly copy-and-send messages: one for the team, one per reportee. */
+@Serializable data class WeeklyReport(val email: String) : NavKey
+
 object HomeTab {
     const val DASHBOARD = "today"
     const val TEAM = "people"
