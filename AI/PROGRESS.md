@@ -1,5 +1,20 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T12:20:00+05:30 - Trainer 360 international readiness (v3.10.0)
+
+- **Tool Used**: Claude Code (backend.py, pytest, Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)
+- **Files Modified**: `backend.py`, `tests/test_certification_and_allocation.py`, `ui/trainer/ReadinessSection.kt`, `ui/TrainerReadinessTest.kt`, `CrashTest.kt`, `app/build.gradle.kts`
+- **Work Completed**: Closed the scope deliberately cut from v3.9.0.
+  - **Visa/timezone/city resolved per trainer.** These are trainer properties but RMS exposes them only through the course-keyed free-schedule endpoint (key 171). The backend now tries the trainer's taught courses in order, **bounded to four live calls**, until a pool returns containing their row. Any of their courses yields the same trainer properties, so the choice does not affect the answer.
+  - Trainer 360 shows visas with expiry, permitted stay and **associate countries** (live data has an Australia visa also covering Philippines and Egypt — matching on country alone would wrongly block eligible trainers), plus timezone, base city, free days in the next 90, and **the course the lookup resolved through** so the source is auditable.
+  - **Unresolvable → says so.** "This does not mean the trainer cannot travel." An empty travel card would read as a refusal the data does not support. A missing visa reads as verification required, not ineligibility.
+- **Process failure worth recording**: the Gradle gate **failed** and my `&&` chain still let the commit and push through (`b4a30b7`), because `grep` succeeded on the failure output. **Chain on the gradle exit status, not on grep.**
+- **Flaky test fixed** (`977dcda`): `CrashTest` asserted 401 from the live endpoint and broke the gate on a **503** while Render was mid-deploy — the endpoint returned 401 correctly seconds later. The security property is that an unauthenticated caller never receives *data*, not that the service is up, so 5xx now skips (as unreachable already did) while a 200 still fails hard.
+- **Current Status**: **v3.10.0.87 live** — commit `977dcda`, CI run `31523503712` success. APK verified: signer `c6868b14…1808`, versionCode 86 -> 87. **130 backend + 117 Android tests pass**, lint clean. Render healthy; `/api/v2/trainer/readiness` correctly 401 unauthenticated.
+- **Next Actions**:
+  1. **Team page** (one screen per release), then **Dashboard** — the two remaining Phase 3 screens.
+  2. **RMS question list, unchanged**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
+
 ## 2026-08-12T11:35:00+05:30 - Trainer 360 readiness on real data (v3.9.0)
 
 - **Tool Used**: Claude Code (backend.py, pytest, Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)
