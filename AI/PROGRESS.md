@@ -1,5 +1,20 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T17:40:00+05:30 - Skill assignment flow and action bulk ops (v3.16.0)
+
+- **Tool Used**: Claude Code (backend.py, pytest, Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)
+- **Files Modified**: `backend.py`, `tests/test_skill_marking.py`, `ui/main/SkillAssignFlow.kt` (created), `ui/main/CoursesTab.kt`, `ui/main/ActionsInbox.kt`, `ui/main/MainScreen.kt`, `ui/batch/AllocationViewModel.kt`, `data/api/SkillEdgeApi.kt`, `ui/SkillAssignFlowTest.kt` (created), `AI/DECISIONS.md`
+- **Work Completed**: the last two specified-but-unbuilt items from the design vision.
+  - **§7.6 Skill → Select Members → Assign.** Three steps: Select (every reportee with what they already hold, Select All, hide-those-who-have-it), Preview (names every person and the level, warns the write is irreversible), Result (per row). Backed by **`POST /api/v2/skills/bulk-assign`** fanning out server-side at 4 concurrent writes.
+  - **§7.5 Actions bulk operations.** Always-visible selection controls, lane-header select-all, and a bulk bar with Resolve and Escalate. Both run per row through the **same state endpoint a single card uses**, so bulk cannot take an unaudited path. Long-press-to-select rejected as undiscoverable.
+- **Decision recorded in `AI/DECISIONS.md`**: **Remove Skill and Edit Level cannot be built.** All 37 portal docs contain exactly one skill write (`Add Trainer Skill`, key 255) — no remove, no update. Shipping those buttons would mean controls that silently fail against production data. Re-assigning at a different level was also rejected as an "edit" because it appends a second record rather than changing the first.
+- **Current Status**: **v3.16.0.93 live** — commit `d6100b3`, CI success. APK verified: signer `c6868b14…1808`, versionCode 92 -> 93. **141 backend + 147 Android tests pass**, lint clean. Render healthy; `/api/v2/skills/bulk-assign` correctly 401 unauthenticated.
+- **Harness note**: synthesised taps do not reach a button nested in the bottom sheet's footer under Robolectric; two assertions invoke the click semantics action directly. Test-harness limitation, not a UI defect.
+- **Design vision status: every section is now implemented** — §7.1 dashboard, §7.2 person card, §7.3 Trainer 360, §7.4 international card class, §7.5 action queue with bulk, §7.6 skill assignment.
+- **Next Actions**:
+  1. **RMS question list — now the only thing limiting quality**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; correct params for 90/172/205/72/93; whether a missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls; **and a remove/update skill endpoint**.
+  2. Operator verification on a real device — no emulator exists here, so upgrade-in-place is proven cryptographically but never physically installed.
+
 ## 2026-08-12T16:05:00+05:30 - Structural rebuilds: person card, international class, action queue (v3.15.0)
 
 - **Tool Used**: Claude Code (Compose, Robolectric, Gradle gate, apksigner + aapt, gh CLI)
