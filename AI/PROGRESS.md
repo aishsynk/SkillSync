@@ -1,5 +1,21 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T07:40:00+05:30 - Demand board wired to the intelligence layer (backend only)
+
+- **Tool Used**: Claude Code (backend.py, pytest, live RMS timing, Render probes)
+- **Files Modified**: `backend.py`, `tests/test_certification_and_allocation.py`, `tests/test_demand_safety.py`
+- **Work Completed**: `enrich_demand_with_availability` overlays the existing `/api/data/allocation-desk` board with real availability. **Additive only** — no existing key changes, so the shipped Android client keeps working while gaining, per candidate: `real_availability`, `skill_level`, `course_deliveries`, `trainer_timezone`, `nearest_city`, `future_skill_date`, and for international batches `international_readiness` / `visa_status` / `requires_visa_verification`.
+- **Deliberate scope limit, declared in the payload**: key 171 is per-course (bounded, cached 600s); key 111 is per-trainer-per-batch and multiplicative — a 40-batch board would become hundreds of calls. So **DNC, leave and tentative bookings are NOT applied on the board**, and every batch carries `dnc_checked: false` / `leave_checked: false` rather than leaving the omission implicit. Full gated evaluation remains in `/api/v2/allocation/candidates` (one batch, on demand).
+- **Two problems found by live measurement**:
+  1. **Performance**: 6 batches took **17.3s** sequentially (a 40-batch board ≈ 2 minutes). Parallelising alone did not help — every `_free_schedule` resolves through the 8,800-row course catalogue, so on a cold cache all threads raced to fetch it simultaneously. **Warming the catalogue before the fan-out**: full 11-batch board **27.4s → 9.7s cold, 0.89s warm**.
+  2. **"Could not check" was conflated with "no trainer holds this skill"** — opposite facts (catalogue fix vs hiring/training). Now three states: `rms_free_schedule` / `no_skilled_trainers` / `unresolved`. Live board of 11: **6 resolved, 4 no skilled trainers, 1 unresolved**.
+- **Safety**: enrichment is wrapped so a key 171 outage degrades the board to its previous behaviour rather than failing the request. `test_demand_safety`'s allowlist gained the three read-only endpoints the overlay uses; the guard it exists for is unchanged and still asserts a Demand GET never reaches `addTrainerSkill`.
+- **Current Status**: **123 backend tests pass**. Pushed `789fd99`; Render healthy (`/healthz` ok v6.1.0), allocation-desk correctly 401 unauthenticated. **No version bump or APK — backend only.**
+- **Next Actions**:
+  1. **Android consumption** — the new fields are being served but nothing renders them. This is the first work that will need an APK release, and per the one-page-per-release rule it should be the Demand screen alone.
+  2. Then Phase 3 for the remaining screens: Dashboard, Team, Trainer 360.
+  3. **RMS question list (unchanged, still blocking quality)**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
+
 ## 2026-08-12T06:20:00+05:30 - Phase 1b + Phase 2 complete (backend only)
 
 - **Tool Used**: Claude Code (backend.py, pytest, live RMS verification, Render probes)
