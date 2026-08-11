@@ -4604,6 +4604,74 @@ def v2_capacity_plan():
     return jsonify(plan), 200
 
 
+@app.route('/api/v2/trainer/readiness', methods=['GET'])
+def v2_trainer_readiness():
+    """
+    Real readiness for one trainer: leave, commitments and certification.
+
+    Trainer 360 previously inferred availability from off-date fields that are
+    empty for every trainer this account can reach. This answers from the RMS
+    day-level calendar instead — approved leave, confirmed bookings and
+    provisional ones — which is the same correction applied to Demand.
+
+    Certification is reported with its requirement state as tri-state: the exam
+    policy catalogue does not share course names with the delivery catalogue,
+    so "no policy entry" must read as unknown rather than as "no gap".
+    """
+    manager = request.args.get('manager', '').strip().lower()
+    _, error = _v2_manager_session(manager)
+    if error:
+        return error
+
+    email = request.args.get('email', '').strip().lower()
+    if not email:
+        return error_response("EMAIL_REQUIRED", "email query param required", 400)
+
+    today = datetime.utcnow().date()
+    end = today + timedelta(days=90)
+    schedule, why = _rc_schedule(email, today, end)
+    hints = _exam_hints(_rms("trainerRCSchedule", {
+        "traineremail": email,
+        "fromDate": today.isoformat(), "toDate": end.isoformat(),
+    }) or [])
+
+    policy = _exam_policy()
+    taught = []
+    for row in (_rms("trainerDetails", {"email": email}) or []):
+        if isinstance(row, dict) and row.get("CourseName"):
+            taught.append(str(row["CourseName"]).strip())
+    held = [c for c in taught]          # a taught course with an approved skill
+    verdicts = [certification_verdict(c, held, policy, hints) for c in dict.fromkeys(taught)]
+    gaps = [v for v in verdicts if v["gap"]]
+    unknown = [v for v in verdicts if v["exam_required"] is None]
+
+    upcoming_leave = sorted(d.isoformat() for d in schedule.get("leave_dates", set()))
+    return jsonify({
+        "schema_version": "2.0",
+        "ready": not why,
+        "note": why or "",
+        "window": {"from": today.isoformat(), "to": end.isoformat()},
+        "schedule": {
+            "rows": schedule.get("rows", 0),
+            "leave_days": len(schedule.get("leave_dates", set())),
+            "next_leave": upcoming_leave[:5],
+            "confirmed_days": len(schedule.get("confirmed_dates", set())),
+            "tentative_days": len(schedule.get("tentative_dates", set())),
+            "delivery_modes": sorted(set(schedule.get("modes", []))),
+            "client_exclusions": len(schedule.get("dnc_clients", set())),
+            "client_requests": len(schedule.get("specified_clients", set())),
+        },
+        "certification": {
+            "courses_reviewed": len(verdicts),
+            "gaps": gaps[:10],
+            "unknown_requirement": len(unknown),
+            "exam_identity_note": ("Exam names are inferred from delivery history; "
+                                   "RMS exposes no read-only course-to-exam mapping."),
+        },
+        "generated_at": datetime.utcnow().isoformat(),
+    }), 200
+
+
 @app.route('/api/v2/allocation/candidates', methods=['GET'])
 def v2_allocation_candidates():
     """

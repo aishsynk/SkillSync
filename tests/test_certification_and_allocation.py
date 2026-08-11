@@ -290,3 +290,51 @@ class DemandOverlay(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TrainerReadinessRoute(unittest.TestCase):
+    """Trainer 360's readiness source: real leave, not empty off-date fields."""
+
+    def setUp(self):
+        backend.app.config["TESTING"] = True
+        self.client = backend.app.test_client()
+
+    def test_requires_a_session(self):
+        r = self.client.get("/api/v2/trainer/readiness?manager=m@k.com&email=t@k.com")
+        self.assertEqual(401, r.status_code)
+
+    def test_missing_email_is_rejected(self):
+        with mock.patch.object(backend, "_v2_manager_session", return_value=({}, None)):
+            r = self.client.get("/api/v2/trainer/readiness?manager=m@k.com")
+        self.assertEqual(400, r.status_code)
+
+    def test_reports_leave_and_commitments(self):
+        sched = {
+            "leave_dates": {date(2026, 9, 2), date(2026, 9, 3)},
+            "confirmed_dates": {date(2026, 9, 10)},
+            "tentative_dates": {date(2026, 9, 20)},
+            "dnc_clients": {"cisco"}, "specified_clients": set(),
+            "modes": ["ILO", "ILO"], "rows": 40,
+        }
+        with mock.patch.object(backend, "_v2_manager_session", return_value=({}, None)), \
+             mock.patch.object(backend, "_rc_schedule", return_value=(sched, "")), \
+             mock.patch.object(backend, "_rms", return_value=[]), \
+             mock.patch.object(backend, "_exam_policy", return_value={}):
+            r = self.client.get("/api/v2/trainer/readiness?manager=m@k.com&email=t@k.com")
+        self.assertEqual(200, r.status_code)
+        body = r.get_json()
+        self.assertEqual(2, body["schedule"]["leave_days"])
+        self.assertEqual(1, body["schedule"]["confirmed_days"])
+        self.assertEqual(1, body["schedule"]["tentative_days"])
+        self.assertEqual(1, body["schedule"]["client_exclusions"])
+        self.assertEqual(["ILO"], body["schedule"]["delivery_modes"])
+
+    def test_exam_identity_is_declared_inferred(self):
+        with mock.patch.object(backend, "_v2_manager_session", return_value=({}, None)), \
+             mock.patch.object(backend, "_rc_schedule", return_value=({"leave_dates": set(),
+                 "confirmed_dates": set(), "tentative_dates": set(), "dnc_clients": set(),
+                 "specified_clients": set(), "modes": [], "rows": 0}, "")), \
+             mock.patch.object(backend, "_rms", return_value=[]), \
+             mock.patch.object(backend, "_exam_policy", return_value={}):
+            r = self.client.get("/api/v2/trainer/readiness?manager=m@k.com&email=t@k.com")
+        self.assertIn("inferred", r.get_json()["certification"]["exam_identity_note"])
