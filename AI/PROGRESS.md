@@ -1,5 +1,25 @@
 # SkillEdge Project Progress
 
+## 2026-08-11T18:35:00+05:30 - Weekly report page, contextual messages, top five promoted (v3.5.0)
+
+- **Tool Used**: Claude Code (Gradle gate, apksigner + aapt, gh CLI)
+- **Files Modified**: `ui/report/WeeklyMessage.kt` (created), `ui/report/WeeklyReportScreen.kt` (created), `ui/main/ManagerCommandCentre.kt`, `ui/main/MainScreen.kt`, `Navigation.kt`, `NavigationKeys.kt`, `app/build.gradle.kts`, `ui/WeeklyMessageTest.kt` (created)
+- **Work Completed**:
+  - **Weekly report page** (`WeeklyReport` nav key, reachable from the dashboard). Not a document: each card is a short summary plus a ready message, primary action Copy, secondary Send via the system share sheet. One message for the team, then one per reportee, sorted most urgent first.
+  - **Messages are contextual, not generic.** Composed from that person's own week, and only the single most important point is made. Severity precedence: feedback flag, then certification gap, then stretched, then bench, then open actions, then a clean week. Four situations produce four genuinely different messages, asserted in test.
+  - **House style enforced mechanically** in `WeeklyMessage.kt`: greeting on its own line, body, closing; complete sentences and full word forms (contraction substitution table); no emojis, hyphens, bullets or decorative symbols; bold reserved for the action being set, italics only for a name; hard 1000-character limit trimmed by whole sentences.
+  - **Course codes protected**: `AZ-305` was being mangled to "AZ 305" by the hyphen rule, renaming the course. Identifiers matching `[A-Z]{2,4}-[0-9]{2,4}` are now held aside while the prose rules run.
+  - **Paste format selectable**: Teams renders `**bold**`/`_italic_`; Viber shows markers literally, so Plain emits none.
+  - **Dashboard**: top performers promoted out of the collapsed Explore section into the briefing, per the operator request; weekly report CTA sits beside it.
+  - **Core library desugaring enabled.** `java.time` is API 26 and the app ships to minSdk 24, so the report's date handling would have crashed on API 24 and 25. Lint caught it; fixed properly rather than suppressed.
+- **Current Status**: **v3.5.0.82 live** — commit `357873d`, CI run `31477318054` success. APK verified: signer `c6868b14…1808` unchanged, package `com.example.skillsync`, versionCode 81 -> 82. Gate green: 63 unit tests (12 new house-style tests), lint clean.
+- **Known limitation, stated plainly**: the operator's brief describes rewriting a free-form `[User Message: …]` / `[My Message: …]` pair, including Hinglish, into polished English. That is an LLM task and **is not implemented** — the composer is deterministic and generates from RMS data only. There is no LLM in this project (`/api/agent/ask` does not exist; see the 2026-08-11 Copilot decision), so a free-text rewriter cannot be built honestly today. What ships is the data-driven half.
+- **Next Actions**:
+  1. Decide the rewriter question above: either wire an LLM (needs a provider, credentials and a backend route) or accept the deterministic composer as the scope.
+  2. Wire the contextual composer into the two quick-message dialogs (`MainScreen.kt` ~596 and ~1439), which still open an empty box.
+  3. Continue page-by-page redesign: Team, then Demand, then Actions.
+  4. Consider scheduling: "weekly report" is currently on demand. If it must auto-generate every week, that needs a WorkManager job plus a decision on delivery.
+
 ## 2026-08-11T16:20:00+05:30 - Unified notification system + sign-in redesign (v3.4.0)
 
 - **Tool Used**: Claude Code (Gradle gate, apksigner + aapt, gh CLI)
