@@ -75,10 +75,18 @@ fun composeTeamMessage(
     signals: TeamSignals,
     style: MessageStyle = MessageStyle.TEAMS,
     today: LocalDate = LocalDate.now(),
+    /**
+     * The manager's own words, the "My Message" input. When present it is the
+     * primary statement of intent and leads the body; the generated summary
+     * follows as supporting context rather than replacing what they wanted to
+     * say. It is sanitised to the same house style as everything else.
+     */
+    managerNote: String = "",
 ): String {
     val week = weekReference(today)
     val body = StringBuilder()
 
+    if (managerNote.isNotBlank()) body.append(managerNote.trim().trimEnd('.') + ". ")
     body.append("Here is where we stand for the week of ${week}. ")
     body.append("We are ${signals.strength} in the team, with ${signals.deployed} deployed and ${signals.free} available. ")
     signals.utilisation?.let { body.append("Team utilisation is at $it percent. ") }
@@ -116,7 +124,7 @@ fun composeTeamMessage(
         else -> "Thank you all for a steady week."
     }
 
-    return assemble(greeting = "Hello team", body = body.toString(), closing = closing)
+    return assemble("Hello team", body.toString(), closing, style)
 }
 
 // ── Reportee message ────────────────────────────────────────────────────────
@@ -125,11 +133,14 @@ fun composeReporteeMessage(
     signals: ReporteeSignals,
     style: MessageStyle = MessageStyle.TEAMS,
     today: LocalDate = LocalDate.now(),
+    /** See [composeTeamMessage]; the manager's own words lead the body. */
+    managerNote: String = "",
 ): String {
     val week = weekReference(today)
     val first = signals.name.trim().substringBefore(" ").ifBlank { "there" }
     val body = StringBuilder()
 
+    if (managerNote.isNotBlank()) body.append(managerNote.trim().trimEnd('.') + ". ")
     body.append("Here is a quick summary of your week of ${week}. ")
 
     // What the manager actually needs to say, in severity order. Only one
@@ -191,22 +202,27 @@ fun composeReporteeMessage(
         else -> "Thank you for your work this week."
     }
 
-    return assemble(
-        greeting = "Hello ${italic(first, style)}",
-        body = body.toString(),
-        closing = closing,
-    )
+    return assemble("Hello ${italic(first, style)}", body.toString(), closing, style)
 }
 
 // ── House style ─────────────────────────────────────────────────────────────
 
-private fun assemble(greeting: String, body: String, closing: String): String {
+private fun assemble(
+    greeting: String,
+    body: String,
+    closing: String,
+    style: MessageStyle = MessageStyle.PLAIN,
+): String {
+    // The closing carries light emphasis, as the house style asks. Bold stays
+    // reserved for the single action being set, so italics here cannot compete
+    // with it for attention.
+    val signed = sanitise(closing).trim()
     val text = buildString {
         append(greeting.trim())
         append("\n\n")
         append(sanitise(body).trim())
         append("\n\n")
-        append(sanitise(closing).trim())
+        append(if (style == MessageStyle.TEAMS && signed.isNotEmpty()) "_${signed}_" else signed)
     }
     return trimToLimit(text)
 }
@@ -241,7 +257,13 @@ internal fun sanitise(raw: String): String {
         "let's" to "let us", "that's" to "that is", "there's" to "there is",
     )
     contractions.forEach { (short, long) ->
-        s = s.replace(short, long, ignoreCase = true)
+        // Case-preserving: a plain ignoreCase replace turned the manager's
+        // "Don't worry" into "do not worry", dropping the capital at the start
+        // of their own sentence. Their words are quoted back to their team, so
+        // the expansion must not make them look careless.
+        s = Regex(Regex.escape(short), RegexOption.IGNORE_CASE).replace(s) { m ->
+            if (m.value.first().isUpperCase()) long.replaceFirstChar { c -> c.uppercase() } else long
+        }
     }
 
     // Hyphens, dashes and bullets are out entirely; a hyphen becomes a space so

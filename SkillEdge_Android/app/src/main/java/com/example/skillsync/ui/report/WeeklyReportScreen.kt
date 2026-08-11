@@ -62,6 +62,9 @@ fun WeeklyReportScreen(
     val notify = LocalNotify.current
 
     var style by rememberSaveable { mutableStateOf(MessageStyle.TEAMS) }
+    // The manager's own words. Composed into every message as the leading
+    // statement of intent, with the generated summary following as context.
+    var note by rememberSaveable { mutableStateOf("") }
 
     val ops = data.rows("trainer_operations_df")
     val states = data.rows("trainer_current_state_df").associateBy { it.str("trainer_email").lowercase() }
@@ -171,6 +174,24 @@ fun WeeklyReportScreen(
                 }
 
                 item {
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        label = { Text("Your message (optional)") },
+                        placeholder = { Text("Anything you want to say first") },
+                        shape = RoundedCornerShape(Radii.chip),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = sk.brand,
+                            unfocusedBorderColor = sk.glassBorder,
+                            focusedTextColor = sk.bodyText,
+                            unfocusedTextColor = sk.bodyText,
+                            cursorColor = sk.brand,
+                        ),
+                    )
+                }
+
+                item {
                     SectionHeading(
                         "Team",
                         "${teamSignals.strength} people, ${teamSignals.deployed} deployed, ${teamSignals.unallocated} unallocated",
@@ -211,7 +232,7 @@ fun WeeklyReportScreen(
                                     )
                                 }
                             },
-                            message = composeTeamMessage(teamSignals, style),
+                            message = composeTeamMessage(teamSignals, style, managerNote = note),
                             context = context,
                             notify = notify,
                         )
@@ -248,7 +269,7 @@ fun WeeklyReportScreen(
                                 }
                             }
                         },
-                        message = composeReporteeMessage(person, style),
+                        message = composeReporteeMessage(person, style, managerNote = note),
                         context = context,
                         notify = notify,
                     )

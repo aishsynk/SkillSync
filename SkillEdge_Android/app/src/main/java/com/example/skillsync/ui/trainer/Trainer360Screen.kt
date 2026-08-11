@@ -207,6 +207,11 @@ internal fun Trainer360Content(
         Column(Modifier.padding(horizontal = Layout.gutter, vertical = Space.md)) {
             IdentityCard(identity, util, cap, certs)
             Spacer(Modifier.height(Space.md))
+            // The verdict leads, before the score grid: this screen exists to
+            // answer "can they take work" and "what needs doing", not to list
+            // attributes.
+            TrainerVerdictBar(readiness, actions.size)
+            Spacer(Modifier.height(Space.md))
             ProfileOverview(metrics, util, delivery, certs, avail, actions)
         }
 

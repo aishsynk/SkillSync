@@ -159,4 +159,65 @@ class WeeklyMessageTest {
         // And nothing else gained a hyphen.
         assertEquals(1, Regex("-").findAll(msg).count())
     }
+
+    // ── Manager's own words ─────────────────────────────────────────────────
+
+    @Test
+    fun aManagerNoteLeadsTheMessage() {
+        // The house style treats the manager's words as the primary intent;
+        // the generated summary follows as supporting context.
+        val msg = composeReporteeMessage(
+            ReporteeSignals("Abhinav Samant", 72, "Balanced"),
+            MessageStyle.PLAIN, monday,
+            managerNote = "Thanks for covering the Dubai batch at short notice",
+        )
+        val body = msg.split("\n\n")[1]
+        assertTrue("The note must lead the body: $msg",
+                   body.startsWith("Thanks for covering the Dubai batch at short notice."))
+        assertTrue(body.contains("Here is a quick summary"))
+    }
+
+    @Test
+    fun aManagerNoteIsHeldToTheSameHouseStyle() {
+        val msg = composeReporteeMessage(
+            ReporteeSignals("A", 72, "Balanced"), MessageStyle.PLAIN, monday,
+            managerNote = "Don't worry about the mid-week slot - it's covered",
+        )
+        assertFalse("Contractions must be expanded: $msg", msg.contains("Don't"))
+        assertFalse("Hyphens must be stripped: $msg", msg.contains("-"))
+        assertTrue(msg.contains("Do not worry"))
+    }
+
+    @Test
+    fun aNoteDoesNotBreakTheCharacterLimit() {
+        val msg = composeTeamMessage(
+            TeamSignals(strength = 10, deployed = 7, free = 3, utilisation = 76,
+                        unallocated = 8, international = 6, certGaps = 4),
+            MessageStyle.TEAMS, monday,
+            managerNote = "A ".repeat(400),
+        )
+        assertTrue("Too long (${msg.length})", msg.length <= MESSAGE_LIMIT)
+    }
+
+    @Test
+    fun anEmptyNoteChangesNothing() {
+        val a = composeReporteeMessage(ReporteeSignals("A", 72, "Balanced"), MessageStyle.PLAIN, monday)
+        val b = composeReporteeMessage(ReporteeSignals("A", 72, "Balanced"), MessageStyle.PLAIN, monday, "")
+        assertEquals(a, b)
+    }
+
+    // ── Closing emphasis ────────────────────────────────────────────────────
+
+    @Test
+    fun theClosingCarriesLightEmphasisInTeamsStyle() {
+        val msg = composeReporteeMessage(ReporteeSignals("A", 72, "Balanced"), MessageStyle.TEAMS, monday)
+        val closing = msg.split("\n\n").last()
+        assertTrue("Closing should be italicised: $closing", closing.startsWith("_") && closing.endsWith("_"))
+    }
+
+    @Test
+    fun plainStyleStillEmitsNoMarkers() {
+        val msg = composeReporteeMessage(ReporteeSignals("A", 72, "Balanced"), MessageStyle.PLAIN, monday)
+        assertFalse(msg.contains("_"))
+    }
 }

@@ -943,10 +943,14 @@ class ScreenRenderTest {
                 )
             }
         }
-        compose.onNodeWithText("Capacity & demand outlook").assertExists()
-        compose.onNodeWithText("8-week allocation pressure").assertExists()
+        compose.onNodeWithText("EIGHT WEEK OUTLOOK").assertExists()
+        compose.onNodeWithText("1 week is over capacity.").assertExists()
         compose.onNodeWithText("67%").assertExists()
-        compose.onNodeWithText("75%").assertExists()
+        // Availability confidence is now a sentence rather than a bare stat:
+        // "75%" under a label read as a score, not as a caveat about evidence.
+        compose.onNodeWithText(
+            "Availability verified for 75 percent of candidates; the rest are unconfirmed."
+        ).assertExists()
         compose.onNodeWithText("Unknown evidence is never treated as free capacity.").assertExists()
     }
 }

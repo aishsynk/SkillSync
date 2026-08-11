@@ -8,6 +8,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.Figure
 import com.example.skillsync.theme.FigureSize
 import com.example.skillsync.theme.SectionHeading
@@ -216,6 +227,56 @@ private fun TravelReadinessCard(readiness: Map<String, Any>) {
                 "Source: RMS schedule for $via",
                 style = MaterialTheme.typography.labelSmall, color = sk.labelText,
             )
+        }
+    }
+}
+
+/**
+ * The one-line verdict a manager needs before anything else on this screen.
+ *
+ * Trainer 360 opened with identity and a grid of scores, which answered "what
+ * are this person's numbers" rather than the two questions the screen exists
+ * for: can they take work, and does anything need doing about them. This states
+ * both in a sentence, from the calendar rather than from a status field.
+ */
+@Composable
+internal fun TrainerVerdictBar(readiness: Map<String, Any>?, openActions: Int) {
+    val sk = MaterialTheme.skill
+    val schedule = readiness?.obj("schedule")
+    val leave = schedule?.int("leave_days") ?: 0
+    val committed = schedule?.int("confirmed_days") ?: 0
+    val exclusions = schedule?.int("client_exclusions") ?: 0
+    val gaps = readiness?.obj("certification")?.list("gaps")?.size ?: 0
+
+    val (tint, verdict) = when {
+        schedule == null -> sk.labelText to "Availability not checked yet"
+        exclusions > 0 -> sk.crit to "Blocked by $exclusions client exclusion${if (exclusions == 1) "" else "s"}"
+        leave > 0 -> sk.warn to "On leave for $leave day${if (leave == 1) "" else "s"} in the next 90"
+        committed > 0 -> sk.sky to "Committed for $committed day${if (committed == 1) "" else "s"}"
+        else -> sk.aqua to "Free to take work"
+    }
+    val followUp = listOfNotNull(
+        gaps.takeIf { it > 0 }?.let { "$it certification gap${if (it == 1) "" else "s"}" },
+        openActions.takeIf { it > 0 }?.let { "$it open action${if (it == 1) "" else "s"}" },
+    )
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(tint.copy(alpha = 0.12f), RoundedCornerShape(Radii.chip))
+            .padding(horizontal = Space.md, vertical = Space.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(7.dp).clip(RoundedCornerShape(4.dp)).background(tint))
+        Spacer(Modifier.width(Space.sm))
+        Column(Modifier.weight(1f)) {
+            Text(verdict, style = MaterialTheme.typography.titleSmall, color = tint)
+            if (followUp.isNotEmpty()) {
+                Text(
+                    followUp.joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall, color = sk.subText,
+                )
+            }
         }
     }
 }

@@ -30,6 +30,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
+import com.example.skillsync.theme.Figure
+import com.example.skillsync.theme.FigureSize
+import com.example.skillsync.theme.SectionHeading
+import com.example.skillsync.theme.SkillCard
+import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
@@ -935,38 +940,122 @@ private fun CapacityPlanningCard(
     loading: Boolean,
 ) {
     val sk = MaterialTheme.skill
-    Box(Modifier.fillMaxWidth().glassSurface(RoundedCornerShape(16.dp))) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column {
-                    Text("Capacity & demand outlook", fontWeight = FontWeight.SemiBold, color = sk.frost)
-                    Text("8-week allocation pressure", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+
+    // Conclusion first. The previous version opened with four raw counters and
+    // an unlabelled bar chart, which told a manager what the numbers were but
+    // not what to do about them. The pressure weeks are the decision.
+    val pressured = plan?.weeks?.filter { it.pressure == "high" }.orEmpty()
+    val watch = plan?.weeks?.filter { it.pressure == "watch" }.orEmpty()
+    val headline = when {
+        plan == null && loading -> "Building the outlook from the demand snapshot"
+        plan == null -> "Waiting for the demand snapshot"
+        pressured.isNotEmpty() ->
+            "${pressured.size} week${if (pressured.size == 1) " is" else "s are"} over capacity."
+        watch.isNotEmpty() ->
+            "${watch.size} week${if (watch.size == 1) " needs" else "s need"} watching."
+        else -> "Every week ahead is inside capacity."
+    }
+
+    SectionHeading(
+        "Eight week outlook",
+        headline,
+        trailing = if (plan?.ready == true) null else "preparing",
+    )
+
+    SkillCard(Modifier.fillMaxWidth()) {
+        when {
+            loading && plan == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
+            plan == null -> Text(
+                "The outlook appears once the demand snapshot is ready.",
+                style = MaterialTheme.typography.bodySmall, color = sk.subText,
+            )
+            else -> {
+                val s2 = plan.summary
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.md)) {
+                    Figure("${s2.demand}", "Demand", FigureSize.Small, Modifier.weight(1f), sk.bodyText)
+                    Figure(
+                        s2.coveragePct?.let { "$it%" } ?: "—", "Covered",
+                        FigureSize.Small, Modifier.weight(1f),
+                        if ((s2.coveragePct ?: 0) >= 75) sk.good else sk.warn,
+                    )
+                    Figure(
+                        "${s2.uncovered}", "Uncovered", FigureSize.Small, Modifier.weight(1f),
+                        if (s2.uncovered == 0) sk.good else sk.crit,
+                    )
                 }
-                Text(if (plan?.ready == true) "LIVE EVIDENCE" else "PREPARING", style = MaterialTheme.typography.labelSmall, color = if (plan?.ready == true) sk.green else sk.amber)
-            }
-            when {
-                loading && plan == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
-                plan == null -> Text("Capacity outlook will appear when the demand snapshot is ready.", style = MaterialTheme.typography.bodySmall, color = sk.subText)
-                else -> {
-                    val s = plan.summary
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        StatFigure("${s.demand}", "DEMAND", sk.frost, Modifier.weight(1f))
-                        StatFigure(s.coveragePct?.let { "$it%" } ?: "—", "COVERED", if ((s.coveragePct ?: 0) >= 75) sk.green else sk.amber, Modifier.weight(1f))
-                        StatFigure("${s.uncovered}", "UNCOVERED", if (s.uncovered == 0) sk.green else sk.crit, Modifier.weight(1f))
-                        StatFigure(plan.confidence.availabilityPct?.let { "$it%" } ?: "—", "AVAIL. PROOF", if (plan.confidence.availabilityPct == 100) sk.green else sk.amber, Modifier.weight(1f))
-                    }
-                    val maxDemand = (plan.weeks.maxOfOrNull { it.demand } ?: 1).coerceAtLeast(1)
-                    Row(Modifier.fillMaxWidth().height(72.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.Bottom) {
-                        plan.weeks.forEach { week ->
-                            val tint = when (week.pressure) { "high" -> sk.crit; "watch" -> sk.amber; "healthy" -> sk.green; else -> sk.cardBorder }
-                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
-                                if (week.demand > 0) Text("${week.demand}", fontSize = 9.sp, color = tint, fontWeight = FontWeight.Bold)
-                                Box(Modifier.fillMaxWidth().height((8 + 38 * week.demand / maxDemand).dp).clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)).background(tint.copy(alpha = 0.85f)))
-                                Text(week.weekStart.drop(5).replace("-", "/"), fontSize = 7.sp, color = sk.labelText, maxLines = 1)
+
+                val maxDemand = (plan.weeks.maxOfOrNull { it.demand } ?: 1).coerceAtLeast(1)
+                Row(
+                    Modifier.fillMaxWidth().height(76.dp),
+                    horizontalArrangement = Arrangement.spacedBy(Space.xs),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    plan.weeks.forEach { week ->
+                        val tint = when (week.pressure) {
+                            "high" -> sk.crit; "watch" -> sk.warn
+                            "healthy" -> sk.good; else -> sk.cardBorder
+                        }
+                        Column(
+                            Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Bottom,
+                        ) {
+                            if (week.demand > 0) {
+                                Text(
+                                    "${week.demand}",
+                                    style = MaterialTheme.typography.labelSmall, color = tint,
+                                )
                             }
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height((8 + (48f * week.demand / maxDemand)).dp)
+                                    .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                    .background(tint.copy(alpha = 0.75f))
+                            )
+                            Text(
+                                // "2026-09-07" -> "07 Sep" is unreadable at this
+                                // width; the day-month pair is enough to place it.
+                                week.weekStart.takeLast(5),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = sk.labelText, maxLines = 1,
+                            )
                         }
                     }
-                    Text(plan.confidence.note, style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 9.sp)
+                }
+
+                // The bar colours mean nothing without this.
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.md)) {
+                    listOf("Over capacity" to sk.crit, "Watch" to sk.warn, "Inside capacity" to sk.good)
+                        .forEach { (label, tint) ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(tint))
+                                Spacer(Modifier.width(Space.xs))
+                                Text(
+                                    label,
+                                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                                )
+                            }
+                        }
+                }
+
+                // The backend's own caveat about how unknown evidence is
+                // treated. Dropping it in the rewrite would have removed the
+                // one line explaining why the coverage figure is conservative.
+                if (plan.confidence.note.isNotBlank()) {
+                    Text(
+                        plan.confidence.note,
+                        style = MaterialTheme.typography.bodySmall, color = sk.subText,
+                    )
+                }
+
+                plan.confidence.availabilityPct?.let { pct ->
+                    Text(
+                        if (pct == 100) "Availability verified for every candidate in this outlook."
+                        else "Availability verified for $pct percent of candidates; the rest are unconfirmed.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (pct == 100) sk.subText else sk.warn,
+                    )
                 }
             }
         }
