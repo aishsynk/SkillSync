@@ -49,7 +49,6 @@ fun Trainer360Screen(
     val syllabus by viewModel.syllabus.collectAsState()
     val actions by viewModel.actions.collectAsState()
     val online by com.example.skillsync.data.sync.SyncScheduler.online.collectAsState()
-    var showCopilot by remember { mutableStateOf(false) }
     StatusBarIcons(lightIcons = true)
 
     Scaffold(
@@ -94,23 +93,13 @@ fun Trainer360Screen(
                 ),
             )
         },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showCopilot = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White
-            ) {
-                Text("✨", fontSize = 24.sp)
-            }
-        }
+        // The Copilot FAB is withheld until the backend route exists. It posted
+        // to `POST /api/agent/ask`, which `backend.py` has never implemented, so
+        // every question in the sheet came back as a 404 error bubble. A visible
+        // entry point that cannot succeed is worse than no entry point.
+        // [CopilotChatSheet] and [CopilotViewModel] are left in the tree so
+        // restoring this is a one-line change once the route ships.
     ) { pv ->
-        if (showCopilot) {
-            CopilotChatSheet(
-                managerEmail = managerEmail,
-                targetEmail = trainerEmail,
-                onDismiss = { showCopilot = false }
-            )
-        }
         Box(Modifier.fillMaxSize().padding(pv)) {
             when (val s = state) {
                 is Trainer360State.Loading -> Column(

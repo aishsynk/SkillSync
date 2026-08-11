@@ -217,6 +217,12 @@ Important decisions and their rationale. Add new entries at the top (newest firs
 - **Decision:** Every lifecycle action (close/escalate/reassign, acknowledge/resolve/escalate) is auto-recorded as a learning example with outcome labels.
 - **Rationale:** Manager decisions are the highest-quality labels available; capturing them for free turns the existing action/review persistence into a training signal.
 
+## 2026-08-11 — Trainer 360 Copilot entry point withheld until its route exists
+
+- **Decision:** Remove the ✨ Copilot FAB and chat sheet from `Trainer360Screen.kt`. `CopilotChatSheet`, `CopilotViewModel` and the `agentAsk` Retrofit declaration stay in the tree.
+- **Rationale:** The sheet posts to `POST /api/agent/ask`, which `backend.py` has never implemented — a live probe of every endpoint the app declares returned 404 for that one route and 401/405 (correctly gated) for all nineteen others. Every question a manager asked came back as a 404 error bubble. A visible entry point that cannot succeed is worse than no entry point, and it violates the standing rule that nothing ships broken or partially implemented. The 2026-08-05 decision describing a deterministic agentic layer with an `agent.answer` seam was never landed in `backend.py`, so there is no route to repoint the client at.
+- **Restoring it:** re-add the `floatingActionButton` block and the `showCopilot` state — a one-line change once the backend route ships.
+
 ## 2026-08-03 — Baseline AI/ tracking workspace
 
 - **Decision:** Create `AI/PROGRESS.md`, `AI/CONTEXT.md`, `AI/DECISIONS.md` to give
