@@ -1,5 +1,22 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T13:05:00+05:30 - Team page on real availability (v3.11.0)
+
+- **Tool Used**: Claude Code (backend.py, pytest, Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)
+- **Files Modified**: `backend.py`, `tests/test_certification_and_allocation.py`, `ui/main/TeamMemberCard.kt`, `ui/main/TeamTab.kt`, `ui/main/MainScreen.kt`, `ui/main/MainScreenViewModel.kt`, `data/api/SkillEdgeApi.kt`, `app/build.gradle.kts`, `ui/TeamAvailabilityTest.kt` (created)
+- **Session start**: v3.10.0.87 live, 130 backend + 117 Android tests green, tree clean.
+- **Work Completed**:
+  - **New `GET /api/v2/team/readiness`** — real leave, committed days, provisional work and client exclusions per reportee from the RMS day-level calendar. Parallel fan-out (one call per trainer), cached 600s, **bounded at 40 with explicit disclosure of how many were skipped** — a silently truncated roster reads as "everyone is clear".
+  - **Team card no longer infers availability from utilisation.** It showed "available capacity" as `100 - utilisation`; that was the last screen making the inference this layer exists to remove. Each card now shows leave (with start date), committed days, "No leave booked", client exclusions, or **"Availability unverified"** — never shown as clear when RMS did not answer. The utilisation bar remains, now correctly reading as a workload measure beside availability rather than standing in for it.
+- **Two wrong turns worth recording**:
+  1. I first edited `TrainerCard` in `MainScreen.kt` — it is covered by tests but **never rendered**; the live card is `TeamMemberCard`. Reverted via `git checkout` and reapplied to the right component.
+  2. Two successive name collisions in `TeamMemberCard`: `readiness` is already the capability score and `availability` is already a status string. The new parameter is `calendarAvailability`.
+- **Process fix applied**: the gate is now run with output redirected and **chained on the true exit status** (`GATE_EXIT=$?`), not on a grep of its output — the failure mode that pushed a red commit in the previous session.
+- **Current Status**: **v3.11.0.88 live** — commit `d68e6c8`, CI success. APK verified: signer `c6868b14…1808`, package `com.example.skillsync`, versionCode 87 -> 88. **134 backend + 123 Android tests pass**, lint clean. Render healthy; `/api/v2/team/readiness` correctly 401 unauthenticated.
+- **Next Actions**:
+  1. **Dashboard** — the last Phase 3 screen. Its capacity/availability sections still read from utilisation buckets (`capacity_bucket`, `current_status`) rather than the calendar; `/api/v2/team/readiness` already supplies what it needs, so this is wiring rather than new intelligence.
+  2. **RMS question list, unchanged and still the quality ceiling**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
+
 ## 2026-08-12T12:20:00+05:30 - Trainer 360 international readiness (v3.10.0)
 
 - **Tool Used**: Claude Code (backend.py, pytest, Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)
