@@ -4604,6 +4604,83 @@ def v2_capacity_plan():
     return jsonify(plan), 200
 
 
+@app.route('/api/v2/team/readiness', methods=['GET'])
+def v2_team_readiness():
+    """
+    Real availability for the whole roster, one row per reportee.
+
+    The Team page has always shown utilisation as if it were availability. This
+    answers from the RMS day-level calendar instead: approved leave, confirmed
+    commitments, provisional work and client exclusions, per person.
+
+    Cost is one call per trainer (key 111), so the fan-out is parallel and
+    served from the ten-minute cache. It is bounded, and when the roster
+    exceeds the bound the response says exactly how many were skipped —
+    a silently truncated list reads as "everyone is clear", which is the
+    failure mode this whole layer exists to remove.
+    """
+    manager = request.args.get('manager', '').strip().lower()
+    _, error = _v2_manager_session(manager)
+    if error:
+        return error
+
+    roster = []
+    for r in (_rms("reportees", {"email": manager}) or []):
+        if isinstance(r, dict) and r.get("OffEmail"):
+            roster.append({
+                "email": str(r["OffEmail"]).strip().lower(),
+                "name": str(r.get("TrainerName") or "").strip(),
+            })
+
+    limit = 40
+    considered, skipped = roster[:limit], max(0, len(roster) - limit)
+
+    today = datetime.utcnow().date()
+    end = today + timedelta(days=90)
+
+    def one(person):
+        schedule, why = _rc_schedule(person["email"], today, end)
+        leave = sorted(schedule.get("leave_dates", set()))
+        return {
+            "trainer_email": person["email"],
+            "trainer_name": person["name"],
+            "verified": not why,
+            "note": why or "",
+            "leave_days": len(leave),
+            "next_leave": [d.isoformat() for d in leave[:3]],
+            "confirmed_days": len(schedule.get("confirmed_dates", set())),
+            "tentative_days": len(schedule.get("tentative_dates", set())),
+            "client_exclusions": len(schedule.get("dnc_clients", set())),
+            "client_requests": len(schedule.get("specified_clients", set())),
+            "delivery_modes": sorted(set(schedule.get("modes", []))),
+        }
+
+    rows = []
+    if considered:
+        with ThreadPoolExecutor(max_workers=min(8, len(considered))) as pool:
+            for result in pool.map(one, considered):
+                rows.append(result)
+
+    on_leave = [r for r in rows if r["leave_days"] > 0]
+    return jsonify({
+        "schema_version": "2.0",
+        "ready": True,
+        "window": {"from": today.isoformat(), "to": end.isoformat()},
+        "counts": {
+            "roster": len(roster),
+            "checked": len(rows),
+            "not_checked": skipped,
+            "with_leave": len(on_leave),
+            "unverified": sum(1 for r in rows if not r["verified"]),
+        },
+        # Never silent: a truncated roster must announce itself.
+        "note": (f"{skipped} reportee(s) beyond the {limit} checked were not "
+                 f"evaluated and are not represented below." if skipped else ""),
+        "trainers": rows,
+        "generated_at": datetime.utcnow().isoformat(),
+    }), 200
+
+
 @app.route('/api/v2/trainer/readiness', methods=['GET'])
 def v2_trainer_readiness():
     """

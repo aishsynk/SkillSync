@@ -400,3 +400,63 @@ class TrainerReadinessRoute(unittest.TestCase):
         self.assertIsNone(body["travel"])
         self.assertIn("could be resolved", body["travel_note"])
 
+
+
+class TeamReadinessRoute(unittest.TestCase):
+    """Roster-wide availability. A truncated list must never read as 'all clear'."""
+
+    def setUp(self):
+        backend.app.config["TESTING"] = True
+        self.client = backend.app.test_client()
+
+    def _schedule(self, leave=0):
+        return ({
+            "leave_dates": {date(2026, 9, 1 + i) for i in range(leave)},
+            "confirmed_dates": {date(2026, 9, 20)},
+            "tentative_dates": set(),
+            "dnc_clients": {"cisco"} if leave else set(),
+            "specified_clients": set(),
+            "modes": ["ILO"], "rows": 10,
+        }, "")
+
+    def test_requires_a_session(self):
+        self.assertEqual(401, self.client.get(
+            "/api/v2/team/readiness?manager=m@k.com").status_code)
+
+    def test_reports_leave_per_trainer(self):
+        roster = [{"OffEmail": "a@k.com", "TrainerName": "A"},
+                  {"OffEmail": "b@k.com", "TrainerName": "B"}]
+        with mock.patch.object(backend, "_v2_manager_session", return_value=({}, None)), \
+             mock.patch.object(backend, "_rms", return_value=roster), \
+             mock.patch.object(backend, "_rc_schedule", return_value=self._schedule(2)):
+            r = self.client.get("/api/v2/team/readiness?manager=m@k.com")
+        body = r.get_json()
+        self.assertEqual(2, body["counts"]["checked"])
+        self.assertEqual(2, body["counts"]["with_leave"])
+        self.assertEqual(2, body["trainers"][0]["leave_days"])
+        self.assertEqual(1, body["trainers"][0]["client_exclusions"])
+
+    def test_a_truncated_roster_announces_itself(self):
+        roster = [{"OffEmail": f"t{i}@k.com", "TrainerName": f"T{i}"} for i in range(45)]
+        with mock.patch.object(backend, "_v2_manager_session", return_value=({}, None)), \
+             mock.patch.object(backend, "_rms", return_value=roster), \
+             mock.patch.object(backend, "_rc_schedule", return_value=self._schedule(0)):
+            r = self.client.get("/api/v2/team/readiness?manager=m@k.com")
+        body = r.get_json()
+        self.assertEqual(40, body["counts"]["checked"])
+        self.assertEqual(5, body["counts"]["not_checked"])
+        self.assertIn("were not", body["note"])
+
+    def test_an_unverified_trainer_is_counted_not_assumed_clear(self):
+        roster = [{"OffEmail": "a@k.com", "TrainerName": "A"}]
+        with mock.patch.object(backend, "_v2_manager_session", return_value=({}, None)), \
+             mock.patch.object(backend, "_rms", return_value=roster), \
+             mock.patch.object(backend, "_rc_schedule",
+                               return_value=({"leave_dates": set(), "confirmed_dates": set(),
+                                              "tentative_dates": set(), "dnc_clients": set(),
+                                              "specified_clients": set(), "modes": [], "rows": 0},
+                                             "schedule unavailable")):
+            r = self.client.get("/api/v2/team/readiness?manager=m@k.com")
+        body = r.get_json()
+        self.assertEqual(1, body["counts"]["unverified"])
+        self.assertFalse(body["trainers"][0]["verified"])
