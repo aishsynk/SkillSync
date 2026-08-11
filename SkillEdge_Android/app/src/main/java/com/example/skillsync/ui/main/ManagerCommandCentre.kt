@@ -80,6 +80,7 @@ fun ManagerCommandCentre(
     onOpenNotifications: () -> Unit,
     onOpenDemand: () -> Unit,
     onOpenWeeklyReport: () -> Unit = {},
+    onOpenCopilot: () -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
     val openActions = actions.filter { it.str("lifecycle_state").ifBlank { "open" } !in setOf("closed", "resolved") }
@@ -184,6 +185,9 @@ fun ManagerCommandCentre(
 
         // ── 5c · The weekly message ─────────────────────────────────────────
         WeeklyReportCta(onOpenWeeklyReport)
+
+        // ── 5d · The agent ──────────────────────────────────────────────────
+        AgentCta(onOpenCopilot)
 
         // ── 6 · Everything else ─────────────────────────────────────────────
         ExploreSection(
@@ -696,6 +700,34 @@ private fun WeeklyReportCta(onOpen: () -> Unit) {
             )
         }
         Text("Open", style = MaterialTheme.typography.labelMedium, color = sk.sky)
+    }
+}
+
+/** Route into the delivery agent. */
+@Composable
+private fun AgentCta(onOpen: () -> Unit) {
+    val sk = MaterialTheme.skill
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .accentGlass(sk.cyan)
+            .pressable(onOpen)
+            .padding(Space.lg),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                "Ask the delivery agent",
+                style = MaterialTheme.typography.titleMedium,
+                color = sk.bodyText,
+            )
+            Text(
+                "Who needs attention, who is free, what to do next.",
+                style = MaterialTheme.typography.bodySmall,
+                color = sk.subText,
+            )
+        }
+        Text("Open", style = MaterialTheme.typography.labelMedium, color = sk.cyan)
     }
 }
 

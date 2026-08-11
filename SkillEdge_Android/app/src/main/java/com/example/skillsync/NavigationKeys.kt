@@ -14,6 +14,9 @@ import kotlinx.serialization.Serializable
 /** Full detail + actions for one unallocated batch, keyed by its assignment id. */
 @Serializable data class BatchDetail(val email: String, val demandId: String) : NavKey
 
+/** The delivery agent: manager questions and next best actions. */
+@Serializable data class Copilot(val email: String) : NavKey
+
 /** Weekly copy-and-send messages: one for the team, one per reportee. */
 @Serializable data class WeeklyReport(val email: String) : NavKey
 

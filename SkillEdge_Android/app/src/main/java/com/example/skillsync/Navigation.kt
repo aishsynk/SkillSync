@@ -67,11 +67,12 @@ fun MainNavigation() {
     }
 
     // Hardware/gesture back returns from a pushed detail screen to the shell.
-    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport) {
+    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot) {
         current = when (val c = current) {
             is Trainer360 -> Main(c.email, HomeTab.TEAM)
             is BatchDetail -> Main(c.email, HomeTab.DEMAND)
             is WeeklyReport -> Main(c.email, HomeTab.DASHBOARD)
+            is Copilot -> Main(c.email, HomeTab.DASHBOARD)
             else -> c
         }
     }
@@ -147,11 +148,39 @@ fun MainNavigation() {
                 },
                 onBatchClick = { demandId -> current = BatchDetail(screen.email, demandId) },
                 onOpenWeeklyReport = { current = WeeklyReport(screen.email) },
+                onOpenCopilot = { current = Copilot(screen.email) },
                 onLogout = { current = Login },
                 modifier = Modifier,
                 viewModel = mainViewModel,
                 allocationViewModel = allocationViewModel,
             )
+
+            is Copilot -> {
+                val dash by mainViewModel.uiState.collectAsState()
+                val capability by mainViewModel.capability.collectAsState()
+                val agentActions by mainViewModel.teamActions.collectAsState()
+                val alloc by allocationViewModel.state.collectAsState()
+                val payload = (dash as? com.example.skillsync.ui.main.DashboardState.Success)?.intelligenceData
+                if (payload == null) {
+                    LaunchedEffect(screen.email) { mainViewModel.loadData(screen.email, context) }
+                    androidx.compose.material3.CircularProgressIndicator()
+                } else {
+                    // The desk is what tells the agent who ranks for which
+                    // batch, so it is loaded here rather than only on Demand.
+                    LaunchedEffect(screen.email) { allocationViewModel.load(screen.email, context) }
+                    val facts = com.example.skillsync.ai.FactBuilder.build(
+                        dashboard = payload,
+                        capability = capability,
+                        allocation = (alloc as? AllocationState.Success)?.data,
+                        actions = agentActions.map { it.asMap() },
+                    )
+                    com.example.skillsync.ui.ai.CopilotScreen(
+                        team = facts,
+                        onTrainerClick = { te, tn -> current = Trainer360(screen.email, te, tn) },
+                        onBack = { current = Main(screen.email, HomeTab.DASHBOARD) },
+                    )
+                }
+            }
 
             is WeeklyReport -> {
                 val dash by mainViewModel.uiState.collectAsState()
