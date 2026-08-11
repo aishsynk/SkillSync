@@ -416,4 +416,51 @@ class AllocationViewModel(
             }
         }
     }
+
+    // ── §7.6 bulk skill assignment ──────────────────────────────────────────
+    val bulkWorking = MutableStateFlow(false)
+    val bulkResults = MutableStateFlow<List<com.example.skillsync.ui.main.SkillWriteResult>?>(null)
+
+    /**
+     * One skill to many reportees.
+     *
+     * Results are held per row rather than collapsed to a success flag: this
+     * writes to production RMS and a partial failure is the normal outcome,
+     * so the manager has to see which rows still need them.
+     */
+    fun bulkAssignSkill(courseId: String, rows: List<Pair<String, Int>>) {
+        if (courseId.isBlank() || rows.isEmpty()) return
+        viewModelScope.launch {
+            bulkWorking.value = true
+            bulkResults.value = null
+            val response = runCatching {
+                com.example.skillsync.data.api.RetrofitClient.instance.bulkAssignSkill(
+                    com.example.skillsync.data.api.BulkAssignRequest(
+                        course_id = courseId,
+                        trainers = rows.map { (email, level) ->
+                            com.example.skillsync.data.api.BulkAssignRow(email, level)
+                        },
+                    )
+                )
+            }.getOrNull()
+
+            bulkResults.value = response?.results?.map {
+                com.example.skillsync.ui.main.SkillWriteResult(
+                    email = it.trainer_email, ok = it.ok, message = it.message,
+                )
+            } ?: rows.map { (email, _) ->
+                // A transport failure is not a refusal, and must not be shown
+                // as one: nothing is known about whether the write landed.
+                com.example.skillsync.ui.main.SkillWriteResult(
+                    email = email, ok = false,
+                    message = "No response from the server. Check the RMS skill register before retrying.",
+                )
+            }
+            bulkWorking.value = false
+        }
+    }
+
+    fun clearBulkResults() {
+        bulkResults.value = null
+    }
 }

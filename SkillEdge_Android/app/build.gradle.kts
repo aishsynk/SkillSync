@@ -24,8 +24,8 @@ android {
         applicationId = "com.example.skillsync"
         minSdk = 24
         targetSdk = 34
-        versionCode = 92
-        versionName = "3.15.0"
+        versionCode = 93
+        versionName = "3.16.0"
     }
 
     signingConfigs {

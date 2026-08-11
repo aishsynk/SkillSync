@@ -25,6 +25,8 @@ import com.example.skillsync.R
 import com.example.skillsync.theme.IconSlot
 import com.example.skillsync.theme.Space
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.border
+import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
@@ -94,6 +96,11 @@ internal fun ActionsInbox(
      * for a week without being touched has earned promotion regardless of the
      * priority it was raised with, because ageing is itself a signal.
      */
+    // §7.5 bulk selection. Managers work on groups — "close all six of these
+    // certification reminders" — and doing that one card at a time is why the
+    // inbox never empties.
+    var selectedIds by remember { mutableStateOf(setOf<String>()) }
+
     val lanes = remember(shown) {
         val now = System.currentTimeMillis()
         fun ageDays(a: Map<String, Any>): Long {
@@ -194,14 +201,40 @@ internal fun ActionsInbox(
                     )
                 }
             } else {
+                if (selectedIds.isNotEmpty()) {
+                    item(key = "bulk-bar") {
+                        BulkActionBar(
+                            count = selectedIds.size,
+                            onResolve = {
+                                selectedIds.forEach { onSetState(it, "closed", "") }
+                                selectedIds = emptySet()
+                            },
+                            onEscalate = {
+                                selectedIds.forEach { onSetState(it, "escalated", "") }
+                                selectedIds = emptySet()
+                            },
+                            onClear = { selectedIds = emptySet() },
+                        )
+                    }
+                }
                 lanes.forEach { (lane, rows) ->
                     item(key = "lane-$lane") {
-                        LaneHeader(lane, rows.size)
+                        LaneHeader(lane, rows.size, rows.count { it.str("id") in selectedIds }) {
+                            val ids = rows.map { r -> r.str("id") }.toSet()
+                            selectedIds = if (selectedIds.containsAll(ids)) selectedIds - ids
+                                          else selectedIds + ids
+                        }
                     }
                     itemsIndexed(rows, key = { _, a -> a.str("id") }) { i, a ->
                     Appear(i) {
                         ActionCard(
                             action = a,
+                            selected = a.str("id") in selectedIds,
+                            onToggleSelect = {
+                                val id = a.str("id")
+                                selectedIds = if (id in selectedIds) selectedIds - id
+                                              else selectedIds + id
+                            },
                             onOpen = { detailFor = a },
                             onQuickState = { st -> onSetState(a.str("id"), st, "") },
                             onTrainer = {
@@ -265,6 +298,8 @@ private fun stateTint(state: String): Color {
 @Composable
 private fun ActionCard(
     action: Map<String, Any>,
+    selected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
     onOpen: () -> Unit,
     onQuickState: (String) -> Unit,
     onTrainer: () -> Unit,
@@ -287,8 +322,32 @@ private fun ActionCard(
             .accentGlass(edge, RoundedCornerShape(Radii.card), strong = priority == "high" && state == "open")
             .clickable(onClick = onOpen),
     ) {
-        Column(Modifier.padding(start = 15.dp, top = 13.dp, end = 13.dp, bottom = 11.dp)) {
+        Column(Modifier.padding(start = Space.md, top = Space.md, end = Space.md, bottom = Space.sm)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Selection control. Long-press-to-select is undiscoverable on a
+                // list a manager visits once a day, so the affordance is always
+                // visible and toggles independently of opening the item.
+                Box(
+                    Modifier
+                        .size(18.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (selected) sk.brand else Color.Transparent)
+                        .border(
+                            1.dp,
+                            if (selected) sk.brand else sk.glassBorder,
+                            RoundedCornerShape(4.dp),
+                        )
+                        .pressable(onToggleSelect),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (selected) {
+                        Icon(
+                            painterResource(R.drawable.ic_check), null,
+                            tint = sk.frost, modifier = Modifier.size(11.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.width(Space.sm))
                 Text(
                     action.str("category").uppercase(),
                     style = MaterialTheme.typography.labelSmall,
@@ -668,7 +727,12 @@ private fun RaiseActionSheet(
  * still needs to be visible so its emptiness is information.
  */
 @Composable
-private fun LaneHeader(lane: String, count: Int) {
+private fun LaneHeader(
+    lane: String,
+    count: Int,
+    selectedInLane: Int = 0,
+    onSelectLane: () -> Unit = {},
+) {
     val sk = MaterialTheme.skill
     val tint = when (lane) {
         "Now" -> sk.crit
@@ -688,9 +752,59 @@ private fun LaneHeader(lane: String, count: Int) {
             modifier = Modifier.weight(1f),
         )
         Text(
-            "$count",
+            if (selectedInLane > 0) "$selectedInLane of $count" else "$count",
             style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
-            color = sk.labelText,
+            color = if (selectedInLane > 0) sk.sky else sk.labelText,
+            modifier = Modifier.pressable(onSelectLane),
+        )
+    }
+}
+
+/**
+ * The bulk bar, shown only while a selection exists.
+ *
+ * Resolve and escalate are the two things a manager does to a group. Both run
+ * per row through the same state endpoint a single card uses, so a bulk action
+ * cannot take a path the audited single path does not.
+ */
+@Composable
+private fun BulkActionBar(
+    count: Int,
+    onResolve: () -> Unit,
+    onEscalate: () -> Unit,
+    onClear: () -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(sk.brand.copy(alpha = 0.16f), RoundedCornerShape(Radii.card))
+            .padding(horizontal = Space.md, vertical = Space.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "$count selected",
+            style = MaterialTheme.typography.labelMedium,
+            color = sk.frost,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "Resolve",
+            style = MaterialTheme.typography.labelMedium,
+            color = sk.aqua,
+            modifier = Modifier.pressable(onResolve).padding(horizontal = Space.sm),
+        )
+        Text(
+            "Escalate",
+            style = MaterialTheme.typography.labelMedium,
+            color = sk.warn,
+            modifier = Modifier.pressable(onEscalate).padding(horizontal = Space.sm),
+        )
+        Text(
+            "Clear",
+            style = MaterialTheme.typography.labelMedium,
+            color = sk.subText,
+            modifier = Modifier.pressable(onClear).padding(start = Space.sm),
         )
     }
 }

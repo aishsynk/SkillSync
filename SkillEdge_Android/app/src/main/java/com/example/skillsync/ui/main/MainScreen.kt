@@ -125,6 +125,8 @@ fun MainScreen(
     var drill by remember { mutableStateOf<Drill?>(null) }
     val notify = com.example.skillsync.ui.components.LocalNotify.current
     val teamReadiness by viewModel.teamReadiness.collectAsState()
+    val bulkWorking by allocationViewModel.bulkWorking.collectAsState()
+    val bulkResults by allocationViewModel.bulkResults.collectAsState()
     val teamReadinessNote by viewModel.teamReadinessNote.collectAsState()
 
     var showLogoutConfirm by remember { mutableStateOf(false) }

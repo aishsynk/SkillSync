@@ -55,6 +55,10 @@ internal fun CoursesTab(
     onSearchCourses: (String) -> Unit = {},
     onLoadCourseIntelligence: (String) -> Unit = {},
     onAssign: (String, List<Pair<String, String>>, Int, String) -> Unit = { _, _, _, _ -> },
+    /** §7.6: one skill to many reportees, with per-row outcomes. */
+    onBulkAssign: (courseId: String, rows: List<Pair<String, Int>>) -> Unit = { _, _ -> },
+    bulkWorking: Boolean = false,
+    bulkResults: List<com.example.skillsync.ui.main.SkillWriteResult>? = null,
     onClearMark: () -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
@@ -193,19 +197,50 @@ internal fun CoursesTab(
     }
 
     if (showAssignment) {
-        SkillAssignmentDialog(
-            initialCourse = assignmentCourse,
-            people = people,
-            results = courseSearchResults,
-            searching = courseSearchLoading,
-            intelligence = courseIntelligence,
-            intelligenceLoading = courseIntelligenceLoading,
-            markState = markState,
-            onSearch = onSearchCourses,
-            onLoadIntelligence = onLoadCourseIntelligence,
-            onDismiss = { showAssignment = false; onClearMark() },
-            onAssign = onAssign,
-        )
+        val course = assignmentCourse
+        val courseId = course?.str("course_id").orEmpty()
+        val courseTitle = course?.str("course").orEmpty()
+
+        if (courseId.isNotBlank()) {
+            // §7.6 flow: the skill is already chosen, so the manager picks
+            // people rather than searching for a course again.
+            val holders = (course ?: emptyMap<String, Any>()).list("trainers")
+                .associate { it.str("trainer_email").lowercase() to it.intOrNull("skill_level") }
+
+            SkillAssignFlow(
+                courseName = courseTitle,
+                candidates = people.map { (name, email) ->
+                    SkillCandidate(
+                        name = name,
+                        email = email,
+                        alreadyHas = holders.containsKey(email.lowercase()),
+                        currentLevel = holders[email.lowercase()],
+                    )
+                },
+                working = bulkWorking,
+                results = bulkResults,
+                onAssign = { selected, level ->
+                    onBulkAssign(courseId, selected.map { it.email to level })
+                },
+                onDismiss = { showAssignment = false; onClearMark() },
+            )
+        } else {
+            // No course chosen yet — the old search-first dialog is still the
+            // right surface for "which skill?", and is left in place for it.
+            SkillAssignmentDialog(
+                initialCourse = assignmentCourse,
+                people = people,
+                results = courseSearchResults,
+                searching = courseSearchLoading,
+                intelligence = courseIntelligence,
+                intelligenceLoading = courseIntelligenceLoading,
+                markState = markState,
+                onSearch = onSearchCourses,
+                onLoadIntelligence = onLoadCourseIntelligence,
+                onDismiss = { showAssignment = false; onClearMark() },
+                onAssign = onAssign,
+            )
+        }
     }
 }
 

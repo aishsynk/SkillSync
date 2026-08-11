@@ -89,6 +89,10 @@ interface SkillEdgeApi {
      * score. Returns 422 when the course cannot be resolved, which means
      * "could not verify", never "nobody is available".
      */
+    /** One skill to many reportees; each row reports its own outcome. */
+    @POST("api/v2/skills/bulk-assign")
+    suspend fun bulkAssignSkill(@Body request: BulkAssignRequest): BulkAssignResponse
+
     /** Real leave and commitments for every reportee, one row each. */
     @GET("api/v2/team/readiness")
     suspend fun getTeamReadiness(@Query("manager") manager: String): Map<String, Any>
@@ -317,4 +321,32 @@ data class AllocationCandidatesResponse(
     val candidates: List<Map<String, Any>> = emptyList(),
     val blocked: List<Map<String, Any>> = emptyList(),
     val note: String = "",
+)
+
+data class BulkAssignRequest(
+    val course_id: String,
+    val trainers: List<BulkAssignRow>,
+    val from_date: String = "",
+    val officially_approved: String = "",
+)
+
+data class BulkAssignRow(val trainer_email: String, val skill_level: Int)
+
+/**
+ * Per-row outcomes. A bulk write against production RMS partially fails as a
+ * matter of course, so there is no single success flag here by design.
+ */
+data class BulkAssignResponse(
+    val requested: Int = 0,
+    val succeeded: Int = 0,
+    val failed: Int = 0,
+    val results: List<BulkAssignResult> = emptyList(),
+    val note: String = "",
+)
+
+data class BulkAssignResult(
+    val trainer_email: String = "",
+    val ok: Boolean = false,
+    val verified: Boolean = false,
+    val message: String = "",
 )
