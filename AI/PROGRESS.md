@@ -1,5 +1,27 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T15:10:00+05:30 - Design system finally applied to the screens (v3.14.0)
+
+- **Tool Used**: Claude Code (Compose, Robolectric, Gradle gate, apksigner + aapt, gh CLI)
+- **Files Modified**: `ui/trainer/Trainer360Screen.kt`, `ui/main/TeamMemberCard.kt`, `ui/main/ActionsInbox.kt`, `ui/main/CoursesTab.kt`, `ui/batch/AllocationDeskScreen.kt`, `ui/batch/BatchDetailScreen.kt`, `ui/ScreenRenderTest.kt`, `app/build.gradle.kts`
+- **Operator criticism, and it was correct**: "no changes all seems same, i said don't work as developer and work as designer". Measured before touching anything, and the numbers confirmed it:
+  - `TeamMemberCard`: 17 hardcoded `sp`, 40 `dp`, **zero design-system components**
+  - `Trainer360Screen`: 22 `sp`, **168 `dp`**, 5 tokens
+  - `AllocationDeskScreen`: 25 `sp`, 188 `dp`
+  - `ActionsInbox`: 22 `sp`, 82 `dp`, **zero components**
+  Every screen was still pre-design-system. Sessions of work had **added intelligence to old cards without ever applying the design system to them**, which is exactly what the operator meant by working as a developer rather than a designer.
+- **Work Completed**:
+  - **97 `fontSize`/`letterSpacing` overrides removed across six screens, now zero.** They ran 8sp to 9.5sp — below the scale's 11sp floor and below a readable phone minimum. The type scale rebuilt in v3.2.0 finally governs.
+  - **Trainer 360's shared vocabulary rebuilt**: `HeroFigure`/`Figure` now delegate to `theme.Figure` (light tabular numerals), `Label`/`CodeChip` to the shared label style and `ToneChip`, `DetailRow` to the spacing scale.
+  - **`SectionCard` was a Material `Card`** with opaque fill, 10dp radius and 1dp elevation — the only surface in the app not using the glass treatment, so Trainer 360 looked like a different product. Now `SkillCard` with the heading outside on `SectionHeading`.
+  - **Identity hero rebuilt** on the shared hero surface; utilisation promoted to display size because it is the only figure that moves week to week, instead of four equal figures that ranked nothing.
+- **Consequence accepted rather than reverted**: section titles are now small-caps, which is what gives every surface the same scannable left edge. Tests updated to match the design rather than the design bent to the tests.
+- **Current Status**: **v3.14.0.91 live** — commit `66974ab`, CI success. APK verified: signer `c6868b14…1808`, versionCode 90 -> 91. **136 backend + 136 Android tests pass**, lint clean.
+- **Honest remaining gap**: this pass fixed the **vocabulary** (type, surfaces, spacing primitives). It did **not** restructure information hierarchy on Team, Demand, Actions or Courses — those still follow their original layouts. `AI/DESIGN_VISION_V2_2026_08_11.md` §7.2, §7.4 and §7.5 describe genuine rebuilds (compact person card, international card class, action queue) that remain undone.
+- **Next Actions**:
+  1. Structural rebuilds per the design vision, one screen per release: Team person card (§7.2), Demand international card class (§7.4), Actions queue model (§7.5).
+  2. **RMS question list unchanged** and still the quality ceiling.
+
 ## 2026-08-12T14:25:00+05:30 - Manager note, Trainer 360 verdict, Plan rebuild (v3.13.0)
 
 - **Tool Used**: Claude Code (Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)
