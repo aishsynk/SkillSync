@@ -1,5 +1,22 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T02:15:00+05:30 - Intelligence Layer V2 design; all 14 operator deliverables (no code)
+
+- **Tool Used**: Claude Code (further live probes of API 171 semantics and API 213 policy, then design)
+- **Files Modified**: `AI/INTELLIGENCE_LAYER_V2_2026_08_12.md` (created), `AI/PROGRESS.md`
+- **Operator direction**: product is a **Delivery Intelligence and Resource Readiness Platform**. Fee/Currency must never reach Android — strip at the backend boundary; CSM/SCCreatedDate/demand age are acceptable. **No further dashboard redesign until the intelligence layer exists.** Governing principle: **utilisation is not availability**.
+- **New evidence from this session**:
+  - **API 171 returns the full skilled candidate pool, not just free trainers** — 37 rows for AZ-305, 21 for CKA. It can drive allocation on its own.
+  - Field population: `TrainerTimezone` 100%, `Trainer Free Date` 100% (150–175 free days each), **`Visa` ~48%** (18/37, 8/21), 22 distinct cities for one course.
+  - `Visa` carries **`AssociateCountries`** (e.g. an Australia visa also covering "Philippines,Egypt") — richer than first recorded.
+  - **`Future Skill` is embedded in the `Skill Level` string**, e.g. `"1 (Future Skill: 08-Sep-2026)"`, not in the separate column.
+  - **Hard integration constraint**: API 171 needs an **exact catalogue course name**. `AZ-305T00…` → 37 rows; `AI-102T00…`, `AZ-104T00…`, `CCNA…` → **0**. A course-name resolver is a prerequisite, and a miss must read as "cannot verify", never "nobody available".
+  - **API 213**: 11,007 courses, only **1,446 (13%) require an exam**. **Verified `backend.py` already applies this policy** when computing gaps (~line 1796), so gaps are *not* over-reported — an earlier concern of mine was wrong.
+- **Delivered (all 14 requested items)**: validation report, response samples, production-ready list, business-value ranking, integration order, **Allocation Model V2** (hard gates then weighted fit with per-factor output), **International Suitability Model**, **Availability Intelligence Model**, **Certification Intelligence Model**, V2 architecture, obsolescence list, calculations-to-replace list, workflow improvements, phased roadmap.
+- **Current Status**: No code changed; v3.6.0.83 remains live. Design is complete and evidence-based; Phase 1 is ready to start on approval.
+- **Key design decisions to note**: utilisation is **demoted from an availability gate to a tiebreaker**; `Unknown` becomes a first-class state distinct from zero/false (critical because ~52% of trainers have no visa record — treating absence as ineligible would hide half the bench); every score must expose its factors so a manager can disagree with a specific axis, which doubles as a training label.
+- **Next Actions**: blocked on 3 operator answers (DNC as an absolute gate; whether Unknown-visa trainers are shown-and-flagged or hidden; acceptance of a near-invisible backend-only Phase 1 release) and 5 RMS questions (read-only course→exam mapping; correct params for 90/172/205/72/93; whether missing Visa means "none" or "unrecorded"; whether `TravelDetails`/`TimeZone` on 111 are dead columns; rate limits, since 171 is per-course and a 40-batch board implies 40 calls).
+
 ## 2026-08-12T00:40:00+05:30 - Live API validation; product repositioned away from revenue (no code)
 
 - **Tool Used**: Claude Code (live authenticated probes against `api.koenig-solutions.com`)
