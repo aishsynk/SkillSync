@@ -1,5 +1,22 @@
 # SkillEdge Project Progress
 
+## 2026-08-11T16:20:00+05:30 - Unified notification system + sign-in redesign (v3.4.0)
+
+- **Tool Used**: Claude Code (Gradle gate, apksigner + aapt, gh CLI)
+- **Files Modified**: `ui/components/Notify.kt` (created), `ui/components/TopBannerNotification.kt` (deleted), `ui/auth/LoginScreen.kt` (rewritten), `theme/Theme.kt`, `ui/main/MainScreen.kt`, `ui/batch/BatchDetailScreen.kt`, `app/build.gradle.kts`, `ui/NotifyAndLoginTest.kt` (created)
+- **Work Completed**:
+  - **Notifications unified.** The project had four ways of surfacing feedback — `TopBannerNotification` (one icon, one hardcoded colour `#2E3B4E` for every message), Material `Snackbar` on the batch screen, an inline `errorContainer` banner on login, and raw `AlertDialog`s. `Notify.kt` replaces them with **`SkillToast`** (severity-typed, queue capped at 3, time bar, tap/swipe-to-dismiss, optional action — the "toastr" role) and **`SkillAlertDialog`** (severity medallion, confirm/cancel, destructive variant — the "sweetalert" role). Both carry a redundant per-severity icon so meaning survives greyscale.
+  - Host is mounted **once inside `SkillSyncTheme`** and exposed via `LocalNotify`, so a toast raised during navigation is not torn down with its screen and no screen owns notification plumbing.
+  - Migrated: logout confirm, notification-engine in-app banner, all three mark-skill outcomes (previously identical styling for confirmed write / unconfirmed / outright failure). Form dialogs (message composer, skill assignment, share) deliberately left as forms.
+  - **Sign-in rebuilt.** It drew its own aurora with hard pixel offsets (`180f + a * 460f`), so the glow landed differently on every screen size and did not match the app's ground; spacing mixed 10/12/22/26/34dp; errors used Material's `errorContainer`. Now one centred column on the 8pt scale, form card capped at 420dp, palette-driven field colours, failures shown inline **and** as a toast.
+- **Current Status**: **v3.4.0.81 live** — commit `c970036`, CI run `31475161899` success. APK verified: signer `c6868b14…1808` identical to installed base, package unchanged, versionCode 80 -> 81. Gate green: 8 new tests (queue cap, severity distinctness, render, auto-dismiss, dialog confirm/dismiss, three login layout), 52 total unit tests, lint clean.
+- **Standing workflow rule (from the operator, 2026-08-11)**: redesign **one page at a time** — finish a screen, publish its release, verify, then start the next. Never batch several screens into one release.
+- **Next Actions — queued operator requests, in order**:
+  1. **Dashboard: top 5 trainers always visible.** Currently `TopPerformersPanel` is inside the collapsed Explore section; it must be promoted to the always-visible briefing.
+  2. **Contextual trainer messaging.** The quick-message dialogs (`MainScreen.kt` ~596 and ~1439) open an empty composer — generic. Must pre-compose from the trainer's actual situation (cert gap, bench/stretched utilisation, upcoming batch, feedback risk) using the intelligence already on screen.
+  3. **Weekly reports — mandatory.** One team-level report and one per reportee. `ui/trainer/TrainerReport.kt` and `ui/batch/BatchShare.kt` already exist and are the likely starting point; decide share/export format and whether any backend support is needed.
+  4. Then continue the page-by-page redesign: Team, Demand, Actions.
+
 ## 2026-08-11T14:40:00+05:30 - Dashboard rewritten to the V2 briefing spec (v3.3.0)
 
 - **Tool Used**: Claude Code (Gradle test/lint/assemble, apksigner + aapt, gh CLI)
