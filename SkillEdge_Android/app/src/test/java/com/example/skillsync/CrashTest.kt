@@ -1,6 +1,8 @@
 package com.example.skillsync
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assume.assumeTrue
 import org.junit.Assume.assumeNoException
 import org.junit.Test
 import java.net.HttpURLConnection
@@ -37,6 +39,15 @@ class CrashTest {
             assumeNoException("Backend unreachable — skipping the live auth probe", e)
             return
         }
-        assertEquals("Manager PII must never be readable without a session", 401, status)
+        // The security property is that an unauthenticated caller never receives
+        // data — not that the service is up. A 5xx means Render is cold-starting
+        // or mid-deploy, which is a reason to skip, not to fail a build: this
+        // test broke the v3.10.0 gate on a 503 while the endpoint was in fact
+        // correctly returning 401 seconds later.
+        assumeTrue("Backend unavailable ($status) — skipping the live auth probe",
+                   status < 500)
+        assertNotEquals("Manager PII must never be readable without a session",
+                        200, status)
+        assertEquals("Unauthenticated reads must be refused with 401", 401, status)
     }
 }
