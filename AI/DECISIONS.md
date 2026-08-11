@@ -217,6 +217,12 @@ Important decisions and their rationale. Add new entries at the top (newest firs
 - **Decision:** Every lifecycle action (close/escalate/reassign, acknowledge/resolve/escalate) is auto-recorded as a learning example with outcome labels.
 - **Rationale:** Manager decisions are the highest-quality labels available; capturing them for free turns the existing action/review persistence into a training signal.
 
+## 2026-08-11 — The delivery agent is deterministic, and says so
+
+- **Decision:** Build the agentic layer as tool-based reasoning over a fused RMS fact base, with a weight-learning loop fed by manager accept/dismiss decisions. No language model. Every answer carries evidence and a confidence; unmatched questions are refused with an explanation rather than answered.
+- **Rationale:** No LLM provider or credentials exist in this project, and `POST /api/agent/ask` has never been implemented. A fluent agent without grounding would produce plausible delivery data the manager could not distinguish from real readings, and allocation decisions would be made on it. A narrow agent that answers nine intents well and refuses the rest is honest and immediately useful. `Agent.ask` is the seam an LLM slots into later without changing callers.
+- **Learning scope:** it learns ranking only, from real decisions, clamped and renormalised so the scale cannot drift. It cannot discover new suggestion kinds. Weights are per device in `LocalCache`; cross-device or org-wide pooling needs a backend table and is not built.
+
 ## 2026-08-11 — Trainer 360 Copilot entry point withheld until its route exists
 
 - **Decision:** Remove the ✨ Copilot FAB and chat sheet from `Trainer360Screen.kt`. `CopilotChatSheet`, `CopilotViewModel` and the `agentAsk` Retrofit declaration stay in the tree.

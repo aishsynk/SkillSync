@@ -1,5 +1,24 @@
 # SkillEdge Project Progress
 
+## 2026-08-11T21:10:00+05:30 - In-app delivery agent with a learning loop (v3.6.0)
+
+- **Tool Used**: Claude Code (Gradle gate, apksigner + aapt, gh CLI)
+- **Files Modified**: `ai/Facts.kt`, `ai/Recommender.kt`, `ai/Agent.kt`, `ai/LearningStore.kt`, `ui/ai/CopilotScreen.kt` (all created), `Navigation.kt`, `NavigationKeys.kt`, `ui/main/MainScreen.kt`, `ui/main/ManagerCommandCentre.kt`, `app/build.gradle.kts`, `ai/AgentTest.kt` (created)
+- **Work Completed**: Landed the agentic layer the 2026-08-05 decision described but which never reached `backend.py`. Built in Kotlin, on device, over the payloads the app already holds.
+  - **Fact base** — fuses every reachable surface into one row per trainer: operations, current state, capability/certifications, delivery risk, utilisation history, actions, and the allocation desk **inverted** so each trainer carries the demand they rank for. Unmeasured stays `null` and is never conflated with a real zero.
+  - **Recommender** — 8 suggestion kinds, scored, each carrying its evidence. Precedence: feedback flag > cert gap > rebalance > allocate > bench skill > open actions > recognise. Key person risk (single-owner course) computed team-wide. Recognition included so the agent can bring good news, not only problems.
+  - **Learning loop** — accept/dismiss is a label; it moves that kind's weight, clamped to [0.4, 2.0] and renormalised to mean 1.0 so the scale cannot drift. Persisted via `LocalCache.saveObject`, versioned, and tolerant of new suggestion kinds appearing in a later release.
+  - **Agent** — 9 intents, pattern-routed to tools. Every answer carries evidence plus a confidence that degrades when data is thin, and names what is missing (e.g. allocation desk not loaded) rather than silently reporting zero coverage.
+  - **Copilot screen** restored — replaces the dead one removed in v3.2.1; reasons locally instead of posting to the nonexistent `/api/agent/ask`.
+- **Current Status**: **v3.6.0.83 live** — commit `21a3f82`, CI run `31481369308` success. APK verified: signer `c6868b14…1808` unchanged, versionCode 82 -> 83. Gate green: 24 new AI tests (87 total), lint clean.
+- **Design constraint, stated plainly**: this agent has **no language model**. It recognises a bounded set of questions and refuses the rest, by design — a system that emits fluent text for a question it did not understand is worse than one that says so, because the manager cannot distinguish them and would act on invented delivery data. The refusal path is unit-tested.
+- **What "self-training" does and does not mean here**: it learns **ranking**, from real manager decisions. It cannot invent a new kind of suggestion — a genuinely new recommendation must still be written into `Recommender`. The model is also **per device**: weights live in the local cache, so a reinstall resets to neutral, and nothing is pooled across a manager's devices or across managers. Both limits are documented in `LearningStore.kt`.
+- **Next Actions**:
+  1. **Decide the LLM question.** Free-text/Hinglish understanding and generative answers need a provider, credentials and a backend route (`POST /api/agent/ask`). Until then the agent stays deterministic. The `Agent.ask` entry point is the seam an LLM would slot into.
+  2. **Server-side learning** if the model should follow a manager across devices or pool across the org: needs a backend table plus an endpoint to read and write weights.
+  3. Wire the contextual composer into the two quick-message dialogs (`MainScreen.kt` ~596 and ~1439), still opening empty.
+  4. Continue the page-by-page redesign: Team, then Demand, then Actions.
+
 ## 2026-08-11T18:35:00+05:30 - Weekly report page, contextual messages, top five promoted (v3.5.0)
 
 - **Tool Used**: Claude Code (Gradle gate, apksigner + aapt, gh CLI)
