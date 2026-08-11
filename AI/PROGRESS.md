@@ -1,5 +1,21 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T13:45:00+05:30 - Dashboard availability; Phase 3 screens complete (v3.12.0)
+
+- **Tool Used**: Claude Code (Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)
+- **Files Modified**: `ui/main/ManagerCommandCentre.kt`, `ui/main/MainScreen.kt`, `ui/ScreenRenderTest.kt`, `app/build.gradle.kts`
+- **Work Completed**: Last Phase 3 screen. Dashboard reported availability from an RMS status flag plus workload bands; neither says whether someone can take work next week. New **"Who is actually free"** block reads the calendar via `/api/v2/team/readiness` (clear / committed / on leave), stating it comes from approved leave and confirmed bookings, not utilisation. Capacity bands remain, now labelled as **workload** with availability shown separately. **Renders only when the calendar answered** — absent data must never read as "nobody is free".
+- **Two faults fixed while wiring**: a precedence bug I introduced (`?: 0 > 0` parses as `?: (0 > 0)`, so the leave count would have been wrong — extracted to a named helper); and a third name collision in this area (`readiness` was already the capability score) — parameter is `calendarReadiness`.
+- **Current Status**: **v3.12.0.89 live** — commit `ac96177`, CI success. APK verified: signer `c6868b14…1808`, versionCode 88 -> 89. **136 backend + 125 Android tests pass**, lint clean. Render healthy. **Phase 3 complete**: Demand, Trainer 360, Team and Dashboard all read real availability.
+- **New operator feedback received mid-session (2026-08-12), not yet actioned**:
+  1. **Trainer 360 still looks not appropriate** — presentation, not data.
+  2. **"Plan" page needs improvements.**
+  3. **Weekly and reportee messages need proper manager-styled composition** per the re-supplied house-style prompt, including the `[User Message: …]` / `[My Message: …]` rewrite inputs.
+- **Next Actions**:
+  1. Address the three items above, one release each per the one-page rule. Suggested order: messages (precise, testable spec), then Trainer 360 presentation, then Plan.
+  2. On the message spec: the composer already enforces structure, word forms, forbidden characters and the 1000-char cap. Gaps against the re-supplied prompt are **light emphasis on the closing**, and the **manager-note input** so a typed draft can be folded in. Free-form Hinglish rewriting still needs an LLM and remains unbuilt (see `AI/DECISIONS.md`).
+  3. **RMS question list unchanged** and still the quality ceiling.
+
 ## 2026-08-12T13:05:00+05:30 - Team page on real availability (v3.11.0)
 
 - **Tool Used**: Claude Code (backend.py, pytest, Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)
