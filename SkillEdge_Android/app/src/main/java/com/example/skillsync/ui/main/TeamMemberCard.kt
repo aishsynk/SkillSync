@@ -41,6 +41,12 @@ internal fun TeamMemberCard(
     capability: Map<*, *>? = null,
     delivery: Map<*, *>? = null,
     openActionCount: Int = 0,
+    /**
+     * Real availability row from /api/v2/team/readiness. The card already has
+     * a `readiness` (capability score) and an `availability` (a status string),
+     * hence the explicit name.
+     */
+    calendarAvailability: Map<String, Any>? = null,
     onClick: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
@@ -237,6 +243,49 @@ internal fun TeamMemberCard(
                 color = if (upcoming > 0) sk.sky else sk.subText, fontSize = 8.5.sp,
                 fontWeight = if (upcoming > 0) FontWeight.SemiBold else FontWeight.Normal,
             )
+
+            // Real availability from the RMS calendar. The utilisation bar
+            // above is a workload reading, and until now it was the only
+            // availability signal on this card — the same error corrected on
+            // Demand, where a trainer at 40% could be on leave.
+            val r: Map<*, *>? = calendarAvailability
+            if (r != null) {
+                val leaveDays = r.int("leave_days")
+                val exclusions = r.int("client_exclusions")
+                val verified = r["verified"] == true
+                val nextLeave = r.strings("next_leave").firstOrNull()
+                val confirmed = r.int("confirmed_days")
+                val (tint, label) = when {
+                    !verified -> sk.labelText to "Availability unverified"
+                    leaveDays > 0 -> sk.warn to
+                        (nextLeave?.let { "Leave from $it" } ?: "$leaveDays leave days")
+                    confirmed > 0 -> sk.sky to "$confirmed committed days"
+                    else -> sk.aqua to "No leave booked"
+                }
+                Spacer(Modifier.height(3.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(5.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(tint)
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = tint, fontSize = 8.5.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
+                if (exclusions > 0) {
+                    Text(
+                        "$exclusions client exclusion${if (exclusions == 1) "" else "s"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.crit, fontSize = 8.5.sp,
+                    )
+                }
+            }
             if (nextCourse.isNotBlank()) {
                 Spacer(Modifier.height(2.dp))
                 Text(

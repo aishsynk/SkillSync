@@ -91,6 +91,8 @@ internal fun TeamTab(
     data: Map<String, Any>,
     capability: Map<String, Any>?,
     actions: List<com.example.skillsync.data.models.ActionRow> = emptyList(),
+    readiness: Map<String, Map<String, Any>> = emptyMap(),
+    readinessNote: String = "",
     loading: Boolean = false,
     dataError: String? = null,
     onTrainerClick: (String, String) -> Unit,
@@ -265,6 +267,7 @@ internal fun TeamTab(
                                 capability = capMap[t.str("official_email").lowercase()],
                                 delivery = deliveryMap[t.str("official_email").lowercase()],
                                 openActionCount = actionsByTrainer[t.str("official_email").lowercase()]?.size ?: 0,
+                                calendarAvailability = readiness[t.str("official_email").lowercase()],
                             ) {
                                 onTrainerClick(t.str("official_email"), t.str("trainer_name"))
                             }

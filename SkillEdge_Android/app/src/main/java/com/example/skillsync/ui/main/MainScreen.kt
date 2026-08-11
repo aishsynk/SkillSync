@@ -75,6 +75,7 @@ fun MainScreen(
     LaunchedEffect(email, tab) {
         viewModel.loadData(email, context)
         if (tab == HomeTab.DEMAND || tab == HomeTab.SEARCH) allocationViewModel.load(email, context)
+        if (tab == HomeTab.TEAM) viewModel.loadTeamReadiness(email)
         if (tab == HomeTab.COURSES || tab == HomeTab.TEAM || tab == HomeTab.SEARCH) viewModel.ensureCapability(email, context)
         if (tab == HomeTab.DASHBOARD || tab == HomeTab.TEAM || tab == HomeTab.SEARCH) {
             viewModel.ensureTeamIntelligence(email, context)
@@ -122,6 +123,8 @@ fun MainScreen(
     // Which KPI the manager tapped; drives the drill-down sheet.
     var drill by remember { mutableStateOf<Drill?>(null) }
     val notify = com.example.skillsync.ui.components.LocalNotify.current
+    val teamReadiness by viewModel.teamReadiness.collectAsState()
+    val teamReadinessNote by viewModel.teamReadinessNote.collectAsState()
 
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showNotificationsSheet by remember { mutableStateOf(false) }
@@ -334,6 +337,8 @@ fun MainScreen(
                                         data = d,
                                         capability = capability,
                                         actions = teamActions,
+                                        readiness = teamReadiness,
+                                        readinessNote = teamReadinessNote,
                                         loading = capLoading,
                                         dataError = teamDataError,
                                         onTrainerClick = onTrainerClick,

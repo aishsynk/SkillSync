@@ -358,4 +358,32 @@ class MainScreenViewModel(
         pollingJob?.cancel()
         pollingJob = null
     }
+
+    /**
+     * Roster-wide real availability, keyed by lowercase trainer email.
+     *
+     * The team card has shown "available capacity" as 100 minus utilisation,
+     * which is not availability at all: a trainer at 40% can be on leave.
+     */
+    private val _teamReadiness = MutableStateFlow<Map<String, Map<String, Any>>>(emptyMap())
+    val teamReadiness: StateFlow<Map<String, Map<String, Any>>> = _teamReadiness
+    private val _teamReadinessNote = MutableStateFlow("")
+    val teamReadinessNote: StateFlow<String> = _teamReadinessNote
+    private var readinessFor: String? = null
+
+    fun loadTeamReadiness(email: String) {
+        if (readinessFor == email) return
+        readinessFor = email
+        viewModelScope.launch {
+            runCatching { RetrofitClient.instance.getTeamReadiness(email) }
+                .onSuccess { body ->
+                    @Suppress("UNCHECKED_CAST")
+                    val rows = (body["trainers"] as? List<Map<String, Any>>).orEmpty()
+                    _teamReadiness.value = rows.associateBy {
+                        (it["trainer_email"] as? String).orEmpty().lowercase()
+                    }
+                    _teamReadinessNote.value = (body["note"] as? String).orEmpty()
+                }
+        }
+    }
 }
