@@ -751,6 +751,8 @@ internal fun BatchCard(
                     MiniStat("Risk", risk.ifBlank { "—" }, riskTint)
                 }
 
+                CoverageVerdictStrip(b)
+
                 if (candidates.isNotEmpty()) {
                     Spacer(Modifier.height(9.dp))
                     HorizontalDivider(color = sk.cardBorder)
@@ -761,6 +763,8 @@ internal fun BatchCard(
                         fontSize = 8.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
                     )
                     Spacer(Modifier.height(5.dp))
+                    UncheckedNotice(b)
+                    Spacer(Modifier.height(4.dp))
                     candidates.take(3).forEach { c ->
                         // RMS AutoTall parity: a trainer inside their 3-14 day
                         // negative-feedback window won't actually be
@@ -792,33 +796,49 @@ internal fun BatchCard(
                                     val backupRole = c.str("backup_role")
                                     if (!blocked && backupRole.isNotBlank()) {
                                         Text(
+                                            // Utilisation deliberately dropped from
+                                            // this line. It described how busy someone
+                                            // had been, not whether they can take the
+                                            // batch; the verdict row below answers that
+                                            // from the RMS free-date calendar instead.
                                             listOfNotNull(
                                                 backupRole,
                                                 c.intOrNull("suitability_score")?.let { "$it suitability" },
-                                                c.intOrNull("utilization")?.let { "${it}% utilised" },
                                             ).joinToString(" · "),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = sk.subText, fontSize = 9.sp,
                                             maxLines = 1,
                                         )
                                     }
-                                    val availability = c.obj("availability")
-                                    val availabilityStatus = c.str("availability_status")
-                                    if (availabilityStatus.isNotBlank()) {
-                                        Text(
-                                            when (availabilityStatus) {
-                                                "available" -> "✓ Available for these dates"
-                                                "conflict" -> "Schedule conflict · ${availability?.str("suggested_available_date")?.shortDate()} next"
-                                                else -> "Availability unverified"
-                                            },
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = when (availabilityStatus) {
-                                                "available" -> sk.green
-                                                "conflict" -> sk.red
-                                                else -> sk.warn
-                                            },
-                                            fontSize = 8.5.sp, maxLines = 1,
-                                        )
+                                    // The real verdict, computed from the RMS
+                                    // free-date calendar. It replaces the older
+                                    // line derived from the assignment feed:
+                                    // showing both invited two availability
+                                    // claims that could contradict each other,
+                                    // and the manager had no way to tell which
+                                    // to believe. Falls back to the previous
+                                    // signal only when 171 returned no row.
+                                    if (c.obj("real_availability") != null) {
+                                        CandidateVerdictRow(c, international)
+                                    } else {
+                                        val availability = c.obj("availability")
+                                        val availabilityStatus = c.str("availability_status")
+                                        if (availabilityStatus.isNotBlank()) {
+                                            Text(
+                                                when (availabilityStatus) {
+                                                    "available" -> "Available for these dates"
+                                                    "conflict" -> "Schedule conflict · ${availability?.str("suggested_available_date")?.shortDate()} next"
+                                                    else -> "Availability unverified"
+                                                },
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = when (availabilityStatus) {
+                                                    "available" -> sk.green
+                                                    "conflict" -> sk.red
+                                                    else -> sk.warn
+                                                },
+                                                maxLines = 1,
+                                            )
+                                        }
                                     }
                                     c.obj("suitability_components")?.let { parts ->
                                         Text(
