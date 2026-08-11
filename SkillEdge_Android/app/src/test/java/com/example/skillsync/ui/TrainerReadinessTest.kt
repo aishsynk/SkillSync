@@ -96,4 +96,52 @@ class TrainerReadinessTest {
         render(null)
         compose.onNodeWithText("Now").assertExists()
     }
+
+    private fun withTravel(visas: List<Map<String, Any>>, state: String) =
+        readiness() + mapOf(
+            "travel" to mapOf(
+                "timezone" to "India Standard Time",
+                "nearest_city" to "Pune,Mumbai",
+                "free_days_next_90" to 42.0,
+                "visa_state" to state,
+                "visas" to visas,
+                "resolved_via_course" to "AZ-305T00: Designing Azure Infrastructure",
+            ),
+            "travel_note" to "",
+        )
+
+    @Test
+    fun aValidVisaIsShownWithItsCoverage() {
+        render(withTravel(listOf(mapOf(
+            "country" to "Australia", "expiry" to "2030-03-12",
+            "stay_days" to 90.0, "associate_countries" to listOf("philippines"),
+            "expired" to false,
+        )), "available"))
+        compose.onNodeWithText("Australia").assertExists()
+        compose.onNodeWithText("valid to 2030-03-12 · 90 day stay · also covers philippines").assertExists()
+        compose.onNodeWithText("1 valid visa on record.").assertExists()
+    }
+
+    @Test
+    fun noVisaRecordIsNotEvidenceTheyCannotTravel() {
+        render(withTravel(emptyList(), "unknown"))
+        compose.onNodeWithText(
+            "No visa record held. Verification required before international work."
+        ).assertExists()
+    }
+
+    @Test
+    fun anUnresolvableCourseSaysSoRatherThanImplyingNoTravel() {
+        render(readiness() + mapOf(
+            "travel_note" to "no course could be resolved to look up travel readiness"))
+        compose.onNodeWithText("This does not mean the trainer cannot travel.").assertExists()
+    }
+
+    @Test
+    fun theSourceCourseIsDisclosed() {
+        render(withTravel(emptyList(), "unknown"))
+        compose.onNodeWithText(
+            "Source: RMS schedule for AZ-305T00: Designing Azure Infrastructure"
+        ).assertExists()
+    }
 }

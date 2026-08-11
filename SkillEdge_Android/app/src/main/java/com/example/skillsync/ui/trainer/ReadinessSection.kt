@@ -15,6 +15,7 @@ import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.int
+import com.example.skillsync.ui.components.intOrNull
 import com.example.skillsync.ui.components.list
 import com.example.skillsync.ui.components.obj
 import com.example.skillsync.ui.components.str
@@ -86,6 +87,8 @@ internal fun RealReadinessSection(readiness: Map<String, Any>?) {
         }
     }
 
+    TravelReadinessCard(readiness)
+
     if (cert != null) {
         val gaps = cert.list("gaps")
         val unknown = cert.int("unknown_requirement")
@@ -115,6 +118,104 @@ internal fun RealReadinessSection(readiness: Map<String, Any>?) {
                     style = MaterialTheme.typography.bodySmall, color = sk.warn,
                 )
             }
+        }
+    }
+}
+
+/**
+ * International readiness for this trainer.
+ *
+ * Visa, time zone and nearest city are trainer properties, but RMS exposes them
+ * only through a course-keyed endpoint, so the backend resolves one of their
+ * taught courses on their behalf. When none resolves it says so — an empty
+ * travel card would read as "cannot travel", which is a different claim
+ * entirely and one the data does not support.
+ */
+@Composable
+private fun TravelReadinessCard(readiness: Map<String, Any>) {
+    val sk = MaterialTheme.skill
+    val travel = readiness.obj("travel")
+    val note = readiness.str("travel_note")
+
+    if (travel == null) {
+        if (note.isBlank()) return
+        SectionHeading("International readiness", "Not verified")
+        SkillCard(Modifier.fillMaxWidth()) {
+            Text(
+                "Travel readiness could not be checked: $note.",
+                style = MaterialTheme.typography.bodySmall, color = sk.subText,
+            )
+            Text(
+                "This does not mean the trainer cannot travel.",
+                style = MaterialTheme.typography.bodySmall, color = sk.warn,
+            )
+        }
+        return
+    }
+
+    val visas = travel.list("visas")
+    val state = travel.str("visa_state")
+    SectionHeading(
+        "International readiness",
+        when (state) {
+            "available" -> "${visas.size} valid visa${if (visas.size == 1) "" else "s"} on record."
+            "expired" -> "Visa records held, but all have expired."
+            else -> "No visa record held. Verification required before international work."
+        },
+    )
+    SkillCard(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.md)) {
+            Figure(
+                travel.str("timezone").ifBlank { "—" }.removeSuffix(" Standard Time"),
+                "Time zone", FigureSize.Small, Modifier.weight(1f), sk.sky,
+            )
+            Figure(
+                travel.str("nearest_city").split(",").firstOrNull()?.ifBlank { "—" } ?: "—",
+                "Based near", FigureSize.Small, Modifier.weight(1f), sk.sky,
+            )
+            Figure(
+                travel.int("free_days_next_90").toString(),
+                "Free days", FigureSize.Small, Modifier.weight(1f), sk.aqua,
+            )
+        }
+
+        visas.forEach { v ->
+            val expired = v["expired"] == true
+            Column {
+                Text(
+                    v.str("country") + if (expired) " · expired" else "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (expired) sk.crit else sk.bodyText,
+                )
+                val extras = listOfNotNull(
+                    v.str("expiry").takeIf { it.isNotBlank() }?.let { "valid to $it" },
+                    v.intOrNull("stay_days")?.let { "$it day stay" },
+                    v.strings("associate_countries").takeIf { it.isNotEmpty() }
+                        ?.let { "also covers ${it.joinToString(", ")}" },
+                )
+                if (extras.isNotEmpty()) {
+                    Text(
+                        extras.joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall, color = sk.subText,
+                    )
+                }
+            }
+        }
+
+        if (visas.isEmpty()) {
+            Text(
+                "No visa on record. Roughly half of trainers have none, so this is not " +
+                    "evidence they cannot travel — it needs checking before assignment.",
+                style = MaterialTheme.typography.bodySmall, color = sk.warn,
+            )
+        }
+
+        val via = travel.str("resolved_via_course")
+        if (via.isNotBlank()) {
+            Text(
+                "Source: RMS schedule for $via",
+                style = MaterialTheme.typography.labelSmall, color = sk.labelText,
+            )
         }
     }
 }

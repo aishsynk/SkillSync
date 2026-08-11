@@ -4645,8 +4645,59 @@ def v2_trainer_readiness():
     gaps = [v for v in verdicts if v["gap"]]
     unknown = [v for v in verdicts if v["exam_required"] is None]
 
+    # ── Trainer profile from the course-keyed pool ───────────────────────────
+    # Visa, timezone and nearest city are properties of the *trainer*, not of
+    # the course, so any course they teach returns the same values. Key 171 is
+    # course-keyed, so one is resolved on their behalf: their taught courses are
+    # tried in order until a pool comes back containing their row. Bounded to a
+    # few attempts because each is a live call, and reported as unresolved
+    # rather than guessed if none match.
+    profile = None
+    profile_note = "no course could be resolved to look up travel readiness"
+    name_by_email = {}
+    for r in (_rms("reportees", {"email": manager}) or []):
+        if isinstance(r, dict) and r.get("OffEmail"):
+            name_by_email[str(r["OffEmail"]).strip().lower()] = str(r.get("TrainerName") or "").strip()
+    trainer_name = name_by_email.get(email, "")
+
+    if trainer_name:
+        for course in list(dict.fromkeys(taught))[:4]:
+            pool, why = _free_schedule(course)
+            if why or not pool:
+                continue
+            row = pool.get(trainer_name.lower())
+            if not row:
+                continue
+            visas = []
+            for v in row.get("visa") or []:
+                visas.append({
+                    "country": v["country"],
+                    "expiry": v["expiry"].isoformat() if v["expiry"] else "",
+                    "stay_days": v["stay_days"],
+                    "associate_countries": v["associates"],
+                    "expired": bool(v["expiry"] and v["expiry"] < today),
+                })
+            free = sorted(row.get("free_dates") or set())
+            profile = {
+                "resolved_via_course": row.get("resolved_course", course),
+                "timezone": row.get("timezone", ""),
+                "nearest_city": row.get("nearest_city", ""),
+                "skill_level": row.get("skill_level"),
+                "visas": visas,
+                # Absence of a visa record is not evidence of ineligibility;
+                # roughly half of trainers carry none.
+                "visa_state": ("available" if any(not v["expired"] for v in visas)
+                               else "expired" if visas else "unknown"),
+                "free_days_next_90": sum(1 for d in free if today <= d <= end),
+                "free_from": free[0].isoformat() if free else "",
+            }
+            profile_note = ""
+            break
+
     upcoming_leave = sorted(d.isoformat() for d in schedule.get("leave_dates", set()))
     return jsonify({
+        "travel": profile,
+        "travel_note": profile_note,
         "schema_version": "2.0",
         "ready": not why,
         "note": why or "",

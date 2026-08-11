@@ -338,3 +338,65 @@ class TrainerReadinessRoute(unittest.TestCase):
              mock.patch.object(backend, "_exam_policy", return_value={}):
             r = self.client.get("/api/v2/trainer/readiness?manager=m@k.com&email=t@k.com")
         self.assertIn("inferred", r.get_json()["certification"]["exam_identity_note"])
+
+    def test_visa_is_resolved_via_a_taught_course(self):
+        # Visa, timezone and city are trainer properties; key 171 is
+        # course-keyed, so one of their courses is resolved on their behalf.
+        pool = {"abhinav samant": {
+            "trainer_name": "Abhinav Samant", "skill_level": 9,
+            "timezone": "India Standard Time", "nearest_city": "Pune",
+            "resolved_course": "AZ-305T00: Designing Azure Infrastructure",
+            "free_dates": {date(2026, 9, 1), date(2026, 9, 2)},
+            "visa": [{"country": "Australia", "expiry": date(2030, 3, 12),
+                      "stay_days": 90, "associates": ["philippines"]}],
+        }}
+        empty = {"leave_dates": set(), "confirmed_dates": set(), "tentative_dates": set(),
+                 "dnc_clients": set(), "specified_clients": set(), "modes": [], "rows": 0}
+
+        def rms(role, params):
+            if role == "reportees":
+                return [{"OffEmail": "t@k.com", "TrainerName": "Abhinav Samant"}]
+            if role == "trainerDetails":
+                return [{"CourseName": "AZ-305"}]
+            return []
+
+        with mock.patch.object(backend, "_v2_manager_session", return_value=({}, None)),              mock.patch.object(backend, "_rc_schedule", return_value=(empty, "")),              mock.patch.object(backend, "_rms", side_effect=rms),              mock.patch.object(backend, "_exam_policy", return_value={}),              mock.patch.object(backend, "_free_schedule", return_value=(pool, "")):
+            r = self.client.get("/api/v2/trainer/readiness?manager=m@k.com&email=t@k.com")
+
+        travel = r.get_json()["travel"]
+        self.assertEqual("India Standard Time", travel["timezone"])
+        self.assertEqual("Pune", travel["nearest_city"])
+        self.assertEqual("available", travel["visa_state"])
+        self.assertEqual("Australia", travel["visas"][0]["country"])
+        self.assertEqual(["philippines"], travel["visas"][0]["associate_countries"])
+        self.assertFalse(travel["visas"][0]["expired"])
+
+    def test_no_visa_record_is_unknown_not_ineligible(self):
+        pool = {"abhinav samant": {
+            "trainer_name": "Abhinav Samant", "timezone": "India Standard Time",
+            "nearest_city": "Pune", "visa": [], "free_dates": set(),
+            "resolved_course": "X", "skill_level": 5,
+        }}
+        empty = {"leave_dates": set(), "confirmed_dates": set(), "tentative_dates": set(),
+                 "dnc_clients": set(), "specified_clients": set(), "modes": [], "rows": 0}
+
+        def rms(role, params):
+            if role == "reportees":
+                return [{"OffEmail": "t@k.com", "TrainerName": "Abhinav Samant"}]
+            if role == "trainerDetails":
+                return [{"CourseName": "AZ-305"}]
+            return []
+
+        with mock.patch.object(backend, "_v2_manager_session", return_value=({}, None)),              mock.patch.object(backend, "_rc_schedule", return_value=(empty, "")),              mock.patch.object(backend, "_rms", side_effect=rms),              mock.patch.object(backend, "_exam_policy", return_value={}),              mock.patch.object(backend, "_free_schedule", return_value=(pool, "")):
+            r = self.client.get("/api/v2/trainer/readiness?manager=m@k.com&email=t@k.com")
+        self.assertEqual("unknown", r.get_json()["travel"]["visa_state"])
+
+    def test_an_unresolvable_course_reports_why_rather_than_a_blank_profile(self):
+        empty = {"leave_dates": set(), "confirmed_dates": set(), "tentative_dates": set(),
+                 "dnc_clients": set(), "specified_clients": set(), "modes": [], "rows": 0}
+        with mock.patch.object(backend, "_v2_manager_session", return_value=({}, None)),              mock.patch.object(backend, "_rc_schedule", return_value=(empty, "")),              mock.patch.object(backend, "_rms", return_value=[]),              mock.patch.object(backend, "_exam_policy", return_value={}),              mock.patch.object(backend, "_free_schedule", return_value=({}, "not found")):
+            r = self.client.get("/api/v2/trainer/readiness?manager=m@k.com&email=t@k.com")
+        body = r.get_json()
+        self.assertIsNone(body["travel"])
+        self.assertIn("could be resolved", body["travel_note"])
+
