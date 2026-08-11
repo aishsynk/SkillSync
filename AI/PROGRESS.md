@@ -1,5 +1,24 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T16:05:00+05:30 - Structural rebuilds: person card, international class, action queue (v3.15.0)
+
+- **Tool Used**: Claude Code (Compose, Robolectric, Gradle gate, apksigner + aapt, gh CLI)
+- **Files Modified**: `ui/main/TeamMemberCard.kt` (rewritten), `ui/main/TeamTab.kt`, `ui/batch/InternationalCard.kt` (created), `ui/batch/AllocationDeskScreen.kt`, `ui/main/ActionsInbox.kt`, `ui/ScreenRenderTest.kt`, `ui/TeamAvailabilityTest.kt`, `app/build.gradle.kts`
+- **Context**: v3.14.0 fixed the design **vocabulary** (type, surfaces, spacing). This is the **information hierarchy** — the three rebuilds the design vision specifies and prior releases had skipped.
+- **Work Completed**:
+  - **Team person card (§7.2)** — was 379 lines rendering **fourteen fields at roughly equal weight**, so nothing ranked anything. Now one 104dp row: severity gradient stripe on the leading edge, a headline stating *why* this person is ranked here, three micro-figures, and a sparkline for direction. Readiness score, risk text and recommended action moved to the profile. **379 -> 236 lines.** The roster now sorts by the same severity, using the precedence the agent and weekly message already use.
+  - **International as a card class (§7.4)** — was a badge on an identical card. Now a **full-bleed ribbon** owning the top edge with a 4s sheen, a **40dp globe medallion** anchoring the destination line, and travel readiness as a verdict (visa ready / to verify / blocked / not checked). The elevation is earned: visa, travel window and time zone are computed now, so it reports a verdict rather than decorating a guess.
+  - **Actions queue (§7.5)** — flat list replaced with three lanes: **Now / This week / Watching**. Membership from priority **and age**, so an item open a week without being touched is promoted regardless of its raised priority.
+- **Two faults caught by tests and fixed**:
+  1. **Information loss**: leave was visible only when it was the top severity reason, so a trainer with a certification gap *and* leave next week would have had the leave hidden. It now renders as its own micro-figure whenever it exists.
+  2. The international travel chip did not render when a batch had no ranked candidates. Silence on that card reads as "no travel issues", a claim the data has not made; it now always states its verdict.
+- **Current Status**: **v3.15.0.92 live** — commit `bcabb57`, CI success. APK verified: signer `c6868b14…1808`, versionCode 91 -> 92. **136 backend + 136 Android tests pass**, lint clean.
+- **Design vision status**: §7.2, §7.4 and §7.5 are now implemented. Remaining from the vision: §7.1 dashboard "Explore" consolidation is done, §7.3 Trainer 360 tabs done, §7.6 Skill management flow (Skill -> Select Members -> Assign, with bulk/preview/undo) is **specified but not built**, and the Actions bulk-selection and inline-resolution parts of §7.5 are **not built** — only the lane model landed.
+- **Next Actions**:
+  1. §7.6 Skill management flow — the largest remaining specified-but-unbuilt item, and it needs the bulk skill endpoint discussed with the operator (RMS sign-off outstanding).
+  2. Actions bulk selection and inline resolution to complete §7.5.
+  3. **RMS question list unchanged** and still the quality ceiling.
+
 ## 2026-08-12T15:10:00+05:30 - Design system finally applied to the screens (v3.14.0)
 
 - **Tool Used**: Claude Code (Compose, Robolectric, Gradle gate, apksigner + aapt, gh CLI)
