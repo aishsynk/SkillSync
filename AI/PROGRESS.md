@@ -1,5 +1,29 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T06:20:00+05:30 - Phase 1b + Phase 2 complete (backend only)
+
+- **Tool Used**: Claude Code (backend.py, pytest, live RMS verification, Render probes)
+- **Files Modified**: `backend.py`, `tests/test_intelligence_layer.py`, `tests/test_certification_and_allocation.py` (created)
+- **Work Completed**:
+  - **CertificationEngine**: `certification_verdict` / `certification_priority` on key 213 policy plus exam identity mined from RC-schedule history (`_exam_hints`). Priority = blocked demand x3 + blocked trainers. **No financial input.**
+  - **Operational-only SC data**: `active_sc_operational` wires key 13 and **strips Total Fee and Currency at the boundary**, enforced by test. Keeps CSM, SCId, AssignmentId, created date and derived `demand_age_days`.
+  - **Off-date gates**: travel-window and shift-window gates implemented from the roaming and night/morning IL fields.
+  - **`GET /api/v2/allocation/candidates`**: eligible candidates ranked with per-factor contributions; blocked candidates retained with the gate that stopped them; **422 `COURSE_UNRESOLVED`** for an unresolvable course rather than an empty pool.
+- **Three correctness bugs found during verification and fixed**:
+  1. **A trainer with zero free days ranked as eligible.** `availability_verdict` treated an empty free-date set as "unknown" while the gate only blocks "unavailable". `None` (no RMS row -> unknown) and `set()` (row listing no free days -> unavailable) are now distinct.
+  2. **`certification_verdict` returned `exam_required=False` for any course missing from the policy catalogue**, silently converting every unmatched course into "no gap". **The exam-policy catalogue (213) does not share course names with the delivery catalogue** — `AZ-305T00: Designing Microsoft Azure Infrastructure Solutions` has no entry there at all, while 213 carries `AZ-305 - Exam Prep`. `exam_required` is now tri-state (True/False/None) with `policy_known`, and a gap is asserted only when the requirement is known true. This was **under-reporting** the exact risk the engine exists to find.
+  3. `parse_off_dates` expanded absurd ranges; a decade-long value is bad data, not a decade of unavailability.
+- **New live findings**:
+  - **Off-date fields are null for every trainer reachable from this account** (reportees, assignment feed, course pool). The travel/shift gates are therefore **inert today**; international eligibility rests on visa + free dates from key 171, which are populated. This mirrors the API 172 lesson: documented ≠ populated.
+  - Exam policy live: **1,442 of 10,980 courses (13%) require an exam**, and the naming mismatch above means many delivery-catalogue courses have no policy entry at all.
+  - `_exam_hints` works: 127 RC rows yielded 3 course→exam mappings, e.g. AI-102 → "Microsoft Certified: Azure AI Apps and Agents Developer Associate", labelled `inferred_from_delivery_history`.
+- **Live end-to-end on the AZ-305 pool**: 37 candidates → **14 eligible, 23 blocked** (13 availability, 11 visa, 3 skill level). **11 of 14 eligible carry an unknown visa and are shown and flagged, never hidden**, per the operator decision. Top candidate fit=100 with factors: +20 course experience (27 prior deliveries), +15 skill level 10, +10 visa valid to 2030-01-29.
+- **Current Status**: **118 backend tests pass** (58 pre-existing + 60 new). Pushed `7ea2241`; Render redeployed and healthy (`/healthz` ok v6.1.0). New route correctly returns 401 unauthenticated. **No version bump or APK — backend only; Android does not yet consume these engines.**
+- **Next Actions**:
+  1. **Phase 2 completion**: point the allocation desk (`_rank_batch`) at `evaluate_candidate` so the existing demand board inherits the new intelligence, and expose the factor breakdown to Android.
+  2. **Phase 3** (screens) only after that: Demand/Allocation V2 expressing the real verdicts, then Dashboard, Team, Trainer 360.
+  3. **RMS question list — now materially blocking quality**: read-only course→exam mapping; **why the 213 catalogue names diverge from the delivery catalogue** (new, and the cause of under-reported gaps); params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether the off-date fields are populated for any population at all; rate limits for per-course 171 calls.
+
 ## 2026-08-12T04:00:00+05:30 - Phase 1a: availability and international engines (backend only)
 
 - **Tool Used**: Claude Code (backend.py, pytest, live RMS end-to-end verification)
