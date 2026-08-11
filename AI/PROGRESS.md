@@ -1,5 +1,21 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T11:35:00+05:30 - Trainer 360 readiness on real data (v3.9.0)
+
+- **Tool Used**: Claude Code (backend.py, pytest, Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)
+- **Files Modified**: `backend.py`, `tests/test_certification_and_allocation.py`, `ui/trainer/ReadinessSection.kt` (created), `ui/trainer/Trainer360Screen.kt`, `ui/trainer/Trainer360ViewModel.kt`, `data/api/SkillEdgeApi.kt`, `app/build.gradle.kts`, `ui/TrainerReadinessTest.kt` (created)
+- **Work Completed** (operator asked for speed; scope deliberately narrowed to the highest-value integration, no new research):
+  - **New route `GET /api/v2/trainer/readiness`** — leave, confirmed vs provisional commitments, delivery modes, client exclusions/requests from the RMS day-level calendar (key 111), plus certification verdicts with tri-state requirement.
+  - **Trainer 360 "Now" tab** now leads with `RealReadinessSection`. It previously described availability from the roaming/IL off-date fields, which live sampling found **empty for every reachable trainer** — the section could not have been right.
+  - **Provisional work is counted separately** from committed: treating it as committed overstates load, ignoring it understates availability.
+  - **Certification surfaced for the first time** — the engine shipped in v3.6.0 but no screen consumed it. Exam names always labelled *inferred from delivery history*; courses with no policy entry reported as **unknown, not clean**.
+- **Current Status**: **v3.9.0.86 live** — commit `4a739c6`, CI success. APK verified: signer `c6868b14…1808`, package unchanged, versionCode 85 -> 86. **113 Android + 127 backend tests pass**, lint clean. Render healthy (`/healthz` ok v6.1.0); backend at `b09ce71`.
+- **Note**: test fixtures for this section use Double-typed values matching the real wire shape, after a string-typed fixture hid three rendering bugs in v3.8.0.
+- **Next Actions**:
+  1. **Team page** next (one screen per release), then Dashboard.
+  2. Trainer 360 still has room: visa/international readiness per trainer is not shown (key 171 is course-keyed, so it needs a course to resolve against — deferred deliberately rather than guessed).
+  3. **RMS question list, unchanged and still the quality ceiling**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
+
 ## 2026-08-12T10:50:00+05:30 - Full gated evaluation on batch detail (v3.8.0)
 
 - **Tool Used**: Claude Code (Compose, Robolectric, Gradle gate, apksigner + aapt, gh CLI, Render probe)
