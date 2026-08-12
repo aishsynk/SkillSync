@@ -33,6 +33,11 @@ import com.example.skillsync.R
 import com.example.skillsync.theme.Figure
 import com.example.skillsync.theme.FigureSize
 import com.example.skillsync.theme.SectionHeading
+import com.example.skillsync.ui.components.DistributionBar
+import com.example.skillsync.ui.components.Slice
+import com.example.skillsync.ui.main.SearchField
+import com.example.skillsync.ui.main.SelectChip
+import com.example.skillsync.ui.main.TeamTab
 import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.Radii
@@ -94,6 +99,7 @@ internal fun AllocationDeskContent(
     var selectedLanguages by remember { mutableStateOf(setOf<String>()) }
     var selectedSkillLevels by remember { mutableStateOf(setOf<String>()) }
     var showFilters by remember { mutableStateOf(false) }
+    var selectedLens by remember { mutableStateOf("All demand") }
 
     // Built from what's actually in the data, not a guessed enum — RMS's real
     // delivery-mode strings have proven inconsistent before (see AI/CONTEXT.md).
@@ -111,7 +117,7 @@ internal fun AllocationDeskContent(
     // is either the untouched RMS order or a subset of it — arrival order is
     // how demand is actually worked, and re-sorting by match% (the previous
     // behaviour) buried high-priority batches the team can't yet cover.
-    val filtered = remember(batches, query, matchBand, selectedModes, selectedLanguages, selectedSkillLevels) {
+    val filtered = remember(batches, query, matchBand, selectedModes, selectedLanguages, selectedSkillLevels, selectedLens) {
         batches.filter { b ->
             val q = query.trim().lowercase()
             val matchesQuery = q.isBlank() ||
@@ -123,7 +129,12 @@ internal fun AllocationDeskContent(
             val matchesMode = selectedModes.isEmpty() || b.str("delivery_mode") in selectedModes
             val matchesLang = selectedLanguages.isEmpty() || b.str("language") in selectedLanguages
             val matchesSkill = selectedSkillLevels.isEmpty() || b.str("skill_level") in selectedSkillLevels
-            matchesQuery && matchesBand && matchesMode && matchesLang && matchesSkill
+            val matchesLens = when (selectedLens) {
+                "Priority" -> b.bool("is_priority")
+                "At risk" -> b.bool("at_risk")
+                else -> true // "All demand", "Need trainers"
+            }
+            matchesQuery && matchesBand && matchesMode && matchesLang && matchesSkill && matchesLens
         }
     }
 
@@ -225,7 +236,34 @@ internal fun AllocationDeskContent(
                             fontWeight = FontWeight.SemiBold,
                             color = sk.frost,
                         )
-                        Spacer(Modifier.height(2.dp))
+                        Spacer(Modifier.height(14.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.weight(1f)) {
+                                SearchField(query, { query = it }, "Search demand...")
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            FilledTonalButton(
+                                onClick = { showFilters = true },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = if (activeFilterCount > 0) sk.teal.copy(alpha = 0.16f) else sk.cardBg,
+                                ),
+                            ) {
+                                Text(
+                                    if (activeFilterCount > 0) "Filters ($activeFilterCount)" else "Filters",
+                                    color = if (activeFilterCount > 0) sk.teal else sk.subText,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(14.dp))
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SelectChip("All demand", selectedLens == "All demand") { selectedLens = "All demand" }
+                            SelectChip("Need trainers", selectedLens == "Need trainers") { selectedLens = "Need trainers" }
+                            SelectChip("Priority", selectedLens == "Priority") { selectedLens = "Priority" }
+                            SelectChip("At risk", selectedLens == "At risk") { selectedLens = "At risk" }
+                        }
+                        Spacer(Modifier.height(24.dp))
                         Text(
                             "$total unallocated · ranked against your team's capability",
                             style = MaterialTheme.typography.labelSmall,
@@ -255,35 +293,6 @@ internal fun AllocationDeskContent(
                     Spacer(Modifier.height(10.dp))
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        placeholder = { Text("Search course, vendor, mode, ref") },
-                        leadingIcon = {
-                            Icon(painterResource(R.drawable.ic_search), null, tint = sk.subText, modifier = Modifier.size(16.dp))
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Box {
-                        FilledTonalButton(
-                            onClick = { showFilters = true },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = if (activeFilterCount > 0) sk.teal.copy(alpha = 0.16f) else sk.cardBg,
-                            ),
-                        ) {
-                            Text(
-                                if (activeFilterCount > 0) "Filters ($activeFilterCount)" else "Filters",
-                                color = if (activeFilterCount > 0) sk.teal else sk.subText,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                    }
-                }
 
                 if (activeFilterCount > 0) {
                     Spacer(Modifier.height(8.dp))

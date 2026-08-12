@@ -2442,3 +2442,20 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Current Status**: All tasks for Phase 7 (People Page Redesign & Messaging Format) are fully implemented, compiled, deployed, and published to GitHub Releases. The end-to-end delivery process is successfully concluded for v3.16.4.
 - **Next Actions**: Proceed to next feature or await feedback from the newly designed People tab.
 
+
+### Phase 8: Demand Intelligence UI & Delivery Operations Calendar Redesign
+- **Timestamp**: 2026-08-13T04:36:29+05:30
+- **Agent/Tool Used**: AntiGravity IDE
+- **Files Modified**: 
+  - AllocationDeskScreen.kt
+  - Version2Workspaces.kt
+  - ScreenRenderTest.kt
+- **Work Completed**:
+  - Implemented the Demand Intelligence header in AllocationDeskScreen.kt with a search field and filter chips (All demand, Need trainers, Priority, At risk).
+  - Linked the filter chips to the dynamic filtered batches state logic.
+  - Rewrote the DeliveryOperationsWorkspace in Version2Workspaces.kt completely from grouped lists to a chronological timeline calendar view.
+  - Parsed start_at dates robustly to group and sort assignments vertically.
+  - Built left-aligned date nodes and connecting timeline strokes with semantic color coding (current=aqua, upcoming=sky, completed=gray).
+  - Fixed failing unit tests caused by the UI redesign.
+- **Current Status**: Redesign successfully implemented and tested.
+- **Next Actions**: Proceed to next user request or feature.
