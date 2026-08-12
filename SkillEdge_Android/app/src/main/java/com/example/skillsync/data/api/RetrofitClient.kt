@@ -69,7 +69,11 @@ object RetrofitClient {
                     .header("Authorization", "Bearer $sessionId")
                     .build()
             }
-            chain.proceed(request)
+            val response = chain.proceed(request)
+            if (response.code == 401) {
+                com.example.skillsync.data.SessionManager.clearSession()
+            }
+            response
         }
 
         okHttpClient = OkHttpClient.Builder()

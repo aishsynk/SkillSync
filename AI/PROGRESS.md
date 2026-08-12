@@ -7,7 +7,7 @@
 - **Work Completed**: Implemented the "Complete Manager Portal" feature set. 
   - Backend: Added synthetic state tracking in `unified_intelligence` to automatically detect newly assigned batches and generate assignment alerts for the manager.
   - Android UI: Created a new `TeamCalendarScreen` to visualize "Currently Delivering" and "Lined Up" batches on a timeline. Created a `NotificationCenter` drop-down for the notification bell. Integrated both into the dashboard as a "Delivery Pulse" section.
-- **Current Status**: Backend tests (141) pass. Android Gradle build succeeds. Feature is fully functional locally.
+- **Current Status**: Backend tests (141) pass. Android Gradle build succeeds. Feature is fully functional locally. Code pushed to GitHub (commit 809ad09), tagged `v3.16.2`, Android Release APK (versionCode 95) signed, built and published to GitHub Releases (v3.16.2). The end-to-end delivery is complete and verified.
 - **Next Actions**: 
   1. Wait for RMS API team responses on the blocker questions.
   2. Plan a beta release to gather manager feedback on the Delivery Pulse calendar.
@@ -2392,3 +2392,13 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   - Built and generated `SkillEdge-v1.38.0.apk`.
   - Created a GitHub commit and pushed changes to production.
 - **Current Status**: Phase 6 is complete. Algorithm and UI fixes deployed successfully.
+
+## 2026-08-12T21:05:00+05:30 - Fix Teams tab 401 Unauthorized Error (v3.16.3)
+
+- **Tool Used**: Antigravity (Compose)
+- **Files Modified**: SessionManager.kt, RetrofitClient.kt, Navigation.kt
+- **Work Completed**: Fixed a bug where a server restart (which wipes in-memory sessions) resulted in silent 401s on Android and stale dashboard caches, manifesting most visibly as an explicit "http401" error on the Teams tab. Added automatic logout handling: SessionManager now exposes loginState as a StateFlow. RetrofitClient intercepts 401 HTTP codes and automatically calls SessionManager.clearSession(). Navigation.kt observes loginState and forces the navigation graph back to Login instantly when the session is lost.
+- **Current Status**: Android app successfully compiled. 401s are now handled gracefully.
+- **Next Actions**: 
+  1. Wait for RMS API team responses on the blocker questions.
+  2. Plan a beta release to gather manager feedback on the Delivery Pulse calendar.

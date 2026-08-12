@@ -50,6 +50,14 @@ fun MainNavigation() {
     // cache that the dashboard and Courses tab read from.
     val mainViewModel: MainScreenViewModel = viewModel()
     val notificationDestination by com.example.skillsync.util.NotificationDestinationStore.pending.collectAsState()
+    
+    val isLoggedIn by com.example.skillsync.data.SessionManager.loginState.collectAsState()
+    
+    LaunchedEffect(isLoggedIn) {
+        if (!isLoggedIn && current !is Login) {
+            current = Login
+        }
+    }
 
     LaunchedEffect(notificationDestination) {
         val target = notificationDestination ?: return@LaunchedEffect
