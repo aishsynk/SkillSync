@@ -392,6 +392,10 @@ _validate_credentials()
 _token_cache: dict = {}
 _sessions: dict = {}
 
+_manager_seen_batches: dict = {}
+_manager_notifications: dict = {}
+_notifications_lock = threading.Lock()
+
 
 def _request_session():
     """Resolve the opaque SkillEdge session carried by Android.
@@ -2497,6 +2501,32 @@ def unified_intelligence():
         if action:
             actions.append(action)
 
+    with _notifications_lock:
+        seen = _manager_seen_batches.get(email, set())
+        notes = _manager_notifications.get(email, [])
+        
+        current_ids = set()
+        for b in all_batches:
+            aid = str(b.get("assignment_id", ""))
+            if not aid: continue
+            current_ids.add(aid)
+            if seen and aid not in seen:
+                trainer_name = str(b.get("trainer_name", "A trainer"))
+                course_name = str(b.get("course_name", "a course"))
+                s_date = str(b.get("start_at", ""))
+                notes.insert(0, {
+                    "id": f"notif_{aid}_{int(time.time())}",
+                    "severity": "INFO", "category": "ASSIGNMENT",
+                    "title": "New Batch Assigned",
+                    "message": f"{trainer_name} was assigned to {course_name} starting {s_date.split('T')[0]}.",
+                    "trainer_email": str(b.get("trainer_email", "")),
+                    "read": False,
+                })
+        
+        _manager_notifications[email] = notes[:50]
+        _manager_seen_batches[email] = current_ids
+        synthetic_notes = list(_manager_notifications[email])
+
     delivery_rows = [_delivery_row(o, st) for o, st in zip(trainer_ops, trainer_states)]
 
     # No synthetic fallback. A manager with no reportees, or an RMS that did
@@ -2628,6 +2658,8 @@ def unified_intelligence():
                        % (len(demand_df), "" if len(demand_df) == 1 else "es"),
             "trainer_email": "", "read": False,
         })
+
+    notifications.extend(synthetic_notes)
 
     _sev_rank = {"CRITICAL": 0, "WARNING": 1, "INFO": 2}
     notifications.sort(key=lambda n: _sev_rank.get(n["severity"], 3))
@@ -3454,12 +3486,13 @@ _allocation_building = set()
 _allocation_lock = threading.Lock()
 
 
-def _warm_allocation(email, fresh):
+def _warm_allocation(email, fresh, auth_header):
     """Build outside the gateway request and retain the last complete board."""
     try:
         suffix = "&refresh=1" if fresh else ""
         with app.test_request_context(
-            f"/api/data/allocation-desk?email={urllib.parse.quote(email)}&_build=1{suffix}"
+            f"/api/data/allocation-desk?email={urllib.parse.quote(email)}&_build=1{suffix}",
+            headers={"Authorization": auth_header} if auth_header else {}
         ):
             allocation_desk()
     finally:
@@ -3493,7 +3526,8 @@ def allocation_desk():
             if start_build:
                 _allocation_building.add(email)
         if start_build:
-            threading.Thread(target=_warm_allocation, args=(email, fresh), daemon=True).start()
+            auth_header = request.headers.get("Authorization", "")
+            threading.Thread(target=_warm_allocation, args=(email, fresh, auth_header), daemon=True).start()
         if cached:
             payload = dict(cached)
             payload["refresh_in_progress"] = start_build

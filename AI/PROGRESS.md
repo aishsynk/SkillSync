@@ -1,5 +1,25 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T20:38:00+05:30 - Manager Portal Expansion: Calendar & Notifications (v3.16.2)
+
+- **Tool Used**: Antigravity (backend.py, pytest, Compose, subagents)
+- **Files Modified**: `backend.py`, `TeamCalendarScreen.kt`, `NotificationCenter.kt`, `ManagerCommandCentre.kt`
+- **Work Completed**: Implemented the "Complete Manager Portal" feature set. 
+  - Backend: Added synthetic state tracking in `unified_intelligence` to automatically detect newly assigned batches and generate assignment alerts for the manager.
+  - Android UI: Created a new `TeamCalendarScreen` to visualize "Currently Delivering" and "Lined Up" batches on a timeline. Created a `NotificationCenter` drop-down for the notification bell. Integrated both into the dashboard as a "Delivery Pulse" section.
+- **Current Status**: Backend tests (141) pass. Android Gradle build succeeds. Feature is fully functional locally.
+- **Next Actions**: 
+  1. Wait for RMS API team responses on the blocker questions.
+  2. Plan a beta release to gather manager feedback on the Delivery Pulse calendar.
+## 2026-08-12T20:25:00+05:30 - Fix unallocated batches cache build (v3.16.1)
+
+- **Tool Used**: Antigravity (backend.py, pytest)
+- **Files Modified**: `backend.py`, `AI/PROGRESS.md`
+- **Work Completed**: Fixed a bug where the `/api/data/allocation-desk` endpoint would get stuck on "loading: True" because the background thread `_warm_allocation` used `app.test_request_context` without passing the `Authorization` header. This caused the simulated request to fail with a 401 Unauthorized status, preventing the `_allocation_payload_cache` from ever being updated with fresh data from RMS. 
+- **Current Status**: Cache build now correctly inherits the `Authorization` header from the original request. All 141 backend tests pass.
+- **Next Actions**: 
+  1. **RMS question list**: still waiting on answers for course-exam mapping, catalogue names, etc.
+  2. Verify Android client parsing of the updated allocation desk payload.
 ## 2026-08-12T17:40:00+05:30 - Skill assignment flow and action bulk ops (v3.16.0)
 
 - **Tool Used**: Claude Code (backend.py, pytest, Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)

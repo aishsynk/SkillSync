@@ -124,6 +124,8 @@ fun ManagerCommandCentre(
         utilHistory.last() - utilHistory[utilHistory.lastIndex - 1]
     } else null
 
+    var showNotifications by rememberSaveable { mutableStateOf(false) }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(Space.lg),
@@ -144,8 +146,12 @@ fun ManagerCommandCentre(
             fromCache = fromCache,
             cachedAt = cachedAt,
             onOpenProfile = onOpenProfile,
-            onOpenNotifications = onOpenNotifications,
+            onOpenNotifications = { showNotifications = !showNotifications },
         )
+
+        AnimatedVisibility(visible = showNotifications) {
+            NotificationCenter(actions = actions)
+        }
 
         // ── 2 · What is on fire? ────────────────────────────────────────────
         val alerts = buildAlerts(atRisk, overloaded, demand, openActions, gaps, onDrill, onOpenDemand)
@@ -201,6 +207,10 @@ fun ManagerCommandCentre(
 
         // ── 5 · What is coming? ─────────────────────────────────────────────
         DemandGlance(demand, active.size, upcoming.size, onOpenDemand)
+
+        // ── Delivery Pulse ──────────────────────────────────────────────────
+        SectionHeading("Delivery Pulse", "Team calendar")
+        TeamCalendarScreen(batches = batches)
 
         // ── 5b · Who is carrying the work ───────────────────────────────────
         // Promoted out of the collapsed Explore section: a manager asked for
