@@ -1,5 +1,16 @@
 # SkillEdge Project Progress
 
+## 2026-08-12T21:40:00+05:30 - Fix infinite 401 login loop on Teams tab (v3.16.4)
+
+- **Tool Used**: Antigravity (Compose)
+- **Files Modified**: `LoginViewModel.kt`, `LoginScreen.kt`, `AI/PROGRESS.md`
+- **Work Completed**: The user reported that despite the 401 handling introduced in v3.16.3, the Teams tab "always have http401" and did not appear to redirect to Login. I traced this to a classic Compose state-hoisting bug: `LoginViewModel` is scoped to the `NavGraph`/`Activity`, so when `SessionManager.clearSession()` logged the user out, `Navigation.kt` correctly switched to the `LoginScreen`. However, `LoginViewModel` still retained its `LoginState.Success` from the previous login! This caused the `LoginScreen` to instantly "auto-login", sending the user back to `Main` where the API request would fail with 401 again, resulting in an invisible infinite navigation loop that left the UI flickering/stuck on "HTTP 401". Added `viewModel.reset()` on successful login to fix this.
+- **Root Cause Verified**: The underlying 401s themselves are caused by the backend Render instance scaling down. Gunicorn restarts, wiping the in-memory `_sessions` dict. Now that the login loop is fixed, the user will be properly forced to re-login to acquire a new token.
+- **Current Status**: Android Gradle build succeeds.
+- **Next Actions**: 
+  1. Wait for RMS API team responses on the blocker questions.
+  2. Plan a beta release to gather manager feedback on the Delivery Pulse calendar.
+
 ## 2026-08-12T20:38:00+05:30 - Manager Portal Expansion: Calendar & Notifications (v3.16.2)
 
 - **Tool Used**: Antigravity (backend.py, pytest, Compose, subagents)
@@ -2402,3 +2413,18 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Next Actions**: 
   1. Wait for RMS API team responses on the blocker questions.
   2. Plan a beta release to gather manager feedback on the Delivery Pulse calendar.
+
+### Phase 7: People Page Redesign & Messaging Format (v3.16.4)
+- **Timestamp**: 2026-08-12
+- **Agent/Tool Used**: AntiGravity IDE
+- **Files Modified**: 
+  - MainScreen.kt
+  - TeamTab.kt
+  - WeeklyMessage.kt
+- **Work Completed**:
+  - Remodelled the Team Tab per Design Vision v2 §7.2: removed subtabs, merged Capability (CoursesTab) conditionally into the Team Tab under the "By capability" lens.
+  - Implemented the Header Intelligence Bar for one-tap filtering ("Needs attention", "Available now", "By capability").
+  - Dynamically grouped the trainer roster under headers based on their status and severity.
+  - Ensured that manager notes sent via the Weekly Message composer are sanitized, trimmed, and sentence-cased correctly to match the professional house style.
+- **Current Status**: Kotlin code verified. Android API 36 environment issues remain (core-for-system-modules.jar compatibility).
+

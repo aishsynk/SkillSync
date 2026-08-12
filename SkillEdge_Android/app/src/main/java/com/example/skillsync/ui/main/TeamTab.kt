@@ -96,6 +96,16 @@ internal fun TeamTab(
     loading: Boolean = false,
     dataError: String? = null,
     onTrainerClick: (String, String) -> Unit,
+    courseSearchResults: List<Map<String, Any>> = emptyList(),
+    courseSearchLoading: Boolean = false,
+    courseIntelligence: com.example.skillsync.data.models.CourseIntelligence? = null,
+    courseIntelligenceLoading: Boolean = false,
+    onSearchCourses: (String) -> Unit = {},
+    onLoadCourseIntelligence: (String) -> Unit = {},
+    onAssign: (String, List<Pair<String, String>>, Int, String) -> Unit = { _, _, _, _ -> },
+    onClearMark: () -> Unit = {},
+    markState: com.example.skillsync.ui.batch.MarkState = com.example.skillsync.ui.batch.MarkState.Idle,
+    email: String = ""
 ) {
     val sk = MaterialTheme.skill
     // Manager comparison surface: two trainers must remain visible per row on
@@ -114,6 +124,7 @@ internal fun TeamTab(
 
     var filters by remember { mutableStateOf(TeamFilters()) }
     var sheetOpen by remember { mutableStateOf(false) }
+    var selectedLens by remember { mutableStateOf<String?>(null) }
 
     // Options are derived from what the team actually holds, so the picker can
     // never offer a skill nobody has.
@@ -697,6 +708,42 @@ internal fun EmptyStateCard(message: String) {
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 lineHeight = 18.sp,
             )
+        }
+    }
+}
+
+@Composable
+internal fun TeamHeaderBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    selectedLens: String?,
+    onLensChange: (String?) -> Unit,
+    filtersCount: Int,
+    onOpenFilters: () -> Unit
+) {
+    Column {
+        SearchField(
+            value = query,
+            onValueChange = onQueryChange,
+            placeholder = "Search name, designation or course",
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SelectChip("Needs attention", selectedLens == "Needs attention") {
+                onLensChange(if (selectedLens == "Needs attention") null else "Needs attention")
+            }
+            SelectChip("Available now", selectedLens == "Available now") {
+                onLensChange(if (selectedLens == "Available now") null else "Available now")
+            }
+            SelectChip("By capability", selectedLens == "By capability") {
+                onLensChange(if (selectedLens == "By capability") null else "By capability")
+            }
+            Spacer(Modifier.width(8.dp))
+            FilterButton(filtersCount, onOpenFilters)
         }
     }
 }

@@ -108,6 +108,7 @@ fun LoginScreen(
                 keyboard?.hide()
                 notify.success("Signed in", "Loading your delivery intelligence…")
                 onLoginSuccess(s.email)
+                viewModel.reset()
             }
             is LoginState.Error -> notify.error("Sign-in failed", s.message)
             else -> Unit

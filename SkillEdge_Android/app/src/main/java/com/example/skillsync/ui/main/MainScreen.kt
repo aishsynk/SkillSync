@@ -131,7 +131,7 @@ fun MainScreen(
 
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showNotificationsSheet by remember { mutableStateOf(false) }
-    var peopleWorkspace by rememberSaveable { mutableStateOf("PORTFOLIO") }
+
     var todayWorkspace by rememberSaveable { mutableStateOf("BRIEF") }
 
     LaunchedEffect(Unit) {
@@ -333,49 +333,31 @@ fun MainScreen(
                     ) {
                         val d = s.intelligenceData
                         when (tab) {
-                            HomeTab.TEAM -> Column(Modifier.fillMaxSize()) {
-                                PeopleWorkspaceSwitch(peopleWorkspace) { peopleWorkspace = it }
-                                if (peopleWorkspace == "PORTFOLIO") {
-                                    TeamTab(
-                                        data = d,
-                                        capability = capability,
-                                        actions = teamActions,
-                                        readiness = teamReadiness,
-                                        readinessNote = teamReadinessNote,
-                                        loading = capLoading,
-                                        dataError = teamDataError,
-                                        onTrainerClick = onTrainerClick,
+                            HomeTab.TEAM -> TeamTab(
+                                data = d,
+                                capability = capability,
+                                actions = teamActions,
+                                readiness = teamReadiness,
+                                readinessNote = teamReadinessNote,
+                                loading = capLoading,
+                                dataError = teamDataError,
+                                onTrainerClick = onTrainerClick,
+                                courseSearchResults = courseSearchResults,
+                                courseSearchLoading = courseSearchLoading,
+                                courseIntelligence = courseIntelligence,
+                                courseIntelligenceLoading = courseIntelligenceLoading,
+                                onSearchCourses = allocationViewModel::searchCourses,
+                                onLoadCourseIntelligence = allocationViewModel::loadCourseIntelligence,
+                                onAssign = { courseId, trainers, level, date ->
+                                    allocationViewModel.markSkillBatch(
+                                        context, courseId, trainers, level, date,
+                                        onSaved = { viewModel.refreshCapability(email, context) },
                                     )
-                                } else {
-                                    val coursePeople = buildList {
-                                        add("Aishwar (You)" to email)
-                                        d.rows("trainer_operations_df").forEach { trainer ->
-                                            val trainerEmail = trainer.str("official_email")
-                                            if (trainerEmail.isNotBlank() && trainerEmail.lowercase() != email.lowercase()) {
-                                                add(trainer.str("trainer_name").ifBlank { trainerEmail } to trainerEmail)
-                                            }
-                                        }
-                                    }.distinctBy { it.second.lowercase() }
-                                    CoursesTab(
-                                        capability, capLoading, onTrainerClick,
-                                        people = coursePeople,
-                                        markState = skillMarkState,
-                                        courseSearchResults = courseSearchResults,
-                                        courseSearchLoading = courseSearchLoading,
-                                        courseIntelligence = courseIntelligence,
-                                        courseIntelligenceLoading = courseIntelligenceLoading,
-                                        onSearchCourses = allocationViewModel::searchCourses,
-                                        onLoadCourseIntelligence = allocationViewModel::loadCourseIntelligence,
-                                        onAssign = { courseId, trainers, level, date ->
-                                            allocationViewModel.markSkillBatch(
-                                                context, courseId, trainers, level, date,
-                                                onSaved = { viewModel.refreshCapability(email, context) },
-                                            )
-                                        },
-                                        onClearMark = allocationViewModel::clearMark,
-                                    )
-                                }
-                            }
+                                },
+                                onClearMark = allocationViewModel::clearMark,
+                                markState = skillMarkState,
+                                email = email
+                            )
                             HomeTab.DELIVERY -> DeliveryOperationsWorkspace(d, onTrainerClick)
                             HomeTab.SEARCH -> UniversalCommandSearch(
                                 dashboard = d,

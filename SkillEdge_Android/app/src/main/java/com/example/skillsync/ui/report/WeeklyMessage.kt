@@ -86,7 +86,8 @@ fun composeTeamMessage(
     val week = weekReference(today)
     val body = StringBuilder()
 
-    if (managerNote.isNotBlank()) body.append(managerNote.trim().trimEnd('.') + ". ")
+    val formattedNote = formatManagerNote(managerNote)
+    if (formattedNote.isNotEmpty()) body.append("$formattedNote ")
     body.append("Here is where we stand for the week of ${week}. ")
     body.append("We are ${signals.strength} in the team, with ${signals.deployed} deployed and ${signals.free} available. ")
     signals.utilisation?.let { body.append("Team utilisation is at $it percent. ") }
@@ -140,7 +141,8 @@ fun composeReporteeMessage(
     val first = signals.name.trim().substringBefore(" ").ifBlank { "there" }
     val body = StringBuilder()
 
-    if (managerNote.isNotBlank()) body.append(managerNote.trim().trimEnd('.') + ". ")
+    val formattedNote = formatManagerNote(managerNote)
+    if (formattedNote.isNotEmpty()) body.append("$formattedNote ")
     body.append("Here is a quick summary of your week of ${week}. ")
 
     // What the manager actually needs to say, in severity order. Only one
@@ -282,6 +284,45 @@ internal fun sanitise(raw: String): String {
 
     codes.forEachIndexed { i, code -> s = s.replace("\u0001$i\u0001", code) }
     return s
+}
+
+/**
+ * Applies house style string formatting to the manager's note.
+ * Ensures basic professional English grammar (capitalization, trimming, punctuation fixes) 
+ * to integrate nicely into the generated message.
+ */
+internal fun formatManagerNote(raw: String): String {
+    if (raw.isBlank()) return ""
+    // 1. Trim and apply basic sanitisation
+    val s = sanitise(raw).trim()
+    
+    // 2. Fix capitalization for the first letter of each sentence.
+    // We split by standard sentence terminators (. ! ?)
+    val regex = Regex("([.!?])\\s*")
+    val parts = s.split(regex)
+    val terminators = Regex("([.!?])").findAll(s).map { it.value }.toList()
+    
+    val formatted = StringBuilder()
+    for (i in parts.indices) {
+        if (parts[i].isNotBlank()) {
+            val capitalized = parts[i].trim().replaceFirstChar { 
+                if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() 
+            }
+            formatted.append(capitalized)
+            if (i < terminators.size) {
+                formatted.append(terminators[i]).append(" ")
+            }
+        }
+    }
+    
+    var result = formatted.toString().trim()
+    
+    // 3. Ensure it ends with a period if it doesn't end with punctuation
+    if (result.isNotEmpty() && !result.endsWith(".") && !result.endsWith("!") && !result.endsWith("?")) {
+        result += "."
+    }
+    
+    return result
 }
 
 /** Course and exam identifiers such as AZ-305, PL-300, MS-700, SC-200. */
