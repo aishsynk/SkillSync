@@ -467,6 +467,12 @@ private fun PersonalDetails(identity: Map<*, *>?) {
             Spacer(Modifier.height(8.dp))
             Text(it, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
         }
+        identity?.str("experience")?.takeIf { it.isNotBlank() }?.let {
+            Spacer(Modifier.height(8.dp))
+            Text("Career Experience", style = MaterialTheme.typography.labelSmall, color = sk.subText, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text(it, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
+        }
         if (clients.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             Text(
@@ -1268,13 +1274,30 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
         }
 
         // Per-question responses — positive and negative both, unlike the
-        // negative-only list above. New field; empty until RMS confirms it.
+        // negative-only list above.
         val responses = feedback?.list("responses").orEmpty()
+        var showAllFeedback by remember { mutableStateOf(false) }
+
         if (responses.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             HorizontalDivider(color = sk.cardBorder)
             Spacer(Modifier.height(8.dp))
-            Label("Recent Feedback")
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Label("Recent Feedback")
+                if (responses.size > 5) {
+                    Text(
+                        "View All (${responses.size})",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.sky,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { showAllFeedback = true }.padding(4.dp)
+                    )
+                }
+            }
             responses.take(5).forEach { r ->
                 Spacer(Modifier.height(8.dp))
                 Column {
@@ -1296,6 +1319,50 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
                     }
                 }
             }
+        }
+
+        if (showAllFeedback) {
+            AlertDialog(
+                onDismissRequest = { showAllFeedback = false },
+                containerColor = sk.pageBg,
+                title = { Text("All Feedback", color = sk.heroText) },
+                text = {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        Modifier.fillMaxHeight(0.8f),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(responses.size) { i ->
+                            val r = responses[i]
+                            Column {
+                                Text(
+                                    r.str("question").ifBlank { "Feedback" },
+                                    style = MaterialTheme.typography.bodySmall, color = sk.bodyText,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                if (r.str("answer").isNotBlank()) {
+                                    Text(
+                                        r.str("answer"),
+                                        style = MaterialTheme.typography.bodyMedium, color = sk.subText,
+                                    )
+                                }
+                                if (r.str("date").isNotBlank()) {
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        r.str("date"),
+                                        style = MaterialTheme.typography.labelSmall, color = sk.ice,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showAllFeedback = false }) {
+                        Text("Close", color = sk.sky)
+                    }
+                }
+            )
         }
     }
 }
