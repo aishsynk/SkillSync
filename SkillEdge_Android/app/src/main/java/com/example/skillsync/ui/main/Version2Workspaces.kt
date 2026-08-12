@@ -37,6 +37,8 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 import com.example.skillsync.theme.glassSurface
+import com.example.skillsync.theme.accentGlass
+import androidx.compose.material3.Surface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.rows
 import com.example.skillsync.ui.components.str
@@ -263,26 +265,24 @@ internal fun DeliveryOperationsWorkspace(
                             val email = row.str("trainer_email")
                             val state = row.str("engagement_state")
                             val cardBg = when (state) {
-                                "current" -> sk.teal.copy(alpha = 0.1f)
-                                "upcoming" -> sk.sky.copy(alpha = 0.1f)
-                                else -> sk.surface1
+                                "current" -> sk.teal
+                                "upcoming" -> sk.sky
+                                else -> sk.subText
                             }
                             Column(
                                 Modifier.fillMaxWidth()
-                                    .background(cardBg, RoundedCornerShape(14.dp))
+                                    .accentGlass(cardBg, RoundedCornerShape(14.dp))
                                     .clickable(enabled = email.isNotBlank()) { onTrainer(email, trainer) }
                                     .padding(12.dp)
                             ) {
                                 Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                                     Text(row.str("course_name").ifBlank { "Course not supplied" }, fontWeight = FontWeight.SemiBold, color = MaterialTheme.skill.bodyText, modifier = Modifier.weight(1f))
-                                    Text(state.uppercase(), style = MaterialTheme.typography.labelSmall, color = when(state) {
-                                        "current" -> sk.teal
-                                        "upcoming" -> sk.sky
-                                        else -> sk.subText
-                                    })
+                                    Surface(color = cardBg.copy(alpha = 0.14f), shape = RoundedCornerShape(4.dp)) {
+                                        Text(state.uppercase(), style = MaterialTheme.typography.labelSmall, color = cardBg, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                                    }
                                 }
-                                Spacer(Modifier.height(4.dp))
-                                Text(trainer.ifBlank { "Trainer not supplied" }, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                                Spacer(Modifier.height(8.dp))
+                                Text(trainer.ifBlank { "Trainer not supplied" }, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
                                 Text(listOf(row.str("delivery_mode"), row.str("location")).filter { it.isNotBlank() }.joinToString(" · "), color = MaterialTheme.skill.subText, style = MaterialTheme.typography.bodySmall)
                             }
                         }
