@@ -116,7 +116,7 @@ fun composeTeamMessage(
                 body.append("${count(signals.free, "of you is", "of you are")} available. ")
             }
             body.append(
-                bold("Please check the demand board and confirm your availability to me by Wednesday.", style)
+                bold("Please check the demand board and confirm your availability to me by ${nextAvailabilityDeadline(today)}.", style)
             )
             body.append(" ")
         }
@@ -398,6 +398,13 @@ private fun italic(text: String, style: MessageStyle) =
 
 private fun count(n: Int, singular: String, plural: String) =
     if (n == 1) "$n $singular" else "$n $plural"
+
+/** Mon/Tue → "Wednesday", Wed/Thu → "Friday", Fri/Sat/Sun → "Monday". */
+private fun nextAvailabilityDeadline(today: LocalDate): String = when (today.dayOfWeek) {
+    java.time.DayOfWeek.MONDAY, java.time.DayOfWeek.TUESDAY -> "Wednesday"
+    java.time.DayOfWeek.WEDNESDAY, java.time.DayOfWeek.THURSDAY -> "Friday"
+    else -> "Monday"
+}
 
 /**
  * "11 August to 17 August" — written out, because the house style forbids

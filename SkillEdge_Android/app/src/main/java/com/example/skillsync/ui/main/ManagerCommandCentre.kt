@@ -153,7 +153,12 @@ fun ManagerCommandCentre(
         )
 
         AnimatedVisibility(visible = showNotifications) {
-            NotificationCenter(actions = actions, events = recentNotifications)
+            NotificationCenter(
+                actions = actions,
+                events = recentNotifications,
+                onTrainerTap = onTrainerClick,
+                onDemandTap = onOpenDemand,
+            )
         }
 
         // ── 2 · What is on fire? ────────────────────────────────────────────
