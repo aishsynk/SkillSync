@@ -186,6 +186,12 @@ interface SkillEdgeApi {
         @Path("id") id: String,
         @Query("manager") manager: String,
     ): Map<String, Any>
+
+    @GET("api/v2/hr/monthly-report")
+    suspend fun getHrMonthlyReport(
+        @Query("manager") manager: String,
+        @Query("month") month: String,
+    ): Map<String, Any>
 }
 
 data class DemandCourseContext(

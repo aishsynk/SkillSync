@@ -3105,6 +3105,34 @@ def trainer_360():
         peers    = (f_peers.result() or []) if f_peers else []
         fbdet_raw = [r for r in (f_fbdet.result() or []) if isinstance(r, dict)]
 
+    # Recording compliance — check the last 5 completed assignments.
+    # recordingDetails (278) takes AssignmentId; a non-empty response means a
+    # recording was submitted. Bounded to 5 to avoid multiplying RMS calls.
+    past_assigns = sorted(
+        [a for a in assigns if _engagement_state(a, today) == "past"],
+        key=lambda a: a.get("EndDate", ""),
+        reverse=True,
+    )[:5]
+    recording_compliance = {}
+    if past_assigns:
+        with ThreadPoolExecutor(max_workers=5) as rec_pool:
+            rec_results = list(rec_pool.map(
+                lambda a: (
+                    str(a.get("AssignmentId", "") or ""),
+                    _rms("recordingDetails", {"AssignmentId": str(a.get("AssignmentId", "") or "")}),
+                ),
+                past_assigns,
+            ))
+        for aid, raw in rec_results:
+            if aid:
+                rows = [r for r in (raw or []) if isinstance(r, dict)]
+                recording_compliance[aid] = {
+                    "submitted": len(rows) > 0,
+                    "count": len(rows),
+                    "urls": [str(r.get("RecordingURL", r.get("Url", r.get("url", ""))) or "").strip()
+                             for r in rows if r.get("RecordingURL") or r.get("Url") or r.get("url")],
+                }
+
     emp_code = certs.get("emp_code", "")
     # Negative-feedback detail keys off employee_id, not email.
     neg_detail = (_rms("trainerNegFeedback", {"employee_id": emp_code}) or []) if emp_code else []
@@ -3131,18 +3159,23 @@ def trainer_360():
     delivery = []
     for a in assigns:
         st, en = _parse_date(a.get("StarDate", "")), _parse_date(a.get("EndDate", ""))
+        aid = str(a.get("AssignmentId", "") or "")
+        rec = recording_compliance.get(aid)
         delivery.append({
             "course":         str(a.get("Course", "") or "").strip(),
             "vendor":         str(a.get("Vendor", "") or "").strip(),
             "mode":           str(a.get("Mode", "") or "").strip(),
             "location":       str(a.get("Location", "") or "").strip(),
             "participants":   a.get("NoOfParticipants", 0),
-            "assignment_id":  str(a.get("AssignmentId", "") or ""),
+            "assignment_id":  aid,
             "start_at":       _iso(st),
             "end_at":         _iso(en),
             "start_time":     str(a.get("StartTime", "") or ""),
             "end_time":       str(a.get("EndTime", "") or ""),
             "state":          _engagement_state(a, today),
+            # None = not checked (current/upcoming); True/False = recording submitted or missing
+            "recording_submitted": rec["submitted"] if rec is not None else None,
+            "recording_count":     rec["count"]     if rec is not None else None,
         })
     delivery.sort(key=lambda d: d["start_at"] or "", reverse=True)
 
@@ -5762,6 +5795,191 @@ def get_action_audit(action_id):
 @app.errorhandler(404)
 def not_found(error):
     return error_response("NOT_FOUND", "Not found", 404)
+
+
+@app.route('/api/v2/hr/monthly-report', methods=['GET'])
+def hr_monthly_report():
+    """
+    Monthly performance snapshot for every reportee, structured for HR review.
+
+    Runs one full data fetch per reportee in parallel (utilisation, delivery
+    history, skills/Qubits, quality signals, certifications) and assembles a
+    month-scoped summary the manager can share or present.
+
+    Query params:
+      manager=email        the signed-in manager
+      month=YYYY-MM        target month (defaults to current month)
+    """
+    manager_email = request.args.get('manager', '').strip().lower()
+    month_str     = request.args.get('month', '').strip()
+    session, error = _v2_manager_session(manager_email)
+    if error:
+        return error
+
+    today = datetime.utcnow().date()
+    if month_str:
+        try:
+            month_start = datetime.strptime(month_str, '%Y-%m').date()
+        except ValueError:
+            return error_response("INVALID_MONTH", "month must be YYYY-MM", 400)
+    else:
+        month_start = today.replace(day=1)
+
+    if month_start.month == 12:
+        month_end = date(month_start.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        month_end = date(month_start.year, month_start.month + 1, 1) - timedelta(days=1)
+
+    month_label        = month_start.strftime('%B %Y')       # "July 2026"
+    target_month_label = month_start.strftime('%b %Y')       # "Jul 2026" — matches _util_series format
+    month_start_iso    = _iso(month_start)
+    month_end_iso      = _iso(month_end)
+
+    reportees_raw = _rms("reportees", {"email": manager_email}) or []
+    targets = [
+        {
+            "email":       str(r.get("OffEmail", "")).strip().lower(),
+            "name":        _re.sub(r"\s+", " ", str(r.get("TrainerName", ""))).strip(),
+            "designation": str(r.get("Designation", "")).strip(),
+            "is_direct":   str(r.get("IsdirectReportee", "")).strip().lower() == "yes",
+            "trainer_plus": str(r.get("TrainerPlus", "")).strip().lower() == "yes",
+            "emp_id":      str(r.get("EmpId", "")).strip(),
+        }
+        for r in (reportees_raw if isinstance(reportees_raw, list) else [])
+        if isinstance(r, dict) and str(r.get("OffEmail", "")).strip()
+    ]
+
+    def _num(v):
+        try:
+            return int(v or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _snap(t):
+        email = t["email"]
+        if not email:
+            return None
+
+        # 1. Utilisation
+        u_row  = _util_row(email)
+        series = _util_series(u_row)
+        month_util = next(
+            (m["utilization"] for m in series if m.get("month") == target_month_label), None
+        )
+        util_3m = _avg_util(series) if series else None
+
+        # 2. Assignments for the target month
+        assign_raw = _rms("prevUpcoming", {
+            "Startdate": month_start_iso,
+            "Enddate":   month_end_iso,
+            "Email":     email,
+        }) or []
+        month_assignments = []
+        for a in (assign_raw if isinstance(assign_raw, list) else []):
+            if not isinstance(a, dict):
+                continue
+            st = _parse_date(a.get("StarDate", ""))
+            en = _parse_date(a.get("EndDate", ""))
+            if st and en and st <= month_end and en >= month_start:
+                month_assignments.append({
+                    "course":       str(a.get("Course", "") or "").strip(),
+                    "vendor":       str(a.get("Vendor", "") or "").strip(),
+                    "mode":         str(a.get("Mode", "") or "").strip(),
+                    "location":     str(a.get("Location", "") or "").strip(),
+                    "participants": _num(a.get("NoOfParticipants")),
+                    "assignment_id": str(a.get("AssignmentId", "") or ""),
+                    "start_at":     _iso(st),
+                    "end_at":       _iso(en),
+                })
+
+        # 3. Skills / Qubits
+        skills        = _skills(email)
+        approved      = [s for s in skills if s["approved"]]
+        avg_qubits    = round(sum(s["qubits_score"] for s in skills) / len(skills)) if skills else 0
+        top_courses   = sorted(skills, key=lambda s: -s["qubits_score"])[:5]
+
+        # 4. Quality signals
+        neg_rows = _rms("negFeedbackCount", {"email": email}) or []
+        hr_rows  = _rms("hrIncident",       {"email": email}) or []
+        neg_total = sum(_num(r.get("Total"))            for r in (neg_rows if isinstance(neg_rows, list) else []) if isinstance(r, dict))
+        hr_pos    = sum(_num(r.get("Positive Count"))   for r in (hr_rows  if isinstance(hr_rows,  list) else []) if isinstance(r, dict))
+        hr_neg    = sum(_num(r.get("Negative Count"))   for r in (hr_rows  if isinstance(hr_rows,  list) else []) if isinstance(r, dict))
+
+        # 5. Certifications
+        certs     = _certifications(email)
+        cert_intel = _cert_intelligence(skills, [], certs["held"], exam_policy=_exam_policy())
+
+        # 6. Composite HR score (0-100) — utility, quality, capability
+        score_parts = []
+        if month_util is not None:
+            u = month_util
+            # Target band 70-85; penalise linearly outside it
+            u_score = 100.0 if 70 <= u <= 85 else max(0.0, 100 - abs(u - 77.5) * 1.5)
+            score_parts.append(u_score)
+        if avg_qubits > 0:
+            score_parts.append(float(min(100, avg_qubits)))
+        quality_score = max(0.0, 100.0 - neg_total * 15 - hr_neg * 20)
+        score_parts.append(quality_score)
+        hr_score = round(sum(score_parts) / len(score_parts)) if score_parts else None
+
+        return {
+            "email":        email,
+            "name":         t["name"],
+            "designation":  t["designation"],
+            "is_direct":    t["is_direct"],
+            "trainer_plus": t["trainer_plus"],
+            "emp_id":       t["emp_id"],
+            "utilization": {
+                "month":    month_util,
+                "avg_3m":   util_3m,
+                "status":   _utilization_status(month_util) if month_util is not None else "unknown",
+            },
+            "delivery": {
+                "batches":             len(month_assignments),
+                "total_participants":  sum(a["participants"] for a in month_assignments),
+                "international":       sum(1 for a in month_assignments
+                                          if "international" in a.get("mode", "").lower()),
+                "assignments":         month_assignments,
+            },
+            "capability": {
+                "total_courses":   len(skills),
+                "approved_courses": len(approved),
+                "avg_qubits":      avg_qubits,
+                "top_courses":     top_courses,
+            },
+            "quality": {
+                "negative_feedback": neg_total,
+                "hr_positive":       hr_pos,
+                "hr_negative":       hr_neg,
+            },
+            "certifications": {
+                "held":         len(cert_intel["held"]),
+                "gap_count":    cert_intel["gap_count"],
+                "accreditations": certs["count"],
+                "coverage_pct": cert_intel["coverage_pct"],
+            },
+            "hr_score": hr_score,
+        }
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        snapshots = list(pool.map(_snap, targets))
+
+    out = [s for s in snapshots if s is not None]
+    out.sort(key=lambda r: -(r.get("hr_score") or 0))
+
+    delivered_utils = [r["utilization"]["month"] for r in out if r["utilization"]["month"] is not None]
+    return jsonify({
+        "month":       month_label,
+        "month_key":   month_start_iso[:7],
+        "generated_at": datetime.utcnow().isoformat(),
+        "team_summary": {
+            "reportee_count":            len(out),
+            "avg_utilization":           round(sum(delivered_utils) / len(delivered_utils)) if delivered_utils else None,
+            "total_batches_delivered":   sum(r["delivery"]["batches"] for r in out),
+            "total_participants_trained": sum(r["delivery"]["total_participants"] for r in out),
+        },
+        "reportees": out,
+    }), 200
 
 
 @app.errorhandler(500)

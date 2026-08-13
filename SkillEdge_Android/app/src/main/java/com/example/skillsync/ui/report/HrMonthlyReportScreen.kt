@@ -1,0 +1,392 @@
+package com.example.skillsync.ui.report
+
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.skillsync.R
+import com.example.skillsync.theme.Radii
+import com.example.skillsync.theme.SkillCard
+import com.example.skillsync.theme.SkillColors
+import com.example.skillsync.theme.Space
+import com.example.skillsync.theme.ToneChip
+import com.example.skillsync.theme.glassSurface
+import com.example.skillsync.theme.pressable
+import com.example.skillsync.theme.skill
+import com.example.skillsync.ui.components.LocalNotify
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HrMonthlyReportScreen(
+    managerEmail: String,
+    onBack: () -> Unit,
+    vm: HrMonthlyReportViewModel = viewModel(),
+) {
+    val sk = MaterialTheme.skill
+    val context = LocalContext.current
+    val notify = LocalNotify.current
+
+    LaunchedEffect(managerEmail) { vm.init(managerEmail) }
+
+    val state by vm.state.collectAsState()
+    val displayMonth by vm.displayMonth.collectAsState()
+    val canNext by remember { derivedStateOf { vm.canGoNext() } }
+
+    Scaffold(
+        containerColor = sk.pageBg,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("HR Monthly Report", fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(displayMonth, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(painterResource(R.drawable.ic_back), "Back", tint = Color.White)
+                    }
+                },
+                actions = {
+                    if (state is HrReportState.Success) {
+                        IconButton(onClick = { shareReport(context, (state as HrReportState.Success).data) }) {
+                            Icon(painterResource(R.drawable.ic_share), "Share", tint = Color.White)
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = sk.heroBg),
+            )
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+        ) {
+            // Month navigation bar
+            MonthNavBar(
+                displayMonth = displayMonth,
+                canNext = canNext,
+                onPrev = { vm.previousMonth() },
+                onNext = { vm.nextMonth() },
+                sk = sk,
+            )
+
+            when (val s = state) {
+                is HrReportState.Loading -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = sk.brand)
+                    }
+                }
+
+                is HrReportState.Error -> {
+                    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                        Text(s.message, color = sk.warn, textAlign = TextAlign.Center)
+                    }
+                }
+
+                is HrReportState.Success -> {
+                    val data = s.data
+                    LazyColumn(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        item { TeamSummaryCard(data.teamSummary, sk) }
+                        item {
+                            Text(
+                                "Reportees (${data.reportees.size})",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = sk.bodyText,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+                            )
+                        }
+                        items(data.reportees) { rep ->
+                            ReporteeSnapshotCard(
+                                rep = rep,
+                                sk = sk,
+                                onCopy = {
+                                    val text = buildReporteeText(rep, data.month)
+                                    copyToClipboard(context, text)
+                                    notify.success("Copied ${rep.name.substringBefore(" ")}'s summary")
+                                },
+                            )
+                        }
+                        item { Spacer(Modifier.height(24.dp)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthNavBar(
+    displayMonth: String,
+    canNext: Boolean,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    sk: SkillColors,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(sk.heroBg.copy(alpha = 0.6f))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onPrev) {
+            Icon(painterResource(R.drawable.ic_back), "Previous month", tint = Color.White)
+        }
+        Text(
+            displayMonth,
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 16.sp,
+        )
+        IconButton(onClick = onNext, enabled = canNext) {
+            Icon(
+                painterResource(R.drawable.ic_forward),
+                "Next month",
+                tint = if (canNext) Color.White else Color.White.copy(alpha = 0.3f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TeamSummaryCard(ts: TeamSummaryData, sk: SkillColors) {
+    SkillCard(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Team Overview", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 15.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SummaryMetric("Headcount", ts.headcount.toString(), sk, Modifier.weight(1f))
+                SummaryMetric("Avg Util", "${ts.avgUtilisation.toInt()}%", sk, Modifier.weight(1f))
+                SummaryMetric("Avg HR Score", "${ts.avgHrScore.toInt()}/100", sk, Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SummaryMetric("Batches", ts.totalBatches.toString(), sk, Modifier.weight(1f))
+                SummaryMetric(
+                    "Neg Feedback",
+                    ts.totalNegativeFeedback.toString(),
+                    sk,
+                    Modifier.weight(1f),
+                    if (ts.totalNegativeFeedback > 0) sk.warn else sk.good,
+                )
+                SummaryMetric(
+                    "Cert Gaps",
+                    ts.certGapCount.toString(),
+                    sk,
+                    Modifier.weight(1f),
+                    if (ts.certGapCount > 0) sk.warn else sk.good,
+                )
+            }
+            if (ts.totalPositiveHr > 0 || ts.totalNegativeHr > 0) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SummaryMetric("HR Positive", ts.totalPositiveHr.toString(), sk, Modifier.weight(1f), sk.good)
+                    SummaryMetric("HR Incidents", ts.totalNegativeHr.toString(), sk, Modifier.weight(1f),
+                        if (ts.totalNegativeHr > 0) sk.warn else sk.good)
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryMetric(
+    label: String,
+    value: String,
+    sk: SkillColors,
+    modifier: Modifier = Modifier,
+    valueColor: Color? = null,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(sk.surface1.copy(alpha = 0.5f))
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(value, fontWeight = FontWeight.Bold, color = valueColor ?: sk.bodyText, fontSize = 17.sp)
+        Text(label, color = sk.subText, fontSize = 11.sp, textAlign = TextAlign.Center)
+    }
+}
+
+@Composable
+private fun ReporteeSnapshotCard(
+    rep: ReporteeSnapshot,
+    sk: SkillColors,
+    onCopy: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    SkillCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Header row
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Score badge
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(hrScoreColor(rep.hrScore, sk).copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        rep.hrScore.toString(),
+                        fontWeight = FontWeight.Bold,
+                        color = hrScoreColor(rep.hrScore, sk),
+                        fontSize = 14.sp,
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(rep.name.ifBlank { rep.email }, fontWeight = FontWeight.SemiBold, color = sk.bodyText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${rep.utilisationPct.toInt()}% util · ${rep.batchCount} batches", color = sk.subText, fontSize = 12.sp)
+                }
+                // Flag chip
+                rep.flag?.let {
+                    ToneChip(it, sk.warn)
+                    Spacer(Modifier.width(6.dp))
+                }
+                IconButton(onClick = onCopy, modifier = Modifier.size(32.dp)) {
+                    Icon(painterResource(R.drawable.ic_copy), "Copy summary", tint = sk.subText, modifier = Modifier.size(18.dp))
+                }
+            }
+
+            // Inline KPI row (always visible)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (rep.avgQubits > 0) {
+                    MiniChip("Qubits ${rep.avgQubits.toInt()}", sk.brand)
+                }
+                if (rep.hrPositiveCount > 0) {
+                    MiniChip("+${rep.hrPositiveCount} HR", sk.good)
+                }
+                if (rep.hrNegativeCount > 0) {
+                    MiniChip("${rep.hrNegativeCount} incident${if (rep.hrNegativeCount > 1) "s" else ""}", sk.warn)
+                }
+                if (rep.negativeFeedbackCount > 0) {
+                    MiniChip("${rep.negativeFeedbackCount} neg feedback", sk.warn)
+                }
+                if (rep.certsMissing > 0) {
+                    MiniChip("${rep.certsMissing} cert gap${if (rep.certsMissing > 1) "s" else ""}", sk.warn)
+                }
+            }
+
+            // Expanded details
+            AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    HorizontalDivider(color = sk.track)
+                    if (rep.topCourses.isNotEmpty()) {
+                        Text("Top courses: ${rep.topCourses.joinToString(" · ")}", color = sk.subText, fontSize = 12.sp)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DetailCell("Certs held", rep.certsHeld.toString(), sk, Modifier.weight(1f))
+                        DetailCell("Cert gaps", rep.certsMissing.toString(), sk, Modifier.weight(1f),
+                            if (rep.certsMissing > 0) sk.warn else null)
+                        DetailCell("Avg Qubits", if (rep.avgQubits > 0) rep.avgQubits.toInt().toString() else "—", sk, Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniChip(label: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(color.copy(alpha = 0.15f))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) {
+        Text(label, color = color, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun DetailCell(label: String, value: String, sk: SkillColors, modifier: Modifier, valueColor: Color? = null) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(sk.surface1.copy(alpha = 0.4f))
+            .padding(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(value, fontWeight = FontWeight.SemiBold, color = valueColor ?: sk.bodyText, fontSize = 15.sp)
+        Text(label, color = sk.subText, fontSize = 10.sp, textAlign = TextAlign.Center)
+    }
+}
+
+private fun hrScoreColor(score: Int, sk: SkillColors): Color = when {
+    score >= 80 -> sk.good
+    score >= 60 -> sk.warn
+    else -> sk.crit
+}
+
+private fun buildReporteeText(rep: ReporteeSnapshot, month: String): String {
+    val sb = StringBuilder()
+    sb.appendLine("HR Report — ${rep.name} — $month")
+    sb.appendLine("HR Score: ${rep.hrScore}/100")
+    sb.appendLine("Utilisation: ${rep.utilisationPct.toInt()}%")
+    sb.appendLine("Batches: ${rep.batchCount}")
+    if (rep.avgQubits > 0) sb.appendLine("Avg Qubits Score: ${rep.avgQubits.toInt()}")
+    if (rep.hrPositiveCount > 0) sb.appendLine("HR Recognition: ${rep.hrPositiveCount}")
+    if (rep.hrNegativeCount > 0) sb.appendLine("HR Incidents: ${rep.hrNegativeCount}")
+    if (rep.negativeFeedbackCount > 0) sb.appendLine("Negative Feedback: ${rep.negativeFeedbackCount}")
+    if (rep.certsMissing > 0) sb.appendLine("Certification Gaps: ${rep.certsMissing}")
+    if (rep.certsHeld > 0) sb.appendLine("Certifications Held: ${rep.certsHeld}")
+    if (rep.topCourses.isNotEmpty()) sb.appendLine("Top Courses: ${rep.topCourses.joinToString(", ")}")
+    rep.flag?.let { sb.appendLine("Flag: $it") }
+    return sb.toString().trim()
+}
+
+private fun shareReport(context: Context, data: HrReportData) {
+    val sb = StringBuilder()
+    sb.appendLine("HR Monthly Report — ${data.month}")
+    sb.appendLine("Team: ${data.teamSummary.headcount} reportees, Avg HR Score ${data.teamSummary.avgHrScore.toInt()}/100")
+    sb.appendLine()
+    data.reportees.forEach { rep ->
+        sb.appendLine("${rep.name}: ${rep.hrScore}/100 | ${rep.utilisationPct.toInt()}% util | ${rep.batchCount} batches")
+    }
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, sb.toString().trim())
+        putExtra(Intent.EXTRA_SUBJECT, "HR Monthly Report ${data.month}")
+    }
+    context.startActivity(Intent.createChooser(intent, "Share HR Report"))
+}
+
+private fun copyToClipboard(context: Context, text: String) {
+    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    cm.setPrimaryClip(ClipData.newPlainText("HR Report", text))
+}

@@ -82,6 +82,7 @@ fun ManagerCommandCentre(
     onOpenNotifications: () -> Unit,
     onOpenDemand: () -> Unit,
     onOpenWeeklyReport: () -> Unit = {},
+    onOpenHrReport: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
     /**
      * Real calendar availability per trainer email. Named explicitly because
@@ -222,6 +223,9 @@ fun ManagerCommandCentre(
 
         // ── 5c · The weekly message ─────────────────────────────────────────
         WeeklyReportCta(onOpenWeeklyReport)
+
+        // ── 5c2 · HR monthly report ─────────────────────────────────────────
+        HrReportCta(onOpenHrReport)
 
         // ── 5d · The agent ──────────────────────────────────────────────────
         AgentCta(onOpenCopilot)
@@ -771,6 +775,34 @@ private fun WeeklyReportCta(onOpen: () -> Unit) {
             )
             Text(
                 "One message for the team, one for each reportee. Ready to copy.",
+                style = MaterialTheme.typography.bodySmall,
+                color = sk.subText,
+            )
+        }
+        Text("Open", style = MaterialTheme.typography.labelMedium, color = sk.sky)
+    }
+}
+
+/** Route into the HR monthly performance report. */
+@Composable
+private fun HrReportCta(onOpen: () -> Unit) {
+    val sk = MaterialTheme.skill
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .glassSurface(RoundedCornerShape(Radii.card))
+            .pressable(onOpen)
+            .padding(Space.lg),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                "HR Monthly Report",
+                style = MaterialTheme.typography.titleMedium,
+                color = sk.bodyText,
+            )
+            Text(
+                "Qubits scores, utilisation, feedback and cert gaps — per reportee.",
                 style = MaterialTheme.typography.bodySmall,
                 color = sk.subText,
             )

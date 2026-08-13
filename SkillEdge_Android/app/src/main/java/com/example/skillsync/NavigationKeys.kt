@@ -20,6 +20,9 @@ import kotlinx.serialization.Serializable
 /** Weekly copy-and-send messages: one for the team, one per reportee. */
 @Serializable data class WeeklyReport(val email: String) : NavKey
 
+/** Monthly performance snapshot for HR — one card per reportee. */
+@Serializable data class HrReport(val email: String) : NavKey
+
 object HomeTab {
     const val DASHBOARD = "today"
     const val TEAM = "people"

@@ -1,4 +1,21 @@
 
+## 2026-08-13T14:30:00+05:30 - HR Monthly Report, Trainer360 recording compliance, drawables (v3.19.0)
+
+- **Tool Used**: Claude Code (Kotlin/Compose + Flask backend)
+- **Files Modified**: `HrMonthlyReportViewModel.kt` (new), `HrMonthlyReportScreen.kt` (new), `NavigationKeys.kt`, `Navigation.kt`, `MainScreen.kt`, `ManagerCommandCentre.kt`, `Trainer360Screen.kt`, `SkillEdgeApi.kt`, `backend.py`, `ic_forward.xml` (new), `ic_share.xml` (new), `ic_copy.xml` (new), `build.gradle.kts`
+- **Work Completed**:
+  1. **Backend `/api/v2/hr/monthly-report`**: New endpoint accepting `manager=email&month=YYYY-MM`. Fetches utilisation history, mock scores (QubitsScore), feedback counts, HR incidents (key 59), and certification state per reportee in parallel (ThreadPoolExecutor ×8). Computes an `hr_score` (0–100) per person and a `team_summary` block. Returns reportees sorted by score descending.
+  2. **Backend trainer-360 recording compliance**: After main parallel fetch, fetches `recordingDetails` (key 278) for up to 5 past assignments (ThreadPoolExecutor ×5). Returns `recording_submitted` (bool) and `recording_count` (int) on each past delivery row.
+  3. **Android HR Monthly Report screen**: `HrMonthlyReportViewModel` — month navigation (prev/next, blocks future), `Loading/Success/Error` state, full JSON parse of `team_summary` and per-`reportee` snapshots. `HrMonthlyReportScreen` — month nav bar (← YYYY-MM →), team overview card with 6 metrics, expandable reportee cards with HR score badge (green/amber/red), util, batch count, Qubits chip, HR positive/negative chips, negative feedback chip, cert gap chip, top courses, copy-to-clipboard per reportee, share-sheet for full report.
+  4. **Trainer360 recording compliance badge**: `AssignmentRow` now shows a "Rec ✓" (green) or "No rec" (amber) chip on past assignments when `recording_submitted` is present in the delivery row.
+  5. **Navigation wiring**: `HrReport` NavKey added, back handler returns to `HomeTab.TEAM`, `HrMonthlyReportScreen` case added in `Navigation.kt`, `onOpenHrReport` threaded through `MainScreen → DashboardTab → ManagerCommandCentre`.
+  6. **HR Monthly Report CTA**: Added "HR Monthly Report" card in `ManagerCommandCentre` between Weekly Report and Agent CTAs.
+  7. **New drawables**: `ic_forward.xml` (right-arrow), `ic_share.xml` (share/social), `ic_copy.xml` (copy layers).
+  8. **`SkillEdgeApi.kt`**: `getHrMonthlyReport(manager, month)` GET endpoint added.
+- **Version**: `versionCode = 102`, `versionName = "3.19.0"`
+- **Current Status**: `assembleRelease` BUILD SUCCESSFUL. Ready for CI signed APK.
+- **Next Actions**: Signed APK build via CI, GitHub release v3.19.0.
+
 ## 2026-08-13T12:00:00+05:30 - Message specificity, AI future trends, notification fixes (v3.18.0)
 
 - **Tool Used**: Claude Code (Kotlin/Compose)

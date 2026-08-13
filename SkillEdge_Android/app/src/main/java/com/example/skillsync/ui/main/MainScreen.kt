@@ -58,6 +58,7 @@ fun MainScreen(
     onTrainerClick: (email: String, name: String) -> Unit,
     onBatchClick: (demandId: String) -> Unit = {},
     onOpenWeeklyReport: () -> Unit = {},
+    onOpenHrReport: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -422,6 +423,7 @@ fun MainScreen(
                                         onOpenNotifications = { showNotificationsSheet = true },
                                         onOpenDemand = { onTabChange(HomeTab.DEMAND) },
                                         onOpenWeeklyReport = onOpenWeeklyReport,
+                                        onOpenHrReport = onOpenHrReport,
                                         onOpenCopilot = onOpenCopilot,
                                         calendarReadiness = teamReadiness,
                                         fromCache = s.fromCache,
@@ -634,6 +636,7 @@ internal fun DashboardTab(
     onOpenNotifications: () -> Unit = {},
     onOpenDemand: () -> Unit = {},
     onOpenWeeklyReport: () -> Unit = {},
+    onOpenHrReport: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
     calendarReadiness: Map<String, Map<String, Any>> = emptyMap(),
     /** Disk-write time of the payload, so the hero can state a real "as of". */
@@ -713,6 +716,7 @@ internal fun DashboardTab(
                     onOpenNotifications = onOpenNotifications,
                     onOpenDemand = onOpenDemand,
                     onOpenWeeklyReport = onOpenWeeklyReport,
+                    onOpenHrReport = onOpenHrReport,
                     onOpenCopilot = onOpenCopilot,
                     calendarReadiness = calendarReadiness,
                 )
