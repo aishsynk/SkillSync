@@ -1260,7 +1260,7 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
         }
         details.take(5).forEach { d ->
             Spacer(Modifier.height(8.dp))
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     d.str("feedback_question").ifBlank { "Feedback" },
                     style = MaterialTheme.typography.bodySmall, color = sk.bodyText,
@@ -1270,6 +1270,16 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
                         .filter { it.isNotBlank() }.joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall, color = sk.subText,
                 )
+                val negDetail = d.str("neg_detail")
+                if (negDetail.isNotBlank()) {
+                    Text(
+                        "“$negDetail”",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText.copy(alpha = 0.8f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
 

@@ -104,8 +104,37 @@ fun HrMonthlyReportScreen(
                 }
 
                 is HrReportState.Error -> {
-                    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                        Text(s.message, color = sk.warn, textAlign = TextAlign.Center)
+                    val isSessionError = s.message.contains("401") ||
+                        s.message.contains("session", ignoreCase = true) ||
+                        s.message.contains("unauthorized", ignoreCase = true) ||
+                        s.message.contains("expired", ignoreCase = true)
+                    Column(
+                        Modifier.fillMaxSize().padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text(
+                            if (isSessionError) "Session expired" else s.message,
+                            color = sk.warn,
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        if (isSessionError) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Please sign in again to continue.",
+                                color = sk.subText,
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Spacer(Modifier.height(20.dp))
+                            Button(
+                                onClick = { com.example.skillsync.data.SessionManager.clearSession() },
+                                colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
+                            ) {
+                                Text("Sign in again")
+                            }
+                        }
                     }
                 }
 

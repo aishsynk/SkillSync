@@ -226,6 +226,9 @@ fun ManagerCommandCentre(
         // a disclosure is a roster nobody reads.
         TopPerformersPanel(ops, capTrainers, onTrainerClick)
 
+        // ── 5b2 · Certification health ──────────────────────────────────────
+        CertificationBand(coverage = coverage, gaps = gaps, loading = capabilityLoading)
+
         // ── 5c · The weekly message ─────────────────────────────────────────
         WeeklyReportCta(onOpenWeeklyReport)
 
@@ -841,6 +844,78 @@ private fun AgentCta(onOpen: () -> Unit) {
             )
         }
         Text("Open", style = MaterialTheme.typography.labelMedium, color = sk.cyan)
+    }
+}
+
+// ── 5b2 · Certification band ────────────────────────────────────────────────
+
+/**
+ * Always-visible cert health strip — coverage bar + gap count.
+ * The full donut/bar chart lives in ExploreSection for those who want the detail.
+ */
+@Composable
+private fun CertificationBand(coverage: Int?, gaps: Int, loading: Boolean) {
+    val sk = MaterialTheme.skill
+    if (coverage == null && gaps == 0 && !loading) return
+
+    SectionHeading(
+        "Certification",
+        when {
+            loading -> "Refreshing capability data"
+            gaps == 0 -> "No open gaps — fully covered"
+            else -> "$gaps ${if (gaps == 1) "gap requires" else "gaps require"} follow-up"
+        },
+    )
+    SkillCard(Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+            if (loading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = sk.brand, trackColor = sk.track)
+            } else {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        coverage?.let { "$it% covered" } ?: "Coverage unknown",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = when {
+                            coverage == null -> sk.subText
+                            coverage >= 80 -> sk.good
+                            coverage >= 60 -> sk.warn
+                            else -> sk.crit
+                        },
+                    )
+                    Text(
+                        if (gaps == 0) "No open gaps" else "$gaps ${if (gaps == 1) "gap" else "gaps"} open",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (gaps == 0) sk.good else sk.warn,
+                    )
+                }
+                if (coverage != null) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(sk.track),
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth(coverage / 100f)
+                                .fillMaxHeight()
+                                .background(
+                                    when {
+                                        coverage >= 80 -> sk.good
+                                        coverage >= 60 -> sk.warn
+                                        else -> sk.crit
+                                    },
+                                ),
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
