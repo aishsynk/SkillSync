@@ -303,18 +303,29 @@ class MainScreenViewModel(
     private val _notification = kotlinx.coroutines.flow.MutableSharedFlow<com.example.skillsync.util.NotifyEvent>()
     val notification = _notification.asSharedFlow()
 
+    /** Recent notification events shown in the in-app notification center. */
+    private val _recentNotifications = MutableStateFlow<List<com.example.skillsync.util.NotifyEvent>>(emptyList())
+    val recentNotifications: StateFlow<List<com.example.skillsync.util.NotifyEvent>> = _recentNotifications
+
     private var pollingJob: kotlinx.coroutines.Job? = null
 
     /**
-     * Foreground fast-path: while a screen is open, checks every 60s instead
-     * of waiting for the 15-min WorkManager floor. Shares
-     * [com.example.skillsync.util.NotificationStateStore]'s seen-set with
-     * [com.example.skillsync.util.SkillSyncNotificationWorker], so an event is
-     * only ever reported once regardless of which path notices it first.
+     * Foreground fast-path: checks immediately on start (after a short settle),
+     * then every 2 minutes. Shares [com.example.skillsync.util.NotificationStateStore]'s
+     * seen-set with [com.example.skillsync.util.SkillSyncNotificationWorker], so an
+     * event is only ever reported once regardless of which path notices it first.
      */
     fun startPolling(email: String, context: android.content.Context) {
         if (pollingJob?.isActive == true) return
         pollingJob = viewModelScope.launch {
+            // First check runs after a short settle so the dashboard has loaded.
+            kotlinx.coroutines.delay(5000)
+            try {
+                com.example.skillsync.data.sync.SyncCoordinator.sync(context)
+                adoptBackgroundSync(email)
+                val fresh = (_uiState.value as? DashboardState.Success)?.intelligenceData
+                if (fresh != null) checkForNotifications(email, fresh)
+            } catch (_: Exception) {}
             while (true) {
                 kotlinx.coroutines.delay(120000)
                 try {
@@ -348,6 +359,8 @@ class MainScreenViewModel(
             store.getSeen(email, engine.BUCKET_DEMAND),
         )
         if (events.isEmpty()) return
+        // Surface events in the in-app notification center (keep newest 20).
+        _recentNotifications.value = (events + _recentNotifications.value).take(20)
         engine.toNotifications(events).forEach { _notification.emit(it) }
         events.groupBy { it.bucket }.forEach { (bucket, group) ->
             store.addSeen(email, bucket, group.map { it.id }.toSet())

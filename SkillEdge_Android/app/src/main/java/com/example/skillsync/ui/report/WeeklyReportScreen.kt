@@ -99,6 +99,11 @@ fun WeeklyReportScreen(
                 utilisation = t.intOrNull("current_utilization"),
                 capacityBucket = t.str("capacity_bucket"),
                 certGaps = cap?.obj("certification")?.int("gap_count") ?: 0,
+                certGapCourses = (cap?.obj("certification")?.get("missing") as? List<*>)
+                    ?.filterIsInstance<Map<*, *>>()
+                    ?.mapNotNull { it["because"]?.toString()?.takeIf { s -> s.isNotBlank() } }
+                    ?.take(3)
+                    ?: emptyList(),
                 feedbackRisk = t.str("feedback_risk"),
                 readiness = cap?.intOrNull("readiness_score"),
                 currentCourse = state?.obj("current_batch")?.str("course_name").orEmpty(),

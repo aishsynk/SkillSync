@@ -1,4 +1,18 @@
 
+## 2026-08-13T12:00:00+05:30 - Message specificity, AI future trends, notification fixes (v3.18.0)
+
+- **Tool Used**: Claude Code (Kotlin/Compose)
+- **Files Modified**: `WeeklyMessage.kt`, `WeeklyReportScreen.kt`, `Agent.kt`, `MainScreenViewModel.kt`, `MainScreen.kt`, `ManagerCommandCentre.kt`, `NotificationCenter.kt`, `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Reportee message cert specificity**: `ReporteeSignals` now carries `certGapCourses: List<String>` populated from `certification.missing[].because` (the course they are teaching without the cert). The cert gap message now names the specific courses — e.g. "You are currently delivering Azure Fundamentals and AZ-305 without the matching certification on record." instead of a generic "you have gaps".
+  2. **Date removal from messages**: Removed `"for the week of 11 August to 17 August"` from both the team message (`composeTeamMessage`) and individual reportee messages (`composeReporteeMessage`). Both now say "this week" only.
+  3. **AI future trends intent**: Added `FUTURE_TRENDS` intent to `Agent.kt` with classify patterns (`future`, `forecast`, `predict`, `outlook`, `next week`, `ahead`, `trend`), a `futureOutlook()` handler that derives utilisation trend direction, capacity gap (demand vs bench), cert gap risk, and flag risk from existing `TeamFact` data, and a "What does next week look like?" starter question. `unknown()` description updated to mention future trends.
+  4. **Notification center — real events**: `NotificationCenter` now accepts `events: List<NotifyEvent>` and renders them at top (colour-coded by bucket) followed by manager action queue items. Badge count on the bell includes both.
+  5. **First-poll delay fix**: `startPolling()` now runs an immediate check after 5 s (was waiting the full 2 min before even the first check). Loop continues at 2-min intervals.
+  6. **In-app notification store**: `MainScreenViewModel` now exposes `recentNotifications: StateFlow<List<NotifyEvent>>` (newest 20 kept); events flow to the notification center UI as they arrive.
+- **Current Status**: `assembleDebug` BUILD SUCCESSFUL. Ready for release.
+- **Next Actions**: Signed APK build via CI, GitHub release v3.18.0.
+
 ### 2026-08-12 23:38 UTC (AI Session)
 - **Tools used:** run_command, view_file, replace_file_content
 - **Files modified:** implementation_plan.md, ApiCredential.kt, ApiModels.kt
@@ -2419,7 +2433,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Current Status**: Android app successfully compiled. 401s are now handled gracefully.
 - **Next Actions**: 
   1. Wait for RMS API team responses on the blocker questions.
-  2. Plan a beta release to gather manager feedback on the Delivery Pulse calendar.
+  2. Plan a beta release to gather manager feedback on the Delivery Pulse calendar.
 
 ### Phase 7: People Page Redesign & Messaging Format (v3.16.4)
 - **Timestamp**: 2026-08-12
@@ -2434,7 +2448,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   - Dynamically grouped the trainer roster under headers based on their status and severity.
   - Ensured that manager notes sent via the Weekly Message composer are sanitized, trimmed, and sentence-cased correctly to match the professional house style.
 - **Current Status**: Kotlin code verified. Android API 36 environment issues remain (core-for-system-modules.jar compatibility).
-
+
 
 ### Final Delivery Check (v3.16.4)
 - **Timestamp**: 2026-08-12T21:55:00+05:30
@@ -2448,7 +2462,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   - Deployed SkillEdge-v3.16.4.apk via gh release create v3.16.4.
 - **Current Status**: All tasks for Phase 7 (People Page Redesign & Messaging Format) are fully implemented, compiled, deployed, and published to GitHub Releases. The end-to-end delivery process is successfully concluded for v3.16.4.
 - **Next Actions**: Proceed to next feature or await feedback from the newly designed People tab.
-
+
 
 ### Phase 8: Demand Intelligence UI & Delivery Operations Calendar Redesign
 - **Timestamp**: 2026-08-13T04:36:29+05:30
@@ -2465,7 +2479,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   - Built left-aligned date nodes and connecting timeline strokes with semantic color coding (current=aqua, upcoming=sky, completed=gray).
   - Fixed failing unit tests caused by the UI redesign.
 - **Current Status**: Redesign successfully implemented and tested.
-- **Next Actions**: Proceed to next user request or feature.
+- **Next Actions**: Proceed to next user request or feature.
 
 ### Phase 9: UI Polish and Notification Deep-linking Verification
 - **Timestamp**: 2026-08-13T05:13:01.925570
@@ -2478,3 +2492,15 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   - Verified background sync configuration (SkillSyncNotificationWorker) and NotificationEngine delta tracking (allocations, feedback, demand).
 - **Current Status**: All UI polish and background/notification deep-linking functionality is fully working and verified. The Command Centre architecture correctly routes notification intents to the specified entities.
 - **Next Actions**: Await further instructions or user validation.
+
+### Phase 10: Production Release v3.18.0
+- **Timestamp**: 2026-08-13T05:19:42.540882
+- **Agent/Tool Used**: AntiGravity IDE (Gradle, Git, GH CLI)
+- **Files Modified**: pp/build.gradle.kts
+- **Work Completed**:
+  - Increment version to 3.18.0 (versionCode 101).
+  - Generated pp-release.apk and renamed to SkillEdge_v3.18.0.apk.
+  - Committed and pushed all final UI changes (Delivery Operations redesigned with accentGlass) and codebase configurations to the main GitHub branch.
+  - Published GitHub release v3.18.0 containing the APK and detailed release notes.
+- **Current Status**: Build succeeded. Version bumped, committed, and published to GitHub. The Delivery Operations and deep-linking system are fully in production.
+- **Next Actions**: Await new feature requests or bug reports from users post v3.18.0 release.

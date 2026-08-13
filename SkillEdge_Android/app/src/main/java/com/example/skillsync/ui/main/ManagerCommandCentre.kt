@@ -43,6 +43,7 @@ import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.rememberCriticalPulse
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
+import com.example.skillsync.util.NotifyEvent
 
 /**
  * The manager's briefing — the whole of the Today surface.
@@ -73,6 +74,7 @@ fun ManagerCommandCentre(
     ops: List<Map<*, *>>, states: List<Map<*, *>>, batches: List<Map<*, *>>,
     demand: List<Map<*, *>>, capTrainers: List<Map<*, *>>,
     actions: List<Map<String, Any>>,
+    recentNotifications: List<NotifyEvent> = emptyList(),
     fromCache: Boolean, cachedAt: Long,
     onDrill: (Drill) -> Unit,
     onTrainerClick: (String, String) -> Unit,
@@ -142,7 +144,7 @@ fun ManagerCommandCentre(
             deployed = deployed,
             atRisk = atRisk.size,
             unallocated = demand.size,
-            openActions = openActions.size,
+            openActions = openActions.size + recentNotifications.size,
             fromCache = fromCache,
             cachedAt = cachedAt,
             onOpenProfile = onOpenProfile,
@@ -150,7 +152,7 @@ fun ManagerCommandCentre(
         )
 
         AnimatedVisibility(visible = showNotifications) {
-            NotificationCenter(actions = actions)
+            NotificationCenter(actions = actions, events = recentNotifications)
         }
 
         // ── 2 · What is on fire? ────────────────────────────────────────────

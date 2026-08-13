@@ -16,12 +16,15 @@ import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.Surface0
 import com.example.skillsync.theme.skill
+import com.example.skillsync.util.NotifyEvent
 
 @Composable
 fun NotificationCenter(
-    actions: List<Map<String, Any>>
+    actions: List<Map<String, Any>>,
+    events: List<NotifyEvent> = emptyList(),
 ) {
     val sk = MaterialTheme.skill
+    val totalNew = events.size + actions.size
 
     Column(
         modifier = Modifier
@@ -41,7 +44,7 @@ fun NotificationCenter(
                 color = sk.bodyText,
                 modifier = Modifier.weight(1f)
             )
-            if (actions.isNotEmpty()) {
+            if (totalNew > 0) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(Radii.chip))
@@ -49,7 +52,7 @@ fun NotificationCenter(
                         .padding(horizontal = Space.sm, vertical = 2.dp)
                 ) {
                     Text(
-                        text = "${actions.size} new",
+                        text = "$totalNew new",
                         style = MaterialTheme.typography.labelSmall,
                         color = sk.crit
                     )
@@ -57,7 +60,7 @@ fun NotificationCenter(
             }
         }
 
-        if (actions.isEmpty()) {
+        if (events.isEmpty() && actions.isEmpty()) {
             Text(
                 text = "You're all caught up.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -65,10 +68,66 @@ fun NotificationCenter(
             )
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                // Live notification events (new batches, allocations) appear first.
+                events.forEach { event ->
+                    NotifyEventCard(event = event)
+                }
+                // Manager action queue items below.
                 actions.forEach { action ->
                     NotificationCard(action = action)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun NotifyEventCard(event: NotifyEvent) {
+    val sk = MaterialTheme.skill
+    val bucketColor = when (event.bucket) {
+        "demand" -> sk.warn
+        "allocation" -> sk.good
+        else -> sk.brand
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .accentGlass(bucketColor)
+            .padding(Space.md),
+        verticalArrangement = Arrangement.spacedBy(Space.xs)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(bucketColor)
+            )
+            Spacer(modifier = Modifier.width(Space.sm))
+            Text(
+                text = event.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = sk.heroText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "NEW",
+                style = MaterialTheme.typography.labelSmall,
+                color = bucketColor
+            )
+        }
+        if (event.message.isNotBlank()) {
+            Text(
+                text = event.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = sk.subText,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 14.dp)
+            )
         }
     }
 }
@@ -117,7 +176,7 @@ private fun NotificationCard(action: Map<String, Any>) {
                 color = sk.subText,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 14.dp) // align with title
+                modifier = Modifier.padding(start = 14.dp)
             )
         }
     }

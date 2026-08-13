@@ -49,6 +49,8 @@ data class ReporteeSignals(
     val utilisation: Int? = null,
     val capacityBucket: String = "",
     val certGaps: Int = 0,
+    /** The specific courses being taught without the matching certification — names the "which" so the message is actionable. */
+    val certGapCourses: List<String> = emptyList(),
     val feedbackRisk: String = "",
     val readiness: Int? = null,
     val currentCourse: String = "",
@@ -83,12 +85,11 @@ fun composeTeamMessage(
      */
     managerNote: String = "",
 ): String {
-    val week = weekReference(today)
     val body = StringBuilder()
 
     val formattedNote = formatManagerNote(managerNote)
     if (formattedNote.isNotEmpty()) body.append("$formattedNote ")
-    body.append("Here is where we stand for the week of ${week}. ")
+    body.append("Here is where we stand this week. ")
     body.append("We are ${signals.strength} in the team, with ${signals.deployed} deployed and ${signals.free} available. ")
     signals.utilisation?.let { body.append("Team utilisation is at $it percent. ") }
 
@@ -137,13 +138,12 @@ fun composeReporteeMessage(
     /** See [composeTeamMessage]; the manager's own words lead the body. */
     managerNote: String = "",
 ): String {
-    val week = weekReference(today)
     val first = signals.name.trim().substringBefore(" ").ifBlank { "there" }
     val body = StringBuilder()
 
     val formattedNote = formatManagerNote(managerNote)
     if (formattedNote.isNotEmpty()) body.append("$formattedNote ")
-    body.append("Here is a quick summary of your week of ${week}. ")
+    body.append("Here is a quick summary for you this week. ")
 
     // What the manager actually needs to say, in severity order. Only one
     // primary point per message: a note that raises four issues at once reads
@@ -155,10 +155,20 @@ fun composeReporteeMessage(
             body.append(" I would rather we address this early than let it carry into your next batch. ")
         }
         signals.certGaps > 0 -> {
-            body.append("You are teaching courses where the matching certification is not yet on record, and there ")
-            body.append(if (signals.certGaps == 1) "is one gap open. " else "are ${signals.certGaps} gaps open. ")
-            body.append(bold("Please book the certification and share the schedule with me by Friday.", style))
-            body.append(" This is now the main thing standing between you and the accredited work coming in. ")
+            val courses = signals.certGapCourses.takeIf { it.isNotEmpty() }
+            if (courses != null) {
+                val courseNames = when (courses.size) {
+                    1 -> courses[0]
+                    2 -> "${courses[0]} and ${courses[1]}"
+                    else -> courses.dropLast(1).joinToString(", ") + ", and ${courses.last()}"
+                }
+                body.append("You are currently delivering $courseNames without the matching certification on record. ")
+            } else {
+                body.append("You are teaching ${if (signals.certGaps == 1) "a course" else "courses"} where the matching certification is not yet on record. ")
+            }
+            val certWord = if (signals.certGaps == 1) "certification" else "certifications"
+            body.append(bold("Please book the $certWord and share the schedule with me by Friday.", style))
+            body.append(" This is the main thing standing between you and the accredited work coming in. ")
         }
         signals.capacityBucket.equals("Stretched", true) -> {
             body.append("You have carried a heavy load this week")

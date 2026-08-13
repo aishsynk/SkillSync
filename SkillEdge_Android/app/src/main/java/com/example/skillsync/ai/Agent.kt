@@ -24,6 +24,7 @@ enum class Intent {
     DEMAND_COVERAGE,
     CERTIFICATION_GAPS,
     KEY_PERSON_RISK,
+    FUTURE_TRENDS,
     UNKNOWN,
 }
 
@@ -50,6 +51,7 @@ object Agent {
         if (team.totalCertGaps > 0) add("Where are our certification gaps?")
         add("How is the team doing?")
         add("What is our key person risk?")
+        add("What does next week look like?")
         team.flagged.firstOrNull()?.let { add("What should I do about ${it.name}?") }
         team.trainers.firstOrNull()?.let { add("How is ${it.name} doing?") }
     }
@@ -71,6 +73,7 @@ object Agent {
             Intent.DEMAND_COVERAGE -> demandCoverage(team)
             Intent.CERTIFICATION_GAPS -> certificationGaps(team)
             Intent.KEY_PERSON_RISK -> keyPersonRisk(team, weights)
+            Intent.FUTURE_TRENDS -> futureOutlook(team)
             Intent.UNKNOWN -> unknown(question)
         }
     }
@@ -99,6 +102,9 @@ object Agent {
             Intent.KEY_PERSON_RISK
         q.containsAny("team", "how are we", "overall", "health", "utilisation", "utilization") ->
             Intent.TEAM_HEALTH
+        q.containsAny("next week", "coming week", "coming weeks", "future", "forecast", "predict",
+            "outlook", "what will", "trend", "what's coming", "whats coming", "ahead") ->
+            Intent.FUTURE_TRENDS
 
         hasName -> Intent.TRAINER_STATUS
         else -> Intent.UNKNOWN
@@ -372,6 +378,63 @@ object Agent {
         )
     }
 
+    private fun futureOutlook(team: TeamFact): Answer {
+        val history = team.utilisationHistory
+        val trendDir = when {
+            history.size >= 2 -> {
+                val delta = history.last() - history[history.lastIndex - 1]
+                when {
+                    delta >= 5 -> "climbing"
+                    delta <= -5 -> "falling"
+                    else -> "flat"
+                }
+            }
+            else -> null
+        }
+
+        val benchCount = (team.free + team.benched).distinctBy { it.email }.size
+        val openDemand = team.unallocated.size
+        val certRisk = team.trainers.count { it.certGaps.isNotEmpty() }
+
+        // Headline summarises the single biggest forward-looking pressure.
+        val headline = when {
+            openDemand > benchCount + 1 ->
+                "$openDemand batches need owners but only $benchCount people are available — a capacity gap is building."
+            trendDir == "climbing" && team.stretched.isNotEmpty() ->
+                "Utilisation is climbing and ${team.stretched.size} people are already stretched — the team is at risk of overload."
+            certRisk > 0 ->
+                "$certRisk people are delivering without the matching certification — this blocks accredited work coming in."
+            trendDir == "falling" && benchCount > 2 ->
+                "Utilisation is falling with $benchCount people on bench — demand is softer than supply right now."
+            else -> "No acute pressure visible, but the outlook has a few things worth watching."
+        }
+
+        return Answer(
+            Intent.FUTURE_TRENDS,
+            headline,
+            buildString {
+                trendDir?.let { append("Utilisation trend is $it. ") }
+                if (openDemand > 0) append("$openDemand batches are unallocated — if this is not resolved soon, delivery dates are at risk. ")
+                if (benchCount > 0) append("$benchCount people are available to absorb incoming demand. ")
+                if (certRisk > 0) append("$certRisk people need to complete certifications before they can take accredited work arriving in the pipeline. ")
+                if (team.flagged.isNotEmpty()) append("${team.flagged.size} people have open feedback flags that could affect delivery quality on their next batch. ")
+                if (team.internationalDemand.isNotEmpty()) append("${team.internationalDemand.size} international batches are in the pipeline — these need accredited trainers and longer lead times to fill. ")
+            }.trim(),
+            evidence = buildList {
+                trendDir?.let { add("Utilisation direction: $it") }
+                add("Open demand vs bench: $openDemand batches, $benchCount available")
+                add("Certification risk: $certRisk people delivering without cert")
+                if (team.upcomingDeliveries > 0) add("Upcoming confirmed deliveries: ${team.upcomingDeliveries}")
+                if (team.internationalDemand.isNotEmpty()) add("International pipeline: ${team.internationalDemand.size} batches")
+            },
+            confidence = when {
+                history.isEmpty() -> Confidence.MEDIUM
+                history.size < 3 -> Confidence.MEDIUM
+                else -> Confidence.HIGH
+            },
+        )
+    }
+
     // ── Refusals ────────────────────────────────────────────────────────────
 
     private fun unknownPerson(team: TeamFact) = Answer(
@@ -384,7 +447,7 @@ object Agent {
     private fun unknown(question: String) = Answer(
         Intent.UNKNOWN,
         "I cannot answer that one.",
-        "I answer from RMS delivery data: who needs attention, who is free, who can teach a course, how someone is doing, what to do about them, team health, demand coverage, certification gaps and key person risk.",
+        "I answer from RMS delivery data: who needs attention, who is free, who can teach a course, how someone is doing, what to do about them, team health, demand coverage, certification gaps, key person risk, and future outlook and trends.",
         confidence = Confidence.LOW,
         unmet = "\"$question\" did not match anything I have a tool for. I would rather say so than invent an answer.",
     )
