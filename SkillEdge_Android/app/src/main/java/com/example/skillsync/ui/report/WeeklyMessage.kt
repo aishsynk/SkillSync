@@ -89,35 +89,58 @@ fun composeTeamMessage(
 
     val formattedNote = formatManagerNote(managerNote)
     if (formattedNote.isNotEmpty()) body.append("$formattedNote ")
-    body.append("Here is where we stand this week. ")
-    body.append("We are ${signals.strength} in the team, with ${signals.deployed} deployed and ${signals.free} available. ")
-    signals.utilisation?.let { body.append("Team utilisation is at $it percent. ") }
 
-    // The single most important thing to say, chosen by severity.
+    // The single most important thing first, chosen by severity. The team
+    // already knows how many they are, so no headcount line. Utilisation is
+    // only surfaced when it is directionally useful (stretched team).
     when {
-        signals.atRisk > 0 -> body.append(
-            "${count(signals.atRisk, "colleague is", "colleagues are")} carrying a delivery risk flag this week, and I will be speaking to each of them individually. " +
-                bold("Please raise any delivery concern early rather than at the end of a batch.", style) + " "
-        )
-        signals.unallocated > 0 && signals.international > 0 -> body.append(
-            "We have ${count(signals.unallocated, "batch", "batches")} waiting for an owner, and ${signals.international} of those are international. " +
-                bold("If you hold the relevant accreditation, please confirm your availability to me by Wednesday.", style) + " "
-        )
-        signals.unallocated > 0 -> body.append(
-            "We have ${count(signals.unallocated, "batch", "batches")} still waiting for an owner. " +
-                bold("Please confirm your availability so I can allocate this week.", style) + " "
-        )
-        signals.certGaps > 0 -> body.append(
-            "We are carrying ${count(signals.certGaps, "certification gap", "certification gaps")} across the team. " +
-                bold("Please book your pending certification before the end of this month.", style) + " "
-        )
-        else -> body.append(
-            "There is nothing outstanding on allocation or certification, which is a good place to be. "
-        )
+        signals.atRisk > 0 -> {
+            body.append(
+                "${count(signals.atRisk, "colleague is", "colleagues are")} carrying a delivery risk flag this week, " +
+                    "and I will be speaking to each of them individually. "
+            )
+            body.append(bold("Please raise any delivery concern early rather than at the end of a batch.", style))
+            body.append(" ")
+        }
+        signals.unallocated > 0 -> {
+            body.append(
+                "We have ${count(signals.unallocated, "unallocated batch", "unallocated batches")} on the desk right now"
+            )
+            if (signals.international > 0) {
+                body.append(
+                    ", including ${count(signals.international, "international batch", "international batches")}"
+                )
+            }
+            body.append(". ")
+            if (signals.free > 0) {
+                body.append("${count(signals.free, "of you is", "of you are")} available. ")
+            }
+            body.append(
+                bold("Please check the demand board and confirm your availability to me by Wednesday.", style)
+            )
+            body.append(" ")
+        }
+        signals.certGaps > 0 -> {
+            body.append(
+                "We are carrying ${count(signals.certGaps, "open certification gap", "open certification gaps")} across the team. "
+            )
+            body.append(bold("Please book your pending certification before the end of this month.", style))
+            body.append(" ")
+        }
+        else -> {
+            body.append("Nothing is outstanding on allocation or certification, which is a good place to be. ")
+            signals.utilisation?.let { u ->
+                if (u > 70) body.append("The team is carrying a strong load at $u percent utilisation. ")
+            }
+        }
     }
 
+    // Secondary: cert gaps when the primary item was unallocated demand.
     if (signals.certGaps > 0 && signals.atRisk == 0 && signals.unallocated > 0) {
-        body.append("We also have ${count(signals.certGaps, "certification gap", "certification gaps")} to close. ")
+        body.append(
+            "There ${if (signals.certGaps == 1) "is also" else "are also"} " +
+                "${count(signals.certGaps, "certification gap", "certification gaps")} to close across the team. "
+        )
     }
 
     val closing = when {
