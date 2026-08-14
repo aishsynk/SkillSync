@@ -21,7 +21,7 @@ android {
         vectorDrawables.useSupportLibrary = true
 
         // API Configuration
-        buildConfigField("String", "API_BASE_URL", "\"https://skilledge-backend-fpcl.onrender.com/\"")
+        buildConfigField("String", "API_BASE_URL", "\"https://skillsync-api.vercel.app/\"")
         buildConfigField("int", "API_TIMEOUT", "30")
         buildConfigField("int", "CACHE_TTL_HOURS", "4")
     }
@@ -30,12 +30,12 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            buildConfigField("String", "API_BASE_URL", "\"https://skilledge-backend-fpcl.onrender.com/\"")
+            buildConfigField("String", "API_BASE_URL", "\"https://skillsync-api.vercel.app/\"")
             buildConfigField("String", "LOG_LEVEL", "\"ERROR\"")
         }
         debug {
             isMinifyEnabled = false
-            buildConfigField("String", "API_BASE_URL", "\"https://skilledge-backend-fpcl.onrender.com/\"")
+            buildConfigField("String", "API_BASE_URL", "\"https://skillsync-api.vercel.app/\"")
             buildConfigField("String", "LOG_LEVEL", "\"DEBUG\"")
         }
     }
