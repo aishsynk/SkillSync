@@ -20,13 +20,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.Severity
 import com.example.skillsync.theme.Space
-import com.example.skillsync.theme.ToneChip
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
@@ -37,23 +36,22 @@ import com.example.skillsync.ui.components.intOrNull
 import com.example.skillsync.ui.components.list
 import com.example.skillsync.ui.components.obj
 import com.example.skillsync.ui.components.str
-import com.example.skillsync.ui.components.strings
 
 /**
- * The roster card, rebuilt to `AI/DESIGN_VISION_V2_2026_08_11.md` §7.2.
+ * Roster card for the People & Capability tab — full-width single column.
  *
- * The previous card was a 379-line block that rendered fourteen fields at
- * roughly equal weight: designation, status label, current course, days left,
- * next course, utilisation bar, readiness score and bucket, certificates held,
- * gaps, feedback risk, availability string, next available date, upcoming
- * count and a recommended action. A manager scanning ten of them could not
- * tell who needed them, because nothing on the card ranked anything.
- *
- * This is one compact row. Severity owns the leading edge, so urgency is read
- * as position and shape before any text. Three micro-figures carry the numbers
- * that actually differ between people, a sparkline carries direction, and
- * everything else moved to the profile — which is one tap away and exists for
- * exactly that.
+ * Design principles:
+ *  - Severity bar is the only urgency signal: the previous ToneChip duplicated
+ *    it and stole name space on narrow cards. Removed.
+ *  - Name, designation, and headline all have full width now.
+ *  - Readiness score lives as a compact badge top-right — green ≥80, amber ≥60,
+ *    red <60. Gives the manager a quick pass/fail on capability without opening
+ *    the profile.
+ *  - Current course shown as a fourth line when it adds information the headline
+ *    does not already carry (e.g. the trainer is on bench but holds a booking
+ *    that starts soon).
+ *  - Height is content-driven, not fixed — a trainer with leave, a cert gap and
+ *    a course booking should not be silently clipped.
  */
 @Composable
 internal fun TeamMemberCard(
@@ -68,30 +66,29 @@ internal fun TeamMemberCard(
 ) {
     val sk = MaterialTheme.skill
     val name = trainer.str("trainer_name")
+    val designation = trainer.str("designation").ifBlank { capability?.str("designation").orEmpty() }
     val util = trainer.intOrNull("current_utilization")
     val cert = capability?.obj("certification")
     val gaps = cert?.int("gap_count") ?: 0
     val held = cert?.list("held")?.size ?: 0
+    val readiness = capability?.intOrNull("readiness_score")
+    val currentCourse = state?.obj("current_batch")?.str("course_name").orEmpty()
 
     val severity = teamCardSeverity(trainer, capability, calendarAvailability, openActionCount)
     val tint = severity.tint()
-
-    // The one line that says why this person is where they are in the list.
     val headline = teamCardHeadline(trainer, state, calendarAvailability, gaps, openActionCount)
 
-    // Direction, not just position. Rendered only when RMS returned a real
-    // series — an invented trend is worse than none.
     val series = trainer.list("utilization_series")
         .mapNotNull { it.intOrNull("utilization") }
 
     Row(
         Modifier
             .fillMaxWidth()
-            .height(104.dp)
             .glassSurface(RoundedCornerShape(Radii.card))
             .pressable(onClick),
     ) {
-        // Severity as position and shape, not only colour.
+        // Severity as position and shape, not only colour. The chip is gone —
+        // this bar IS the urgency signal.
         Box(
             Modifier
                 .width(4.dp)
@@ -103,30 +100,66 @@ internal fun TeamMemberCard(
             Modifier
                 .weight(1f)
                 .padding(horizontal = Space.md, vertical = Space.sm),
-            verticalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(Space.xs),
         ) {
+            // Identity row: avatar + name/designation + readiness badge
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Avatar(name, capability?.str("photo_url"), 32.dp)
+                Avatar(name, capability?.str("photo_url"), 40.dp)
                 Spacer(Modifier.width(Space.sm))
                 Column(Modifier.weight(1f)) {
                     Text(
                         name,
                         style = MaterialTheme.typography.titleSmall,
                         color = sk.bodyText,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                    Text(
-                        headline,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (severity == Severity.Good) sk.subText else tint,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
+                    if (designation.isNotBlank()) {
+                        Text(
+                            designation,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = sk.subText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
-                if (severity != Severity.Good) {
-                    ToneChip(severity.label, tint)
+                if (readiness != null) {
+                    Spacer(Modifier.width(Space.sm))
+                    val rColor = when {
+                        readiness >= 80 -> sk.good
+                        readiness >= 60 -> sk.warn
+                        else -> sk.crit
+                    }
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(rColor.copy(alpha = 0.14f))
+                            .padding(horizontal = 7.dp, vertical = 3.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "$readiness%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = rColor,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
                 }
             }
 
+            // Headline — the one sentence that explains the card's urgency
+            if (headline.isNotBlank()) {
+                Text(
+                    headline,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (severity == Severity.Good) sk.subText else tint,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            // Metrics + sparkline
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Micro(util?.let { "$it%" } ?: "—", "util", sk)
                 Spacer(Modifier.width(Space.lg))
@@ -134,11 +167,6 @@ internal fun TeamMemberCard(
                 Spacer(Modifier.width(Space.lg))
                 Micro(if (gaps == 0) "0" else "$gaps", "gaps", sk, warn = gaps > 0)
 
-                // Leave is shown whenever it exists, not only when it happens
-                // to be the top severity reason. A trainer with a certification
-                // gap *and* leave next week would otherwise have the leave
-                // hidden by the headline, which is the availability question
-                // the manager most needs answered.
                 val leaveDays = (calendarAvailability?.get("leave_days") as? Number)?.toInt() ?: 0
                 if (leaveDays > 0) {
                     Spacer(Modifier.width(Space.lg))
@@ -150,10 +178,25 @@ internal fun TeamMemberCard(
                     Sparkline(
                         series, tint, endpointTint = sk.cyan,
                         height = 18.dp,
-                        modifier = Modifier.width(56.dp),
+                        modifier = Modifier.width(64.dp),
                     )
                 }
             }
+
+            // Current course — shown when it is not already the headline.
+            // A trainer "on bench" may still have an upcoming course that the
+            // headline omits (because the first priority is the bench status).
+            if (currentCourse.isNotBlank() && !headline.contains(currentCourse, ignoreCase = true)) {
+                Text(
+                    currentCourse,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.sky,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            Spacer(Modifier.height(2.dp))
         }
     }
 }

@@ -1281,7 +1281,7 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
         }
         details.take(5).forEach { d ->
             Spacer(Modifier.height(8.dp))
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     d.str("feedback_question").ifBlank { "Feedback" },
                     style = MaterialTheme.typography.bodySmall, color = sk.bodyText,
@@ -1291,6 +1291,16 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
                         .filter { it.isNotBlank() }.joinToString(" · "),
                     style = MaterialTheme.typography.labelSmall, color = sk.subText,
                 )
+                val negDetail = d.str("neg_detail")
+                if (negDetail.isNotBlank()) {
+                    Text(
+                        "“$negDetail”",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText.copy(alpha = 0.8f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
 
@@ -1639,12 +1649,29 @@ private fun AssignmentRow(a: Map<*, *>) {
                 )
             }
         }
-        Surface(color = tint.copy(alpha = 0.14f), shape = RoundedCornerShape(10.dp)) {
-            Text(
-                state.replaceFirstChar { it.uppercase() },
-                style = MaterialTheme.typography.labelSmall, color = tint,
-                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-            )
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Surface(color = tint.copy(alpha = 0.14f), shape = RoundedCornerShape(10.dp)) {
+                Text(
+                    state.replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.labelSmall, color = tint,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                )
+            }
+            // Recording compliance badge — shown only for past assignments
+            // where the backend fetched recordingDetails (key 278).
+            if (state == "past") {
+                val submitted = a["recording_submitted"] as? Boolean
+                if (submitted != null) {
+                    val recColor = if (submitted) sk.good else sk.warn
+                    Surface(color = recColor.copy(alpha = 0.14f), shape = RoundedCornerShape(10.dp)) {
+                        Text(
+                            if (submitted) "Rec ✓" else "No rec",
+                            style = MaterialTheme.typography.labelSmall, color = recColor,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+            }
         }
     }
 }

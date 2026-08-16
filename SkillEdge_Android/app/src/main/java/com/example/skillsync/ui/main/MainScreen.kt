@@ -58,6 +58,7 @@ fun MainScreen(
     onTrainerClick: (email: String, name: String) -> Unit,
     onBatchClick: (demandId: String) -> Unit = {},
     onOpenWeeklyReport: () -> Unit = {},
+    onOpenHrReport: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -128,6 +129,7 @@ fun MainScreen(
     val bulkWorking by allocationViewModel.bulkWorking.collectAsState()
     val bulkResults by allocationViewModel.bulkResults.collectAsState()
     val teamReadinessNote by viewModel.teamReadinessNote.collectAsState()
+    val recentNotifications by viewModel.recentNotifications.collectAsState()
 
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showNotificationsSheet by remember { mutableStateOf(false) }
@@ -473,6 +475,7 @@ fun MainScreen(
                                         capability = capability,
                                         capabilityLoading = capLoading,
                                         actions = inboxActions.map { it.asMap() },
+                                        recentNotifications = recentNotifications,
                                         email = email,
                                         onTrainerClick = onTrainerClick,
                                         onOpenProfile = { onTrainerClick(email, profile?.str("name").orEmpty()) },
@@ -483,6 +486,7 @@ fun MainScreen(
                                         onOpenNotifications = { showNotificationsSheet = true },
                                         onOpenDemand = { onTabChange(HomeTab.DEMAND) },
                                         onOpenWeeklyReport = onOpenWeeklyReport,
+                                        onOpenHrReport = onOpenHrReport,
                                         onOpenCopilot = onOpenCopilot,
                                         calendarReadiness = teamReadiness,
                                         fromCache = s.fromCache,
@@ -684,6 +688,7 @@ internal fun DashboardTab(
     capability: Map<String, Any>?,
     capabilityLoading: Boolean,
     actions: List<Map<String, Any>> = emptyList(),
+    recentNotifications: List<com.example.skillsync.util.NotifyEvent> = emptyList(),
     email: String,
     onTrainerClick: (String, String) -> Unit,
     onOpenProfile: () -> Unit,
@@ -694,6 +699,7 @@ internal fun DashboardTab(
     onOpenNotifications: () -> Unit = {},
     onOpenDemand: () -> Unit = {},
     onOpenWeeklyReport: () -> Unit = {},
+    onOpenHrReport: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
     calendarReadiness: Map<String, Map<String, Any>> = emptyMap(),
     /** Disk-write time of the payload, so the hero can state a real "as of". */
@@ -764,6 +770,7 @@ internal fun DashboardTab(
                     demand = data.rows("unallocated_demand_df"),
                     capTrainers = capTrainers,
                     actions = actions,
+                    recentNotifications = recentNotifications,
                     fromCache = fromCache,
                     cachedAt = cachedAt,
                     onDrill = onDrill,
@@ -772,6 +779,7 @@ internal fun DashboardTab(
                     onOpenNotifications = onOpenNotifications,
                     onOpenDemand = onOpenDemand,
                     onOpenWeeklyReport = onOpenWeeklyReport,
+                    onOpenHrReport = onOpenHrReport,
                     onOpenCopilot = onOpenCopilot,
                     calendarReadiness = calendarReadiness,
                 )

@@ -108,9 +108,10 @@ internal fun TeamTab(
     email: String = ""
 ) {
     val sk = MaterialTheme.skill
-    // Manager comparison surface: two trainers must remain visible per row on
-    // phones as well as tablets. Cards own their compact responsive layout.
-    val columns = 2
+    // Full-width single column: the People tab is where the manager reads
+    // capability data, not just glances — name, designation, readiness score,
+    // cert health and current course all need room to breathe.
+    val columns = 1
     val ops = data.rows("trainer_operations_df")
     val stateMap = data.rows("trainer_current_state_df").associateBy { it.str("trainer_email").lowercase() }
     val capMap = (capability?.rows("trainers") ?: emptyList())

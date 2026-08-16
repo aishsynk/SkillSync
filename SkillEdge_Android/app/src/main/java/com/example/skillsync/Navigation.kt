@@ -89,12 +89,13 @@ fun MainNavigation() {
     }
 
     // Hardware/gesture back returns from a pushed detail screen to the shell.
-    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot) {
+    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot || current is HrReport) {
         current = when (val c = current) {
             is Trainer360 -> Main(c.email, HomeTab.TEAM)
             is BatchDetail -> Main(c.email, HomeTab.DEMAND)
             is WeeklyReport -> Main(c.email, HomeTab.DASHBOARD)
             is Copilot -> Main(c.email, HomeTab.DASHBOARD)
+            is HrReport -> Main(c.email, HomeTab.TEAM)
             else -> c
         }
     }
@@ -170,6 +171,7 @@ fun MainNavigation() {
                 },
                 onBatchClick = { demandId -> current = BatchDetail(screen.email, demandId) },
                 onOpenWeeklyReport = { current = WeeklyReport(screen.email) },
+                onOpenHrReport = { current = HrReport(screen.email) },
                 onOpenCopilot = { current = Copilot(screen.email) },
                 onLogout = { current = Login },
                 modifier = Modifier,
@@ -221,6 +223,11 @@ fun MainNavigation() {
                     )
                 }
             }
+
+            is HrReport -> com.example.skillsync.ui.report.HrMonthlyReportScreen(
+                managerEmail = screen.email,
+                onBack = { current = Main(screen.email, HomeTab.TEAM) },
+            )
 
             is Trainer360 -> Trainer360Screen(
                 trainerEmail = screen.trainerEmail,

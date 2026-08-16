@@ -70,6 +70,13 @@ object RetrofitClient {
                     .build()
             }
             val response = chain.proceed(request)
+            if (response.code == 401) {
+                // Session expired or invalidated (Render restart wipes the in-memory
+                // session dict). Clear locally so SessionManager.loginState emits false,
+                // which Navigation.kt's LaunchedEffect(isLoggedIn) catches and sends
+                // the user back to Login — no per-screen handling needed.
+                com.example.skillsync.data.SessionManager.clearSession()
+            }
             response
         }
 

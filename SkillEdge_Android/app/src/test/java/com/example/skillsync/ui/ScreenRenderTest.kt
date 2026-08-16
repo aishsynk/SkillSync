@@ -526,7 +526,8 @@ class ScreenRenderTest {
                             lifecycleState = "open",
                         )
                     ),
-                ) { _, _ -> }
+                    onTrainerClick = { _, _ -> }
+                )
             }
         }
         compose.onNodeWithText("Filters").assertExists()
@@ -548,7 +549,7 @@ class ScreenRenderTest {
     fun teamTab_statusFilterNarrowsTheRoster() {
         compose.setContent {
             SkillSyncTheme {
-                TeamTab(dashboardPayload(), capabilityPayload()) { _, _ -> }
+                TeamTab(dashboardPayload(), capabilityPayload(), onTrainerClick = { _, _ -> })
             }
         }
         // The only trainer is Delivering, so filtering to Preparing empties it.
@@ -593,7 +594,7 @@ class ScreenRenderTest {
             SkillSyncTheme { DeliveryOperationsWorkspace(dashboardPayload()) { _, _ -> } }
         }
         compose.onNodeWithText("Delivery Operations").assertExists()
-        compose.onNodeWithText("LIVE · 1").assertExists()
+        compose.onNodeWithText("CURRENT").assertExists()
         compose.onNodeWithText("AI-102T00: Develop AI Solutions in Azure").assertExists()
     }
 
@@ -804,7 +805,7 @@ class ScreenRenderTest {
             trainerOps("Beena Rao", "beena.rao@koenig-solutions.com", 64.0, "Balanced"),
         )
         compose.setContent {
-            SkillSyncTheme { TeamTab(data, capabilityPayload()) { _, _ -> } }
+            SkillSyncTheme { TeamTab(data, capabilityPayload(), onTrainerClick = { _, _ -> }) }
         }
         val firstTop = compose.onAllNodesWithText("Abhinav Samant").onFirst()
             .fetchSemanticsNode().boundsInRoot.top

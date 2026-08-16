@@ -1,4 +1,42 @@
-﻿# SkillEdge Project Progress
+﻿
+## 2026-08-13T14:30:00+05:30 - HR Monthly Report, Trainer360 recording compliance, drawables (v3.19.0)
+
+- **Tool Used**: Claude Code (Kotlin/Compose + Flask backend)
+- **Files Modified**: `HrMonthlyReportViewModel.kt` (new), `HrMonthlyReportScreen.kt` (new), `NavigationKeys.kt`, `Navigation.kt`, `MainScreen.kt`, `ManagerCommandCentre.kt`, `Trainer360Screen.kt`, `SkillEdgeApi.kt`, `backend.py`, `ic_forward.xml` (new), `ic_share.xml` (new), `ic_copy.xml` (new), `build.gradle.kts`
+- **Work Completed**:
+  1. **Backend `/api/v2/hr/monthly-report`**: New endpoint accepting `manager=email&month=YYYY-MM`. Fetches utilisation history, mock scores (QubitsScore), feedback counts, HR incidents (key 59), and certification state per reportee in parallel (ThreadPoolExecutor ├ù8). Computes an `hr_score` (0ΓÇô100) per person and a `team_summary` block. Returns reportees sorted by score descending.
+  2. **Backend trainer-360 recording compliance**: After main parallel fetch, fetches `recordingDetails` (key 278) for up to 5 past assignments (ThreadPoolExecutor ├ù5). Returns `recording_submitted` (bool) and `recording_count` (int) on each past delivery row.
+  3. **Android HR Monthly Report screen**: `HrMonthlyReportViewModel` ΓÇö month navigation (prev/next, blocks future), `Loading/Success/Error` state, full JSON parse of `team_summary` and per-`reportee` snapshots. `HrMonthlyReportScreen` ΓÇö month nav bar (ΓåÉ YYYY-MM ΓåÆ), team overview card with 6 metrics, expandable reportee cards with HR score badge (green/amber/red), util, batch count, Qubits chip, HR positive/negative chips, negative feedback chip, cert gap chip, top courses, copy-to-clipboard per reportee, share-sheet for full report.
+  4. **Trainer360 recording compliance badge**: `AssignmentRow` now shows a "Rec Γ£ô" (green) or "No rec" (amber) chip on past assignments when `recording_submitted` is present in the delivery row.
+  5. **Navigation wiring**: `HrReport` NavKey added, back handler returns to `HomeTab.TEAM`, `HrMonthlyReportScreen` case added in `Navigation.kt`, `onOpenHrReport` threaded through `MainScreen ΓåÆ DashboardTab ΓåÆ ManagerCommandCentre`.
+  6. **HR Monthly Report CTA**: Added "HR Monthly Report" card in `ManagerCommandCentre` between Weekly Report and Agent CTAs.
+  7. **New drawables**: `ic_forward.xml` (right-arrow), `ic_share.xml` (share/social), `ic_copy.xml` (copy layers).
+  8. **`SkillEdgeApi.kt`**: `getHrMonthlyReport(manager, month)` GET endpoint added.
+- **Version**: `versionCode = 102`, `versionName = "3.19.0"`
+- **Current Status**: `assembleRelease` BUILD SUCCESSFUL. Ready for CI signed APK.
+- **Next Actions**: Signed APK build via CI, GitHub release v3.19.0.
+
+## 2026-08-13T12:00:00+05:30 - Message specificity, AI future trends, notification fixes (v3.18.0)
+
+- **Tool Used**: Claude Code (Kotlin/Compose)
+- **Files Modified**: `WeeklyMessage.kt`, `WeeklyReportScreen.kt`, `Agent.kt`, `MainScreenViewModel.kt`, `MainScreen.kt`, `ManagerCommandCentre.kt`, `NotificationCenter.kt`, `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Reportee message cert specificity**: `ReporteeSignals` now carries `certGapCourses: List<String>` populated from `certification.missing[].because` (the course they are teaching without the cert). The cert gap message now names the specific courses ΓÇö e.g. "You are currently delivering Azure Fundamentals and AZ-305 without the matching certification on record." instead of a generic "you have gaps".
+  2. **Date removal from messages**: Removed `"for the week of 11 August to 17 August"` from both the team message (`composeTeamMessage`) and individual reportee messages (`composeReporteeMessage`). Both now say "this week" only.
+  3. **AI future trends intent**: Added `FUTURE_TRENDS` intent to `Agent.kt` with classify patterns (`future`, `forecast`, `predict`, `outlook`, `next week`, `ahead`, `trend`), a `futureOutlook()` handler that derives utilisation trend direction, capacity gap (demand vs bench), cert gap risk, and flag risk from existing `TeamFact` data, and a "What does next week look like?" starter question. `unknown()` description updated to mention future trends.
+  4. **Notification center ΓÇö real events**: `NotificationCenter` now accepts `events: List<NotifyEvent>` and renders them at top (colour-coded by bucket) followed by manager action queue items. Badge count on the bell includes both.
+  5. **First-poll delay fix**: `startPolling()` now runs an immediate check after 5 s (was waiting the full 2 min before even the first check). Loop continues at 2-min intervals.
+  6. **In-app notification store**: `MainScreenViewModel` now exposes `recentNotifications: StateFlow<List<NotifyEvent>>` (newest 20 kept); events flow to the notification center UI as they arrive.
+- **Current Status**: `assembleDebug` BUILD SUCCESSFUL. Ready for release.
+- **Next Actions**: Signed APK build via CI, GitHub release v3.18.0.
+
+### 2026-08-12 23:38 UTC (AI Session)
+- **Tools used:** run_command, view_file, replace_file_content
+- **Files modified:** implementation_plan.md, ApiCredential.kt, ApiModels.kt
+- **Work completed:** Fixed Kotlin compilation issues caused by generated API classes. App now compiles successfully. Updated implementation_plan.md to incorporate the user's new request for rebuilding the Demand tab (AllocationDeskContent), Delivery Operations (DeliveryOperationsWorkspace), and implementing a global deep-linking notification system.
+- **Current status:** Build is green. Awaiting user approval on the updated implementation plan before executing the UX overhaul for Demand and Delivery tabs.
+- **Next actions:** Proceed with the UI rebuild of Demand and Delivery Operations, and configure intent handling for notifications, upon user approval.
+# SkillEdge Project Progress
 
 ## 2026-08-12T21:40:00+05:30 - Fix infinite 401 login loop on Teams tab (v3.16.4)
 
@@ -36,33 +74,33 @@
 - **Tool Used**: Claude Code (backend.py, pytest, Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)
 - **Files Modified**: `backend.py`, `tests/test_skill_marking.py`, `ui/main/SkillAssignFlow.kt` (created), `ui/main/CoursesTab.kt`, `ui/main/ActionsInbox.kt`, `ui/main/MainScreen.kt`, `ui/batch/AllocationViewModel.kt`, `data/api/SkillEdgeApi.kt`, `ui/SkillAssignFlowTest.kt` (created), `AI/DECISIONS.md`
 - **Work Completed**: the last two specified-but-unbuilt items from the design vision.
-  - **§7.6 Skill → Select Members → Assign.** Three steps: Select (every reportee with what they already hold, Select All, hide-those-who-have-it), Preview (names every person and the level, warns the write is irreversible), Result (per row). Backed by **`POST /api/v2/skills/bulk-assign`** fanning out server-side at 4 concurrent writes.
-  - **§7.5 Actions bulk operations.** Always-visible selection controls, lane-header select-all, and a bulk bar with Resolve and Escalate. Both run per row through the **same state endpoint a single card uses**, so bulk cannot take an unaudited path. Long-press-to-select rejected as undiscoverable.
-- **Decision recorded in `AI/DECISIONS.md`**: **Remove Skill and Edit Level cannot be built.** All 37 portal docs contain exactly one skill write (`Add Trainer Skill`, key 255) — no remove, no update. Shipping those buttons would mean controls that silently fail against production data. Re-assigning at a different level was also rejected as an "edit" because it appends a second record rather than changing the first.
-- **Current Status**: **v3.16.0.93 live** — commit `d6100b3`, CI success. APK verified: signer `c6868b14…1808`, versionCode 92 -> 93. **141 backend + 147 Android tests pass**, lint clean. Render healthy; `/api/v2/skills/bulk-assign` correctly 401 unauthenticated.
+  - **┬º7.6 Skill ΓåÆ Select Members ΓåÆ Assign.** Three steps: Select (every reportee with what they already hold, Select All, hide-those-who-have-it), Preview (names every person and the level, warns the write is irreversible), Result (per row). Backed by **`POST /api/v2/skills/bulk-assign`** fanning out server-side at 4 concurrent writes.
+  - **┬º7.5 Actions bulk operations.** Always-visible selection controls, lane-header select-all, and a bulk bar with Resolve and Escalate. Both run per row through the **same state endpoint a single card uses**, so bulk cannot take an unaudited path. Long-press-to-select rejected as undiscoverable.
+- **Decision recorded in `AI/DECISIONS.md`**: **Remove Skill and Edit Level cannot be built.** All 37 portal docs contain exactly one skill write (`Add Trainer Skill`, key 255) ΓÇö no remove, no update. Shipping those buttons would mean controls that silently fail against production data. Re-assigning at a different level was also rejected as an "edit" because it appends a second record rather than changing the first.
+- **Current Status**: **v3.16.0.93 live** ΓÇö commit `d6100b3`, CI success. APK verified: signer `c6868b14ΓÇª1808`, versionCode 92 -> 93. **141 backend + 147 Android tests pass**, lint clean. Render healthy; `/api/v2/skills/bulk-assign` correctly 401 unauthenticated.
 - **Harness note**: synthesised taps do not reach a button nested in the bottom sheet's footer under Robolectric; two assertions invoke the click semantics action directly. Test-harness limitation, not a UI defect.
-- **Design vision status: every section is now implemented** — §7.1 dashboard, §7.2 person card, §7.3 Trainer 360, §7.4 international card class, §7.5 action queue with bulk, §7.6 skill assignment.
+- **Design vision status: every section is now implemented** ΓÇö ┬º7.1 dashboard, ┬º7.2 person card, ┬º7.3 Trainer 360, ┬º7.4 international card class, ┬º7.5 action queue with bulk, ┬º7.6 skill assignment.
 - **Next Actions**:
-  1. **RMS question list — now the only thing limiting quality**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; correct params for 90/172/205/72/93; whether a missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls; **and a remove/update skill endpoint**.
-  2. Operator verification on a real device — no emulator exists here, so upgrade-in-place is proven cryptographically but never physically installed.
+  1. **RMS question list ΓÇö now the only thing limiting quality**: read-only courseΓåÆexam mapping; why the 213 catalogue names diverge from the delivery catalogue; correct params for 90/172/205/72/93; whether a missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls; **and a remove/update skill endpoint**.
+  2. Operator verification on a real device ΓÇö no emulator exists here, so upgrade-in-place is proven cryptographically but never physically installed.
 
 ## 2026-08-12T16:05:00+05:30 - Structural rebuilds: person card, international class, action queue (v3.15.0)
 
 - **Tool Used**: Claude Code (Compose, Robolectric, Gradle gate, apksigner + aapt, gh CLI)
 - **Files Modified**: `ui/main/TeamMemberCard.kt` (rewritten), `ui/main/TeamTab.kt`, `ui/batch/InternationalCard.kt` (created), `ui/batch/AllocationDeskScreen.kt`, `ui/main/ActionsInbox.kt`, `ui/ScreenRenderTest.kt`, `ui/TeamAvailabilityTest.kt`, `app/build.gradle.kts`
-- **Context**: v3.14.0 fixed the design **vocabulary** (type, surfaces, spacing). This is the **information hierarchy** — the three rebuilds the design vision specifies and prior releases had skipped.
+- **Context**: v3.14.0 fixed the design **vocabulary** (type, surfaces, spacing). This is the **information hierarchy** ΓÇö the three rebuilds the design vision specifies and prior releases had skipped.
 - **Work Completed**:
-  - **Team person card (§7.2)** — was 379 lines rendering **fourteen fields at roughly equal weight**, so nothing ranked anything. Now one 104dp row: severity gradient stripe on the leading edge, a headline stating *why* this person is ranked here, three micro-figures, and a sparkline for direction. Readiness score, risk text and recommended action moved to the profile. **379 -> 236 lines.** The roster now sorts by the same severity, using the precedence the agent and weekly message already use.
-  - **International as a card class (§7.4)** — was a badge on an identical card. Now a **full-bleed ribbon** owning the top edge with a 4s sheen, a **40dp globe medallion** anchoring the destination line, and travel readiness as a verdict (visa ready / to verify / blocked / not checked). The elevation is earned: visa, travel window and time zone are computed now, so it reports a verdict rather than decorating a guess.
-  - **Actions queue (§7.5)** — flat list replaced with three lanes: **Now / This week / Watching**. Membership from priority **and age**, so an item open a week without being touched is promoted regardless of its raised priority.
+  - **Team person card (┬º7.2)** ΓÇö was 379 lines rendering **fourteen fields at roughly equal weight**, so nothing ranked anything. Now one 104dp row: severity gradient stripe on the leading edge, a headline stating *why* this person is ranked here, three micro-figures, and a sparkline for direction. Readiness score, risk text and recommended action moved to the profile. **379 -> 236 lines.** The roster now sorts by the same severity, using the precedence the agent and weekly message already use.
+  - **International as a card class (┬º7.4)** ΓÇö was a badge on an identical card. Now a **full-bleed ribbon** owning the top edge with a 4s sheen, a **40dp globe medallion** anchoring the destination line, and travel readiness as a verdict (visa ready / to verify / blocked / not checked). The elevation is earned: visa, travel window and time zone are computed now, so it reports a verdict rather than decorating a guess.
+  - **Actions queue (┬º7.5)** ΓÇö flat list replaced with three lanes: **Now / This week / Watching**. Membership from priority **and age**, so an item open a week without being touched is promoted regardless of its raised priority.
 - **Two faults caught by tests and fixed**:
   1. **Information loss**: leave was visible only when it was the top severity reason, so a trainer with a certification gap *and* leave next week would have had the leave hidden. It now renders as its own micro-figure whenever it exists.
   2. The international travel chip did not render when a batch had no ranked candidates. Silence on that card reads as "no travel issues", a claim the data has not made; it now always states its verdict.
-- **Current Status**: **v3.15.0.92 live** — commit `bcabb57`, CI success. APK verified: signer `c6868b14…1808`, versionCode 91 -> 92. **136 backend + 136 Android tests pass**, lint clean.
-- **Design vision status**: §7.2, §7.4 and §7.5 are now implemented. Remaining from the vision: §7.1 dashboard "Explore" consolidation is done, §7.3 Trainer 360 tabs done, §7.6 Skill management flow (Skill -> Select Members -> Assign, with bulk/preview/undo) is **specified but not built**, and the Actions bulk-selection and inline-resolution parts of §7.5 are **not built** — only the lane model landed.
+- **Current Status**: **v3.15.0.92 live** ΓÇö commit `bcabb57`, CI success. APK verified: signer `c6868b14ΓÇª1808`, versionCode 91 -> 92. **136 backend + 136 Android tests pass**, lint clean.
+- **Design vision status**: ┬º7.2, ┬º7.4 and ┬º7.5 are now implemented. Remaining from the vision: ┬º7.1 dashboard "Explore" consolidation is done, ┬º7.3 Trainer 360 tabs done, ┬º7.6 Skill management flow (Skill -> Select Members -> Assign, with bulk/preview/undo) is **specified but not built**, and the Actions bulk-selection and inline-resolution parts of ┬º7.5 are **not built** ΓÇö only the lane model landed.
 - **Next Actions**:
-  1. §7.6 Skill management flow — the largest remaining specified-but-unbuilt item, and it needs the bulk skill endpoint discussed with the operator (RMS sign-off outstanding).
-  2. Actions bulk selection and inline resolution to complete §7.5.
+  1. ┬º7.6 Skill management flow ΓÇö the largest remaining specified-but-unbuilt item, and it needs the bulk skill endpoint discussed with the operator (RMS sign-off outstanding).
+  2. Actions bulk selection and inline resolution to complete ┬º7.5.
   3. **RMS question list unchanged** and still the quality ceiling.
 
 ## 2026-08-12T15:10:00+05:30 - Design system finally applied to the screens (v3.14.0)
@@ -76,15 +114,15 @@
   - `ActionsInbox`: 22 `sp`, 82 `dp`, **zero components**
   Every screen was still pre-design-system. Sessions of work had **added intelligence to old cards without ever applying the design system to them**, which is exactly what the operator meant by working as a developer rather than a designer.
 - **Work Completed**:
-  - **97 `fontSize`/`letterSpacing` overrides removed across six screens, now zero.** They ran 8sp to 9.5sp — below the scale's 11sp floor and below a readable phone minimum. The type scale rebuilt in v3.2.0 finally governs.
+  - **97 `fontSize`/`letterSpacing` overrides removed across six screens, now zero.** They ran 8sp to 9.5sp ΓÇö below the scale's 11sp floor and below a readable phone minimum. The type scale rebuilt in v3.2.0 finally governs.
   - **Trainer 360's shared vocabulary rebuilt**: `HeroFigure`/`Figure` now delegate to `theme.Figure` (light tabular numerals), `Label`/`CodeChip` to the shared label style and `ToneChip`, `DetailRow` to the spacing scale.
-  - **`SectionCard` was a Material `Card`** with opaque fill, 10dp radius and 1dp elevation — the only surface in the app not using the glass treatment, so Trainer 360 looked like a different product. Now `SkillCard` with the heading outside on `SectionHeading`.
+  - **`SectionCard` was a Material `Card`** with opaque fill, 10dp radius and 1dp elevation ΓÇö the only surface in the app not using the glass treatment, so Trainer 360 looked like a different product. Now `SkillCard` with the heading outside on `SectionHeading`.
   - **Identity hero rebuilt** on the shared hero surface; utilisation promoted to display size because it is the only figure that moves week to week, instead of four equal figures that ranked nothing.
 - **Consequence accepted rather than reverted**: section titles are now small-caps, which is what gives every surface the same scannable left edge. Tests updated to match the design rather than the design bent to the tests.
-- **Current Status**: **v3.14.0.91 live** — commit `66974ab`, CI success. APK verified: signer `c6868b14…1808`, versionCode 90 -> 91. **136 backend + 136 Android tests pass**, lint clean.
-- **Honest remaining gap**: this pass fixed the **vocabulary** (type, surfaces, spacing primitives). It did **not** restructure information hierarchy on Team, Demand, Actions or Courses — those still follow their original layouts. `AI/DESIGN_VISION_V2_2026_08_11.md` §7.2, §7.4 and §7.5 describe genuine rebuilds (compact person card, international card class, action queue) that remain undone.
+- **Current Status**: **v3.14.0.91 live** ΓÇö commit `66974ab`, CI success. APK verified: signer `c6868b14ΓÇª1808`, versionCode 90 -> 91. **136 backend + 136 Android tests pass**, lint clean.
+- **Honest remaining gap**: this pass fixed the **vocabulary** (type, surfaces, spacing primitives). It did **not** restructure information hierarchy on Team, Demand, Actions or Courses ΓÇö those still follow their original layouts. `AI/DESIGN_VISION_V2_2026_08_11.md` ┬º7.2, ┬º7.4 and ┬º7.5 describe genuine rebuilds (compact person card, international card class, action queue) that remain undone.
 - **Next Actions**:
-  1. Structural rebuilds per the design vision, one screen per release: Team person card (§7.2), Demand international card class (§7.4), Actions queue model (§7.5).
+  1. Structural rebuilds per the design vision, one screen per release: Team person card (┬º7.2), Demand international card class (┬º7.4), Actions queue model (┬º7.5).
   2. **RMS question list unchanged** and still the quality ceiling.
 
 ## 2026-08-12T14:25:00+05:30 - Manager note, Trainer 360 verdict, Plan rebuild (v3.13.0)
@@ -93,28 +131,28 @@
 - **Files Modified**: `ui/report/WeeklyMessage.kt`, `ui/report/WeeklyReportScreen.kt`, `ui/trainer/ReadinessSection.kt`, `ui/trainer/Trainer360Screen.kt`, `ui/batch/AllocationDeskScreen.kt`, `ui/WeeklyMessageTest.kt`, `ui/ScreenRenderTest.kt`, `app/build.gradle.kts`
 - **Note on process**: operator asked for all three items in parallel, so this release breaks the usual one-screen-per-release rule **at their explicit instruction**.
 - **Work Completed**:
-  1. **Messages** — the `[My Message]` input from the house-style brief now exists: a note typed on the weekly report page leads every composed message, with the generated summary following as context, and is held to the same house style. **Contraction expansion is now case-preserving** — a plain ignore-case replace turned "Don't worry" into "do not worry", dropping the capital at the start of the manager's own sentence. Closings carry **light emphasis** in Teams style, with bold still reserved for the single action.
-  2. **Trainer 360** — a **verdict bar** now leads the screen above the score grid: free / committed / on leave / blocked by client exclusion, with certification gaps and open actions as a follow-up line. The screen previously opened with identity and a grid of numbers, answering "what are this person's metrics" rather than "can they take work and what needs doing".
-  3. **Plan** — the eight-week outlook led with four unlabelled counters and a legend-less bar chart. Now **conclusion-first** (how many weeks are over capacity), bars carry a legend, and availability confidence is a sentence rather than a bare "75%" that read as a score instead of a caveat.
+  1. **Messages** ΓÇö the `[My Message]` input from the house-style brief now exists: a note typed on the weekly report page leads every composed message, with the generated summary following as context, and is held to the same house style. **Contraction expansion is now case-preserving** ΓÇö a plain ignore-case replace turned "Don't worry" into "do not worry", dropping the capital at the start of the manager's own sentence. Closings carry **light emphasis** in Teams style, with bold still reserved for the single action.
+  2. **Trainer 360** ΓÇö a **verdict bar** now leads the screen above the score grid: free / committed / on leave / blocked by client exclusion, with certification gaps and open actions as a follow-up line. The screen previously opened with identity and a grid of numbers, answering "what are this person's metrics" rather than "can they take work and what needs doing".
+  3. **Plan** ΓÇö the eight-week outlook led with four unlabelled counters and a legend-less bar chart. Now **conclusion-first** (how many weeks are over capacity), bars carry a legend, and availability confidence is a sentence rather than a bare "75%" that read as a score instead of a caveat.
 - **Three bugs fixed while doing it**: "1 week **are** over capacity" grammar; the Plan rewrite had **dropped the backend's own confidence note** explaining why coverage is conservative (restored rather than deleting the test that caught it); and the case-preservation bug above.
-- **Current Status**: **v3.13.0.90 live** — commit `e4417e8`, CI success. APK verified: signer `c6868b14…1808`, versionCode 89 -> 90. **136 backend + 136 Android tests pass**, lint clean. Render healthy.
+- **Current Status**: **v3.13.0.90 live** ΓÇö commit `e4417e8`, CI success. APK verified: signer `c6868b14ΓÇª1808`, versionCode 89 -> 90. **136 backend + 136 Android tests pass**, lint clean. Render healthy.
 - **Still not built, and still needs an LLM**: free-form/Hinglish rewriting of `[User Message]`. The composer folds the manager's note in verbatim (house-style sanitised) but cannot reinterpret it. See `AI/DECISIONS.md`.
 - **Open question put to the operator, unanswered**: whether underline markers should be emitted for dates despite Teams and Viber not rendering them (they would paste as literal characters). Currently dates are written out in words instead.
 - **Next Actions**:
   1. Await operator feedback on whether Trainer 360 and Plan now read correctly, since "not appropriate" was the original framing and this was my interpretation of it.
-  2. **RMS question list, unchanged and still the quality ceiling**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
+  2. **RMS question list, unchanged and still the quality ceiling**: read-only courseΓåÆexam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
 
 ## 2026-08-12T13:45:00+05:30 - Dashboard availability; Phase 3 screens complete (v3.12.0)
 
 - **Tool Used**: Claude Code (Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)
 - **Files Modified**: `ui/main/ManagerCommandCentre.kt`, `ui/main/MainScreen.kt`, `ui/ScreenRenderTest.kt`, `app/build.gradle.kts`
-- **Work Completed**: Last Phase 3 screen. Dashboard reported availability from an RMS status flag plus workload bands; neither says whether someone can take work next week. New **"Who is actually free"** block reads the calendar via `/api/v2/team/readiness` (clear / committed / on leave), stating it comes from approved leave and confirmed bookings, not utilisation. Capacity bands remain, now labelled as **workload** with availability shown separately. **Renders only when the calendar answered** — absent data must never read as "nobody is free".
-- **Two faults fixed while wiring**: a precedence bug I introduced (`?: 0 > 0` parses as `?: (0 > 0)`, so the leave count would have been wrong — extracted to a named helper); and a third name collision in this area (`readiness` was already the capability score) — parameter is `calendarReadiness`.
-- **Current Status**: **v3.12.0.89 live** — commit `ac96177`, CI success. APK verified: signer `c6868b14…1808`, versionCode 88 -> 89. **136 backend + 125 Android tests pass**, lint clean. Render healthy. **Phase 3 complete**: Demand, Trainer 360, Team and Dashboard all read real availability.
+- **Work Completed**: Last Phase 3 screen. Dashboard reported availability from an RMS status flag plus workload bands; neither says whether someone can take work next week. New **"Who is actually free"** block reads the calendar via `/api/v2/team/readiness` (clear / committed / on leave), stating it comes from approved leave and confirmed bookings, not utilisation. Capacity bands remain, now labelled as **workload** with availability shown separately. **Renders only when the calendar answered** ΓÇö absent data must never read as "nobody is free".
+- **Two faults fixed while wiring**: a precedence bug I introduced (`?: 0 > 0` parses as `?: (0 > 0)`, so the leave count would have been wrong ΓÇö extracted to a named helper); and a third name collision in this area (`readiness` was already the capability score) ΓÇö parameter is `calendarReadiness`.
+- **Current Status**: **v3.12.0.89 live** ΓÇö commit `ac96177`, CI success. APK verified: signer `c6868b14ΓÇª1808`, versionCode 88 -> 89. **136 backend + 125 Android tests pass**, lint clean. Render healthy. **Phase 3 complete**: Demand, Trainer 360, Team and Dashboard all read real availability.
 - **New operator feedback received mid-session (2026-08-12), not yet actioned**:
-  1. **Trainer 360 still looks not appropriate** — presentation, not data.
+  1. **Trainer 360 still looks not appropriate** ΓÇö presentation, not data.
   2. **"Plan" page needs improvements.**
-  3. **Weekly and reportee messages need proper manager-styled composition** per the re-supplied house-style prompt, including the `[User Message: …]` / `[My Message: …]` rewrite inputs.
+  3. **Weekly and reportee messages need proper manager-styled composition** per the re-supplied house-style prompt, including the `[User Message: ΓÇª]` / `[My Message: ΓÇª]` rewrite inputs.
 - **Next Actions**:
   1. Address the three items above, one release each per the one-page rule. Suggested order: messages (precise, testable spec), then Trainer 360 presentation, then Plan.
   2. On the message spec: the composer already enforces structure, word forms, forbidden characters and the 1000-char cap. Gaps against the re-supplied prompt are **light emphasis on the closing**, and the **manager-note input** so a typed draft can be folded in. Free-form Hinglish rewriting still needs an LLM and remains unbuilt (see `AI/DECISIONS.md`).
@@ -126,16 +164,16 @@
 - **Files Modified**: `backend.py`, `tests/test_certification_and_allocation.py`, `ui/main/TeamMemberCard.kt`, `ui/main/TeamTab.kt`, `ui/main/MainScreen.kt`, `ui/main/MainScreenViewModel.kt`, `data/api/SkillEdgeApi.kt`, `app/build.gradle.kts`, `ui/TeamAvailabilityTest.kt` (created)
 - **Session start**: v3.10.0.87 live, 130 backend + 117 Android tests green, tree clean.
 - **Work Completed**:
-  - **New `GET /api/v2/team/readiness`** — real leave, committed days, provisional work and client exclusions per reportee from the RMS day-level calendar. Parallel fan-out (one call per trainer), cached 600s, **bounded at 40 with explicit disclosure of how many were skipped** — a silently truncated roster reads as "everyone is clear".
-  - **Team card no longer infers availability from utilisation.** It showed "available capacity" as `100 - utilisation`; that was the last screen making the inference this layer exists to remove. Each card now shows leave (with start date), committed days, "No leave booked", client exclusions, or **"Availability unverified"** — never shown as clear when RMS did not answer. The utilisation bar remains, now correctly reading as a workload measure beside availability rather than standing in for it.
+  - **New `GET /api/v2/team/readiness`** ΓÇö real leave, committed days, provisional work and client exclusions per reportee from the RMS day-level calendar. Parallel fan-out (one call per trainer), cached 600s, **bounded at 40 with explicit disclosure of how many were skipped** ΓÇö a silently truncated roster reads as "everyone is clear".
+  - **Team card no longer infers availability from utilisation.** It showed "available capacity" as `100 - utilisation`; that was the last screen making the inference this layer exists to remove. Each card now shows leave (with start date), committed days, "No leave booked", client exclusions, or **"Availability unverified"** ΓÇö never shown as clear when RMS did not answer. The utilisation bar remains, now correctly reading as a workload measure beside availability rather than standing in for it.
 - **Two wrong turns worth recording**:
-  1. I first edited `TrainerCard` in `MainScreen.kt` — it is covered by tests but **never rendered**; the live card is `TeamMemberCard`. Reverted via `git checkout` and reapplied to the right component.
+  1. I first edited `TrainerCard` in `MainScreen.kt` ΓÇö it is covered by tests but **never rendered**; the live card is `TeamMemberCard`. Reverted via `git checkout` and reapplied to the right component.
   2. Two successive name collisions in `TeamMemberCard`: `readiness` is already the capability score and `availability` is already a status string. The new parameter is `calendarAvailability`.
-- **Process fix applied**: the gate is now run with output redirected and **chained on the true exit status** (`GATE_EXIT=$?`), not on a grep of its output — the failure mode that pushed a red commit in the previous session.
-- **Current Status**: **v3.11.0.88 live** — commit `d68e6c8`, CI success. APK verified: signer `c6868b14…1808`, package `com.example.skillsync`, versionCode 87 -> 88. **134 backend + 123 Android tests pass**, lint clean. Render healthy; `/api/v2/team/readiness` correctly 401 unauthenticated.
+- **Process fix applied**: the gate is now run with output redirected and **chained on the true exit status** (`GATE_EXIT=$?`), not on a grep of its output ΓÇö the failure mode that pushed a red commit in the previous session.
+- **Current Status**: **v3.11.0.88 live** ΓÇö commit `d68e6c8`, CI success. APK verified: signer `c6868b14ΓÇª1808`, package `com.example.skillsync`, versionCode 87 -> 88. **134 backend + 123 Android tests pass**, lint clean. Render healthy; `/api/v2/team/readiness` correctly 401 unauthenticated.
 - **Next Actions**:
-  1. **Dashboard** — the last Phase 3 screen. Its capacity/availability sections still read from utilisation buckets (`capacity_bucket`, `current_status`) rather than the calendar; `/api/v2/team/readiness` already supplies what it needs, so this is wiring rather than new intelligence.
-  2. **RMS question list, unchanged and still the quality ceiling**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
+  1. **Dashboard** ΓÇö the last Phase 3 screen. Its capacity/availability sections still read from utilisation buckets (`capacity_bucket`, `current_status`) rather than the calendar; `/api/v2/team/readiness` already supplies what it needs, so this is wiring rather than new intelligence.
+  2. **RMS question list, unchanged and still the quality ceiling**: read-only courseΓåÆexam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
 
 ## 2026-08-12T12:20:00+05:30 - Trainer 360 international readiness (v3.10.0)
 
@@ -143,30 +181,30 @@
 - **Files Modified**: `backend.py`, `tests/test_certification_and_allocation.py`, `ui/trainer/ReadinessSection.kt`, `ui/TrainerReadinessTest.kt`, `CrashTest.kt`, `app/build.gradle.kts`
 - **Work Completed**: Closed the scope deliberately cut from v3.9.0.
   - **Visa/timezone/city resolved per trainer.** These are trainer properties but RMS exposes them only through the course-keyed free-schedule endpoint (key 171). The backend now tries the trainer's taught courses in order, **bounded to four live calls**, until a pool returns containing their row. Any of their courses yields the same trainer properties, so the choice does not affect the answer.
-  - Trainer 360 shows visas with expiry, permitted stay and **associate countries** (live data has an Australia visa also covering Philippines and Egypt — matching on country alone would wrongly block eligible trainers), plus timezone, base city, free days in the next 90, and **the course the lookup resolved through** so the source is auditable.
-  - **Unresolvable → says so.** "This does not mean the trainer cannot travel." An empty travel card would read as a refusal the data does not support. A missing visa reads as verification required, not ineligibility.
+  - Trainer 360 shows visas with expiry, permitted stay and **associate countries** (live data has an Australia visa also covering Philippines and Egypt ΓÇö matching on country alone would wrongly block eligible trainers), plus timezone, base city, free days in the next 90, and **the course the lookup resolved through** so the source is auditable.
+  - **Unresolvable ΓåÆ says so.** "This does not mean the trainer cannot travel." An empty travel card would read as a refusal the data does not support. A missing visa reads as verification required, not ineligibility.
 - **Process failure worth recording**: the Gradle gate **failed** and my `&&` chain still let the commit and push through (`b4a30b7`), because `grep` succeeded on the failure output. **Chain on the gradle exit status, not on grep.**
-- **Flaky test fixed** (`977dcda`): `CrashTest` asserted 401 from the live endpoint and broke the gate on a **503** while Render was mid-deploy — the endpoint returned 401 correctly seconds later. The security property is that an unauthenticated caller never receives *data*, not that the service is up, so 5xx now skips (as unreachable already did) while a 200 still fails hard.
-- **Current Status**: **v3.10.0.87 live** — commit `977dcda`, CI run `31523503712` success. APK verified: signer `c6868b14…1808`, versionCode 86 -> 87. **130 backend + 117 Android tests pass**, lint clean. Render healthy; `/api/v2/trainer/readiness` correctly 401 unauthenticated.
+- **Flaky test fixed** (`977dcda`): `CrashTest` asserted 401 from the live endpoint and broke the gate on a **503** while Render was mid-deploy ΓÇö the endpoint returned 401 correctly seconds later. The security property is that an unauthenticated caller never receives *data*, not that the service is up, so 5xx now skips (as unreachable already did) while a 200 still fails hard.
+- **Current Status**: **v3.10.0.87 live** ΓÇö commit `977dcda`, CI run `31523503712` success. APK verified: signer `c6868b14ΓÇª1808`, versionCode 86 -> 87. **130 backend + 117 Android tests pass**, lint clean. Render healthy; `/api/v2/trainer/readiness` correctly 401 unauthenticated.
 - **Next Actions**:
-  1. **Team page** (one screen per release), then **Dashboard** — the two remaining Phase 3 screens.
-  2. **RMS question list, unchanged**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
+  1. **Team page** (one screen per release), then **Dashboard** ΓÇö the two remaining Phase 3 screens.
+  2. **RMS question list, unchanged**: read-only courseΓåÆexam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
 
 ## 2026-08-12T11:35:00+05:30 - Trainer 360 readiness on real data (v3.9.0)
 
 - **Tool Used**: Claude Code (backend.py, pytest, Compose/Robolectric, Gradle gate, apksigner + aapt, gh CLI)
 - **Files Modified**: `backend.py`, `tests/test_certification_and_allocation.py`, `ui/trainer/ReadinessSection.kt` (created), `ui/trainer/Trainer360Screen.kt`, `ui/trainer/Trainer360ViewModel.kt`, `data/api/SkillEdgeApi.kt`, `app/build.gradle.kts`, `ui/TrainerReadinessTest.kt` (created)
 - **Work Completed** (operator asked for speed; scope deliberately narrowed to the highest-value integration, no new research):
-  - **New route `GET /api/v2/trainer/readiness`** — leave, confirmed vs provisional commitments, delivery modes, client exclusions/requests from the RMS day-level calendar (key 111), plus certification verdicts with tri-state requirement.
-  - **Trainer 360 "Now" tab** now leads with `RealReadinessSection`. It previously described availability from the roaming/IL off-date fields, which live sampling found **empty for every reachable trainer** — the section could not have been right.
+  - **New route `GET /api/v2/trainer/readiness`** ΓÇö leave, confirmed vs provisional commitments, delivery modes, client exclusions/requests from the RMS day-level calendar (key 111), plus certification verdicts with tri-state requirement.
+  - **Trainer 360 "Now" tab** now leads with `RealReadinessSection`. It previously described availability from the roaming/IL off-date fields, which live sampling found **empty for every reachable trainer** ΓÇö the section could not have been right.
   - **Provisional work is counted separately** from committed: treating it as committed overstates load, ignoring it understates availability.
-  - **Certification surfaced for the first time** — the engine shipped in v3.6.0 but no screen consumed it. Exam names always labelled *inferred from delivery history*; courses with no policy entry reported as **unknown, not clean**.
-- **Current Status**: **v3.9.0.86 live** — commit `4a739c6`, CI success. APK verified: signer `c6868b14…1808`, package unchanged, versionCode 85 -> 86. **113 Android + 127 backend tests pass**, lint clean. Render healthy (`/healthz` ok v6.1.0); backend at `b09ce71`.
+  - **Certification surfaced for the first time** ΓÇö the engine shipped in v3.6.0 but no screen consumed it. Exam names always labelled *inferred from delivery history*; courses with no policy entry reported as **unknown, not clean**.
+- **Current Status**: **v3.9.0.86 live** ΓÇö commit `4a739c6`, CI success. APK verified: signer `c6868b14ΓÇª1808`, package unchanged, versionCode 85 -> 86. **113 Android + 127 backend tests pass**, lint clean. Render healthy (`/healthz` ok v6.1.0); backend at `b09ce71`.
 - **Note**: test fixtures for this section use Double-typed values matching the real wire shape, after a string-typed fixture hid three rendering bugs in v3.8.0.
 - **Next Actions**:
   1. **Team page** next (one screen per release), then Dashboard.
-  2. Trainer 360 still has room: visa/international readiness per trainer is not shown (key 171 is course-keyed, so it needs a course to resolve against — deferred deliberately rather than guessed).
-  3. **RMS question list, unchanged and still the quality ceiling**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
+  2. Trainer 360 still has room: visa/international readiness per trainer is not shown (key 171 is course-keyed, so it needs a course to resolve against ΓÇö deferred deliberately rather than guessed).
+  3. **RMS question list, unchanged and still the quality ceiling**: read-only courseΓåÆexam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
 
 ## 2026-08-12T10:50:00+05:30 - Full gated evaluation on batch detail (v3.8.0)
 
@@ -176,18 +214,18 @@
 - **Work Completed**:
   - **Wired `/api/v2/allocation/candidates` into batch detail.** Opening a batch now applies every hard gate (DNC, leave, confirmed bookings, skill floor, visa, travel windows). `GatedCandidatesSection` shows eligible candidates with a **"Why this score"** disclosure listing each factor's contribution and evidence; **blocked candidates stay visible** with the gate that stopped them, client exclusions named in plain language; an unresolvable course renders as *"could not verify"*, explicitly not *"nobody is available"*.
   - **Fixed a scope breach**: demand board and batch detail both labelled a derived priority band **"Revenue"**. The backend never returns currency for it (band derived from delivery mode, international reach, headcount), but the label read as money on a product that excludes finance. Renamed to **"Opportunity"**.
-  - **Corrected stale `AI/CONTEXT.md`** — it described `server.py` + `backend/app.py` + a SeanTheme web frontend as the product. None of that is deployed; that layout is legacy under `SkillEdge_Local/`. Now documents the real stack (Flask `backend.py` on Render + Android/Gradle), the intelligence layer, and the revenue-out-of-scope decision.
+  - **Corrected stale `AI/CONTEXT.md`** ΓÇö it described `server.py` + `backend/app.py` + a SeanTheme web frontend as the product. None of that is deployed; that layout is legacy under `SkillEdge_Local/`. Now documents the real stack (Flask `backend.py` on Render + Android/Gradle), the intelligence layer, and the revenue-out-of-scope decision.
 - **Three rendering bugs found by aligning a test fixture to the real wire format**:
-  1. Fit scores and factor contributions rendered as **"87.0" / "+20.0"** — Gson decodes JSON numbers as `Double` and `str()` stringified them.
+  1. Fit scores and factor contributions rendered as **"87.0" / "+20.0"** ΓÇö Gson decodes JSON numbers as `Double` and `str()` stringified them.
   2. Same fault on skill level and course deliveries: **"Level 9.0"**.
   3. `requires_verification` and `dnc_checked` were compared against the **string** `"true"` rather than decoded booleans.
   The `DemandIntelligenceTest` fixture had used strings where the wire sends numbers, which is exactly why it passed while the screen was wrong; it now mirrors the wire format.
-- **Current Status**: **v3.8.0.85 live** — commit `8af3469`, CI run `31517968768` success. APK verified: signer `c6868b14…1808` unchanged, package `com.example.skillsync`, versionCode 84 -> 85. **106 Android tests + 123 backend tests pass**, lint clean. Render healthy (`/healthz` ok v6.1.0). Backend unchanged this session (still `789fd99`).
-- **Note on operator instructions**: the standing prompt asks for `.csproj` registration, MSBuild and SeanTheme/Color-Admin conventions. **This repo is not .NET and has no `.csproj`** — it is Flask + Android/Gradle. That paragraph appears to be boilerplate from another project; the documented pipeline here (pytest → Render, Gradle → CI-signed GitHub Release) was followed instead. Flagged to the operator.
+- **Current Status**: **v3.8.0.85 live** ΓÇö commit `8af3469`, CI run `31517968768` success. APK verified: signer `c6868b14ΓÇª1808` unchanged, package `com.example.skillsync`, versionCode 84 -> 85. **106 Android tests + 123 backend tests pass**, lint clean. Render healthy (`/healthz` ok v6.1.0). Backend unchanged this session (still `789fd99`).
+- **Note on operator instructions**: the standing prompt asks for `.csproj` registration, MSBuild and SeanTheme/Color-Admin conventions. **This repo is not .NET and has no `.csproj`** ΓÇö it is Flask + Android/Gradle. That paragraph appears to be boilerplate from another project; the documented pipeline here (pytest ΓåÆ Render, Gradle ΓåÆ CI-signed GitHub Release) was followed instead. Flagged to the operator.
 - **Next Actions**:
   1. **Phase 3 continues, one screen per release**: Trainer 360 (availability calendar, leave, visa, international readiness), then Team, then Dashboard.
-  2. Consider surfacing `certification_verdict` / `certification_priority` on Trainer 360 — the engine exists and is tested but no screen consumes it.
-  3. **RMS question list, still the main quality ceiling**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
+  2. Consider surfacing `certification_verdict` / `certification_priority` on Trainer 360 ΓÇö the engine exists and is tested but no screen consumes it.
+  3. **RMS question list, still the main quality ceiling**: read-only courseΓåÆexam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
 
 ## 2026-08-12T09:15:00+05:30 - Demand screen consumes the intelligence layer (v3.7.0)
 
@@ -199,27 +237,27 @@
   - The older assignment-feed availability line is now a **fallback**, used only when key 171 returned no row. Showing both invited two contradictory availability claims with no way to tell which to believe.
   - **`CoverageVerdictStrip`** separates two previously indistinguishable states that lead to opposite actions: *"No trainer in RMS holds this course"* (hire or train) versus *"Availability not verified"* (catalogue miss, nothing concluded).
   - **`UncheckedNotice`** states that client exclusions and leave are checked on open. DNC is non-overridable and the board does not evaluate it; silence about that would be worse than not checking.
-- **Current Status**: **v3.7.0.84 live** — commit `9fcc8f7`, CI run `31516260311` success. APK verified: signer `c6868b14…1808` unchanged, package `com.example.skillsync`, versionCode 83 -> 84. Gate green: 11 new Compose tests (98 Android total), lint clean. Backend at `789fd99` serving the fields.
+- **Current Status**: **v3.7.0.84 live** ΓÇö commit `9fcc8f7`, CI run `31516260311` success. APK verified: signer `c6868b14ΓÇª1808` unchanged, package `com.example.skillsync`, versionCode 83 -> 84. Gate green: 11 new Compose tests (98 Android total), lint clean. Backend at `789fd99` serving the fields.
 - **Next Actions**:
   1. **Phase 3 continues, one screen per release**: Trainer 360 (availability calendar, leave, visa, international readiness), then Team, then Dashboard.
-  2. Wire `/api/v2/allocation/candidates` into the batch detail screen so opening a batch runs the **full gated evaluation** including DNC and leave — currently the route exists and is tested but no screen calls it.
-  3. **RMS question list, still the main quality ceiling**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
+  2. Wire `/api/v2/allocation/candidates` into the batch detail screen so opening a batch runs the **full gated evaluation** including DNC and leave ΓÇö currently the route exists and is tested but no screen calls it.
+  3. **RMS question list, still the main quality ceiling**: read-only courseΓåÆexam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
 
 ## 2026-08-12T07:40:00+05:30 - Demand board wired to the intelligence layer (backend only)
 
 - **Tool Used**: Claude Code (backend.py, pytest, live RMS timing, Render probes)
 - **Files Modified**: `backend.py`, `tests/test_certification_and_allocation.py`, `tests/test_demand_safety.py`
-- **Work Completed**: `enrich_demand_with_availability` overlays the existing `/api/data/allocation-desk` board with real availability. **Additive only** — no existing key changes, so the shipped Android client keeps working while gaining, per candidate: `real_availability`, `skill_level`, `course_deliveries`, `trainer_timezone`, `nearest_city`, `future_skill_date`, and for international batches `international_readiness` / `visa_status` / `requires_visa_verification`.
-- **Deliberate scope limit, declared in the payload**: key 171 is per-course (bounded, cached 600s); key 111 is per-trainer-per-batch and multiplicative — a 40-batch board would become hundreds of calls. So **DNC, leave and tentative bookings are NOT applied on the board**, and every batch carries `dnc_checked: false` / `leave_checked: false` rather than leaving the omission implicit. Full gated evaluation remains in `/api/v2/allocation/candidates` (one batch, on demand).
+- **Work Completed**: `enrich_demand_with_availability` overlays the existing `/api/data/allocation-desk` board with real availability. **Additive only** ΓÇö no existing key changes, so the shipped Android client keeps working while gaining, per candidate: `real_availability`, `skill_level`, `course_deliveries`, `trainer_timezone`, `nearest_city`, `future_skill_date`, and for international batches `international_readiness` / `visa_status` / `requires_visa_verification`.
+- **Deliberate scope limit, declared in the payload**: key 171 is per-course (bounded, cached 600s); key 111 is per-trainer-per-batch and multiplicative ΓÇö a 40-batch board would become hundreds of calls. So **DNC, leave and tentative bookings are NOT applied on the board**, and every batch carries `dnc_checked: false` / `leave_checked: false` rather than leaving the omission implicit. Full gated evaluation remains in `/api/v2/allocation/candidates` (one batch, on demand).
 - **Two problems found by live measurement**:
-  1. **Performance**: 6 batches took **17.3s** sequentially (a 40-batch board ≈ 2 minutes). Parallelising alone did not help — every `_free_schedule` resolves through the 8,800-row course catalogue, so on a cold cache all threads raced to fetch it simultaneously. **Warming the catalogue before the fan-out**: full 11-batch board **27.4s → 9.7s cold, 0.89s warm**.
-  2. **"Could not check" was conflated with "no trainer holds this skill"** — opposite facts (catalogue fix vs hiring/training). Now three states: `rms_free_schedule` / `no_skilled_trainers` / `unresolved`. Live board of 11: **6 resolved, 4 no skilled trainers, 1 unresolved**.
+  1. **Performance**: 6 batches took **17.3s** sequentially (a 40-batch board Γëê 2 minutes). Parallelising alone did not help ΓÇö every `_free_schedule` resolves through the 8,800-row course catalogue, so on a cold cache all threads raced to fetch it simultaneously. **Warming the catalogue before the fan-out**: full 11-batch board **27.4s ΓåÆ 9.7s cold, 0.89s warm**.
+  2. **"Could not check" was conflated with "no trainer holds this skill"** ΓÇö opposite facts (catalogue fix vs hiring/training). Now three states: `rms_free_schedule` / `no_skilled_trainers` / `unresolved`. Live board of 11: **6 resolved, 4 no skilled trainers, 1 unresolved**.
 - **Safety**: enrichment is wrapped so a key 171 outage degrades the board to its previous behaviour rather than failing the request. `test_demand_safety`'s allowlist gained the three read-only endpoints the overlay uses; the guard it exists for is unchanged and still asserts a Demand GET never reaches `addTrainerSkill`.
-- **Current Status**: **123 backend tests pass**. Pushed `789fd99`; Render healthy (`/healthz` ok v6.1.0), allocation-desk correctly 401 unauthenticated. **No version bump or APK — backend only.**
+- **Current Status**: **123 backend tests pass**. Pushed `789fd99`; Render healthy (`/healthz` ok v6.1.0), allocation-desk correctly 401 unauthenticated. **No version bump or APK ΓÇö backend only.**
 - **Next Actions**:
-  1. **Android consumption** — the new fields are being served but nothing renders them. This is the first work that will need an APK release, and per the one-page-per-release rule it should be the Demand screen alone.
+  1. **Android consumption** ΓÇö the new fields are being served but nothing renders them. This is the first work that will need an APK release, and per the one-page-per-release rule it should be the Demand screen alone.
   2. Then Phase 3 for the remaining screens: Dashboard, Team, Trainer 360.
-  3. **RMS question list (unchanged, still blocking quality)**: read-only course→exam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
+  3. **RMS question list (unchanged, still blocking quality)**: read-only courseΓåÆexam mapping; why the 213 catalogue names diverge from the delivery catalogue; params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether off-date fields are ever populated; rate limits for per-course 171 calls.
 
 ## 2026-08-12T06:20:00+05:30 - Phase 1b + Phase 2 complete (backend only)
 
@@ -232,18 +270,18 @@
   - **`GET /api/v2/allocation/candidates`**: eligible candidates ranked with per-factor contributions; blocked candidates retained with the gate that stopped them; **422 `COURSE_UNRESOLVED`** for an unresolvable course rather than an empty pool.
 - **Three correctness bugs found during verification and fixed**:
   1. **A trainer with zero free days ranked as eligible.** `availability_verdict` treated an empty free-date set as "unknown" while the gate only blocks "unavailable". `None` (no RMS row -> unknown) and `set()` (row listing no free days -> unavailable) are now distinct.
-  2. **`certification_verdict` returned `exam_required=False` for any course missing from the policy catalogue**, silently converting every unmatched course into "no gap". **The exam-policy catalogue (213) does not share course names with the delivery catalogue** — `AZ-305T00: Designing Microsoft Azure Infrastructure Solutions` has no entry there at all, while 213 carries `AZ-305 - Exam Prep`. `exam_required` is now tri-state (True/False/None) with `policy_known`, and a gap is asserted only when the requirement is known true. This was **under-reporting** the exact risk the engine exists to find.
+  2. **`certification_verdict` returned `exam_required=False` for any course missing from the policy catalogue**, silently converting every unmatched course into "no gap". **The exam-policy catalogue (213) does not share course names with the delivery catalogue** ΓÇö `AZ-305T00: Designing Microsoft Azure Infrastructure Solutions` has no entry there at all, while 213 carries `AZ-305 - Exam Prep`. `exam_required` is now tri-state (True/False/None) with `policy_known`, and a gap is asserted only when the requirement is known true. This was **under-reporting** the exact risk the engine exists to find.
   3. `parse_off_dates` expanded absurd ranges; a decade-long value is bad data, not a decade of unavailability.
 - **New live findings**:
-  - **Off-date fields are null for every trainer reachable from this account** (reportees, assignment feed, course pool). The travel/shift gates are therefore **inert today**; international eligibility rests on visa + free dates from key 171, which are populated. This mirrors the API 172 lesson: documented ≠ populated.
+  - **Off-date fields are null for every trainer reachable from this account** (reportees, assignment feed, course pool). The travel/shift gates are therefore **inert today**; international eligibility rests on visa + free dates from key 171, which are populated. This mirrors the API 172 lesson: documented Γëá populated.
   - Exam policy live: **1,442 of 10,980 courses (13%) require an exam**, and the naming mismatch above means many delivery-catalogue courses have no policy entry at all.
-  - `_exam_hints` works: 127 RC rows yielded 3 course→exam mappings, e.g. AI-102 → "Microsoft Certified: Azure AI Apps and Agents Developer Associate", labelled `inferred_from_delivery_history`.
-- **Live end-to-end on the AZ-305 pool**: 37 candidates → **14 eligible, 23 blocked** (13 availability, 11 visa, 3 skill level). **11 of 14 eligible carry an unknown visa and are shown and flagged, never hidden**, per the operator decision. Top candidate fit=100 with factors: +20 course experience (27 prior deliveries), +15 skill level 10, +10 visa valid to 2030-01-29.
-- **Current Status**: **118 backend tests pass** (58 pre-existing + 60 new). Pushed `7ea2241`; Render redeployed and healthy (`/healthz` ok v6.1.0). New route correctly returns 401 unauthenticated. **No version bump or APK — backend only; Android does not yet consume these engines.**
+  - `_exam_hints` works: 127 RC rows yielded 3 courseΓåÆexam mappings, e.g. AI-102 ΓåÆ "Microsoft Certified: Azure AI Apps and Agents Developer Associate", labelled `inferred_from_delivery_history`.
+- **Live end-to-end on the AZ-305 pool**: 37 candidates ΓåÆ **14 eligible, 23 blocked** (13 availability, 11 visa, 3 skill level). **11 of 14 eligible carry an unknown visa and are shown and flagged, never hidden**, per the operator decision. Top candidate fit=100 with factors: +20 course experience (27 prior deliveries), +15 skill level 10, +10 visa valid to 2030-01-29.
+- **Current Status**: **118 backend tests pass** (58 pre-existing + 60 new). Pushed `7ea2241`; Render redeployed and healthy (`/healthz` ok v6.1.0). New route correctly returns 401 unauthenticated. **No version bump or APK ΓÇö backend only; Android does not yet consume these engines.**
 - **Next Actions**:
   1. **Phase 2 completion**: point the allocation desk (`_rank_batch`) at `evaluate_candidate` so the existing demand board inherits the new intelligence, and expose the factor breakdown to Android.
   2. **Phase 3** (screens) only after that: Demand/Allocation V2 expressing the real verdicts, then Dashboard, Team, Trainer 360.
-  3. **RMS question list — now materially blocking quality**: read-only course→exam mapping; **why the 213 catalogue names diverge from the delivery catalogue** (new, and the cause of under-reported gaps); params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether the off-date fields are populated for any population at all; rate limits for per-course 171 calls.
+  3. **RMS question list ΓÇö now materially blocking quality**: read-only courseΓåÆexam mapping; **why the 213 catalogue names diverge from the delivery catalogue** (new, and the cause of under-reported gaps); params for 90/172/205/72/93; whether missing `Visa` means "none" or "unrecorded"; whether the off-date fields are populated for any population at all; rate limits for per-course 171 calls.
 
 ## 2026-08-12T04:00:00+05:30 - Phase 1a: availability and international engines (backend only)
 
@@ -251,57 +289,57 @@
 - **Files Modified**: `backend.py`, `tests/test_intelligence_layer.py` (created)
 - **Operator decisions confirmed**: DNC absolute and non-overridable; unknown visa shown and flagged, never silently excluded; Phase 1 may be entirely backend. Priority order: data correctness > intelligence > recommendation > business logic > UX > visual.
 - **Work Completed**:
-  - Wired **API 171** (`trainerFreeSchedule`) and **API 111** (`trainerRCSchedule`) with 600s cache TTL — availability is volatile but 171 is per-course, so a 40-batch board means 40 calls.
-  - `_resolve_course_name` — exact, course-code, prefix and containment resolution. **Required**, because 171 returns 0 rows for an inexact name.
+  - Wired **API 171** (`trainerFreeSchedule`) and **API 111** (`trainerRCSchedule`) with 600s cache TTL ΓÇö availability is volatile but 171 is per-course, so a 40-batch board means 40 calls.
+  - `_resolve_course_name` ΓÇö exact, course-code, prefix and containment resolution. **Required**, because 171 returns 0 rows for an inexact name.
   - `_parse_free_dates`, `_parse_visa` (incl. `AssociateCountries`), `_parse_skill_level` (recovers the future-skill date embedded in the level string).
-  - `_free_schedule`, `_rc_schedule` — typed extraction of leave, confirmed vs tentative, DNC and SpecifiedTrainer.
-  - **`availability_verdict`** — the "utilisation is not availability" fix. Answers for a specific set of delivery days from real free dates, leave and commitments. Returns available / available_with_conflicts / partially_available / unavailable / unknown, naming the blocked days.
-  - **`international_verdict`** — visa (with associate countries, expiry vs batch end, stay length vs batch length), plus timezone fit comfortable/workable/unsocial.
-  - **`evaluate_candidate`** — hard gates (DNC, availability, skill floor, visa) then weighted fit with per-factor contributions and evidence. **Utilisation demoted from gate to tiebreaker (7 points).**
+  - `_free_schedule`, `_rc_schedule` ΓÇö typed extraction of leave, confirmed vs tentative, DNC and SpecifiedTrainer.
+  - **`availability_verdict`** ΓÇö the "utilisation is not availability" fix. Answers for a specific set of delivery days from real free dates, leave and commitments. Returns available / available_with_conflicts / partially_available / unavailable / unknown, naming the blocked days.
+  - **`international_verdict`** ΓÇö visa (with associate countries, expiry vs batch end, stay length vs batch length), plus timezone fit comfortable/workable/unsocial.
+  - **`evaluate_candidate`** ΓÇö hard gates (DNC, availability, skill floor, visa) then weighted fit with per-factor contributions and evidence. **Utilisation demoted from gate to tiebreaker (7 points).**
 - **Two bugs caught by live testing that unit tests could not have caught**:
   1. **I transcribed the API 171 credentials from a pattern instead of reading the portal doc.** Every call silently returned zero rows. Correct user is `AISHWAR_GetTrainerFreeS`. This is exactly the failure mode the verification standard exists to catch.
   2. The resolver could not match a title given without its code; containment matching added, guarded by a minimum length so "azure" cannot resolve to an arbitrary Azure course.
 - **Live verification**: 37 candidates for AZ-305 (visa 18/37, timezone 37/37, free dates 37/37, one trainer with 175 free days to 2027-02-11); visa parsed with associates `['philippines','egypt']`; RC schedule 61 rows with 4 leave days, 4 confirmed, 3 tentative; end-to-end evaluation correctly blocked a real candidate on a 2-of-4-day conflict while reporting visa valid to 2030 and a 4.5h timezone offset; adding DNC produced a second blocker and fit 0.
-- **Current Status**: 94 backend tests pass (58 pre-existing + 36 new). Pushed `057a4c6`; Render redeployed and healthy (`/healthz` ok v6.1.0, auth gate 401). **No version bump or APK — backend only**, and the Android app does not yet consume these engines.
+- **Current Status**: 94 backend tests pass (58 pre-existing + 36 new). Pushed `057a4c6`; Render redeployed and healthy (`/healthz` ok v6.1.0, auth gate 401). **No version bump or APK ΓÇö backend only**, and the Android app does not yet consume these engines.
 - **Next Actions**:
   1. **Phase 1b**: CertificationEngine (213 promoted, exam identity inferred from 111 `Exam` and labelled as inferred); expose the hidden roaming/IL off-date fields; wire API 13 with fee/currency stripped at the boundary.
   2. **Phase 2**: replace `_rank_batch` with `evaluate_candidate` across the allocation desk, and expose the factor breakdown through a versioned endpoint.
-  3. RMS question list still outstanding: read-only course→exam mapping; params for 90/172/205/72/93; whether a missing `Visa` means "none" or "unrecorded"; whether `TravelDetails`/`TimeZone` on 111 are dead columns; rate limits for per-course 171 calls.
+  3. RMS question list still outstanding: read-only courseΓåÆexam mapping; params for 90/172/205/72/93; whether a missing `Visa` means "none" or "unrecorded"; whether `TravelDetails`/`TimeZone` on 111 are dead columns; rate limits for per-course 171 calls.
 
 ## 2026-08-12T02:15:00+05:30 - Intelligence Layer V2 design; all 14 operator deliverables (no code)
 
 - **Tool Used**: Claude Code (further live probes of API 171 semantics and API 213 policy, then design)
 - **Files Modified**: `AI/INTELLIGENCE_LAYER_V2_2026_08_12.md` (created), `AI/PROGRESS.md`
-- **Operator direction**: product is a **Delivery Intelligence and Resource Readiness Platform**. Fee/Currency must never reach Android — strip at the backend boundary; CSM/SCCreatedDate/demand age are acceptable. **No further dashboard redesign until the intelligence layer exists.** Governing principle: **utilisation is not availability**.
+- **Operator direction**: product is a **Delivery Intelligence and Resource Readiness Platform**. Fee/Currency must never reach Android ΓÇö strip at the backend boundary; CSM/SCCreatedDate/demand age are acceptable. **No further dashboard redesign until the intelligence layer exists.** Governing principle: **utilisation is not availability**.
 - **New evidence from this session**:
-  - **API 171 returns the full skilled candidate pool, not just free trainers** — 37 rows for AZ-305, 21 for CKA. It can drive allocation on its own.
-  - Field population: `TrainerTimezone` 100%, `Trainer Free Date` 100% (150–175 free days each), **`Visa` ~48%** (18/37, 8/21), 22 distinct cities for one course.
-  - `Visa` carries **`AssociateCountries`** (e.g. an Australia visa also covering "Philippines,Egypt") — richer than first recorded.
+  - **API 171 returns the full skilled candidate pool, not just free trainers** ΓÇö 37 rows for AZ-305, 21 for CKA. It can drive allocation on its own.
+  - Field population: `TrainerTimezone` 100%, `Trainer Free Date` 100% (150ΓÇô175 free days each), **`Visa` ~48%** (18/37, 8/21), 22 distinct cities for one course.
+  - `Visa` carries **`AssociateCountries`** (e.g. an Australia visa also covering "Philippines,Egypt") ΓÇö richer than first recorded.
   - **`Future Skill` is embedded in the `Skill Level` string**, e.g. `"1 (Future Skill: 08-Sep-2026)"`, not in the separate column.
-  - **Hard integration constraint**: API 171 needs an **exact catalogue course name**. `AZ-305T00…` → 37 rows; `AI-102T00…`, `AZ-104T00…`, `CCNA…` → **0**. A course-name resolver is a prerequisite, and a miss must read as "cannot verify", never "nobody available".
-  - **API 213**: 11,007 courses, only **1,446 (13%) require an exam**. **Verified `backend.py` already applies this policy** when computing gaps (~line 1796), so gaps are *not* over-reported — an earlier concern of mine was wrong.
+  - **Hard integration constraint**: API 171 needs an **exact catalogue course name**. `AZ-305T00ΓÇª` ΓåÆ 37 rows; `AI-102T00ΓÇª`, `AZ-104T00ΓÇª`, `CCNAΓÇª` ΓåÆ **0**. A course-name resolver is a prerequisite, and a miss must read as "cannot verify", never "nobody available".
+  - **API 213**: 11,007 courses, only **1,446 (13%) require an exam**. **Verified `backend.py` already applies this policy** when computing gaps (~line 1796), so gaps are *not* over-reported ΓÇö an earlier concern of mine was wrong.
 - **Delivered (all 14 requested items)**: validation report, response samples, production-ready list, business-value ranking, integration order, **Allocation Model V2** (hard gates then weighted fit with per-factor output), **International Suitability Model**, **Availability Intelligence Model**, **Certification Intelligence Model**, V2 architecture, obsolescence list, calculations-to-replace list, workflow improvements, phased roadmap.
 - **Current Status**: No code changed; v3.6.0.83 remains live. Design is complete and evidence-based; Phase 1 is ready to start on approval.
-- **Key design decisions to note**: utilisation is **demoted from an availability gate to a tiebreaker**; `Unknown` becomes a first-class state distinct from zero/false (critical because ~52% of trainers have no visa record — treating absence as ineligible would hide half the bench); every score must expose its factors so a manager can disagree with a specific axis, which doubles as a training label.
-- **Next Actions**: blocked on 3 operator answers (DNC as an absolute gate; whether Unknown-visa trainers are shown-and-flagged or hidden; acceptance of a near-invisible backend-only Phase 1 release) and 5 RMS questions (read-only course→exam mapping; correct params for 90/172/205/72/93; whether missing Visa means "none" or "unrecorded"; whether `TravelDetails`/`TimeZone` on 111 are dead columns; rate limits, since 171 is per-course and a 40-batch board implies 40 calls).
+- **Key design decisions to note**: utilisation is **demoted from an availability gate to a tiebreaker**; `Unknown` becomes a first-class state distinct from zero/false (critical because ~52% of trainers have no visa record ΓÇö treating absence as ineligible would hide half the bench); every score must expose its factors so a manager can disagree with a specific axis, which doubles as a training label.
+- **Next Actions**: blocked on 3 operator answers (DNC as an absolute gate; whether Unknown-visa trainers are shown-and-flagged or hidden; acceptance of a near-invisible backend-only Phase 1 release) and 5 RMS questions (read-only courseΓåÆexam mapping; correct params for 90/172/205/72/93; whether missing Visa means "none" or "unrecorded"; whether `TravelDetails`/`TimeZone` on 111 are dead columns; rate limits, since 171 is per-course and a 40-batch board implies 40 calls).
 
 ## 2026-08-12T00:40:00+05:30 - Live API validation; product repositioned away from revenue (no code)
 
 - **Tool Used**: Claude Code (live authenticated probes against `api.koenig-solutions.com`)
 - **Files Modified**: `AI/API_VALIDATION_2026_08_11.md` (created), `AI/PROGRESS.md`
 - **Operator decisions recorded**:
-  - **Decision 1 — revenue is OUT of scope.** SkillEdge is not a finance/CRM/revenue product. `Total Fee` and `Currency` must not be surfaced. The product is a **Delivery Intelligence and Resource Readiness Platform**: delivery intelligence, resource planning, trainer intelligence, capability management, readiness, allocation, demand coverage, certification intelligence, capacity planning. The V2 framing in `AI/PRODUCT_AUDIT_V2_2026_08_11.md` ("revenue-protection system") is **superseded** and must be re-written.
-  - **Decision 2 — validate every unused API live.** Done, results below.
+  - **Decision 1 ΓÇö revenue is OUT of scope.** SkillEdge is not a finance/CRM/revenue product. `Total Fee` and `Currency` must not be surfaced. The product is a **Delivery Intelligence and Resource Readiness Platform**: delivery intelligence, resource planning, trainer intelligence, capability management, readiness, allocation, demand coverage, certification intelligence, capacity planning. The V2 framing in `AI/PRODUCT_AUDIT_V2_2026_08_11.md` ("revenue-protection system") is **superseded** and must be re-written.
+  - **Decision 2 ΓÇö validate every unused API live.** Done, results below.
 - **Validation results (evidence, not documentation)**:
   - **Working, high value (6)**: **171 Trainer Free Schedule**, **111 Trainer RC Schedule**, 114 Course & Technology (19,921 rows / 1,068 technologies), 164 Course List (12,103 rows), 206 Course Module, 156 Course Content URL.
   - **API 171 answers the visa question**: returns `Visa` as `[{"Country","VisaExpiryDate","StayPeriod"}]`, plus `Trainer Free Date` (a real comma-separated availability calendar), `TrainerTimezone`, `NearestCity`, `Skill Level`, `#Assignment for the Course`. Course-first query shape. **This is the international allocation engine.**
   - **API 111 returns 35 fields / 61 rows for one trainer over two months**, including **`LeaveStatus`/`LeaveAppliedDate`/`LeaveApprovedDate`/`LeaveApprovedBy`** (real absence data), `AssociatedType`, `QuotationStatus` (confirmed vs tentative), **`SpecifiedTrainer`** and **`DNC`** (client preference and exclusion), `DeliveryMode`, `QubitScore`, `Exam`, `HrsPerDay`.
   - **Empty for every parameter tried (5)**: 90, 172, 205, 72, 93. Not proven broken; unusable with the parameters available. Consolidated question list for the RMS team is in the report.
-  - **API 172 was ranked ★★★★★ in the audit on documentation alone and returns nothing live** — the exact failure mode the operator warned about.
+  - **API 172 was ranked ΓÿàΓÿàΓÿàΓÿàΓÿà in the audit on documentation alone and returns nothing live** ΓÇö the exact failure mode the operator warned about.
   - **API 215 is a MUTATION, not a lookup.** Returns `{"Status":1,"Message":"Exam and course linked successfully."}`. **Disclosure: it was called once during discovery with an empty `examid`, believed to be a read. Likely a no-op, but the RMS team should confirm no unintended exam link was created against course id 17.** Now excluded alongside 255.
-- **Current Status**: No code changed; v3.6.0.83 remains live. The international matching problem is **now solvable with data fetchable today** — nine new ranking parameters identified (visa, free dates, time zone, location, course-specific experience, leave, confirmed-vs-tentative, client preference, client exclusion), requiring only that 171 and 111 be wired and `_rank_batch` rewritten as a transparent multi-factor model.
+- **Current Status**: No code changed; v3.6.0.83 remains live. The international matching problem is **now solvable with data fetchable today** ΓÇö nine new ranking parameters identified (visa, free dates, time zone, location, course-specific experience, leave, confirmed-vs-tentative, client preference, client exclusion), requiring only that 171 and 111 be wired and `_rank_batch` rewritten as a transparent multi-factor model.
 - **Next Actions**:
-  1. **Operator's last message was truncated mid-sentence** at "Before any major UI work, please provide: 1." — the requested deliverable list is unknown and must be re-asked before starting.
+  1. **Operator's last message was truncated mid-sentence** at "Before any major UI work, please provide: 1." ΓÇö the requested deliverable list is unknown and must be re-asked before starting.
   2. Rewrite the V2 vision to the Delivery Intelligence and Resource Readiness framing (drop revenue entirely).
   3. Phase 1 on evidence: wire 171 + 111, rewrite `_rank_batch` transparently, wire 114 + 164, wire 13 with fee/currency stripped at the backend boundary (keep `CSM`, `SCCreatedDate`).
   4. Take the five empty APIs and 215's true contract to the RMS team as one question list.
@@ -313,26 +351,26 @@
 - **Work Completed**: Operator halted feature work and asked for a ground-up product audit, a complete audit of the API portal, and a V2 vision. Delivered as a 10-part document. Hard findings:
   - **37 documented APIs. 27 wired. 4 of those never called. 10 never wired. Effective usage 23/37 = 62%.**
   - Never wired: 215 Exam Course Linked, 172 Latest Course Version, 114 Course & Technology, 205 Course and Domain, 164 Course List, 206 Course Module, 156 Course Content URL, 171 Trainer Free Schedule, 111 Trainer RC Schedule, 72 Unique Cert Count.
-  - Dormant: **13 Get Active SC Date (`Total Fee`, `Currency` — the only money in the estate)**, 90 Trainer availability (`MTI_Issue`), 93 Upcoming Assignments, 278 Recording Details.
+  - Dormant: **13 Get Active SC Date (`Total Fee`, `Currency` ΓÇö the only money in the estate)**, 90 Trainer availability (`MTI_Issue`), 93 Upcoming Assignments, 278 Recording Details.
   - **Fields fetched but never surfaced to Android**: `InternationaRoamingOffDates`, `RoamingOffDates`, `Night/Morning/EveningILOffDates`, `QubitsScore`, `Is Future Skill`, `Future Skill Date`. `techcallrating` and `MTI_Issue` have **zero references anywhere in the codebase**.
-  - **Root cause of the international/FMAT complaint identified**: `_rank_batch` scores skill, Qubits, utilisation, language, level and feedback — it has **no travel, time-zone, MTI, fee or trainer-type input**. The globe badge marks a batch international while the ranker has no concept of international. Visual treatment cannot fix this; the model must change first.
-  - **Root cause of the dashboard complaint identified**: it has no unit of consequence. Every element is a measurement, none is money or time-to-impact. "8 unallocated batches" is unactionable; "₹12L starts inside 14 days" is not — and we never fetch the fee.
+  - **Root cause of the international/FMAT complaint identified**: `_rank_batch` scores skill, Qubits, utilisation, language, level and feedback ΓÇö it has **no travel, time-zone, MTI, fee or trainer-type input**. The globe badge marks a batch international while the ranker has no concept of international. Visual treatment cannot fix this; the model must change first.
+  - **Root cause of the dashboard complaint identified**: it has no unit of consequence. Every element is a measurement, none is money or time-to-impact. "8 unallocated batches" is unactionable; "Γé╣12L starts inside 14 days" is not ΓÇö and we never fetch the fee.
 - **Current Status**: No code changed. v3.6.0.83 remains the live release. The audit supersedes `AI/DESIGN_VISION_V2_2026_08_11.md`, which addressed presentation only and did not question the data foundation.
-- **Next Actions**: Blocked on five operator decisions in §10 of the audit — chiefly (1) whether revenue may be exposed in the app, which gates the whole Phase 1 foundation, (2) live probe confirmation that the 14 unused APIs return data for this account, (3) RMS-team sign-off on a bulk skill-write endpoint, (4) whether visa/passport status exists anywhere in RMS, (5) screen order for Phases 2 to 4.
+- **Next Actions**: Blocked on five operator decisions in ┬º10 of the audit ΓÇö chiefly (1) whether revenue may be exposed in the app, which gates the whole Phase 1 foundation, (2) live probe confirmation that the 14 unused APIs return data for this account, (3) RMS-team sign-off on a bulk skill-write endpoint, (4) whether visa/passport status exists anywhere in RMS, (5) screen order for Phases 2 to 4.
 
 ## 2026-08-11T21:10:00+05:30 - In-app delivery agent with a learning loop (v3.6.0)
 
 - **Tool Used**: Claude Code (Gradle gate, apksigner + aapt, gh CLI)
 - **Files Modified**: `ai/Facts.kt`, `ai/Recommender.kt`, `ai/Agent.kt`, `ai/LearningStore.kt`, `ui/ai/CopilotScreen.kt` (all created), `Navigation.kt`, `NavigationKeys.kt`, `ui/main/MainScreen.kt`, `ui/main/ManagerCommandCentre.kt`, `app/build.gradle.kts`, `ai/AgentTest.kt` (created)
 - **Work Completed**: Landed the agentic layer the 2026-08-05 decision described but which never reached `backend.py`. Built in Kotlin, on device, over the payloads the app already holds.
-  - **Fact base** — fuses every reachable surface into one row per trainer: operations, current state, capability/certifications, delivery risk, utilisation history, actions, and the allocation desk **inverted** so each trainer carries the demand they rank for. Unmeasured stays `null` and is never conflated with a real zero.
-  - **Recommender** — 8 suggestion kinds, scored, each carrying its evidence. Precedence: feedback flag > cert gap > rebalance > allocate > bench skill > open actions > recognise. Key person risk (single-owner course) computed team-wide. Recognition included so the agent can bring good news, not only problems.
-  - **Learning loop** — accept/dismiss is a label; it moves that kind's weight, clamped to [0.4, 2.0] and renormalised to mean 1.0 so the scale cannot drift. Persisted via `LocalCache.saveObject`, versioned, and tolerant of new suggestion kinds appearing in a later release.
-  - **Agent** — 9 intents, pattern-routed to tools. Every answer carries evidence plus a confidence that degrades when data is thin, and names what is missing (e.g. allocation desk not loaded) rather than silently reporting zero coverage.
-  - **Copilot screen** restored — replaces the dead one removed in v3.2.1; reasons locally instead of posting to the nonexistent `/api/agent/ask`.
-- **Current Status**: **v3.6.0.83 live** — commit `21a3f82`, CI run `31481369308` success. APK verified: signer `c6868b14…1808` unchanged, versionCode 82 -> 83. Gate green: 24 new AI tests (87 total), lint clean.
-- **Design constraint, stated plainly**: this agent has **no language model**. It recognises a bounded set of questions and refuses the rest, by design — a system that emits fluent text for a question it did not understand is worse than one that says so, because the manager cannot distinguish them and would act on invented delivery data. The refusal path is unit-tested.
-- **What "self-training" does and does not mean here**: it learns **ranking**, from real manager decisions. It cannot invent a new kind of suggestion — a genuinely new recommendation must still be written into `Recommender`. The model is also **per device**: weights live in the local cache, so a reinstall resets to neutral, and nothing is pooled across a manager's devices or across managers. Both limits are documented in `LearningStore.kt`.
+  - **Fact base** ΓÇö fuses every reachable surface into one row per trainer: operations, current state, capability/certifications, delivery risk, utilisation history, actions, and the allocation desk **inverted** so each trainer carries the demand they rank for. Unmeasured stays `null` and is never conflated with a real zero.
+  - **Recommender** ΓÇö 8 suggestion kinds, scored, each carrying its evidence. Precedence: feedback flag > cert gap > rebalance > allocate > bench skill > open actions > recognise. Key person risk (single-owner course) computed team-wide. Recognition included so the agent can bring good news, not only problems.
+  - **Learning loop** ΓÇö accept/dismiss is a label; it moves that kind's weight, clamped to [0.4, 2.0] and renormalised to mean 1.0 so the scale cannot drift. Persisted via `LocalCache.saveObject`, versioned, and tolerant of new suggestion kinds appearing in a later release.
+  - **Agent** ΓÇö 9 intents, pattern-routed to tools. Every answer carries evidence plus a confidence that degrades when data is thin, and names what is missing (e.g. allocation desk not loaded) rather than silently reporting zero coverage.
+  - **Copilot screen** restored ΓÇö replaces the dead one removed in v3.2.1; reasons locally instead of posting to the nonexistent `/api/agent/ask`.
+- **Current Status**: **v3.6.0.83 live** ΓÇö commit `21a3f82`, CI run `31481369308` success. APK verified: signer `c6868b14ΓÇª1808` unchanged, versionCode 82 -> 83. Gate green: 24 new AI tests (87 total), lint clean.
+- **Design constraint, stated plainly**: this agent has **no language model**. It recognises a bounded set of questions and refuses the rest, by design ΓÇö a system that emits fluent text for a question it did not understand is worse than one that says so, because the manager cannot distinguish them and would act on invented delivery data. The refusal path is unit-tested.
+- **What "self-training" does and does not mean here**: it learns **ranking**, from real manager decisions. It cannot invent a new kind of suggestion ΓÇö a genuinely new recommendation must still be written into `Recommender`. The model is also **per device**: weights live in the local cache, so a reinstall resets to neutral, and nothing is pooled across a manager's devices or across managers. Both limits are documented in `LearningStore.kt`.
 - **Next Actions**:
   1. **Decide the LLM question.** Free-text/Hinglish understanding and generative answers need a provider, credentials and a backend route (`POST /api/agent/ask`). Until then the agent stays deterministic. The `Agent.ask` entry point is the seam an LLM would slot into.
   2. **Server-side learning** if the model should follow a manager across devices or pool across the org: needs a backend table plus an endpoint to read and write weights.
@@ -351,8 +389,8 @@
   - **Paste format selectable**: Teams renders `**bold**`/`_italic_`; Viber shows markers literally, so Plain emits none.
   - **Dashboard**: top performers promoted out of the collapsed Explore section into the briefing, per the operator request; weekly report CTA sits beside it.
   - **Core library desugaring enabled.** `java.time` is API 26 and the app ships to minSdk 24, so the report's date handling would have crashed on API 24 and 25. Lint caught it; fixed properly rather than suppressed.
-- **Current Status**: **v3.5.0.82 live** — commit `357873d`, CI run `31477318054` success. APK verified: signer `c6868b14…1808` unchanged, package `com.example.skillsync`, versionCode 81 -> 82. Gate green: 63 unit tests (12 new house-style tests), lint clean.
-- **Known limitation, stated plainly**: the operator's brief describes rewriting a free-form `[User Message: …]` / `[My Message: …]` pair, including Hinglish, into polished English. That is an LLM task and **is not implemented** — the composer is deterministic and generates from RMS data only. There is no LLM in this project (`/api/agent/ask` does not exist; see the 2026-08-11 Copilot decision), so a free-text rewriter cannot be built honestly today. What ships is the data-driven half.
+- **Current Status**: **v3.5.0.82 live** ΓÇö commit `357873d`, CI run `31477318054` success. APK verified: signer `c6868b14ΓÇª1808` unchanged, package `com.example.skillsync`, versionCode 81 -> 82. Gate green: 63 unit tests (12 new house-style tests), lint clean.
+- **Known limitation, stated plainly**: the operator's brief describes rewriting a free-form `[User Message: ΓÇª]` / `[My Message: ΓÇª]` pair, including Hinglish, into polished English. That is an LLM task and **is not implemented** ΓÇö the composer is deterministic and generates from RMS data only. There is no LLM in this project (`/api/agent/ask` does not exist; see the 2026-08-11 Copilot decision), so a free-text rewriter cannot be built honestly today. What ships is the data-driven half.
 - **Next Actions**:
   1. Decide the rewriter question above: either wire an LLM (needs a provider, credentials and a backend route) or accept the deterministic composer as the scope.
   2. Wire the contextual composer into the two quick-message dialogs (`MainScreen.kt` ~596 and ~1439), which still open an empty box.
@@ -364,37 +402,37 @@
 - **Tool Used**: Claude Code (Gradle gate, apksigner + aapt, gh CLI)
 - **Files Modified**: `ui/components/Notify.kt` (created), `ui/components/TopBannerNotification.kt` (deleted), `ui/auth/LoginScreen.kt` (rewritten), `theme/Theme.kt`, `ui/main/MainScreen.kt`, `ui/batch/BatchDetailScreen.kt`, `app/build.gradle.kts`, `ui/NotifyAndLoginTest.kt` (created)
 - **Work Completed**:
-  - **Notifications unified.** The project had four ways of surfacing feedback — `TopBannerNotification` (one icon, one hardcoded colour `#2E3B4E` for every message), Material `Snackbar` on the batch screen, an inline `errorContainer` banner on login, and raw `AlertDialog`s. `Notify.kt` replaces them with **`SkillToast`** (severity-typed, queue capped at 3, time bar, tap/swipe-to-dismiss, optional action — the "toastr" role) and **`SkillAlertDialog`** (severity medallion, confirm/cancel, destructive variant — the "sweetalert" role). Both carry a redundant per-severity icon so meaning survives greyscale.
+  - **Notifications unified.** The project had four ways of surfacing feedback ΓÇö `TopBannerNotification` (one icon, one hardcoded colour `#2E3B4E` for every message), Material `Snackbar` on the batch screen, an inline `errorContainer` banner on login, and raw `AlertDialog`s. `Notify.kt` replaces them with **`SkillToast`** (severity-typed, queue capped at 3, time bar, tap/swipe-to-dismiss, optional action ΓÇö the "toastr" role) and **`SkillAlertDialog`** (severity medallion, confirm/cancel, destructive variant ΓÇö the "sweetalert" role). Both carry a redundant per-severity icon so meaning survives greyscale.
   - Host is mounted **once inside `SkillSyncTheme`** and exposed via `LocalNotify`, so a toast raised during navigation is not torn down with its screen and no screen owns notification plumbing.
   - Migrated: logout confirm, notification-engine in-app banner, all three mark-skill outcomes (previously identical styling for confirmed write / unconfirmed / outright failure). Form dialogs (message composer, skill assignment, share) deliberately left as forms.
   - **Sign-in rebuilt.** It drew its own aurora with hard pixel offsets (`180f + a * 460f`), so the glow landed differently on every screen size and did not match the app's ground; spacing mixed 10/12/22/26/34dp; errors used Material's `errorContainer`. Now one centred column on the 8pt scale, form card capped at 420dp, palette-driven field colours, failures shown inline **and** as a toast.
-- **Current Status**: **v3.4.0.81 live** — commit `c970036`, CI run `31475161899` success. APK verified: signer `c6868b14…1808` identical to installed base, package unchanged, versionCode 80 -> 81. Gate green: 8 new tests (queue cap, severity distinctness, render, auto-dismiss, dialog confirm/dismiss, three login layout), 52 total unit tests, lint clean.
-- **Standing workflow rule (from the operator, 2026-08-11)**: redesign **one page at a time** — finish a screen, publish its release, verify, then start the next. Never batch several screens into one release.
-- **Next Actions — queued operator requests, in order**:
+- **Current Status**: **v3.4.0.81 live** ΓÇö commit `c970036`, CI run `31475161899` success. APK verified: signer `c6868b14ΓÇª1808` identical to installed base, package unchanged, versionCode 80 -> 81. Gate green: 8 new tests (queue cap, severity distinctness, render, auto-dismiss, dialog confirm/dismiss, three login layout), 52 total unit tests, lint clean.
+- **Standing workflow rule (from the operator, 2026-08-11)**: redesign **one page at a time** ΓÇö finish a screen, publish its release, verify, then start the next. Never batch several screens into one release.
+- **Next Actions ΓÇö queued operator requests, in order**:
   1. **Dashboard: top 5 trainers always visible.** Currently `TopPerformersPanel` is inside the collapsed Explore section; it must be promoted to the always-visible briefing.
-  2. **Contextual trainer messaging.** The quick-message dialogs (`MainScreen.kt` ~596 and ~1439) open an empty composer — generic. Must pre-compose from the trainer's actual situation (cert gap, bench/stretched utilisation, upcoming batch, feedback risk) using the intelligence already on screen.
-  3. **Weekly reports — mandatory.** One team-level report and one per reportee. `ui/trainer/TrainerReport.kt` and `ui/batch/BatchShare.kt` already exist and are the likely starting point; decide share/export format and whether any backend support is needed.
+  2. **Contextual trainer messaging.** The quick-message dialogs (`MainScreen.kt` ~596 and ~1439) open an empty composer ΓÇö generic. Must pre-compose from the trainer's actual situation (cert gap, bench/stretched utilisation, upcoming batch, feedback risk) using the intelligence already on screen.
+  3. **Weekly reports ΓÇö mandatory.** One team-level report and one per reportee. `ui/trainer/TrainerReport.kt` and `ui/batch/BatchShare.kt` already exist and are the likely starting point; decide share/export format and whether any backend support is needed.
   4. Then continue the page-by-page redesign: Team, Demand, Actions.
 
 ## 2026-08-11T14:40:00+05:30 - Dashboard rewritten to the V2 briefing spec (v3.3.0)
 
 - **Tool Used**: Claude Code (Gradle test/lint/assemble, apksigner + aapt, gh CLI)
 - **Files Modified**: `ui/main/ManagerCommandCentre.kt` (full rewrite), `theme/DesignSystem.kt`, `ui/main/MainScreen.kt`, `app/build.gradle.kts`, `ui/ScreenRenderTest.kt`, `AI/PROGRESS.md`
-- **Work Completed**: The first V2 pass reorganised the existing command centre instead of rebuilding it, so most of `AI/DESIGN_VISION_V2_2026_08_11.md` §7.1/§10 was never implemented. Rewritten against the brief:
-  - Hero now **replaces** the `ProfileHeader` + `CommandHero` stack rather than sitting below it — identity, notification bell and freshness stamp fold into one card.
-  - One-sentence brief in the specified shape ("N of M deployed · utilisation X% and rising · …").
-  - **Attention strip** — horizontal `LazyRow`, max three cards, each with its recommended action as a primary button (uses the real `recommended_action` field where RMS returns one).
+- **Work Completed**: The first V2 pass reorganised the existing command centre instead of rebuilding it, so most of `AI/DESIGN_VISION_V2_2026_08_11.md` ┬º7.1/┬º10 was never implemented. Rewritten against the brief:
+  - Hero now **replaces** the `ProfileHeader` + `CommandHero` stack rather than sitting below it ΓÇö identity, notification bell and freshness stamp fold into one card.
+  - One-sentence brief in the specified shape ("N of M deployed ┬╖ utilisation X% and rising ┬╖ ΓÇª").
+  - **Attention strip** ΓÇö horizontal `LazyRow`, max three cards, each with its recommended action as a primary button (uses the real `recommended_action` field where RMS returns one).
   - **Pulse** is now the four tiles the brief names: Strength, Utilisation, Cert coverage, At risk.
   - **Capacity balance** is bench / optimal / stretched off `capacity_bucket`, with the bar's reading as the headline.
   - **Demand** states unallocated count, how much is FMAT/ILT, and one CTA into the pipeline (`HomeTab.DEMAND`).
-  - Explore's utilisation chart uses `CorridorBars` so the 70–85% target band is visible.
+  - Explore's utilisation chart uses `CorridorBars` so the 70ΓÇô85% target band is visible.
   - Motion: `Modifier.pressable` (0.98 / 100ms) on tappable cards; `rememberCriticalPulse` reserved for `Severity.Critical`.
   - Freshness uses `DashboardState.cachedAt` (real disk-write time). The payload's `from_cache`/`cache.age` remain untrusted per the 2026-08-10 audit.
-- **Honest deviation from the brief**: §7.1 asks for a sparkline **and** delta on all four pulse tiles. Only `utilization_history` exists in the payload, so only Utilisation carries a real trend; the other three state their baseline in words. A fabricated sparkline would be worse than none. Closing this needs the backend to return history for strength, coverage and risk.
-- **Current Status**: **v3.3.0.80 live** — commit `65fc08e`, CI run `31473922628` success, `SkillEdge-v3.3.0.80.apk` published. Upgrade verified by forensics: signer `c6868b14…1808` identical to the installed base, package `com.example.skillsync`, versionCode 79 -> 80. Gate green: 30/30 UI tests (three new structural guards: briefing block order, action buttons on attention cards, single demand CTA), 44 total unit tests, lint clean.
+- **Honest deviation from the brief**: ┬º7.1 asks for a sparkline **and** delta on all four pulse tiles. Only `utilization_history` exists in the payload, so only Utilisation carries a real trend; the other three state their baseline in words. A fabricated sparkline would be worse than none. Closing this needs the backend to return history for strength, coverage and risk.
+- **Current Status**: **v3.3.0.80 live** ΓÇö commit `65fc08e`, CI run `31473922628` success, `SkillEdge-v3.3.0.80.apk` published. Upgrade verified by forensics: signer `c6868b14ΓÇª1808` identical to the installed base, package `com.example.skillsync`, versionCode 79 -> 80. Gate green: 30/30 UI tests (three new structural guards: briefing block order, action buttons on attention cards, single demand CTA), 44 total unit tests, lint clean.
 - **Next Actions**:
-  1. Operator: install over an existing build and confirm the briefing renders with live RMS data — particularly that `capacity_bucket` and `recommended_action` are populated, since the attention strip and capacity bar read from them.
-  2. Apply the same rewrite discipline to Team, Demand and Actions (design Phases 3–5) — they are still the pre-V2 layouts.
+  1. Operator: install over an existing build and confirm the briefing renders with live RMS data ΓÇö particularly that `capacity_bucket` and `recommended_action` are populated, since the attention strip and capacity bar read from them.
+  2. Apply the same rewrite discipline to Team, Demand and Actions (design Phases 3ΓÇô5) ΓÇö they are still the pre-V2 layouts.
   3. Backend: return history series for strength / cert coverage / risk so the pulse row can carry sparklines on all four tiles as the brief specifies.
 
 ## 2026-08-11T12:55:00+05:30 - V2 design system shipped; two releases (v3.2.0, v3.2.1)
@@ -402,21 +440,21 @@
 - **Tool Used**: Claude Code (Gradle test/lint/assemble, apksigner + aapt APK forensics, gh CLI, live Render probes)
 - **Files Modified**: `theme/Type.kt`, `theme/Color.kt`, `theme/DesignSystem.kt` (created), `ui/main/ManagerCommandCentre.kt` (rewritten), `ui/main/MainScreen.kt`, `ui/trainer/Trainer360Screen.kt`, `data/models/ActionRow.kt`, `app/build.gradle.kts`, `app/src/test/.../CrashTest.kt`, `app/src/test/.../ScreenRenderTest.kt`, `AI/DESIGN_VISION_V2_2026_08_11.md` (created), `AI/DECISIONS.md`, `AI/PROGRESS.md`
 - **Work Completed**:
-  - **Design audit** — `AI/DESIGN_VISION_V2_2026_08_11.md`: UX/UI/design-system/IA audits, component library, motion tokens, per-screen redesign vision, 6-phase plan. Key findings: eight components each rendering "a number and a label", eight rendering "a pill", four separate action renderers, three page gutters, `labelText` at ~4.0:1 (under AA).
-  - **Phase 0-1 (foundation)** — type scale rebuilt (whole-sp, wide steps, light tabular numerals); `labelText` #7F8CA3 -> #9AA8BF for AA; new `theme/DesignSystem.kt` with `Severity`, `Figure`, `ToneChip`, `SectionHeading`, `SkillCard`, `StateNote`, `Layout`.
-  - **Phase 2 (dashboard)** — `ManagerCommandCentre` rewritten as a briefing: readiness hero -> severity-ranked alerts -> four-tile pulse -> capacity balance -> demand, with reference detail collapsed behind "Explore the detail". Was six sections / fifteen equal-weight panels with type down to 8sp. No derivation, drill or caption changed.
-  - **Trainer 360** — thirteen-section scroll replaced by a pinned decision header plus four tabs (Now / Capability / Performance / Actions).
+  - **Design audit** ΓÇö `AI/DESIGN_VISION_V2_2026_08_11.md`: UX/UI/design-system/IA audits, component library, motion tokens, per-screen redesign vision, 6-phase plan. Key findings: eight components each rendering "a number and a label", eight rendering "a pill", four separate action renderers, three page gutters, `labelText` at ~4.0:1 (under AA).
+  - **Phase 0-1 (foundation)** ΓÇö type scale rebuilt (whole-sp, wide steps, light tabular numerals); `labelText` #7F8CA3 -> #9AA8BF for AA; new `theme/DesignSystem.kt` with `Severity`, `Figure`, `ToneChip`, `SectionHeading`, `SkillCard`, `StateNote`, `Layout`.
+  - **Phase 2 (dashboard)** ΓÇö `ManagerCommandCentre` rewritten as a briefing: readiness hero -> severity-ranked alerts -> four-tile pulse -> capacity balance -> demand, with reference detail collapsed behind "Explore the detail". Was six sections / fifteen equal-weight panels with type down to 8sp. No derivation, drill or caption changed.
+  - **Trainer 360** ΓÇö thirteen-section scroll replaced by a pinned decision header plus four tabs (Now / Capability / Performance / Actions).
   - **Committed the stranded Android audit work** (Tasks 4, 9-15) that was sitting uncommitted: `ActionRow`, `CourseIntelligence`, `ui/common/Errors.kt`, cache-revision version guards, two unused Retrofit endpoints dropped. Fixed a pre-existing compile break this migration had left in `MainScreen.kt` and `Trainer360Screen.kt`, plus three indentation regressions.
-  - **Inverted `CrashTest`** — it asserted that an *unauthenticated* read of `/api/data/unified-manager-intelligence` succeeds, i.e. the exact PII leak closed in `e2214da`. Now asserts 401, and skips rather than fails when the host is unreachable.
-  - **Found and fixed a broken production flow** — probing all twenty endpoints `SkillEdgeApi` declares returned 401/405 for nineteen (gate working) and **404 for `POST /api/agent/ask`**. No agent route exists anywhere in `backend.py`. A sparkle FAB on every Trainer 360 screen opened a chat where every question returned a 404 bubble; the entry point is withheld until the route ships (see `AI/DECISIONS.md`). `CopilotChatSheet`/`CopilotViewModel` left in the tree for one-line restoration.
-- **Current Status**: **Both releases are live and verified.** `v3.2.0.78` (commit `6af2341`) and `v3.2.1.79` (commit `5d34c58`) published via GitHub Releases with `SkillEdge-v3.2.0.78.apk` / `SkillEdge-v3.2.1.79.apk` (12.4 MB). CI run `31472053392` succeeded. **Upgrade-in-place proven by forensics, not assumption**: signer SHA-256 `c6868b14…1808` is byte-identical to the installed v3.1.1.77 base, `applicationId` remains `com.example.skillsync`, versionCode 77 -> 78 -> 79. Gate green: 44/44 unit tests, lint clean, assembleDebug OK. Production backend healthy — `/healthz` `status: ok` v6.1.0; unauthenticated data routes 401; error envelope `{error, code}` correct.
+  - **Inverted `CrashTest`** ΓÇö it asserted that an *unauthenticated* read of `/api/data/unified-manager-intelligence` succeeds, i.e. the exact PII leak closed in `e2214da`. Now asserts 401, and skips rather than fails when the host is unreachable.
+  - **Found and fixed a broken production flow** ΓÇö probing all twenty endpoints `SkillEdgeApi` declares returned 401/405 for nineteen (gate working) and **404 for `POST /api/agent/ask`**. No agent route exists anywhere in `backend.py`. A sparkle FAB on every Trainer 360 screen opened a chat where every question returned a 404 bubble; the entry point is withheld until the route ships (see `AI/DECISIONS.md`). `CopilotChatSheet`/`CopilotViewModel` left in the tree for one-line restoration.
+- **Current Status**: **Both releases are live and verified.** `v3.2.0.78` (commit `6af2341`) and `v3.2.1.79` (commit `5d34c58`) published via GitHub Releases with `SkillEdge-v3.2.0.78.apk` / `SkillEdge-v3.2.1.79.apk` (12.4 MB). CI run `31472053392` succeeded. **Upgrade-in-place proven by forensics, not assumption**: signer SHA-256 `c6868b14ΓÇª1808` is byte-identical to the installed v3.1.1.77 base, `applicationId` remains `com.example.skillsync`, versionCode 77 -> 78 -> 79. Gate green: 44/44 unit tests, lint clean, assembleDebug OK. Production backend healthy ΓÇö `/healthz` `status: ok` v6.1.0; unauthenticated data routes 401; error envelope `{error, code}` correct.
 - **Known Gaps (not blockers, stated plainly)**:
-  1. **No on-device install test was run** — no emulator image or adb is present on this machine. Upgrade compatibility is proven cryptographically (identical signer + package + incremented versionCode), which is the mechanism Android actually enforces, but the physical install-over-the-top was not executed.
-  2. **No authenticated API data validation** — confirming dashboards render real RMS data end-to-end requires signing in with a real manager password, which I do not handle. Verified the gate and the envelope; the populated-data check needs an operator with credentials.
+  1. **No on-device install test was run** ΓÇö no emulator image or adb is present on this machine. Upgrade compatibility is proven cryptographically (identical signer + package + incremented versionCode), which is the mechanism Android actually enforces, but the physical install-over-the-top was not executed.
+  2. **No authenticated API data validation** ΓÇö confirming dashboards render real RMS data end-to-end requires signing in with a real manager password, which I do not handle. Verified the gate and the envelope; the populated-data check needs an operator with credentials.
   3. `POST /api/agent/ask` remains unimplemented in `backend.py`.
 - **Next Actions**:
   1. Operator: install `SkillEdge-v3.2.1.79.apk` over an existing v3.1.1 install, confirm no uninstall prompt and that session/cache survive; sign in and confirm Dashboard, Team, Demand, Skills and Actions are populated with live RMS data.
-  2. Design Phases 3-5 remain — People compact trainer card + capability lens, Demand international/FMAT tier treatment, Actions queue model. The primitives they need are now in place.
+  2. Design Phases 3-5 remain ΓÇö People compact trainer card + capability lens, Demand international/FMAT tier treatment, Actions queue model. The primitives they need are now in place.
   3. Backend: either implement `POST /api/agent/ask` or formally drop Copilot from scope.
   4. Still open from Task 3: set the `SKILLEDGE_RMS_*` env vars as Render secrets, then remove the plaintext fallbacks and promote `_validate_credentials` to a hard failure.
 
@@ -424,30 +462,30 @@
 
 - **Tool Used**: opencode (git, Python unittest, live Render probes)
 - **Files Modified**: `backend.py`, `render.yaml`, `.env.example` (created), `tests/test_credentials.py` (created), `AI/PROGRESS.md`
-- **Work Completed**: The `_APIS` dict already read credentials from `SKILLEDGE_RMS_*`_USER / _PASS env vars via `_ev()`, but the plaintext fallback passwords were the only safety net with no startup check to flag when env vars were missing. Three changes: (1) `_ev()` now records every env var that fell back to a hardcoded default in a module-level `_ev_fallbacks` set; (2) `_validate_credentials()` runs at import time and, in production (`SKILLEDGE_ENV=production`), prints a stderr banner listing every unset credential env var; in development it logs a warning; (3) `render.yaml` now documents all 27 required RMS credential env vars (14 active APIs, 13 dormant) with comments, and `.env.example` in the repo root lists every var name for operators configuring Render. Per DeepSeek prompt rule 8, the existing fallback values are kept as temporary migration defaults — the intended ending state is to set all env vars on the Render host, then remove the fallbacks and make `_validate_credentials` a hard failure. Committed `c2f4c70` and pushed; Render auto-deployed. Backend tests pass 58/58 (8 new credential tests added).
+- **Work Completed**: The `_APIS` dict already read credentials from `SKILLEDGE_RMS_*`_USER / _PASS env vars via `_ev()`, but the plaintext fallback passwords were the only safety net with no startup check to flag when env vars were missing. Three changes: (1) `_ev()` now records every env var that fell back to a hardcoded default in a module-level `_ev_fallbacks` set; (2) `_validate_credentials()` runs at import time and, in production (`SKILLEDGE_ENV=production`), prints a stderr banner listing every unset credential env var; in development it logs a warning; (3) `render.yaml` now documents all 27 required RMS credential env vars (14 active APIs, 13 dormant) with comments, and `.env.example` in the repo root lists every var name for operators configuring Render. Per DeepSeek prompt rule 8, the existing fallback values are kept as temporary migration defaults ΓÇö the intended ending state is to set all env vars on the Render host, then remove the fallbacks and make `_validate_credentials` a hard failure. Committed `c2f4c70` and pushed; Render auto-deployed. Backend tests pass 58/58 (8 new credential tests added).
 - **Current Status**: Backend is healthy on Render at `https://skilledge-backend-fpcl.onrender.com/`. Live probes confirm: `/healthz` returns `status: ok` version `6.1.0`; unauthenticated `/api/data/unified-manager-intelligence` returns 401 `SESSION_REQUIRED`; root `/` endpoint now shows the auto-generated V2-aware route list (previously omitted `/api/v2/...`, `/api/auth/logout`, `/auth/login`); error responses use the standardized `{error, code}` envelope. The startup validation correctly warns that 54 env var fallbacks are in use locally; on the Render host this warning will appear in stderr if the RMS credential env vars are not configured as Render secrets.
-- **Next Actions**: Set all `SKILLEDGE_RMS_*`_USER / _PASS environment variables as Render secrets on the production host, then in a follow-up commit remove the plaintext fallback values from `_APIS` and promote `_validate_credentials` from a warning to a hard startup failure. No version bump or APK release (backend-only change). Proceed to Task 4 — fix `AllocationViewModel.loadCourseIntelligence` synthesised payload (Android-only).
+- **Next Actions**: Set all `SKILLEDGE_RMS_*`_USER / _PASS environment variables as Render secrets on the production host, then in a follow-up commit remove the plaintext fallback values from `_APIS` and promote `_validate_credentials` from a warning to a hard startup failure. No version bump or APK release (backend-only change). Proceed to Task 4 ΓÇö fix `AllocationViewModel.loadCourseIntelligence` synthesised payload (Android-only).
 
 ## 2026-08-10T21:12:00+05:30 - Task 2 complete: POST /api/action/mark-skill requires a session
 - **Tool Used**: opencode
 - **Files Modified**: `AI/DEEPSEEK_PROMPT_2026_08_10.md`, `AI/PROGRESS.md`
-- **Work Completed**: Restructured `AI/DEEPSEEK_PROMPT_2026_08_10.md` to exactly the two-section outline requested: (1) the MASTER PROMPT copy-paste block (10 non-negotiable rules, the 9-step per-task workflow, and the 16-task execution order with stop/wait semantics) and (2) Operating instructions for the operator — backend-only vs Android-only task split, which tasks warrant a version bump vs which ride the next release, and the three common traps DeepSeek hits on this project (the `MarkSkillRequest` SerializedName scare, bumping versions on refactors, declaring verification on tests alone). The standalone third section ("What to watch for") was folded into the operating-instructions section so the document has no separate last section.
+- **Work Completed**: Restructured `AI/DEEPSEEK_PROMPT_2026_08_10.md` to exactly the two-section outline requested: (1) the MASTER PROMPT copy-paste block (10 non-negotiable rules, the 9-step per-task workflow, and the 16-task execution order with stop/wait semantics) and (2) Operating instructions for the operator ΓÇö backend-only vs Android-only task split, which tasks warrant a version bump vs which ride the next release, and the three common traps DeepSeek hits on this project (the `MarkSkillRequest` SerializedName scare, bumping versions on refactors, declaring verification on tests alone). The standalone third section ("What to watch for") was folded into the operating-instructions section so the document has no separate last section.
 - **Current Status**: The handoff document is a clean two-section file; content is unchanged, only the structure was consolidated per the operator's outline.
 - **Next Actions**: Open a fresh DeepSeek session, paste the MASTER PROMPT, send "Task 1", review the report, then "continue" through the list.
 
 ## 2026-08-10T14:45:00+05:30 - API + backend + Android consistency audit completed (no code changes)
 - **Tool Used**: Codex (read-only inventory of all three surfaces, cross-checks against `SkillEdgeApi.kt` and `_verify_role`)
 - **Files Modified**: `AI/API_AND_VERSION_AUDIT_2026_08_10.md` (created), `AI/PROGRESS.md`
-- **Work Completed**: Produced `AI/API_AND_VERSION_AUDIT_2026_08_10.md` covering (1) all 37 RMS API documents, (2) every route in `backend.py` (4390 lines) and the `action_store.py` SQLite layer, and (3) every Android consumer under `SkillEdge_Android/app/src/main/java/com/example/skillsync/`. Confirmed the headline risks: (a) every legacy `/api/data/...`, `/api/action/...` and `/api/actions/...` route is **unauthenticated** and leaks manager PII, including a write endpoint to production RMS; (b) the V1/V2 split is half-built (same handler, auth gated on `request.path.startswith("/api/v2/")`); (c) error codes are inconsistent (401 used for auth and authz, 404 never returned by a route, 422 never used, 503 in some places and 200-with-empty in others); (d) `from_cache`/`cache.age`/`cache.source` are static literals that lie about freshness; (e) `login()` has an unreachable 503 branch because `_verify_role` never returns `"rms_error"`; (f) `_verify_role` docstring claims "Manager or Trainer Plus role" but actually grants `"manager"` to every Koenig email; (g) Android has a real fake-payload hazard in `AllocationViewModel.loadCourseIntelligence` (replaces a failed call with a hand-built `mapOf(...)`); (h) three Retrofit endpoints are declared but unused; (i) the `actions_<email>` cache is parsed independently by three ViewModels with three different filters; (j) ad-hoc `Color(...)` and `RoundedCornerShape(N.dp)` literals bypass the theme. Corrected the Android inventory's "MarkSkillRequest silently rejected" concern — Gson serialises snake_case Kotlin field names verbatim, so the wire keys are correct.
+- **Work Completed**: Produced `AI/API_AND_VERSION_AUDIT_2026_08_10.md` covering (1) all 37 RMS API documents, (2) every route in `backend.py` (4390 lines) and the `action_store.py` SQLite layer, and (3) every Android consumer under `SkillEdge_Android/app/src/main/java/com/example/skillsync/`. Confirmed the headline risks: (a) every legacy `/api/data/...`, `/api/action/...` and `/api/actions/...` route is **unauthenticated** and leaks manager PII, including a write endpoint to production RMS; (b) the V1/V2 split is half-built (same handler, auth gated on `request.path.startswith("/api/v2/")`); (c) error codes are inconsistent (401 used for auth and authz, 404 never returned by a route, 422 never used, 503 in some places and 200-with-empty in others); (d) `from_cache`/`cache.age`/`cache.source` are static literals that lie about freshness; (e) `login()` has an unreachable 503 branch because `_verify_role` never returns `"rms_error"`; (f) `_verify_role` docstring claims "Manager or Trainer Plus role" but actually grants `"manager"` to every Koenig email; (g) Android has a real fake-payload hazard in `AllocationViewModel.loadCourseIntelligence` (replaces a failed call with a hand-built `mapOf(...)`); (h) three Retrofit endpoints are declared but unused; (i) the `actions_<email>` cache is parsed independently by three ViewModels with three different filters; (j) ad-hoc `Color(...)` and `RoundedCornerShape(N.dp)` literals bypass the theme. Corrected the Android inventory's "MarkSkillRequest silently rejected" concern ΓÇö Gson serialises snake_case Kotlin field names verbatim, so the wire keys are correct.
 - **Current Status**: No code was changed. `AI/API_AND_VERSION_AUDIT_2026_08_10.md` is the single source for the full audit and the ranked improvement list (16 items, ROI-ordered). The unauthenticated `/api/data/...` PII leak and the unauthenticated `mark-skill` write to RMS are the highest-priority items and should be addressed before any external rollout.
 - **Next Actions**: Begin the security gate: move every `/api/data/...` and `/api/action/...` route behind the existing V2 session+scope helper, move RMS credentials out of `_APIS` into environment / secret storage, fix the `loadCourseIntelligence` synthesised payload, then standardise error envelope and codes. No version bump or APK release is implied by this audit.
 
 ## 2026-08-10T15:00:00+05:30 - DeepSeek handoff prompt drafted
 - **Tool Used**: Codex
 - **Files Modified**: `AI/DEEPSEEK_PROMPT_2026_08_10.md` (created), `AI/PROGRESS.md`
-- **Work Completed**: Wrote a copy-paste-ready DeepSeek instruction set that (1) hands DeepSeek the audit as the source of truth, (2) lays out 10 non-negotiable project rules (read PROGRESS.md first, verify not assume, ship via GitHub Releases only, APK signer fingerprint must stay `c6868b14…1808`, no re-dispatch on cancelled, no version bump on internal refactors, full test/lint/signed-release gates, no plaintext RMS credentials in source, no fabricated data, one task at a time), and (3) lists the 16 audit items in execution order with explicit "stop and wait for continue" semantics. Added operator notes for which tasks are backend-only vs Android-only, which need a version bump and which don't, and the three things DeepSeek commonly gets wrong on this project (re-introducing the `MarkSkillRequest` SerializedName scare, bumping versions on refactors, declaring verification on tests alone).
-- **Current Status**: Prompt is ready to ship to DeepSeek. The order of execution is Tasks 1→16 as listed in `AI/API_AND_VERSION_AUDIT_2026_08_10.md` §"What to ship first". Task 16 (RMS-team negotiation) is deferred.
-- **Next Actions**: Open a fresh DeepSeek session, paste the master prompt under `## MASTER PROMPT`, send "Task 1", review the report, then "continue" through the list. For Android-only tasks (4, 9–15) batch into a single release rather than releasing per-task.
+- **Work Completed**: Wrote a copy-paste-ready DeepSeek instruction set that (1) hands DeepSeek the audit as the source of truth, (2) lays out 10 non-negotiable project rules (read PROGRESS.md first, verify not assume, ship via GitHub Releases only, APK signer fingerprint must stay `c6868b14ΓÇª1808`, no re-dispatch on cancelled, no version bump on internal refactors, full test/lint/signed-release gates, no plaintext RMS credentials in source, no fabricated data, one task at a time), and (3) lists the 16 audit items in execution order with explicit "stop and wait for continue" semantics. Added operator notes for which tasks are backend-only vs Android-only, which need a version bump and which don't, and the three things DeepSeek commonly gets wrong on this project (re-introducing the `MarkSkillRequest` SerializedName scare, bumping versions on refactors, declaring verification on tests alone).
+- **Current Status**: Prompt is ready to ship to DeepSeek. The order of execution is Tasks 1ΓåÆ16 as listed in `AI/API_AND_VERSION_AUDIT_2026_08_10.md` ┬º"What to ship first". Task 16 (RMS-team negotiation) is deferred.
+- **Next Actions**: Open a fresh DeepSeek session, paste the master prompt under `## MASTER PROMPT`, send "Task 1", review the report, then "continue" through the list. For Android-only tasks (4, 9ΓÇô15) batch into a single release rather than releasing per-task.
 ## 2026-08-10T20:21:00+05:30 - Task 1 complete: every V1 route behind session+scope auth
 
 ## 2026-08-10T21:12:00+05:30 - Task 2 complete: POST /api/action/mark-skill requires a session
@@ -465,7 +503,7 @@
 ## 2026-08-10T13:20:00+05:30 - v3.1.1 Plan Continuity released and production-validated
 - **Tool Used**: Codex (`git`, GitHub Actions/Release CLI, published APK verification, authenticated production journey)
 - **Files Modified**: `AI/PROGRESS.md`
-- **Work Completed**: Published commit `19b430605d3b0dd22c8e5b0f88556c408fbd6f82`; GitHub Actions run `31381506373` passed and created release `v3.1.1.77` with `SkillEdge-v3.1.1.77.apk` and full release rationale/change/commit/version/user-gain/validation/rollback notes. Published APK SHA-256 is `70A205CEDCBD4952817617C54336CA465BF307CE56D574898D98970CA06B5DC0`, package is `com.example.skillsync`, version v3.1.1/code 77 and signer remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Authenticated production validation passed login, allocation preparation-to-ready (11 current batches), Actions, Capability and logout. This release removes Plan sections/global-search language, keeps one colour-coded FMAT→ILT→ILO→unknown queue, preserves the populated snapshot during incremental refresh, and routes notification taps to demand detail, Trainer 360 or Actions.
+- **Work Completed**: Published commit `19b430605d3b0dd22c8e5b0f88556c408fbd6f82`; GitHub Actions run `31381506373` passed and created release `v3.1.1.77` with `SkillEdge-v3.1.1.77.apk` and full release rationale/change/commit/version/user-gain/validation/rollback notes. Published APK SHA-256 is `70A205CEDCBD4952817617C54336CA465BF307CE56D574898D98970CA06B5DC0`, package is `com.example.skillsync`, version v3.1.1/code 77 and signer remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Authenticated production validation passed login, allocation preparation-to-ready (11 current batches), Actions, Capability and logout. This release removes Plan sections/global-search language, keeps one colour-coded FMATΓåÆILTΓåÆILOΓåÆunknown queue, preserves the populated snapshot during incremental refresh, and routes notification taps to demand detail, Trainer 360 or Actions.
 - **Current Status**: v3.1.1 is published and production services are healthy. Direct physical APK upgrade and notification-tap interaction remain unexecuted because no ADB-connected device is available; package, increasing version code and unchanged signer satisfy static upgrade compatibility.
 - **Next Actions**: Install `SkillEdge-v3.1.1.77.apk` over v3.1.0 on a connected phone and exercise real notification taps when a new event arrives.
 
@@ -521,7 +559,7 @@
 ## 2026-08-11T00:55:00+05:30 - Plan visual intelligence redesign implemented
 - **Tool Used**: Codex (`apply_patch`, Compose render tests)
 - **Files Modified**: `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `app/src/test/java/com/example/skillsync/ui/ScreenRenderTest.kt`, `app/build.gradle.kts`, `AI/PROGRESS.md`
-- **Work Completed**: Reworked Plan so delivery modes read as distinct visual lanes rather than similarly styled groups: FMAT uses amber/gold, ILT blue, ILO indigo and unspecified mode rose. Each lane now has a tinted bordered header and every normal batch card carries its lane color. International FMAT/ILT remains the strongest treatment with animated globe, premium gradient border, global priority ribbon and travel/international indicator. Added a stronger business override for every demand below 50% relevance: the whole card becomes red-accented with a red border and explicit `LOW MATCH · MANAGER REVIEW REQUIRED` banner plus the percentage, regardless of delivery mode. Added render coverage for the international premium state and the low-match red state; focused render suite passes.
+- **Work Completed**: Reworked Plan so delivery modes read as distinct visual lanes rather than similarly styled groups: FMAT uses amber/gold, ILT blue, ILO indigo and unspecified mode rose. Each lane now has a tinted bordered header and every normal batch card carries its lane color. International FMAT/ILT remains the strongest treatment with animated globe, premium gradient border, global priority ribbon and travel/international indicator. Added a stronger business override for every demand below 50% relevance: the whole card becomes red-accented with a red border and explicit `LOW MATCH ┬╖ MANAGER REVIEW REQUIRED` banner plus the percentage, regardless of delivery mode. Added render coverage for the international premium state and the low-match red state; focused render suite passes.
 - **Current Status**: The requested final Plan visual behavior is complete locally and assigned v3.1.0/code 76. Full Android release gates, signed APK verification, GitHub publication and production service checks remain.
 - **Next Actions**: Run complete tests/lint/release assembly, publish v3.1.0, verify the signed APK and release history, then revalidate production Plan data/authentication without changing matching logic.
 
@@ -614,7 +652,7 @@
 - **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
 - **Work Completed**: Assigned v2.3.0/code 73 for the new transactional/action-audit data layer and authenticated mobile contract. Backend passes 34/34; Android tests, release lint and assembly pass. The signed APK is `com.example.skillsync` v2.3.0/code 73, local SHA-256 `2AE3FEFC41CBE7C06DEEAFF1F43AEFE3A8FE93D14F0A79409953BD5F063D6D45`, with unchanged signer `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Diff validation is clean. A combined command initially discovered backend tests from the Android directory and failed imports; the authoritative suite was immediately rerun from repository root and passed 34/34.
 - **Current Status**: The secure audited Actions release is locally ready. GitHub publication, CI APK verification, Render deployment and production action lifecycle/isolation/audit validation remain. Cross-deploy persistence still requires managed persistent storage and will remain explicitly reported as `local_ephemeral` in current production.
-- **Next Actions**: Commit/push, monitor CI, verify the published APK and notes, then production-test create → start → note → audit under Aishwar, cross-manager denial, logout revocation and persistence status without leaving test clutter in the manager inbox.
+- **Next Actions**: Commit/push, monitor CI, verify the published APK and notes, then production-test create ΓåÆ start ΓåÆ note ΓåÆ audit under Aishwar, cross-manager denial, logout revocation and persistence status without leaving test clutter in the manager inbox.
 
 ## 2026-08-10T19:20:00+05:30 - Transactional audited Version 2 Actions foundation implemented
 - **Tool Used**: Codex (`apply_patch`, SQLite restart/security/audit contract tests)
@@ -843,7 +881,7 @@
 ## 2026-08-09T13:15:00+05:30 - Live Assignment API schema validated; availability misuse prevented before release
 - **Tool Used**: Codex (read-only live RMS probe, `apply_patch`)
 - **Files Modified**: `backend.py`, `tests/test_demand_safety.py`, `AI/PROGRESS.md`
-- **Work Completed**: Live-probed the supplied paged Assignment API for Abhinav: HTTP data answered in 1.11 s with 5 rows, but the authoritative schema contains only `AssignmentID`, `Course`, `CourseID`, `OffEmailId`, and `TrainerName`—no start/end dates. Corrected the pending integration before release: it now provides an `assignment_reference_count`/`assignment_api_reference` provenance only when the dated Previous/Upcoming source fails; current status and availability remain `unknown` and no current/upcoming batch is inferred. Updated the regression to require this safe behavior.
+- **Work Completed**: Live-probed the supplied paged Assignment API for Abhinav: HTTP data answered in 1.11 s with 5 rows, but the authoritative schema contains only `AssignmentID`, `Course`, `CourseID`, `OffEmailId`, and `TrainerName`ΓÇöno start/end dates. Corrected the pending integration before release: it now provides an `assignment_reference_count`/`assignment_api_reference` provenance only when the dated Previous/Upcoming source fails; current status and availability remain `unknown` and no current/upcoming batch is inferred. Updated the regression to require this safe behavior.
 - **Current Status**: The first unused API is genuinely consumed without making false schedule/availability claims. The pushed `4b8d3cf` build is superseded by this local correction and must not become the accepted v1.54.0 artifact.
 - **Next Actions**: Re-run backend/Android gates, push the correction with the same unreleased code 66 so GitHub concurrency replaces the pending build, then validate CI/release and production provenance.
 
@@ -962,7 +1000,7 @@
 ## 2026-08-09T07:45:00+05:30 - Phase 9 completed and production-validated (v1.51.2/code 62)
 - **Tool Used**: Codex (`git`, `gh`, GitHub Actions, production cold/warm Demand and course-search probes)
 - **Files Modified**: `AI/PROGRESS.md`
-- **Work Completed**: Final release commit is `b7cb522e160d7ee44cd6cd9b9f6c1de5281eb310`; CI run `31284024747` passed and release `v1.51.2.62` contains `SkillEdge-v1.51.2.62.apk` digest `baabc4b2da773f5e4607713b70c06a679dae20d1e3cadc5c999cc6c1a07ec8ec` with complete notes. Production cold Demand returned bounded loading responses and completed an 8-batch background board without 502; warm Demand responded in 0.95 s with order `FMAT > ILO×7`, tiers `1,3,3,3,3,3,3,3`, all eight requested suitability components (`skill,language,readiness,availability,utilization,certification,feedback,location`), and Aishwar visible in 7 candidate lists. The live feed has no ILT or named international row today, so strict ILT position and international visuals remain regression-tested rather than live-row demonstrated. Production DP-700 search returns 2 RMS catalogue results including ID 18768. No bulk skill write was used for validation.
+- **Work Completed**: Final release commit is `b7cb522e160d7ee44cd6cd9b9f6c1de5281eb310`; CI run `31284024747` passed and release `v1.51.2.62` contains `SkillEdge-v1.51.2.62.apk` digest `baabc4b2da773f5e4607713b70c06a679dae20d1e3cadc5c999cc6c1a07ec8ec` with complete notes. Production cold Demand returned bounded loading responses and completed an 8-batch background board without 502; warm Demand responded in 0.95 s with order `FMAT > ILO├ù7`, tiers `1,3,3,3,3,3,3,3`, all eight requested suitability components (`skill,language,readiness,availability,utilization,certification,feedback,location`), and Aishwar visible in 7 candidate lists. The live feed has no ILT or named international row today, so strict ILT position and international visuals remain regression-tested rather than live-row demonstrated. Production DP-700 search returns 2 RMS catalogue results including ID 18768. No bulk skill write was used for validation.
 - **Current Status**: Phases 8 and 9 are complete. Skill-marking 502 root cause is fixed and controlled no-op verified; Courses supports existing-skill transfer and direct full-catalogue multi-trainer assignment; Demand uses all requested evidence, strict mode priority, manager eligibility and premium international treatment; cold/warm backend delivery no longer exposes long RMS rebuilds to the gateway. Backend 16/16 and Android 33/33 pass. Physical APK upgrade/user-data retention remains unexecuted because no ADB device is connected; package/signing/version invariants pass.
 - **Next Actions**: Connect a physical device to execute install-over-existing/user-data verification. When live RMS supplies an ILT or named international FMAT/ILT, capture an on-device production visual check. Consider replacing `softprops/action-gh-release@v2` when a Node-24-compatible release exists.
 
@@ -1109,7 +1147,7 @@
 ## 2026-08-09T03:50:00+05:30 - Phase 5 completed and production-validated (v1.47.0/code 56)
 - **Tool Used**: Codex (`gh`, GitHub Actions, production Demand probe)
 - **Files Modified**: `AI/PROGRESS.md`
-- **Work Completed**: Published commit `519ef22aaf2b8e571c296bcba9b6d2b7cec49886`; GitHub Actions run `31280103209` passed and created release `v1.47.0.56` with `SkillEdge-v1.47.0.56.apk` plus full notes. CI APK digest is `77ac7ac81146a523a88ec6d57c69b8c84db8081188800db15f397941b733c1cb`. Production Demand returned 8 batches in 20.1 s with the validated `FMAT > ILO×7` order and tiers `1,3,3,3,3,3,3,3`. The live feed currently has zero named international rows, so the premium international treatment is validated by the passing Compose render test rather than a production card.
+- **Work Completed**: Published commit `519ef22aaf2b8e571c296bcba9b6d2b7cec49886`; GitHub Actions run `31280103209` passed and created release `v1.47.0.56` with `SkillEdge-v1.47.0.56.apk` plus full notes. CI APK digest is `77ac7ac81146a523a88ec6d57c69b8c84db8081188800db15f397941b733c1cb`. Production Demand returned 8 batches in 20.1 s with the validated `FMAT > ILO├ù7` order and tiers `1,3,3,3,3,3,3,3`. The live feed currently has zero named international rows, so the premium international treatment is validated by the passing Compose render test rather than a production card.
 - **Current Status**: Phase 5 is complete across implementation, 32 Android tests, CI, signed/versioned APK, GitHub release, and production contract validation. No known Demand UI/build/API regression remains. Physical upgrade install is still unavailable without a connected device.
 - **Next Actions**: Begin Phase 6 Team manager-command redesign: force two columns on phones, make each compact card surface utilisation, certifications, gaps, readiness, current assignment, future availability, risk and real action count, then publish through the same gated process.
 
@@ -1130,7 +1168,7 @@
 ## 2026-08-09T03:09:00+05:30 - Phase 4 completed and production-validated (v1.46.0/code 55)
 - **Tool Used**: Codex (`gh`, GitHub Actions, Render production API probes, SHA-256 comparison)
 - **Files Modified**: `AI/PROGRESS.md`
-- **Work Completed**: Published commit `dbe0c3181c3bac412b9661bdee4390553df4fcf1`; GitHub Actions run `31279506824` passed and created release `v1.46.0.55` with `SkillEdge-v1.46.0.55.apk` and full release notes. CI APK digest is `17bd3c43abe5e571b32705ad88437dd249154bda89e723501ffa805048f0b930`. Production returned 8 batches strictly ordered `FMAT > ILO×7` with tiers `1,3,3,3,3,3,3,3`; there are currently no ILT/Unknown rows and no matched candidates in Aishwar's live payload, so within-section suitability and the qualifying Aishwar rule are validated by the 13 passing backend tests. Cold fresh Demand took 26.2 s and cached refresh 0.3 s. Repeated fresh Demand GETs left Aishwar's trainer-skill SHA-256 unchanged at `41512972C84CF891BBBF94FF976EAD2643CFF87B9A32493BE6EEB49F8C59A2F3`; no legacy `auto_marked` field is served.
+- **Work Completed**: Published commit `dbe0c3181c3bac412b9661bdee4390553df4fcf1`; GitHub Actions run `31279506824` passed and created release `v1.46.0.55` with `SkillEdge-v1.46.0.55.apk` and full release notes. CI APK digest is `17bd3c43abe5e571b32705ad88437dd249154bda89e723501ffa805048f0b930`. Production returned 8 batches strictly ordered `FMAT > ILO├ù7` with tiers `1,3,3,3,3,3,3,3`; there are currently no ILT/Unknown rows and no matched candidates in Aishwar's live payload, so within-section suitability and the qualifying Aishwar rule are validated by the 13 passing backend tests. Cold fresh Demand took 26.2 s and cached refresh 0.3 s. Repeated fresh Demand GETs left Aishwar's trainer-skill SHA-256 unchanged at `41512972C84CF891BBBF94FF976EAD2643CFF87B9A32493BE6EEB49F8C59A2F3`; no legacy `auto_marked` field is served.
 - **Current Status**: Phase 4 is complete across implementation, tests, CI, signed/versioned APK, GitHub release, Render and live ordering/read-only checks. No known matching/order/write blocker remains. Physical APK install-over-existing remains unexecuted because ADB has no connected device; package/signature/version continuity passed.
 - **Next Actions**: Begin Phase 5 international Demand design: strengthen international FMAT/ILT business hierarchy and premium visibility while preserving accessibility, information density, manager actions, and the now-validated ranking contract; publish only after UI tests/build/production validation.
 
@@ -1139,7 +1177,7 @@
 - **Files Modified**: `backend.py`, `tests/test_demand_safety.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
 - **Work Completed**: Backend tests pass 13/13 and Android JVM/Compose tests pass 31/31; v1.46.0/code 55 release APK assembled. APK SHA-256 is `332DFCFBB73081873B8E947B9BDCE7CBF75E2C9AC56B522630B2253CF2EA9619`; package is `com.example.skillsync`; signer SHA-256 remains `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Static audit confirms `addTrainerSkill` remains reachable only from the explicit skill-write POST route, not Demand/recommendation paths.
 - **Current Status**: Phase 4 passed local logic, UI compilation, tests, packaging, version and signature gates. No Android device/emulator is connected, so a literal install-over-existing test could not be executed; package/signature/version continuity passed, but physical upgrade remains an environment validation gap rather than a claimed success.
-- **Next Actions**: Commit/push v1.46.0, verify GitHub Actions/release and Render, validate production FMAT→ILT→ILO→Unknown order, suitability fields, Aishwar recommendation/no-write behavior and latency, then close Phase 4 and start Phase 5.
+- **Next Actions**: Commit/push v1.46.0, verify GitHub Actions/release and Render, validate production FMATΓåÆILTΓåÆILOΓåÆUnknown order, suitability fields, Aishwar recommendation/no-write behavior and latency, then close Phase 4 and start Phase 5.
 
 ## 2026-08-09T02:56:00+05:30 - Phase 4 matching and ordering implemented locally
 - **Tool Used**: Codex (`apply_patch`, Python unittest)
@@ -1153,12 +1191,12 @@
 - **Files Modified**: `AI/PROGRESS.md`
 - **Work Completed**: Published commit `30343df2971bf162735cb97586e9af7e85d105ef`; GitHub Actions run `31278796780` passed and created release `v1.45.0.54` with `SkillEdge-v1.45.0.54.apk` and full release notes. CI APK digest is `aac95fbfa578d3e06190605d464751d90caf21b505ad6bdfdd670bf0e7fed6f8`. Production Demand returned 8 batches in 13.8 s; Trainer 360 returned in 8.1 s and correctly reported Aishwar availability as `unverified` because RMS off-dates could not be verified, while the legacy utilisation availability label also reads `Unverified`. This confirms missing evidence is no longer presented as availability.
 - **Current Status**: Phase 3 is complete across code, tests, CI, signed/versioned APK, Render deployment, and live API validation. No known availability correctness or release blocker remains; production has no matched candidate in the current Aishwar Demand payload, so candidate conflict UI is covered by backend/Android tests rather than a live matched row.
-- **Next Actions**: Start Phase 4: enforce FMAT → ILT → ILO → Unknown, complete the multi-factor suitability score (skill, readiness, verified availability, utilisation, feedback, English/language and location), and upgrade the Aishwar international recommendation to use verified next-weekend evidence without any RMS write.
+- **Next Actions**: Start Phase 4: enforce FMAT ΓåÆ ILT ΓåÆ ILO ΓåÆ Unknown, complete the multi-factor suitability score (skill, readiness, verified availability, utilisation, feedback, English/language and location), and upgrade the Aishwar international recommendation to use verified next-weekend evidence without any RMS write.
 
 ## 2026-08-09T02:44:00+05:30 - Phase 3 verified availability implemented locally
 - **Tool Used**: Codex (`apply_patch`, `unittest`, Gradle, APK Signer)
 - **Files Modified**: `backend.py`, `tests/test_demand_safety.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/trainer/Trainer360Screen.kt`, `SkillEdge_Android/app/build.gradle.kts`, `AI/PROGRESS.md`
-- **Work Completed**: Added evidence-based availability using overlapping assignments plus RMS trainer off-date fields. Results distinguish `available`, `conflict`, and `unverified`; include source-verification flags, conflict details, reasons, and next conflict-free date. Demand ranking now uses verified availability and shows status per candidate; Trainer 360 shows verification, conflicts and next-free date; Team payload availability no longer derives from utilisation. Scheduling sources are prefetched once per trainer per Demand board to avoid candidate×batch RMS call multiplication. Added three availability tests; backend tests pass 8/8 and Android tests pass 31/31. v1.45.0/code 54 signed APK SHA-256 is `D5D6BFD8FE358EB003AB3597AEB07F1FE2E719848C1997DB97F3D05B44C03AEB` with the unchanged production signer.
+- **Work Completed**: Added evidence-based availability using overlapping assignments plus RMS trainer off-date fields. Results distinguish `available`, `conflict`, and `unverified`; include source-verification flags, conflict details, reasons, and next conflict-free date. Demand ranking now uses verified availability and shows status per candidate; Trainer 360 shows verification, conflicts and next-free date; Team payload availability no longer derives from utilisation. Scheduling sources are prefetched once per trainer per Demand board to avoid candidate├ùbatch RMS call multiplication. Added three availability tests; backend tests pass 8/8 and Android tests pass 31/31. v1.45.0/code 54 signed APK SHA-256 is `D5D6BFD8FE358EB003AB3597AEB07F1FE2E719848C1997DB97F3D05B44C03AEB` with the unchanged production signer.
 - **Current Status**: Phase 3 is implemented and locally validated. It is not yet published or production-validated.
 - **Next Actions**: Commit/push v1.45.0, verify CI and Render, measure live Demand/Trainer 360 behavior and confirm unknown availability is communicated honestly, publish release notes, then begin Phase 4 matching/order work.
 
@@ -1198,7 +1236,7 @@
 - **Validation**: 3/3 backend safety tests and 31/31 Android tests pass; lint and release build pass. Render serves `manager_recommendations` and no longer serves legacy `auto_marked`. Two forced production Demand refreshes left the trainer-skill response hash unchanged (`41512972C84CF891BBBF94FF976EAD2643CFF87B9A32493BE6EEB49F8C59A2F3`).
 - **Release**: GitHub Actions run `31276525717` passed. Published [v1.43.0.51](https://github.com/aishsynk/SkillSync/releases/tag/v1.43.0.51), APK SHA-256 `990aaeb47401cbb55719f91a65bc6441d23294032921a780f1d833eb76b39b45`. Package `com.example.skillsync`, version code 51, and established signing certificate verified for in-place upgrade.
 - **Current Status**: Phase 1 is complete and production-validated. Phase 2 may begin.
-- **Next Actions**: Phase 2 — implement real repositories/domain contracts, automatic Team capability/action loading, complete-team visibility, explicit partial-error states, then publish and validate before Phase 3.
+- **Next Actions**: Phase 2 ΓÇö implement real repositories/domain contracts, automatic Team capability/action loading, complete-team visibility, explicit partial-error states, then publish and validate before Phase 3.
 
 ## 2026-08-09T02:22:00+05:30 - Phase 1 local safety gate passed
 - **Tool Used**: Python unittest/compile, Gradle JVM/Compose tests, Android lint, assembleRelease, apksigner, ripgrep
@@ -1389,7 +1427,7 @@ v1.33.0's blueprint pass dropped **Active Trainers** and **Cert Coverage** from 
 ### Note on concurrent work
 This repo advanced from v1.32.0 to v1.38.0 through commits not made in this session (Phase 1 UI blueprint, offline write queue, Agent Copilot, Demand revamp, alert system). This release builds on top of them.
 
-## Release v1.37.0 — Phase 5: Alerts and Logout Enhancements
+## Release v1.37.0 ΓÇö Phase 5: Alerts and Logout Enhancements
 - **Timestamp**: 2026-08-08T23:25:00+05:30
 - **Agent/Tool Used**: Antigravity
 - **Files Modified**: `DashboardSections.kt`, `MainScreen.kt`, `build.gradle.kts`
@@ -1403,7 +1441,7 @@ This repo advanced from v1.32.0 to v1.38.0 through commits not made in this sess
 - **Current Status**: Phase 5 enables managers to trust the app for reliable dispatch notifications and secures session end flows.
 - **Next Actions**: Monitor the background task sync stability or proceed to Phase 6 requirements.
 
-## Release v1.36.0 — Phase 4: Demand Page Implementation & Action Desk Inline Messaging
+## Release v1.36.0 ΓÇö Phase 4: Demand Page Implementation & Action Desk Inline Messaging
 - **Timestamp**: 2026-08-08T23:05:00+05:30
 - **Agent/Tool Used**: Antigravity
 - **Files Modified**: `AllocationDeskScreen.kt`, `DashboardSections.kt`, `MainScreen.kt`, `build.gradle.kts`
@@ -1418,7 +1456,7 @@ This repo advanced from v1.32.0 to v1.38.0 through commits not made in this sess
 - **Current Status**: Phase 4 completes the critical UI enhancements for demand visualization and accelerates manager actioning.
 - **Next Actions**: Ensure that "Action" page components continue to receive parity updates, or proceed to Phase 5.
 
-## Release v1.35.0 — Phase 3 Completion: Copilot Android & Backend
+## Release v1.35.0 ΓÇö Phase 3 Completion: Copilot Android & Backend
 - **Timestamp**: 2026-08-08T22:54:00+05:30
 - **Agent/Tool Used**: Antigravity
 - **Files Modified**: `backend.py`, `SkillEdgeApi.kt`, `CopilotViewModel.kt`, `CopilotChatSheet.kt`, `Trainer360Screen.kt`, `build.gradle.kts`
@@ -1431,7 +1469,7 @@ This repo advanced from v1.32.0 to v1.38.0 through commits not made in this sess
 - **Current Status**: Phase 3 is fully operational on Android. The backend agent logic is finalized and ready to serve any consumer application (including web when we transition it).
 - **Next Actions**: Phase 4 - Polish.
 
-## Release v1.34.0 — Phase 2 Completion: Offline Writes & Background Sync
+## Release v1.34.0 ΓÇö Phase 2 Completion: Offline Writes & Background Sync
 - **Timestamp**: 2026-08-08T22:35:00+05:30
 - **Agent/Tool Used**: Antigravity
 - **Files Modified**: `ActionQueueManager.kt` (new), `AllocationViewModel.kt`, `Navigation.kt`, `MainScreenViewModel.kt`, `build.gradle.kts`
@@ -1445,7 +1483,7 @@ This repo advanced from v1.32.0 to v1.38.0 through commits not made in this sess
 - **Current Status**: Phase 2 is fully complete. The app now handles both offline reads and offline writes seamlessly.
 - **Next Actions**: Investigate Copilot UI on Android (Phase 3) provided the backend agent APIs can be created, or proceed to Phase 4 Polish.
 
-## Phase 2 In Progress — Offline-First Caching Architecture
+## Phase 2 In Progress ΓÇö Offline-First Caching Architecture
 - **Timestamp**: 2026-08-08T22:25:00+05:30
 - **Agent/Tool Used**: Antigravity
 - **Files Modified**: `MainScreenViewModel.kt`, `Trainer360ViewModel.kt`, `AllocationViewModel.kt`, `MainScreen.kt`, `Trainer360Screen.kt`, `Navigation.kt`
@@ -1457,7 +1495,7 @@ This repo advanced from v1.32.0 to v1.38.0 through commits not made in this sess
   - Modified method signatures down to `MainScreenViewModel`, `Trainer360ViewModel`, `AllocationViewModel` to pass `Context` safely from Composables.
   - Build successfully verified via `assembleDebug`.
 
-## Release v1.32.0 — Gap-analysis Phase 1: remove fabricated data, fix utilisation, wire real exam policy
+## Release v1.32.0 ΓÇö Gap-analysis Phase 1: remove fabricated data, fix utilisation, wire real exam policy
 - **Timestamp**: 2026-08-08T10:30:00+05:30
 - **Agent/Tool Used**: Claude Code (Opus 5)
 - **Files Modified**: `backend.py` (extensive), both `build.gradle.kts`
@@ -1467,22 +1505,22 @@ This repo advanced from v1.32.0 to v1.38.0 through commits not made in this sess
 Per the standing rule that the instruction files are unreliable, every candidate API was called live rather than trusted. The documented response schemas are null-filled placeholders and told us nothing.
 
 **Verified working and now usable:**
-- **key 213 `courseWithoutExam`** — 10,934 rows, 438 vendors. Fields: `Courseid`, `CName`, `Exam Required or Not`, `CourseStatus`, `Vendor`. **Now wired in.**
-- **key 164 `Course_List`** — 12,035 rows: `Course`, `Courseid`, `vendor_name`, `vendor_id`, `course_url`. Available, not yet consumed.
-- **key 114 `Course_&_Technology_List`** — 19,766 rows: `technology_name`, `course_name`, `course_id`, `technology_id`. Available, not yet consumed.
+- **key 213 `courseWithoutExam`** ΓÇö 10,934 rows, 438 vendors. Fields: `Courseid`, `CName`, `Exam Required or Not`, `CourseStatus`, `Vendor`. **Now wired in.**
+- **key 164 `Course_List`** ΓÇö 12,035 rows: `Course`, `Courseid`, `vendor_name`, `vendor_id`, `course_url`. Available, not yet consumed.
+- **key 114 `Course_&_Technology_List`** ΓÇö 19,766 rows: `technology_name`, `course_name`, `course_id`, `technology_id`. Available, not yet consumed.
 
-**Verified BROKEN or inaccessible — do not plan against these:**
+**Verified BROKEN or inaccessible ΓÇö do not plan against these:**
 - **403 Forbidden** (credentials in the docs lack access): key 215 `Exam_Course_Linked`, 39 `Trainer_Last_3_Months_Utilization`, **171 `Get_Trainer_Free_Schedule`**, 248 `Course_Syllabus_TOC`, 70 `Get_Course_Name`, 156 `Course_Content_URL`, 246 `Course_Schedule`, 111 `Check_Course_Availability`.
-- **key 205 `Get_Course_and_Domain` returns misaligned data.** It does filter by `TechName` (row counts differ per technology) but `DomainName` is joined wrong: ".NET MAUI" → "Salesforce", "ISO 56001 Lead Auditor" → "EC-Council", "Oracle Fusion Cloud HCM" → "Red Hat". **Unusable until RMS fixes the underlying procedure.**
+- **key 205 `Get_Course_and_Domain` returns misaligned data.** It does filter by `TechName` (row counts differ per technology) but `DomainName` is joined wrong: ".NET MAUI" ΓåÆ "Salesforce", "ISO 56001 Lead Auditor" ΓåÆ "EC-Council", "Oracle Fusion Cloud HCM" ΓåÆ "Red Hat". **Unusable until RMS fixes the underlying procedure.**
 - **200-but-empty regardless of parameters**: key 72 `Unique_Certifications_Count`, 157 `Inhouse_and_FL_Trainers` (rejects every `TrainerType` value tried), 172 `Latest_Version_Of_Courses`.
 
 **Roadmap impact:** key 171 being 403 blocks the Phase 3 "real availability instead of utilisation-as-proxy" item, and key 215 being 403 means a specific certification still cannot be named for non-Microsoft courses. Both need RMS access provisioning before they can be planned.
 
 ### Fabricated data removed (the significant part of this release)
-- **Deleted the synthetic fallback team and demand.** When RMS returned no reportees, `unified_intelligence` invented **ten trainers** ("Subhash Verma", 92% utilised, teaching AZ-305 in London; "Priya Sharma"; "Rajesh Mishra"…) and **eight demands**, and nothing in the payload or on screen distinguished them from real people. A manager on an account with no reportees — verified: `aishwar_v@koenig-solutions.com` is such an account — was making staffing decisions against a fictional team. Now returns empty, and the app's existing empty state says so.
-- **Deleted the hardcoded notification feed.** Three CRITICAL/WARNING/INFO alerts about those same fictional trainers. Replaced with notifications derived from the real roster: high feedback risk, over-capacity (>85%), unknown assignment status, and open unallocated demand — severity-sorted. Verified dynamic against live RMS (an alert appeared for a trainer whose assignment fetch transiently failed, and cleared on the next call).
+- **Deleted the synthetic fallback team and demand.** When RMS returned no reportees, `unified_intelligence` invented **ten trainers** ("Subhash Verma", 92% utilised, teaching AZ-305 in London; "Priya Sharma"; "Rajesh Mishra"ΓÇª) and **eight demands**, and nothing in the payload or on screen distinguished them from real people. A manager on an account with no reportees ΓÇö verified: `aishwar_v@koenig-solutions.com` is such an account ΓÇö was making staffing decisions against a fictional team. Now returns empty, and the app's existing empty state says so.
+- **Deleted the hardcoded notification feed.** Three CRITICAL/WARNING/INFO alerts about those same fictional trainers. Replaced with notifications derived from the real roster: high feedback risk, over-capacity (>85%), unknown assignment status, and open unallocated demand ΓÇö severity-sorted. Verified dynamic against live RMS (an alert appeared for a trainer whose assignment fetch transiently failed, and cleared on the next call).
 - **Removed hardcoded KPI values**: `avg_team_utilization` fell back to **76**; `utilization_trend` was **"+4.2%"**; `utilization_history` was **[68,71,74,72,76]**; `readiness_trend` was **"+2.4%"**; `open_actions` reported **2** when there were none (making "all clear" unreachable); `completion_rate` was **95** with nothing behind it; `deployable_pct` fell back to **90**.
-- `utilization_history` and `utilization_trend` are now computed from the team's real monthly series. For the live test team this yields `[3, 9, 17, 43, 41, 15]` and `-26%` — the team's utilisation actually **fell sharply**, where the hardcoded sparkline showed a healthy rise.
+- `utilization_history` and `utilization_trend` are now computed from the team's real monthly series. For the live test team this yields `[3, 9, 17, 43, 41, 15]` and `-26%` ΓÇö the team's utilisation actually **fell sharply**, where the hardcoded sparkline showed a healthy rise.
 
 ### Utilisation correctness (behaviour change, verified against live RMS)
 `current_utilization` was the **three-month average** wearing the name "current". Now split:
@@ -1490,96 +1528,96 @@ Per the standing rule that the instruction files are unreliable, every candidate
 - `utilization_avg_3m` = the trend (existing `_avg_util`)
 - New `utilization_status` (Overloaded/Healthy/Underutilized) and `availability_status` (Available/Limited/Booked), matching offline thresholds.
 
-Measured impact on the live team: Abhinav Samant reads **23%** current against **39%** averaged; Niharika **7%** against **26%**. Both were being shown as materially busier than they are — a manager hunting for spare capacity would have skipped them. `None` is now preserved throughout instead of collapsing to 0, so "no data" and "idle" are distinguishable.
+Measured impact on the live team: Abhinav Samant reads **23%** current against **39%** averaged; Niharika **7%** against **26%**. Both were being shown as materially busier than they are ΓÇö a manager hunting for spare capacity would have skipped them. `None` is now preserved throughout instead of collapsing to 0, so "no data" and "idle" are distinguishable.
 
 ### `delivery_intelligence_df` implemented (was dead UI code)
 `TeamTab.kt` and `TrainerCard` have always branched on `delivery_readiness_label`, `delivery_capacity_status` and `delivery_risk_level`, but the backend never emitted the key, so every branch was dead and the card silently fell through to its capacity fallback. Now built per trainer using the offline project's exact thresholds (`shared/delivery_intelligence.py`). Verified: 2 rows returned for the live team.
 
 ### Certification gaps now cover all vendors
-`_cert_intelligence` only saw courses matching the hand-written 30-entry, Microsoft-only `_CERT_CATALOG`. New `_exam_policy()` reads RMS key 213 (cached 6h, fetched once per request not per trainer) and adds every course RMS marks "Exam Required" as a gap, with its vendor, even when no exam code can be named. Verified on the live team: detected gaps rose **2 → 5**.
+`_cert_intelligence` only saw courses matching the hand-written 30-entry, Microsoft-only `_CERT_CATALOG`. New `_exam_policy()` reads RMS key 213 (cached 6h, fetched once per request not per trainer) and adds every course RMS marks "Exam Required" as a gap, with its vendor, even when no exam code can be named. Verified on the live team: detected gaps rose **2 ΓåÆ 5**.
 
 This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as its denominator while `missing` grew, driving coverage **negative** (`avg_trainer_coverage_pct: -25`). Denominator is now every course requiring a certificate; the same trainer reads 7 required / 5 gaps / **29%** covered.
 
 ### Build & Test
-`assembleRelease` succeeds, signature verified against the rotated release key. **31/31 unit tests pass** (one CrashTest failure was a 503 from the sleeping Render instance, not a regression — passed after waking it). All endpoints re-verified live: `unified-manager-intelligence`, `team-capability`, `trainer-360`, `allocation-desk`.
+`assembleRelease` succeeds, signature verified against the rotated release key. **31/31 unit tests pass** (one CrashTest failure was a 503 from the sleeping Render instance, not a regression ΓÇö passed after waking it). All endpoints re-verified live: `unified-manager-intelligence`, `team-capability`, `trainer-360`, `allocation-desk`.
 
 ### Still outstanding
 - **Blueprint alignment on the dashboard was reverted and never reapplied.** The hero sub-figures, "TEAM READINESS" eyebrow, 6-tile grid, `NeedsYouTodayCard` and single-line section headers were rolled back during a compile failure earlier in the session and are still not in the build.
 - Phase 1 remainder: action lifecycle (close/escalate/reassign), filters on the Actions tab, retiring the `batch-details` and `approve-skill` stubs, peer rank in Trainer 360.
-## Release v1.31.0 — Demand tab rebuilt as a Demand Intelligence & Resource Allocation Center
+## Release v1.31.0 ΓÇö Demand tab rebuilt as a Demand Intelligence & Resource Allocation Center
 - **Timestamp**: 2026-08-08T09:00:00+05:30
 - **Agent/Tool Used**: Claude Code (Sonnet 5)
 - **Files Modified**: `backend.py` (`_team_capability`, `_rank_batch`, new `_speaks_english`/`_priority_fields`, `allocation_desk`), `ui/batch/AllocationDeskScreen.kt`, `ui/batch/BatchDetailScreen.kt`, both `build.gradle.kts`
-- **Brief**: The Demand tab was a list of unallocated courses ranked by match% with the order rewritten on every load. The manager asked for a Demand Intelligence Center instead — original RMS order preserved, redesigned trainer matching (skill → readiness → utilisation/availability, English-first, manager included as a candidate), a dedicated Priority Demand section for ILT/FMAT international deliveries, richer card fields, and a three-tier coverage read (Best Match / Available with Upskilling / No Coverage) instead of a raw percentage.
+- **Brief**: The Demand tab was a list of unallocated courses ranked by match% with the order rewritten on every load. The manager asked for a Demand Intelligence Center instead ΓÇö original RMS order preserved, redesigned trainer matching (skill ΓåÆ readiness ΓåÆ utilisation/availability, English-first, manager included as a candidate), a dedicated Priority Demand section for ILT/FMAT international deliveries, richer card fields, and a three-tier coverage read (Best Match / Available with Upskilling / No Coverage) instead of a raw percentage.
 - **Backend Work**:
   - `allocation_desk()` no longer sorts by `-relevance`. `_demand_rows()` was already unsorted (straight from `_rms("unallocated", {})`); the endpoint now returns that order untouched.
-  - `_team_capability()` now takes `manager_email`/`manager_name` and appends the signed-in manager as a candidate (labelled "(You)" in the UI) unless they're somehow already their own reportee — managers deliver strategic/escalated batches themselves and were invisible to the matching engine before.
-  - `_rank_batch()` rewritten: candidates are now sorted by (available-before-blocked, skill match desc, readiness desc — the Qubits score of the matched course, English-speaking class before non-English, utilisation ascending as an availability proxy, clean-feedback tie-break). Utilisation and language are fetched only for trainers who already matched the course (`_safe_util`, `_resume(...).languages`), not the whole team, to keep the extra RMS calls proportional to real candidates.
+  - `_team_capability()` now takes `manager_email`/`manager_name` and appends the signed-in manager as a candidate (labelled "(You)" in the UI) unless they're somehow already their own reportee ΓÇö managers deliver strategic/escalated batches themselves and were invisible to the matching engine before.
+  - `_rank_batch()` rewritten: candidates are now sorted by (available-before-blocked, skill match desc, readiness desc ΓÇö the Qubits score of the matched course, English-speaking class before non-English, utilisation ascending as an availability proxy, clean-feedback tie-break). Utilisation and language are fetched only for trainers who already matched the course (`_safe_util`, `_resume(...).languages`), not the whole team, to keep the extra RMS calls proportional to real candidates.
   - New `_speaks_english()`: a trainer with no recorded language is treated as English-capable (most resumes never bother listing the default), not as unknown/penalised.
-  - New `_priority_fields()`: computes `is_priority` (ILT/FMAT **and** international, via an India-marker heuristic on location — no fabricated country database), `revenue_potential` (High/Medium/Low band from pax + mode + international — no invented currency figures; RMS carries no reliable fee data), `priority_score` (numeric, mode + international + pax), `assignment_risk` (from coverage: No Coverage → High, Upskilling → Medium, else Low).
+  - New `_priority_fields()`: computes `is_priority` (ILT/FMAT **and** international, via an India-marker heuristic on location ΓÇö no fabricated country database), `revenue_potential` (High/Medium/Low band from pax + mode + international ΓÇö no invented currency figures; RMS carries no reliable fee data), `priority_score` (numeric, mode + international + pax), `assignment_risk` (from coverage: No Coverage ΓåÆ High, Upskilling ΓåÆ Medium, else Low).
   - `_rank_batch()` also now returns a per-batch `coverage_status` (Best Match / Available with Upskilling / No Coverage) from the top non-blocked candidate.
   - `summary` in the response gained `priority` and `at_risk` counts.
 - **Android Work**:
   - `AllocationDeskContent`: filtering narrows the list, never reorders it. Priority Demand section now partitions on the backend's `is_priority` flag (was: mode string alone). Summary card gained Priority/At Risk/Best Match stat figures above the coverage distribution bar.
-  - `BatchCard`: leading edge and headline indicator now key off `coverage_status` (tri-state icon + label) instead of a raw match% figure. Card shows Vendor on its own line, Start → End on one row, pax, then Revenue/Priority/Risk mini-stats, then the recommended-trainers list (now shows utilisation and an English-speaking flag per candidate).
+  - `BatchCard`: leading edge and headline indicator now key off `coverage_status` (tri-state icon + label) instead of a raw match% figure. Card shows Vendor on its own line, Start ΓåÆ End on one row, pax, then Revenue/Priority/Risk mini-stats, then the recommended-trainers list (now shows utilisation and an English-speaking flag per candidate).
   - `BatchDetailScreen`: rebuilt from flat `Card`s on `sk.pageBg` to the app's glass design system (`AuroraBackground`, `glassSurface`, `IconSlot`) for visual consistency with the rest of the app. Start/End dates collapsed to one row (was two stacked `Fact` rows). Headline block leads with coverage + the four business stats (Revenue, Priority, Risk, Coverage%). "Recommended allocation" section replaces "Who on your team can deliver this", shows the manager-as-candidate row and the new utilisation/language detail per candidate.
   - Removed now-dead code: `isDeprioritisedMode()`, `MiniTag`, `SummaryPill` (all unused after the rewrite).
-- **Build & Test Status**: `assembleRelease` succeeds, signature verified against the rotated release key (see the prior entry); **30/30 unit tests pass** unchanged — no test exercised these screens' internals directly, so nothing needed updating there.
-- **Next Actions**: Push to `main`, let CI build and publish v1.31.0. Watch the Actions run, verify the release asset's signature, then confirm on device that the Demand tab actually renders the new fields against a live team (the backend changes add per-candidate RMS calls for utilisation/language that have not been exercised against production RMS yet — worth watching response times on a real roster).
+- **Build & Test Status**: `assembleRelease` succeeds, signature verified against the rotated release key (see the prior entry); **30/30 unit tests pass** unchanged ΓÇö no test exercised these screens' internals directly, so nothing needed updating there.
+- **Next Actions**: Push to `main`, let CI build and publish v1.31.0. Watch the Actions run, verify the release asset's signature, then confirm on device that the Demand tab actually renders the new fields against a live team (the backend changes add per-candidate RMS calls for utilisation/language that have not been exercised against production RMS yet ΓÇö worth watching response times on a real roster).
 
-## Release infrastructure — dedicated release keystore, CI signing rotated
+## Release infrastructure ΓÇö dedicated release keystore, CI signing rotated
 - **Timestamp**: 2026-08-08T08:35:00+05:30
 - **Agent/Tool Used**: Claude Code (Sonnet 5)
 - **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `app/build.gradle.kts` (versionCode/Name only), `SkillEdge_Android/.gitignore`, `SkillEdge_Android/keystore/README.md` (new), `.github/workflows/android-release.yml`; `SkillEdge_Android/release.jks` deleted; GitHub secrets `KEYSTORE_B64`/`KEYSTORE_PASSWORD`/`KEY_ALIAS`/`KEY_PASSWORD` rotated
-- **What triggered this**: The user asked that every future APK be fully update-in-place installable — no uninstall step. Investigating why that wasn't guaranteed surfaced two problems: (1) the last two releases (v1.28.0, v1.29.0) were built locally with `assembleDebug` and published directly via `gh release create`, bypassing the project's actual CI/CD pipeline (`.github/workflows/android-release.yml`) entirely — a hard violation of the durable release policy, which exists specifically because CI is the only path that produces a consistently-signed, update-compatible, traceable release. (2) The repo's `release.jks` had been committed to git in cleartext (commit `93bde7d`) due to a corrupted `.gitignore` entry — the line `release.jks` had been saved with UTF-16 encoding (`r\x00e\x00l\x00e\x00a\x00s\x00e...`), so git never actually matched the ignore pattern.
+- **What triggered this**: The user asked that every future APK be fully update-in-place installable ΓÇö no uninstall step. Investigating why that wasn't guaranteed surfaced two problems: (1) the last two releases (v1.28.0, v1.29.0) were built locally with `assembleDebug` and published directly via `gh release create`, bypassing the project's actual CI/CD pipeline (`.github/workflows/android-release.yml`) entirely ΓÇö a hard violation of the durable release policy, which exists specifically because CI is the only path that produces a consistently-signed, update-compatible, traceable release. (2) The repo's `release.jks` had been committed to git in cleartext (commit `93bde7d`) due to a corrupted `.gitignore` entry ΓÇö the line `release.jks` had been saved with UTF-16 encoding (`r\x00e\x00l\x00e\x00a\x00s\x00e...`), so git never actually matched the ignore pattern.
 - **Work Completed**:
-  - Generated a new dedicated release keystore (`skillsync-release.jks`, alias `skillsync-release`, PKCS12, valid to 2053) and retired the compromised committed one rather than reuse it — a keystore that has been on a public remote should be treated as compromised regardless of whether the password ever leaked.
-  - Wired `signingConfigs` into `app/build.gradle.kts`, reading credentials from `keystore.properties` (git-ignored, local-only) so `assembleRelease` on a dev machine produces a properly-signed APK for **verification only** — never for distribution, per the existing hard rule.
+  - Generated a new dedicated release keystore (`skillsync-release.jks`, alias `skillsync-release`, PKCS12, valid to 2053) and retired the compromised committed one rather than reuse it ΓÇö a keystore that has been on a public remote should be treated as compromised regardless of whether the password ever leaked.
+  - Wired `signingConfigs` into `app/build.gradle.kts`, reading credentials from `keystore.properties` (git-ignored, local-only) so `assembleRelease` on a dev machine produces a properly-signed APK for **verification only** ΓÇö never for distribution, per the existing hard rule.
   - Fixed the corrupted `.gitignore` (rewrote it clean, UTF-8) and added `*.jks`/`*.keystore`/`keystore.properties` patterns.
-  - **Rotated all four GitHub Actions secrets** (`KEYSTORE_B64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) to the new keystore, so the CI pipeline — the only path that should ever publish a release — now signs with the same key `assembleRelease` uses locally for verification.
+  - **Rotated all four GitHub Actions secrets** (`KEYSTORE_B64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) to the new keystore, so the CI pipeline ΓÇö the only path that should ever publish a release ΓÇö now signs with the same key `assembleRelease` uses locally for verification.
   - Verified locally with `apksigner verify --print-certs`: the SHA-256 of the built APK's signer matches the new keystore exactly.
   - Wrote `keystore/README.md` documenting the key, why it exists, and the history of the compromised predecessor.
 - **Consequence for existing installs**: This is a one-time break. Anyone with v1.27.0 (CI-signed, old key) or v1.28.0/v1.29.0 (locally debug-signed) installed will need to uninstall once to take v1.30.0. Every release from v1.30.0 onward, built by CI with the rotated secrets, will share one signature and install as an update over the previous one with no uninstall step.
-- **Policy correction going forward**: Releases are pushed to `main` and built/published exclusively by GitHub Actions. `assembleRelease`/`assembleDebug` locally is for compile and signature verification only — never `gh release create` with a local build. This was already the documented rule; it was not followed for v1.28.0/v1.29.0, and this entry corrects that.
+- **Policy correction going forward**: Releases are pushed to `main` and built/published exclusively by GitHub Actions. `assembleRelease`/`assembleDebug` locally is for compile and signature verification only ΓÇö never `gh release create` with a local build. This was already the documented rule; it was not followed for v1.28.0/v1.29.0, and this entry corrects that.
 - **Build & Test Status**: `assembleRelease` succeeds and produces a correctly-signed APK; `apksigner verify` passes; **30/30 unit tests pass**.
-- **Next Actions**: Push to `main`, let Actions build and publish v1.30.0 (the version bump already reflects this — versionCode 39, versionName "1.30.0"). Confirm the Actions run succeeds and the release asset is signed with the rotated key before telling the user it's ready.
+- **Next Actions**: Push to `main`, let Actions build and publish v1.30.0 (the version bump already reflects this ΓÇö versionCode 39, versionName "1.30.0"). Confirm the Actions run succeeds and the release asset is signed with the rotated key before telling the user it's ready.
 
-## Release v1.29.0 — Team roster rebuilt as a manager decision surface
+## Release v1.29.0 ΓÇö Team roster rebuilt as a manager decision surface
 - **Timestamp**: 2026-08-08T08:15:00+05:30
 - **Agent/Tool Used**: Claude Code (Sonnet 5)
 - **Files Modified**: `ui/main/MainScreen.kt` (`TrainerCard`, new `trainerHealth`/`HealthBadge`), `ui/main/TeamTab.kt` (sort), `app/src/test/.../ScreenRenderTest.kt`, both `build.gradle.kts`
 - **Root Cause / Brief**: The manager asked for the roster card to stop being a trainer-profile stat wall (certificates, badges, percentages, multiple labels) and instead answer four questions per card: what is this trainer doing right now, how healthy are they, is there risk, does anything need my action.
 - **Work Completed**:
-  - Added `trainerHealth()`: a single 0–100 score from feedback risk (dominant weight — a reported incident outweighs a scheduling gap), delivery risk, utilisation extremes, readiness bucket and certification gap count. Mapped to Healthy / Watchlist / Needs Attention / High Risk.
+  - Added `trainerHealth()`: a single 0ΓÇô100 score from feedback risk (dominant weight ΓÇö a reported incident outweighs a scheduling gap), delivery risk, utilisation extremes, readiness bucket and certification gap count. Mapped to Healthy / Watchlist / Needs Attention / High Risk.
   - Rebuilt `TrainerCard`: name + live status label up top, a `HealthBadge` (score + category) replacing the five separate chips (cert count, gap count, feedback risk, delivery risk, readiness bucket) that used to run along the bottom row.
-  - Available capacity (100 − utilisation) replaces the raw utilisation bar as the headline figure — "24% available" is the decision-relevant framing, not "76% utilised".
+  - Available capacity (100 ΓêÆ utilisation) replaces the raw utilisation bar as the headline figure ΓÇö "24% available" is the decision-relevant framing, not "76% utilised".
   - Current assignment and its end date stay front and centre (already correct in the prior design; kept as-is).
-  - A single action row appears only when the backend actually recommends one (`recommended_action` present and not the default "Monitor performance") — no more permanently-visible action affordance for trainers who need none.
-  - `TeamSort` gained `HEALTH` and it is now the roster's default sort, replacing utilisation — the roster now opens sorted by who needs the manager first.
-  - Certificates, gap counts and readiness buckets did not disappear from the app — they moved to `trainer-360`, the detail screen, which is what a profile deep-dive is for.
+  - A single action row appears only when the backend actually recommends one (`recommended_action` present and not the default "Monitor performance") ΓÇö no more permanently-visible action affordance for trainers who need none.
+  - `TeamSort` gained `HEALTH` and it is now the roster's default sort, replacing utilisation ΓÇö the roster now opens sorted by who needs the manager first.
+  - Certificates, gap counts and readiness buckets did not disappear from the app ΓÇö they moved to `trainer-360`, the detail screen, which is what a profile deep-dive is for.
 - **Backend Impact**: **None.** `trainerHealth()` is a pure client-side function over fields the payload already carries (`feedback_risk`, `current_utilization`, `delivery_risk_level`, `readiness_bucket`, `certification.gap_count`). No endpoint, repository or RMS call changed.
 - **Build & Test Status**: `BUILD SUCCESSFUL`; **30/30 unit tests pass**. Updated three `ScreenRenderTest` assertions that pinned the old badge layout and default sort to the new decision-first card.
 - **Next Actions**: Publish `SkillEdge-v1.29.0.apk` via GitHub Releases; verify roster on device.
 
-## Release v1.28.0 — Command Centre Visual Redesign (token-layer rebuild)
+## Release v1.28.0 ΓÇö Command Centre Visual Redesign (token-layer rebuild)
 - **Timestamp**: 2026-08-07T21:00:00+05:30
 - **Agent/Tool Used**: Claude Code (Opus 5)
 - **Files Modified**: `theme/Color.kt`, `theme/Theme.kt`, `theme/Surfaces.kt` (new), `ui/components/Charts.kt`, `ui/main/DashboardSections.kt`, `ui/main/MainScreen.kt`, `ui/main/TeamTab.kt`, `ui/main/CoursesTab.kt`, `ui/batch/AllocationDeskScreen.kt`, `ui/auth/LoginScreen.kt`, `ui/trainer/Trainer360Screen.kt`, `app/src/test/.../ScreenRenderTest.kt`, both `build.gradle.kts`
 - **Root Cause Analysis**:
-  - Every prior "redesign" (v1.25–v1.27) edited only `DashboardSections.kt`. `Theme.kt` and `Color.kt` were never touched, so `primary = Teal #00ACAC`, `pageBg = #F2F5F8` and `cardBg = #FFFFFF` survived intact. That is why the app kept looking identical no matter how the cards were rearranged — the visual identity lives in the token layer, not the card layer.
+  - Every prior "redesign" (v1.25ΓÇôv1.27) edited only `DashboardSections.kt`. `Theme.kt` and `Color.kt` were never touched, so `primary = Teal #00ACAC`, `pageBg = #F2F5F8` and `cardBg = #FFFFFF` survived intact. That is why the app kept looking identical no matter how the cards were rearranged ΓÇö the visual identity lives in the token layer, not the card layer.
 - **Work Completed**:
-  - Rewrote the token layer to the mandated palette: full blue ramp (Deep Navy → Frost White), four dark elevations (#0D1117/#121826/#172030/#1E293B), semantic status hues held separate from the brand accent, and the five required gradients.
-  - Removed the teal top bar entirely; `TopAppBar` is now transparent over a new `AuroraBackground` (#0F2027 → #203A43 → #2C5364 mesh with royal and cyan radial blooms).
-  - Added `theme/Surfaces.kt`: `glassSurface`, `accentGlass`, `heroSurface`, `glowRing`, `IconSlot`, plus the radius ladder (24/20/18/14/11dp) and 4–32dp spacing scale.
-  - Rebuilt the home screen as a command centre: identity bar → readiness hero (twin-arc gauge) → 8 glass KPI tiles (2-up, icon slot, gradient stripe, trend delta, sparkline) → triaged "Needs you today" → capacity balance.
-  - New Canvas charts: `Sparkline` (Bezier, gradient fill, emphasised endpoint), `ReadinessRing` (twin arc), `CorridorBars` (70–85% target band), `DistributionBar` (replaces donuts — segment lengths beat arc angles at phone width).
+  - Rewrote the token layer to the mandated palette: full blue ramp (Deep Navy ΓåÆ Frost White), four dark elevations (#0D1117/#121826/#172030/#1E293B), semantic status hues held separate from the brand accent, and the five required gradients.
+  - Removed the teal top bar entirely; `TopAppBar` is now transparent over a new `AuroraBackground` (#0F2027 ΓåÆ #203A43 ΓåÆ #2C5364 mesh with royal and cyan radial blooms).
+  - Added `theme/Surfaces.kt`: `glassSurface`, `accentGlass`, `heroSurface`, `glowRing`, `IconSlot`, plus the radius ladder (24/20/18/14/11dp) and 4ΓÇô32dp spacing scale.
+  - Rebuilt the home screen as a command centre: identity bar ΓåÆ readiness hero (twin-arc gauge) ΓåÆ 8 glass KPI tiles (2-up, icon slot, gradient stripe, trend delta, sparkline) ΓåÆ triaged "Needs you today" ΓåÆ capacity balance.
+  - New Canvas charts: `Sparkline` (Bezier, gradient fill, emphasised endpoint), `ReadinessRing` (twin arc), `CorridorBars` (70ΓÇô85% target band), `DistributionBar` (replaces donuts ΓÇö segment lengths beat arc angles at phone width).
   - Added coverage-by-fit distribution to the Demand tab from `allocation-desk` relevance bands (data already returned, never shown).
   - Converted status chips to uppercase pills with hairline borders; removed all emoji status glyphs in favour of coloured pips so state reads as shape, not colour alone.
   - Professional empty state with glyph + cause; skeleton now shimmers in the real card geometry.
 - **Backend Impact**: **None.** No endpoint, repository, model, RMS call, cache or calculation was modified. `backend.py` untouched.
 - **Build & Test Status**: `BUILD SUCCESSFUL` (assembleDebug + assembleRelease); **30/30 unit tests pass**.
   - Fixed a pre-existing break: `DashboardTab.onLogout` had no default, so `ScreenRenderTest` did not compile at HEAD (7 tests failing before this work started).
-  - Updated `ScreenRenderTest` assertions to the new copy, and split trainer-card assertions out of the dashboard test — the home screen is a command centre, not the roster.
+  - Updated `ScreenRenderTest` assertions to the new copy, and split trainer-card assertions out of the dashboard test ΓÇö the home screen is a command centre, not the roster.
 - **Next Actions**: Sign and publish `SkillEdge-v1.28.0.apk` via GitHub Releases; verify on device.
 
 ## Strategic UX Redesign Execution
@@ -1593,7 +1631,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Current Status**: Moving to execution.
 - **Next Actions**: Scaffold new UI structure in SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/ based on the approved architecture.
 
-## Release v1.27.0 — Executive Management Command Centre Redesign
+## Release v1.27.0 ΓÇö Executive Management Command Centre Redesign
 - **Timestamp**: 2026-08-07T19:59:00+05:30
 - **Agent/Tool Used**: Antigravity
 - **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `DashboardSections.kt`, `AI/PROGRESS.md`
@@ -1604,7 +1642,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   - Bumped version to 1.27.0 (versionCode 36).
 - **Build Status**: Built cleanly.
 
-## Release v1.26.0 — Android Codebase Alignment & Executive Cockpit Deployment
+## Release v1.26.0 ΓÇö Android Codebase Alignment & Executive Cockpit Deployment
 - **Timestamp**: 2026-08-08T03:25:00+05:30
 - **Agent/Tool Used**: Antigravity (Google DeepMind Advanced Agentic Coding)
 - **Files Modified**: `SkillEdge_Android/app/build.gradle.kts`, `app/build.gradle.kts`, `DashboardSections.kt`, `SkillEdge-v1.26.0.apk`, `SkillEdge-v1.25.0.apk`, `AI/PROGRESS.md`, `AI/DECISIONS.md`
@@ -1625,7 +1663,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   - Overhauled Dashboard into a high-density **Delivery Manager Cockpit** (Power BI / Azure Portal style) providing 3-second situational awareness.
   - Implemented SkillEdge Deep Navy & Cyan Accent design system with dark glassmorphism cards and custom status pills.
   - Built custom Jetpack Compose Canvas charts: `SparklineChart` (3-month Bezier utilization trend), `CapacityDonutChart` (Bench/Optimal/Stretched distribution), `ReadinessRingGauge` (Team Readiness score meter).
-  - Built Executive Header with compact profile pill, status indicator, and **Notification Center** with red unread badge counter and severity drawer (Critical 🔴, Warning 🟡, Info 🔵).
+  - Built Executive Header with compact profile pill, status indicator, and **Notification Center** with red unread badge counter and severity drawer (Critical ≡ƒö┤, Warning ≡ƒƒí, Info ≡ƒö╡).
   - Enriched `backend.py` with real-time notification arrays, sparkline histories, and predictive risk indicators.
 - **Build & Deployment Status**: Verified (`BUILD SUCCESSFUL in 4s`), committed, pushed to `origin/main`, Render deployed, GitHub Release binary updated.
 
@@ -1675,7 +1713,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Files Modified**: `backend.py`
 - **Root Cause Analysis**:
   1. Outbound urllib HTTP requests from Render server to `api.koenig-solutions.com` lacked a standard User-Agent header, triggering Cloud WAF / firewall blocks or timeouts on cloud IP ranges.
-  2. When RMS APIs timed out or returned empty reportee lists for `@koenig-solutions.com` accounts, `_verify_role()` returned `("rms_error", None)`, causing `backend.py` to respond with HTTP 503 `"Cannot reach RMS — please retry in a moment"`.
+  2. When RMS APIs timed out or returned empty reportee lists for `@koenig-solutions.com` accounts, `_verify_role()` returned `("rms_error", None)`, causing `backend.py` to respond with HTTP 503 `"Cannot reach RMS ΓÇö please retry in a moment"`.
 - **Work Completed**:
   - Added Chrome User-Agent header to `_rms_post` in `backend.py`.
   - Added resilient fallback in `_verify_role()` to admit valid `@koenig-solutions.com` accounts under `manager` role rather than locking users out with 503.
@@ -1698,14 +1736,14 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   - `app/build.gradle.kts` & `SkillEdge_Android/app/build.gradle.kts` (versionCode 34, versionName 1.25.0)
 
 - **Context & Work Completed**:
-  1. **Phase 1 — Enterprise Dashboard Redesign:** Overhauled home dashboard into Power BI/Azure Portal enterprise style with 6 actionable KPI suites (Readiness Score, Utilization Trend, Capacity Distribution, Delivery Risk Matrix, Cert Coverage %, International Split).
-  2. **Phase 2 — Comprehensive API Assessment (37 RMS APIs):** Mapped and integrated all 37 instruction text files in `trainer_portal_api_details`. Integrated student rosters (Key 209), session recordings (Key 254), 3-month utilization (Key 39), vendor accrediting flags (Key 57), and active SC fee data.
-  3. **Phase 3 — Unallocated Desk & Mismatch Engine:** Created mismatch engine in `backend.py` and `UnallocatedDeskScreen.kt` enforcing language, accreditation, and visa/travel rules, separating Primary Opportunities from Allocation Exceptions.
-  4. **Phase 4 — Unified Opportunities & Overseas Highlighting:** Built `OpportunityListScreen.kt` with prioritized sorting (Relevance → Priority → Recency), ILT/FMAT/ILO badges, and Globe 🌐 + Flag Emoji (UK 🇬🇧, USA 🇺🇸, UAE 🇦🇪, Singapore 🇸🇬, Australia 🇦🇺, Europe 🇪🇺) callouts.
-  5. **Phase 5 — Accordion Batch Details UX:** Created `BatchDetailsScreen.kt` featuring compact Summary Card (`10 Aug 2026 – 14 Aug 2026`) and expandable accordions for Pax Roster, Logistics & Session Recordings, Contract Financials, and Course TOC.
-  6. **Phase 6 — Skill Workflow Restoration:** Restored trainer skill addition alerts in `backend.py` with manager action item injection and built `SkillApprovalScreen.kt` with `/api/action/approve-skill`.
+  1. **Phase 1 ΓÇö Enterprise Dashboard Redesign:** Overhauled home dashboard into Power BI/Azure Portal enterprise style with 6 actionable KPI suites (Readiness Score, Utilization Trend, Capacity Distribution, Delivery Risk Matrix, Cert Coverage %, International Split).
+  2. **Phase 2 ΓÇö Comprehensive API Assessment (37 RMS APIs):** Mapped and integrated all 37 instruction text files in `trainer_portal_api_details`. Integrated student rosters (Key 209), session recordings (Key 254), 3-month utilization (Key 39), vendor accrediting flags (Key 57), and active SC fee data.
+  3. **Phase 3 ΓÇö Unallocated Desk & Mismatch Engine:** Created mismatch engine in `backend.py` and `UnallocatedDeskScreen.kt` enforcing language, accreditation, and visa/travel rules, separating Primary Opportunities from Allocation Exceptions.
+  4. **Phase 4 ΓÇö Unified Opportunities & Overseas Highlighting:** Built `OpportunityListScreen.kt` with prioritized sorting (Relevance ΓåÆ Priority ΓåÆ Recency), ILT/FMAT/ILO badges, and Globe ≡ƒîÉ + Flag Emoji (UK ≡ƒç¼≡ƒçº, USA ≡ƒç║≡ƒç╕, UAE ≡ƒçª≡ƒç¬, Singapore ≡ƒç╕≡ƒç¼, Australia ≡ƒçª≡ƒç║, Europe ≡ƒç¬≡ƒç║) callouts.
+  5. **Phase 5 ΓÇö Accordion Batch Details UX:** Created `BatchDetailsScreen.kt` featuring compact Summary Card (`10 Aug 2026 ΓÇô 14 Aug 2026`) and expandable accordions for Pax Roster, Logistics & Session Recordings, Contract Financials, and Course TOC.
+  6. **Phase 6 ΓÇö Skill Workflow Restoration:** Restored trainer skill addition alerts in `backend.py` with manager action item injection and built `SkillApprovalScreen.kt` with `/api/action/approve-skill`.
 
-- **Build Status**: ✓ `compileDebugKotlin` + `assembleDebug` BUILD SUCCESSFUL (0 errors).
+- **Build Status**: Γ£ô `compileDebugKotlin` + `assembleDebug` BUILD SUCCESSFUL (0 errors).
 - **Current Status**: Complete, committed, versioned (`SkillEdge-v1.25.0.apk`), and pushed.
 - **Next Actions**: Monitor deployment pipelines on Render and Vercel.
 
@@ -1715,12 +1753,12 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Agent/Tool Used**: Claude Code
 - **Files Modified**: `TeamTab.kt`, `MainScreen.kt`, `DashboardSections.kt`, `ui/batch/AllocationDeskScreen.kt`, `app/build.gradle.kts` (versionCode 33, versionName 1.24.0)
 
-- **Context**: Implemented all four P1 items from `AI/ANDROID_AUDIT.md` — user asked for implementation, not more analysis.
+- **Context**: Implemented all four P1 items from `AI/ANDROID_AUDIT.md` ΓÇö user asked for implementation, not more analysis.
 
 1. **Team screen Risk filter + sort** (the audit's single biggest finding):
    added `RiskBand` enum + `risk` field to `TeamFilters`, `RISK` to
    `TeamSort`, wired into the existing filter predicate chain and sort
-   `when`. Sources `feedback_risk` directly off `trainer_operations_df` — no
+   `when`. Sources `feedback_risk` directly off `trainer_operations_df` ΓÇö no
    capability fetch needed, so unlike Readiness/Skill/Certification this
    filter is enabled immediately, not gated behind capability loading.
 2. **Dashboard reorder**: "Needs Attention" moved from two-thirds down the
@@ -1728,28 +1766,28 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
    KPI grid, ahead of Team Pulse and Team Health. A command center leads
    with decisions, not charts.
 3. **Surfaced previously-fetched-but-unused data**: `TrainerCard` now shows
-   a `→ recommended_action` caption (backend's per-trainer next-step string,
+   a `ΓåÆ recommended_action` caption (backend's per-trainer next-step string,
    e.g. "Urgent: Review feedback incidents") when it's more specific than
-   the no-op default "Monitor performance". Added two new KPI tiles —
+   the no-op default "Monitor performance". Added two new KPI tiles ΓÇö
    "Vouched for" (`deployable_pct`) and "Unknown status" (`unknown_status`)
-   — both already computed server-side in every `manager_kpis` response
+   ΓÇö both already computed server-side in every `manager_kpis` response
    Android already fetches; zero new API cost.
 4. **Allocation Desk backup-role visibility**: `backup_role` (Primary
    Trainer / Secondary Trainer / Emergency Backup) now shown on the compact
    list-card candidate rows, not only after opening `BatchDetailScreen`.
 
-- **Build Status**: ✓ `assembleDebug` + `assembleRelease` both BUILD
+- **Build Status**: Γ£ô `assembleDebug` + `assembleRelease` both BUILD
   SUCCESSFUL, only pre-existing unrelated warnings.
-- **⚠️ Not visually verified on-device** — same standing limitation (no
+- **ΓÜá∩╕Å Not visually verified on-device** ΓÇö same standing limitation (no
   Android SDK/emulator in this environment). All four changes are additive
   (new fields/filters alongside existing working code) and were reviewed
   line-by-line against the existing, already-working patterns they extend.
 - **Current Status**: Pushed.
-- **Next Actions**: `AI/ANDROID_AUDIT.md`'s P2 list is next — persistent
+- **Next Actions**: `AI/ANDROID_AUDIT.md`'s P2 list is next ΓÇö persistent
   "Synced Xm ago" header, Trainer 360 section-jump nav, Courses owner
   sorting, skill-write outcome persistence, and filter-sheet visual grouping.
 
-## ⚠️ Git hygiene incident + cleanup (same session)
+## ΓÜá∩╕Å Git hygiene incident + cleanup (same session)
 - **Timestamp**: 2026-08-08T01:15:00+05:30
 - **What happened**: The v1.24.0 commit above was staged with `git add -A`
   without checking `git status` first, and swept in a large amount of
@@ -1760,45 +1798,45 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   Android-only scope and the git safety protocol (review a broad `git add`
   before committing).
 - **Also swept in one real source change**: `SkillEdge_Local/backend/app.py`
-  — a call-site refactor (`intelligence.build_unified(em)` →
+  ΓÇö a call-site refactor (`intelligence.build_unified(em)` ΓåÆ
   `build_or_load_intelligence(em, force=True)[0]`) that was sitting
   uncommitted in the working tree before this session touched anything.
-  This was **not written by this session** (confirmed — no `SkillEdge_Local`
+  This was **not written by this session** (confirmed ΓÇö no `SkillEdge_Local`
   file was opened or edited in any turn before this incident) and its origin
-  is unknown — possibly earlier local IDE work never committed.
-- **Fix applied** (new commit, not a history rewrite — the bad commit was
+  is unknown ΓÇö possibly earlier local IDE work never committed.
+- **Fix applied** (new commit, not a history rewrite ΓÇö the bad commit was
   already pushed): untracked all the runtime-generated noise via
   `git rm --cached`, added `SkillEdge_Local/runtime/` and
   `.claude/launch.json` to `.gitignore` so this can't recur. All files
-  remain untouched on disk — this only stops git from tracking them.
+  remain untouched on disk ΓÇö this only stops git from tracking them.
 - **Deliberately left alone**: `SkillEdge_Local/backend/app.py`'s real
-  change was **not reverted** — reverting someone's in-progress,
+  change was **not reverted** ΓÇö reverting someone's in-progress,
   uncommitted work without being asked would itself be an unauthorized
   destructive action. It remains in history as of commit `33514c0` and on
   disk. Flagged directly to the user in-conversation; needs a decision on
-  whether to keep, revert, or investigate further — out of scope for this
+  whether to keep, revert, or investigate further ΓÇö out of scope for this
   (Android-only) session to decide unilaterally.
 - **Lesson for future sessions**: always run `git status` before `git add
-  -A` in this repo — it has multiple live/local processes (a local Flask
+  -A` in this repo ΓÇö it has multiple live/local processes (a local Flask
   dev server for `SkillEdge_Local`, IDE tooling) that write uncommitted
   state into the working tree between sessions.
 
 
 
-## Full Android Product Audit (no code changes — deliberately)
+## Full Android Product Audit (no code changes ΓÇö deliberately)
 ### 2026-08-08
 - **Timestamp**: 2026-08-08T00:30:00+05:30
 - **Agent/Tool Used**: Claude Code
 - **Files Modified**: `AI/ANDROID_AUDIT.md` (new), `AI/PROGRESS.md`
 
-- **Context**: User explicitly redirected scope — Android app only, no web/
+- **Context**: User explicitly redirected scope ΓÇö Android app only, no web/
   SkillEdge_Local/Render/backend-portability investigation unless it directly
   breaks Android behavior. Requested a structured 10-section audit
   (Dashboard, Team, Trainer 360, Courses, Allocation Desk, Skill Management,
   Session/Auth, Notifications, API utilization, Priority/Roadmap) from a
   Senior Android Architect / Product Designer / UX / Delivery Manager lens,
   with an explicit instruction not to assume a feature is done because a
-  backend field exists — verify what's actually rendered.
+  backend field exists ΓÇö verify what's actually rendered.
 
 - **Method**: Read every screen composable + ViewModel directly (Dashboard,
   Team, Trainer 360, Courses, Allocation Desk, BatchDetail, MarkSkillDialog,
@@ -1809,35 +1847,35 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   unconditionally `[]`, confirmed the Allocation Desk Phase 3 checklist item
   by item against the actual Compose code).
 
-- **Full findings**: `AI/ANDROID_AUDIT.md` — Current State / Gaps / UX
+- **Full findings**: `AI/ANDROID_AUDIT.md` ΓÇö Current State / Gaps / UX
   Issues / Functional Issues / Data Utilization Issues per screen, plus a
-  consolidated P0-P3 priority list and a v1.24.0→v1.27.0+ release sequence.
+  consolidated P0-P3 priority list and a v1.24.0ΓåÆv1.27.0+ release sequence.
 
 - **Headline findings**:
-  - No P0s — the one real bug this session (utilization phantom-zero
+  - No P0s ΓÇö the one real bug this session (utilization phantom-zero
     averaging) was already found and fixed in v1.23.0; Skill Management's
-    full save→RMS-write→verify→refresh pipeline was traced end-to-end and
+    full saveΓåÆRMS-writeΓåÆverifyΓåÆrefresh pipeline was traced end-to-end and
     found solid; Allocation Desk's Phase 3 checklist (Best/Alternate/Risky
     Match, Primary/Secondary/Emergency Backup, Priority, Revenue, Match %)
     is fully implemented, verified item-by-item, not assumed.
   - Single biggest gap: the **Team screen has no risk-based filter or sort**
     despite feedback-risk being a first-class signal everywhere else in the
-    app — the filter/sort infrastructure already exists (`TeamFilters`/
+    app ΓÇö the filter/sort infrastructure already exists (`TeamFilters`/
     `TeamSort`), so this is a small, contained addition, not new plumbing.
   - Dashboard's "Needs Attention" list (the one genuinely actionable section)
-    sits below five descriptive analytics charts — reorder recommended.
+    sits below five descriptive analytics charts ΓÇö reorder recommended.
   - Two backend-computed fields (`deployable_pct`, `unknown_status`) and one
     per-trainer field (`recommended_action`) are already in every response
-    Android already fetches, and are never displayed anywhere — zero new API
+    Android already fetches, and are never displayed anywhere ΓÇö zero new API
     cost to surface them.
   - Session/auth: login-once-and-use already works via persisted
     `SessionManager` state; the only gap is no 401/session-expiry handling,
     which is currently moot since the backend never actually validates or
-    expires the session token server-side (confirmed by grep — `_sessions`
+    expires the session token server-side (confirmed by grep ΓÇö `_sessions`
     is write-only).
 
 - **Current Status**: Audit delivered, no implementation changes made this
-  turn (deliberately — this was a research/analysis deliverable per the
+  turn (deliberately ΓÇö this was a research/analysis deliverable per the
   user's request). `AI/ANDROID_AUDIT.md` is the reference for what to build
   next.
 - **Next Actions**: Awaiting direction on which P1 items to implement first;
@@ -1852,12 +1890,12 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Files Modified**: `backend.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/{DashboardSections.kt,MainScreen.kt}`, `app/build.gradle.kts` (versionCode 32, versionName 1.23.0)
 
 - **User report**: "the dashboard data seem inaccurate... util, what it is so
-  less? average of all for a month?... forecast in middle is what?" — a
+  less? average of all for a month?... forecast in middle is what?" ΓÇö a
   direct accuracy/clarity complaint, not a cosmetic one. Investigated the
   actual calculation before touching any visuals.
 
 - **Real bug found and fixed**: `backend.py`'s `ops_row` never carried
-  forward the `util_ok` flag computed in `_build_trainer` — a trainer RMS
+  forward the `util_ok` flag computed in `_build_trainer` ΓÇö a trainer RMS
   returned **no** utilization row for defaulted `current_utilization` to
   `0`, indistinguishable from a trainer genuinely measured at 0% load. The
   dashboard's headline "Avg utilisation" KPI then averaged in every one of
@@ -1869,38 +1907,38 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
     `isinstance` check.
   - Found the **exact same bug, opposite bias** on the Android side:
     `TeamAnalytics`'s capacity-distribution donut used `current_utilization
-    > 0` to exclude "no data" trainers — which also excluded any trainer
+    > 0` to exclude "no data" trainers ΓÇö which also excluded any trainer
     genuinely measured at exactly 0%, under-counting real bench trainers and
     silently mislabeling them as "No utilisation data." Fixed to use the
     same `utilization_available` flag, so the KPI tile and the donut chart
-    now compute from the identical, correct basis — they can no longer
+    now compute from the identical, correct basis ΓÇö they can no longer
     silently disagree with each other on the same dashboard.
 
 - **Clarity fixes** (the "what is this?" complaints):
   - "Avg utilisation" KPI subtitle changed from the meaningless "N with
-    data" to "3-mo avg · N/M tracked" — states the time window *and* the
+    data" to "3-mo avg ┬╖ N/M tracked" ΓÇö states the time window *and* the
     real sample size inline, no drill-down tap required to understand what
     the number means.
   - "Capacity distribution" chart subtitle changed to "3-month avg
-    utilisation per trainer, bucketed" — matches the KPI tile's language
+    utilisation per trainer, bucketed" ΓÇö matches the KPI tile's language
     exactly, and matches the pre-existing "Top performing" card's own
     "Ranked by utilisation over the last three months" pattern, which was
     already doing this correctly and served as the reference for the fix.
   - "Team pulse" section subtitle now explicitly mentions the forecast card
-    ("Readiness, risk, capacity — and what's trending next") instead of
+    ("Readiness, risk, capacity ΓÇö and what's trending next") instead of
     silently omitting it, which was the direct cause of the forecast card
     reading as an unexplained extra between other cards.
   - Capacity Forecast card gained a "NEXT MONTH" badge next to its title and
     a plainer subtitle ("Projected from each trainer's own utilisation
-    trend — not today's number, a forecast of where it's headed") so its
+    trend ΓÇö not today's number, a forecast of where it's headed") so its
     predictive nature is unmistakable at a glance, not just implied by
     careful reading.
-  - Added defensive `TextOverflow.Ellipsis` to KPI captions — previously
+  - Added defensive `TextOverflow.Ellipsis` to KPI captions ΓÇö previously
     absent, so any caption exceeding its 2-line budget would clip abruptly
     rather than truncate cleanly.
 
-- **Build Status**: ✓ `assembleDebug` + `assembleRelease` both BUILD SUCCESSFUL.
-- **⚠️ Not visually verified on-device** — same standing limitation this
+- **Build Status**: Γ£ô `assembleDebug` + `assembleRelease` both BUILD SUCCESSFUL.
+- **ΓÜá∩╕Å Not visually verified on-device** ΓÇö same standing limitation this
   session (no Android SDK/emulator). The bug fix is a straightforward,
   hand-verified data-flow correction (traced `util_ok` from computation
   through to the KPI aggregation and confirmed the exact break point); the
@@ -1910,7 +1948,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Current Status**: Pushed.
 - **Next Actions**: after install, the "Avg utilisation" number should now
   read higher (or the same, if every trainer already had real utilization
-  data) than before this fix — worth a direct before/after comparison if the
+  data) than before this fix ΓÇö worth a direct before/after comparison if the
   old number is still visible anywhere (e.g. a screenshot) to confirm the
   fix actually moved the number as expected.
 
@@ -1922,11 +1960,11 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Files Modified**: `backend.py`, `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`, `app/build.gradle.kts` (versionCode 31, versionName 1.22.0)
 
 - **What was asked**: HR supplied the real RMS "Auto Tall" allocation-engine
-  rule changelog (08 Jul – 05 Aug 2026, 13 entries) and asked to understand it
+  rule changelog (08 Jul ΓÇô 05 Aug 2026, 13 entries) and asked to understand it
   and apply it wherever relevant in the app.
 
 - **Key finding before implementing anything**: the changelog contains its
-  own reversals — Qubits score and QI category were introduced 20-22 Jul
+  own reversals ΓÇö Qubits score and QI category were introduced 20-22 Jul
   2026 as tie-breakers, then **both explicitly removed** 27 Jul 2026. Reading
   every bullet as additive would have re-implemented factors RMS itself
   deleted. Built against the *current effective ruleset* (as of the 05 Aug
@@ -1935,7 +1973,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Found the one place these rules actually matter**: `backend.py`'s own
   allocation-desk trainer-matching engine (`_rank_batch`) is a separate,
   simpler system (pure course/vendor text matching) that predates this
-  changelog entirely and reflected none of it — including still using
+  changelog entirely and reflected none of it ΓÇö including still using
   `qubits_score` as a live tie-breaker, the exact thing RMS removed. If this
   app's own "top match" suggestion disagreed with what RMS's real engine
   would actually auto-allocate, that's a real, silent inconsistency.
@@ -1946,30 +1984,30 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
     each trainer's emp_code + most recent negative-feedback date (reusing
     already-wired `trainerNegFeedback`). A trainer inside the 3-14-day block
     window is flagged `blocked`/`blocked_until` and sorted below every
-    available candidate (not removed — RMS's rule only blocks *auto*-selection).
+    available candidate (not removed ΓÇö RMS's rule only blocks *auto*-selection).
   - **6-month clean-record soft tie-break** (05 Aug 2026, the current rule):
     among same-match candidates, no-recent-negative sorts first.
   - **Qubits/QI tie-break removed**: `_rank_batch`'s sort key dropped
     `-qubits_score`; still shown for information, no longer breaks ties.
-  - **RedHat officially-approved ≈ Certified**: `_cert_intelligence` no
+  - **RedHat officially-approved Γëê Certified**: `_cert_intelligence` no
     longer flags an approved RedHat course as a cert gap (same precedent HR
     cited already exists for CLC).
   - **Android**: `AllocationDeskScreen.kt`'s candidate rows now show a
-    distinct "🚫 Not auto-allocated until <date>" line and neutral-red tint
+    distinct "≡ƒÜ½ Not auto-allocated until <date>" line and neutral-red tint
     for blocked candidates instead of a misleading green "great match," plus
     a quieter "feedback on file within 6 months" note for the soft tie-break
     signal.
 
-- **Deliberately NOT implemented — no RMS data source exists in this app's
+- **Deliberately NOT implemented ΓÇö no RMS data source exists in this app's
   integration** (confirmed against the 36-file `trainer_portal_api_details/`
   audit from earlier this session):
-  - Tech-call trainer preference — no pre-sales/tech-call attribution endpoint.
-  - Mock-delivery rating preference — no mock/rehearsal endpoint.
-  - Least-skill-removal for Additional Trainer — this app has no
+  - Tech-call trainer preference ΓÇö no pre-sales/tech-call attribution endpoint.
+  - Mock-delivery rating preference ΓÇö no mock/rehearsal endpoint.
+  - Least-skill-removal for Additional Trainer ΓÇö this app has no
     Main/Additional-Trainer or Chat-Moderator role concept; its own
     `backup_role` labels are an invented ranking convenience, not RMS's
     actual role model, so the rule has nothing correct to attach to.
-  - OEM-above-course in the allocation email — an RMS email template change
+  - OEM-above-course in the allocation email ΓÇö an RMS email template change
     with no corresponding app screen; vendor/OEM is already shown in
     `BatchCard`'s metadata line.
   Full tier breakdown recorded in `AI/CONTEXT.md` so a future session with a
@@ -1979,16 +2017,16 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   `_feedback_recency()`'s date extraction is defensive (multiple key
   fallbacks) but unverified against a live `trainerNegFeedback` response.
 
-- **Build Status**: ✓ `python -c "import ast..."` syntax check passed;
+- **Build Status**: Γ£ô `python -c "import ast..."` syntax check passed;
   `assembleDebug` + `assembleRelease` both BUILD SUCCESSFUL.
-- **⚠️ Not verified against live RMS data or on-device** — same standing
+- **ΓÜá∩╕Å Not verified against live RMS data or on-device** ΓÇö same standing
   limitations this session (no test trainer/assignment IDs available safely,
   no Android SDK/emulator). The blocking/tie-break logic is straightforward
   date arithmetic reviewed by hand, but "reviewed" is not "observed working."
 - **Current Status**: Pushed.
 - **Next Actions**: after this deploys, pull up the Allocation Desk for a
   team with at least one recent negative-feedback incident and confirm the
-  blocked flag/date actually appears — that's the one part of this change
+  blocked flag/date actually appears ΓÇö that's the one part of this change
   that depends on RMS field names this session couldn't verify live.
 
 
@@ -2000,28 +2038,28 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 
 - **Research step**: reviewed github.com/wasabeef/awesome-android-ui per user request. It's a
   curated index of ~200 standalone Android UI *libraries* (mostly pre-Compose,
-  View-system, XML-attribute based — RecyclerView decorators, ViewPager
+  View-system, XML-attribute based ΓÇö RecyclerView decorators, ViewPager
   transformers, custom Views from the 2013-2019 era), not a design system or
   style guide. Integrating any of these literally would mean pulling legacy
   View-interop dependencies into a 100%-Compose codebase for no real benefit.
   The applicable takeaway was the *pattern*, not the libraries: well-designed
   Android list/grid/dashboard UIs favor short, scannable previews with
-  drill-through navigation over long inline lists — combined with
+  drill-through navigation over long inline lists ΓÇö combined with
   Bootstrap-style layout discipline (clear card grouping, one header per
   logical section, no redundant chrome), this directly informed the two
   structural fixes below.
 
 - **The real problem found**: the Home dashboard was rendering **every single
   trainer as a full `TrainerCard`** (util bar, batch banner, 4 badges) inline
-  at the bottom of the page — and the Team tab (`TeamTab.kt`) already shows
+  at the bottom of the page ΓÇö and the Team tab (`TeamTab.kt`) already shows
   the exact same roster with real search/sort/filter. On this product's own
   reportee counts (CONTEXT.md: 82 trainers), that's 80+ full-size cards
-  rendered on the screen meant to be a quick daily glance — pure duplication,
+  rendered on the screen meant to be a quick daily glance ΓÇö pure duplication,
   and the actual source of "unnecessary wide spacing" more than any single
   padding value.
 
-- **Fix 1 — removed the duplicated roster**: replaced the full inline list
-  with a "Needs Attention" preview — at most 5 trainers, ranked by a simple
+- **Fix 1 ΓÇö removed the duplicated roster**: replaced the full inline list
+  with a "Needs Attention" preview ΓÇö at most 5 trainers, ranked by a simple
   scored priority (High feedback risk > High delivery risk > Feedback alert >
   Stretched capacity > On Bench), rendered as compact single-line rows
   (avatar + name + one reason + chevron, ~56dp vs. ~200dp for a full
@@ -2029,14 +2067,14 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   already has proper filtering. A healthy team with nothing scored shows an
   honest "no urgent items" state rather than an empty list.
 
-- **Fix 2 — consolidated section headers**: the three cards added earlier
+- **Fix 2 ΓÇö consolidated section headers**: the three cards added earlier
   this session (Delivery Readiness, Feedback Risk, Capacity) each had their
   own `DashSectionHeader` (title + subtitle). Merged into one "Team pulse"
   header covering all four current-state cards (readiness, risk, capacity,
-  forecast) — same information, two fewer header blocks' worth of vertical
+  forecast) ΓÇö same information, two fewer header blocks' worth of vertical
   space before the manager reaches anything else.
 
-- **Spacing audit — scoped decision**: checked every `Spacer` height value in
+- **Spacing audit ΓÇö scoped decision**: checked every `Spacer` height value in
   `DashboardSections.kt` (found a real, unsystematic mix: 3/5/6/7/8/10/12/13/
   14/24/32dp with no consistent scale). Decided **not** to do a mechanical
   renumbering sweep across those internal composables: they're inside
@@ -2048,8 +2086,8 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   individual spacer values is lower-value and higher-risk without visual
   verification, so it's deferred rather than done blind.
 
-- **Build Status**: ✓ v1.21.0 — `assembleDebug` + `assembleRelease` both BUILD SUCCESSFUL.
-- **⚠️ Not visually verified on-device** — same standing limitation this
+- **Build Status**: Γ£ô v1.21.0 ΓÇö `assembleDebug` + `assembleRelease` both BUILD SUCCESSFUL.
+- **ΓÜá∩╕Å Not visually verified on-device** ΓÇö same standing limitation this
   session (no Android SDK/emulator available). Verified via clean compile +
   full manual read-through of the new `rankByAttention`/`AttentionRow` logic
   and the LazyColumn item wiring.
@@ -2059,7 +2097,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   opens the Team tab.
 - **Next Actions**: if the attention-ranking heuristic doesn't match what
   managers actually want to see first, `rankByAttention()` in `MainScreen.kt`
-  is a single, isolated function — easy to retune once there's real feedback
+  is a single, isolated function ΓÇö easy to retune once there's real feedback
   on what "needs attention" should mean.
 
 
@@ -2070,37 +2108,37 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Fix**: v1.20.0 grouped FMAT together with ILO as both demoted. Corrected
   per clarification: **ILT + FMAT are the priority tier together**; **ILO
   alone is the demoted tier**. `isDeprioritisedMode()` now only matches
-  "ILO"; section titles updated to "Priority — ILT + FMAT" / "Other Delivery
+  "ILO"; section titles updated to "Priority ΓÇö ILT + FMAT" / "Other Delivery
   Modes (ILO)". Sort-by-date-descending within each tier is unchanged.
-- **Build Status**: ✓ `assembleDebug` + `assembleRelease` both BUILD SUCCESSFUL.
-- **Still unverified on-device** — same caveat as v1.20.0, no Android SDK/emulator in this environment.
+- **Build Status**: Γ£ô `assembleDebug` + `assembleRelease` both BUILD SUCCESSFUL.
+- **Still unverified on-device** ΓÇö same caveat as v1.20.0, no Android SDK/emulator in this environment.
 
 
-## Allocation Desk: full redesign — priority segregation, filters, UI/UX overhaul
+## Allocation Desk: full redesign ΓÇö priority segregation, filters, UI/UX overhaul
 ### Release v1.20.0
 - **Timestamp**: 2026-08-07T20:00:00+05:30
 - **Agent/Tool Used**: Claude Code
 - **Files Modified**:
-  - `ui/batch/AllocationDeskScreen.kt` — full rewrite
-  - `app/build.gradle.kts` — versionCode 28, versionName 1.20.0
+  - `ui/batch/AllocationDeskScreen.kt` ΓÇö full rewrite
+  - `app/build.gradle.kts` ΓÇö versionCode 28, versionName 1.20.0
 
 - **Segregation logic (the core ask)**: unallocated batches are split into two
   visually distinct, independently collapsible sections rather than a single
-  flat sort — "segregate" reads as grouping, not just ordering:
-  - **"Priority — Instructor-Led (ILT)"** — everything whose `delivery_mode`
+  flat sort ΓÇö "segregate" reads as grouping, not just ordering:
+  - **"Priority ΓÇö Instructor-Led (ILT)"** ΓÇö everything whose `delivery_mode`
     does NOT match FMAT/ILO
-  - **"Other Delivery Modes (FMAT / ILO)"** — always rendered below, regardless
+  - **"Other Delivery Modes (FMAT / ILO)"** ΓÇö always rendered below, regardless
     of date
   - Within each section, sorted by `start_date` **descending**, exactly as
     requested. Classification is case-insensitive substring match on
     `delivery_mode`; an unrecognised mode defaults to the priority tier rather
-    than being silently demoted — an unrecognised value is a data-quality
+    than being silently demoted ΓÇö an unrecognised value is a data-quality
     question, not grounds to bury it.
 
 - **Filters added** (previously only a single "75%+ match" toggle existed):
   - Skill-match band: All / 75%+ Ready / 50-74% Partial / Under 50%
   - Delivery mode: multi-select, built from the **actual distinct values
-    present in the live data** rather than a guessed/hardcoded list — RMS's
+    present in the live data** rather than a guessed/hardcoded list ΓÇö RMS's
     delivery-mode strings have already proven inconsistent once this session
     (see the mislabeled-instruction-file finding in `AI/CONTEXT.md`), so
     guessing exact enum values risked a filter that silently matched nothing
@@ -2110,7 +2148,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **UI/UX overhaul**: page title + sort-order subtitle, restyled search bar
   with leading icon, icon-led summary stat pills, a "Filters (N)" button that
   opens a bottom sheet (consistent with the app's existing bottom-sheet
-  pattern used elsewhere — DrillSheet, ProfileMenuBottomSheet), collapsible
+  pattern used elsewhere ΓÇö DrillSheet, ProfileMenuBottomSheet), collapsible
   section headers with an animated chevron and per-section counts, redesigned
   batch cards (delivery-mode tag distinctly coloured for priority vs.
   deprioritised, cleaner metadata line, revenue/customer-priority as tinted
@@ -2127,18 +2165,18 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   package) already declares a file-private `Chip` composable. Kotlin resolves
   an unqualified same-package name before a wildcard import from a different
   package, so referencing the app-wide `Chip` from `ui.main.MainScreen.kt`
-  failed with "cannot access: it is private in file" — not a missing import,
+  failed with "cannot access: it is private in file" ΓÇö not a missing import,
   a same-package name clash. Resolved by declaring a locally-scoped `MiniTag`
   composable instead of fighting resolution order.
 
-- **⚠️ Could not visually verify on-device or in an emulator** — no Android
+- **ΓÜá∩╕Å Could not visually verify on-device or in an emulator** ΓÇö no Android
   SDK/emulator is available in this environment (confirmed absent earlier
   this session too: no `adb`, no `ANDROID_HOME`/`ANDROID_SDK_ROOT`, no Android
   Studio install). Verified via: (a) `assembleDebug` + `assembleRelease` both
   BUILD SUCCESSFUL with zero new warnings, (b) a full manual read-through of
   the composable tree for logical correctness (sort direction, partition
   correctness, filter predicates, parameter wiring). Per this project's own
-  verification standard, a clean compile is not the same as a verified UI —
+  verification standard, a clean compile is not the same as a verified UI ΓÇö
   **please check the actual look and feel on-device after installing
   v1.20.0** and report back anything that doesn't look right (spacing,
   colours, the bottom sheet, section collapse behaviour) so it can be
@@ -2147,7 +2185,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Next Actions**: If the exact `delivery_mode` string values RMS returns
   turn out not to contain "FMAT"/"ILO" as substrings (e.g. a different vendor
   code or abbreviation), the classification in `isDeprioritisedMode()` will
-  need adjusting — easiest to confirm by opening the new Filters sheet, which
+  need adjusting ΓÇö easiest to confirm by opening the new Filters sheet, which
   lists every distinct mode string actually present.
 
 
@@ -2156,30 +2194,30 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Timestamp**: 2026-08-07T19:00:00+05:30
 - **Agent/Tool Used**: Claude Code
 - **Files Modified**:
-  - `util/NotificationStateStore.kt` (new) — SharedPreferences seen-set per manager email + first-run guard
-  - `util/NotificationEngine.kt` (new) — pure delta detection over `batch_engagement_df`/`unallocated_demand_df`: new allocation, batch-just-completed (feedback mandatory), new unallocated demand
-  - `util/SkillSyncNotificationWorker.kt` — rewritten from "always notify if pending count > 0" (fired the same notification every 15 min regardless of change) to real delta detection via the engine + seen-set
-  - `ui/main/MainScreenViewModel.kt` — foreground 60s poll now uses the same engine/seen-set instead of its own narrow unallocated-only size-diff; `notification` flow changed from `String` to `(title, message)` pairs
-  - `ui/main/MainScreen.kt` — updated notification collector for the new pair type
-  - `util/LocalNotificationService.kt` — notifications now open the app on tap (previously had no content intent — tapping just dismissed) and use `BigTextStyle` so longer messages aren't truncated
-  - `MainActivity.kt` — requests `POST_NOTIFICATIONS` at runtime on Android 13+; removed a dead no-op `LifecycleEventObserver` block
-  - `app/build.gradle.kts` — versionCode 27, versionName 1.19.0
+  - `util/NotificationStateStore.kt` (new) ΓÇö SharedPreferences seen-set per manager email + first-run guard
+  - `util/NotificationEngine.kt` (new) ΓÇö pure delta detection over `batch_engagement_df`/`unallocated_demand_df`: new allocation, batch-just-completed (feedback mandatory), new unallocated demand
+  - `util/SkillSyncNotificationWorker.kt` ΓÇö rewritten from "always notify if pending count > 0" (fired the same notification every 15 min regardless of change) to real delta detection via the engine + seen-set
+  - `ui/main/MainScreenViewModel.kt` ΓÇö foreground 60s poll now uses the same engine/seen-set instead of its own narrow unallocated-only size-diff; `notification` flow changed from `String` to `(title, message)` pairs
+  - `ui/main/MainScreen.kt` ΓÇö updated notification collector for the new pair type
+  - `util/LocalNotificationService.kt` ΓÇö notifications now open the app on tap (previously had no content intent ΓÇö tapping just dismissed) and use `BigTextStyle` so longer messages aren't truncated
+  - `MainActivity.kt` ΓÇö requests `POST_NOTIFICATIONS` at runtime on Android 13+; removed a dead no-op `LifecycleEventObserver` block
+  - `app/build.gradle.kts` ΓÇö versionCode 27, versionName 1.19.0
 
 - **What this actually does**: three notification triggers, each backed by real fields already in the unified payload (no new backend work needed):
-  1. **New batch assigned** — a reportee's `batch_engagement_df` row transitions to `current`/`upcoming` for an assignment not seen before
-  2. **Feedback required (mandatory)** — a reportee's batch transitions to `engagement_state == "completed"` — fires once per completed assignment, framed as mandatory per the request
-  3. **New unallocated batch** — a new row appears in `unallocated_demand_df`
+  1. **New batch assigned** ΓÇö a reportee's `batch_engagement_df` row transitions to `current`/`upcoming` for an assignment not seen before
+  2. **Feedback required (mandatory)** ΓÇö a reportee's batch transitions to `engagement_state == "completed"` ΓÇö fires once per completed assignment, framed as mandatory per the request
+  3. **New unallocated batch** ΓÇö a new row appears in `unallocated_demand_df`
 
 - **Two real bugs fixed while wiring this, not introduced by it**:
-  1. **Notifications were likely silently no-op'ing on all Android 13+ devices.** The manifest declared `POST_NOTIFICATIONS` but nothing ever called `requestPermission` — `LocalNotificationService.showNotification` checks the permission and returns early if it's not granted, and it defaults to denied until requested. Now requested once at app start.
-  2. **The background worker could crash on first background run.** WorkManager can spawn a fresh process to run `SkillSyncNotificationWorker` without `MainActivity.onCreate()` ever executing (no `Application` subclass exists to guarantee init order), so `SessionManager`/`RetrofitClient` could be accessed before `.init()` ran, throwing `UninitializedPropertyAccessException`/`IllegalStateException`. Worker now defensively re-initializes both at the top of `doWork()` — idempotent, safe if already initialized.
+  1. **Notifications were likely silently no-op'ing on all Android 13+ devices.** The manifest declared `POST_NOTIFICATIONS` but nothing ever called `requestPermission` ΓÇö `LocalNotificationService.showNotification` checks the permission and returns early if it's not granted, and it defaults to denied until requested. Now requested once at app start.
+  2. **The background worker could crash on first background run.** WorkManager can spawn a fresh process to run `SkillSyncNotificationWorker` without `MainActivity.onCreate()` ever executing (no `Application` subclass exists to guarantee init order), so `SessionManager`/`RetrofitClient` could be accessed before `.init()` ran, throwing `UninitializedPropertyAccessException`/`IllegalStateException`. Worker now defensively re-initializes both at the top of `doWork()` ΓÇö idempotent, safe if already initialized.
 
-- **Design note — one seen-set, two check paths**: the 60s foreground poll and the 15-min background WorkManager check both call `NotificationEngine.detect()` against the *same* `NotificationStateStore` (SharedPreferences), so an event fires exactly once no matter which path notices it first — no duplicate notifications from having both a foreground and background checker.
+- **Design note ΓÇö one seen-set, two check paths**: the 60s foreground poll and the 15-min background WorkManager check both call `NotificationEngine.detect()` against the *same* `NotificationStateStore` (SharedPreferences), so an event fires exactly once no matter which path notices it first ΓÇö no duplicate notifications from having both a foreground and background checker.
 
-- **First-run safety**: a fresh login (or first-ever background check) seeds the seen-set from whatever already exists *without* notifying — otherwise every pre-existing batch on a manager's roster would fire one notification each on first use.
+- **First-run safety**: a fresh login (or first-ever background check) seeds the seen-set from whatever already exists *without* notifying ΓÇö otherwise every pre-existing batch on a manager's roster would fire one notification each on first use.
 
-- **Build Status**: ✓ v1.19.0 — `assembleDebug` and `assembleRelease` both BUILD SUCCESSFUL.
-- **Current Status**: Pushed. Functionally testable only on-device (WorkManager timing + notification permission dialog can't be verified from a build log) — next real allocation/completion/unallocated-demand event on a live account should produce a real Android notification.
+- **Build Status**: Γ£ô v1.19.0 ΓÇö `assembleDebug` and `assembleRelease` both BUILD SUCCESSFUL.
+- **Current Status**: Pushed. Functionally testable only on-device (WorkManager timing + notification permission dialog can't be verified from a build log) ΓÇö next real allocation/completion/unallocated-demand event on a live account should produce a real Android notification.
 - **Next Actions**: Verify on-device after this reaches a signed release build; consider deep-linking the tap target to the specific trainer's profile instead of just opening the dashboard (currently opens the app generally).
 
 
@@ -2188,19 +2226,19 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Timestamp**: 2026-08-07T18:00:00+05:30
 - **Agent/Tool Used**: Claude Code
 - **Files Modified**:
-  - `backend.py` — registered `trainerFeedback` (244) and `assignmentPax` (209) cache TTLs; wired both into `/api/data/trainer-360`; added `feedback.responses` and per-assignment `participants`; updated module docstring's schema-notes block
-  - `Trainer360Screen.kt` — `FeedbackSection` gained a "Recent Feedback" subsection from `feedback.responses`; `AssignmentRow` shows a roster preview when `participants` is present
-  - `app/build.gradle.kts` — versionCode 26, versionName 1.18.0
+  - `backend.py` ΓÇö registered `trainerFeedback` (244) and `assignmentPax` (209) cache TTLs; wired both into `/api/data/trainer-360`; added `feedback.responses` and per-assignment `participants`; updated module docstring's schema-notes block
+  - `Trainer360Screen.kt` ΓÇö `FeedbackSection` gained a "Recent Feedback" subsection from `feedback.responses`; `AssignmentRow` shows a roster preview when `participants` is present
+  - `app/build.gradle.kts` ΓÇö versionCode 26, versionName 1.18.0
 
-- **What led here**: Read all 36 files in `trainer_portal_api_details/`, cross-referenced against `backend.py`'s actual `_APIS` dict and call sites (not the files' claims alone). Found: 11 APIs active, 9 registered-but-never-called ("Tier 2"), 14 never wired at all ("Tier 3"), 2 confirmed dead ends already documented in backend.py's own header. Recorded the full breakdown in `AI/CONTEXT.md`. Also found `trainer_portal_api_details/Check Course Availability in RMS.txt` (no underscore) is mislabeled — its content is actually the "Trainer RC Schedule" API.
+- **What led here**: Read all 36 files in `trainer_portal_api_details/`, cross-referenced against `backend.py`'s actual `_APIS` dict and call sites (not the files' claims alone). Found: 11 APIs active, 9 registered-but-never-called ("Tier 2"), 14 never wired at all ("Tier 3"), 2 confirmed dead ends already documented in backend.py's own header. Recorded the full breakdown in `AI/CONTEXT.md`. Also found `trainer_portal_api_details/Check Course Availability in RMS.txt` (no underscore) is mislabeled ΓÇö its content is actually the "Trainer RC Schedule" API.
 
-- **⚠️ IMPORTANT — unverified against live RMS**: `trainerFeedback` and `assignmentPax` field names come from the instruction files only, which this same codebase's header comment says "have proven wrong more than once." Per project verification standards, this must not be treated as confirmed from a compile alone. Concretely:
+- **ΓÜá∩╕Å IMPORTANT ΓÇö unverified against live RMS**: `trainerFeedback` and `assignmentPax` field names come from the instruction files only, which this same codebase's header comment says "have proven wrong more than once." Per project verification standards, this must not be treated as confirmed from a compile alone. Concretely:
   - `feedback.responses` in the trainer-360 response is parsed defensively (`Question`/`TextAnswer`/`MCQAnswer`/`FeedBackDate` with lowercase fallbacks) but may come back empty if the real field names differ.
-  - A **temporary** `feedback.responses_raw_sample` field (first 2 raw rows, unparsed) was added specifically so the next live trainer-360 call can be inspected to confirm or correct the field mapping — same empirical-discovery technique already used historically for the `unallocated` endpoint (see DECISIONS.md 2026-08-06). **Delete this field once confirmed.**
+  - A **temporary** `feedback.responses_raw_sample` field (first 2 raw rows, unparsed) was added specifically so the next live trainer-360 call can be inspected to confirm or correct the field mapping ΓÇö same empirical-discovery technique already used historically for the `unallocated` endpoint (see DECISIONS.md 2026-08-06). **Delete this field once confirmed.**
   - `participants` is fetched only for the current + next assignment (bounded, not the full delivery history) to avoid an N+1 RMS call explosion.
 
-- **Build Status**: ✓ v1.18.0 — `assembleDebug` and `assembleRelease` both BUILD SUCCESSFUL, zero warnings.
-- **Current Status**: Pushed. Functionally inert until a real trainer-360 call proves out the field names — the UI sections simply render nothing if the lists come back empty, so this ships safely regardless.
+- **Build Status**: Γ£ô v1.18.0 ΓÇö `assembleDebug` and `assembleRelease` both BUILD SUCCESSFUL, zero warnings.
+- **Current Status**: Pushed. Functionally inert until a real trainer-360 call proves out the field names ΓÇö the UI sections simply render nothing if the lists come back empty, so this ships safely regardless.
 - **Next Actions**: Open Trainer360 for a real trainer post-deploy, inspect `feedback.responses_raw_sample` in the raw API response (e.g. via browser devtools or a temporary log), correct the field mapping in `backend.py` if needed, then delete the raw-sample scaffolding field. After that's confirmed, the same defensive pattern can extend to the remaining Tier-2 APIs (`last3MonthsUtil`, `trainerAvailability`, etc.) with more confidence.
 
 
@@ -2209,41 +2247,41 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Timestamp**: 2026-08-07T17:00:00+05:30
 - **Agent/Tool Used**: Claude Code
 - **Files Modified**:
-  - `data/cache/LocalCache.kt` (new) — Gson-backed JSON disk cache in `filesDir/offline_cache/`
-  - `MainActivity.kt` — `LocalCache.init(applicationContext)`
-  - `MainScreenViewModel.kt` — `DashboardState.Success` gained `fromCache`/`cachedAt`; dashboard/profile/capability fetches persist to disk on success and fall back to disk on failure (only when no in-memory success already exists)
-  - `Trainer360ViewModel.kt` — same `fromCache`/`cachedAt` contract, keyed per trainer email
-  - `MainScreen.kt` — offline banner now driven by actual `fromCache` state instead of just connectivity; added `relativeAge()` helper; added `TeamCapacityForecastCard` to dashboard
-  - `Trainer360Screen.kt` — added matching offline banner (previously had none); added trend-projection line to `UtilisationSection`
-  - `DashboardSections.kt` — added `utilizationForecasts()`, `projectNextUtilization()` (shared), `TeamCapacityForecastCard`
-  - `app/build.gradle.kts` — bumped to versionCode 25, versionName 1.17.0
+  - `data/cache/LocalCache.kt` (new) ΓÇö Gson-backed JSON disk cache in `filesDir/offline_cache/`
+  - `MainActivity.kt` ΓÇö `LocalCache.init(applicationContext)`
+  - `MainScreenViewModel.kt` ΓÇö `DashboardState.Success` gained `fromCache`/`cachedAt`; dashboard/profile/capability fetches persist to disk on success and fall back to disk on failure (only when no in-memory success already exists)
+  - `Trainer360ViewModel.kt` ΓÇö same `fromCache`/`cachedAt` contract, keyed per trainer email
+  - `MainScreen.kt` ΓÇö offline banner now driven by actual `fromCache` state instead of just connectivity; added `relativeAge()` helper; added `TeamCapacityForecastCard` to dashboard
+  - `Trainer360Screen.kt` ΓÇö added matching offline banner (previously had none); added trend-projection line to `UtilisationSection`
+  - `DashboardSections.kt` ΓÇö added `utilizationForecasts()`, `projectNextUtilization()` (shared), `TeamCapacityForecastCard`
+  - `app/build.gradle.kts` ΓÇö bumped to versionCode 25, versionName 1.17.0
 
-- **Phase 5 (Offline-First & Resilience) — what changed and why**:
-  - Previously, offline resilience relied entirely on OkHttp's HTTP cache, which is opaque to app logic — a ViewModel had no way to know if a response was a live hit or a stale cache hit, and a cold app start with no network could fail entirely if the exact cached request didn't match.
+- **Phase 5 (Offline-First & Resilience) ΓÇö what changed and why**:
+  - Previously, offline resilience relied entirely on OkHttp's HTTP cache, which is opaque to app logic ΓÇö a ViewModel had no way to know if a response was a live hit or a stale cache hit, and a cold app start with no network could fail entirely if the exact cached request didn't match.
   - `LocalCache` is now the explicit, queryable source of truth for "last known good data" per manager email / trainer email. A failed fetch tries disk before ever showing an Error screen.
-  - Both the Dashboard and Trainer360 screens now say plainly when they're showing offline data and how old it is ("Offline — showing data from 3 hours ago") instead of either silently serving stale HTTP-cache data or blanking to an error.
+  - Both the Dashboard and Trainer360 screens now say plainly when they're showing offline data and how old it is ("Offline ΓÇö showing data from 3 hours ago") instead of either silently serving stale HTTP-cache data or blanking to an error.
 
-- **Phase 6 (Predictive Intelligence) — scope and honesty constraint**:
-  - The only real time-series signal RMS provides is per-trainer `utilization_series` (monthly). No history exists for feedback/risk/readiness — those are point-in-time only.
-  - Built a transparent linear trend projection (`projectNextUtilization`) from that real series — explicitly labelled in the UI as "a projection, not a prediction" to avoid overclaiming intelligence that isn't there.
-  - `TeamCapacityForecastCard` on the dashboard surfaces trainers trending toward overload or bench *next* month, before their capacity bucket actually flips — proactive rather than reactive.
+- **Phase 6 (Predictive Intelligence) ΓÇö scope and honesty constraint**:
+  - The only real time-series signal RMS provides is per-trainer `utilization_series` (monthly). No history exists for feedback/risk/readiness ΓÇö those are point-in-time only.
+  - Built a transparent linear trend projection (`projectNextUtilization`) from that real series ΓÇö explicitly labelled in the UI as "a projection, not a prediction" to avoid overclaiming intelligence that isn't there.
+  - `TeamCapacityForecastCard` on the dashboard surfaces trainers trending toward overload or bench *next* month, before their capacity bucket actually flips ΓÇö proactive rather than reactive.
   - Trainer360's utilisation section now shows the same one-line projection for that individual.
-  - Deliberately did NOT build a fake ML/AI risk predictor — no training data or model exists, and CLAUDE.md's quality gate forbids placeholder functionality.
+  - Deliberately did NOT build a fake ML/AI risk predictor ΓÇö no training data or model exists, and CLAUDE.md's quality gate forbids placeholder functionality.
 
-- **Build Status**: ✓ v1.17.0 — `assembleDebug` and `assembleRelease` both BUILD SUCCESSFUL, zero errors, one pre-existing non-blocking warning.
+- **Build Status**: Γ£ô v1.17.0 ΓÇö `assembleDebug` and `assembleRelease` both BUILD SUCCESSFUL, zero errors, one pre-existing non-blocking warning.
 - **Current Status**: Phase 5 + 6 complete and pushed.
 - **Next Actions**: Live smoke test against real RMS to confirm forecast card behaves correctly with actual multi-month utilization data; consider Phase 7 (manager workflows / batch actions) per NEXT_ACTIONS.md roadmap.
 
 
-## Installation Issue — RESOLVED ✓
+## Installation Issue ΓÇö RESOLVED Γ£ô
 ### 2026-08-07T14:50:00+05:30
 - **Issue**: "Not updated" error when trying to install v1.11.0
 - **Root Cause**: User was installing unsigned debug APK over signed release APK (security block)
-- **Resolution**: Downloaded signed v1.11.0.20 APK from GitHub Releases → Installation successful
+- **Resolution**: Downloaded signed v1.11.0.20 APK from GitHub Releases ΓåÆ Installation successful
 - **Learning**: Always distribute signed release APKs from GitHub Releases; debug APKs are for local development only
 - **Status**: App v1.11.0.20 verified working on device
 
-## Phase 4 — Streams 2-6: Intelligence Engines Complete ✓
+## Phase 4 ΓÇö Streams 2-6: Intelligence Engines Complete Γ£ô
 ### Final Release v1.16.0
 - **Timestamp**: 2026-08-07T16:00:00+05:30
 - **Agent/Tool Used**: Claude Code
@@ -2280,7 +2318,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - Knowledge transfer recommendations
 - Quarterly skill validation reminders
 
-- **Build Status**: ✓ v1.16.0 Release APK built successfully
+- **Build Status**: Γ£ô v1.16.0 Release APK built successfully
   - Debug APK: 16.7 MB
   - Release APK: 12.1 MB (unsigned)
   - All 4 Kotlin/Compose files modified
@@ -2291,25 +2329,25 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 
 ---
 
-## Phase 4 — Stream 1: Delivery Readiness Engine
+## Phase 4 ΓÇö Stream 1: Delivery Readiness Engine
 ### Release v1.11.0
 - **Timestamp**: 2026-08-07T13:04:00+05:30
 - **Agent/Tool Used**: AntiGravity IDE (Gemini)
 - **Files Modified**:
-  - `DashboardSections.kt` — added `TeamReadinessSummaryCard` + `CapacityStat`
-  - `MainScreen.kt` — wired readiness card into `DashboardTab`; added `delivery` param to `TrainerCard`; delivery/capacity/risk badges
-  - `TeamTab.kt` — added `deliveryMap` lookup; passes `delivery` row to each `TrainerCard`
-  - `Trainer360Screen.kt` — added `DeliveryReadinessSection` with gauge, strengths, constraints, recommendations
-  - `app/build.gradle.kts` — bumped to versionCode 20, versionName 1.11.0
+  - `DashboardSections.kt` ΓÇö added `TeamReadinessSummaryCard` + `CapacityStat`
+  - `MainScreen.kt` ΓÇö wired readiness card into `DashboardTab`; added `delivery` param to `TrainerCard`; delivery/capacity/risk badges
+  - `TeamTab.kt` ΓÇö added `deliveryMap` lookup; passes `delivery` row to each `TrainerCard`
+  - `Trainer360Screen.kt` ΓÇö added `DeliveryReadinessSection` with gauge, strengths, constraints, recommendations
+  - `app/build.gradle.kts` ΓÇö bumped to versionCode 20, versionName 1.11.0
 - **Work Completed**:
   - Surfaced `delivery_intelligence_df` data that was already computed by backend but never shown in Android
-  - Dashboard: Team Delivery Readiness card — 4 bands (Ready/Ready with Prep/Needs Mentoring/Hold) + animated progress bars + capacity split
-  - TrainerCard: delivery readiness badge + capacity badge + ⚠️ High Risk indicator — no extra API call
+  - Dashboard: Team Delivery Readiness card ΓÇö 4 bands (Ready/Ready with Prep/Needs Mentoring/Hold) + animated progress bars + capacity split
+  - TrainerCard: delivery readiness badge + capacity badge + ΓÜá∩╕Å High Risk indicator ΓÇö no extra API call
   - Trainer360: new Delivery Readiness section with readiness score gauge, label, capacity, risk, strengths, constraints and actionable manager recommendations
   - Built `SkillEdge-v1.11.0.apk` (BUILD SUCCESSFUL)
   - Pushed to GitHub; created release at https://github.com/aishsynk/SkillSync/releases/tag/v1.11.0
 - **Current Status**: v1.11.0 shipped. Phase 4 Stream 1 complete.
-- **Next Actions**: Stream 2 — Risk Engine (v1.12.0): SPOF alerts, risk radar, risk indicators in TrainerCard and Trainer360
+- **Next Actions**: Stream 2 ΓÇö Risk Engine (v1.12.0): SPOF alerts, risk radar, risk indicators in TrainerCard and Trainer360
 
 ---
 
@@ -2422,7 +2460,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   - TeamTab.kt
   - WeeklyMessage.kt
 - **Work Completed**:
-  - Remodelled the Team Tab per Design Vision v2 �7.2: removed subtabs, merged Capability (CoursesTab) conditionally into the Team Tab under the "By capability" lens.
+  - Remodelled the Team Tab per Design Vision v2 7.2: removed subtabs, merged Capability (CoursesTab) conditionally into the Team Tab under the "By capability" lens.
   - Implemented the Header Intelligence Bar for one-tap filtering ("Needs attention", "Available now", "By capability").
   - Dynamically grouped the trainer roster under headers based on their status and severity.
   - Ensured that manager notes sent via the Weekly Message composer are sanitized, trimmed, and sentence-cased correctly to match the professional house style.
@@ -2443,23 +2481,69 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Next Actions**: Proceed to next feature or await feedback from the newly designed People tab.
 
 
-## 2026-08-17 - Session Logout Fix, Live Notification Stream, Copilot Agent & KB Parser (v3.17.0)
+### Phase 8: Demand Intelligence UI & Delivery Operations Calendar Redesign
+- **Timestamp**: 2026-08-13T04:36:29+05:30
+- **Agent/Tool Used**: AntiGravity IDE
+- **Files Modified**: 
+  - AllocationDeskScreen.kt
+  - Version2Workspaces.kt
+  - ScreenRenderTest.kt
+- **Work Completed**:
+  - Implemented the Demand Intelligence header in AllocationDeskScreen.kt with a search field and filter chips (All demand, Need trainers, Priority, At risk).
+  - Linked the filter chips to the dynamic filtered batches state logic.
+  - Rewrote the DeliveryOperationsWorkspace in Version2Workspaces.kt completely from grouped lists to a chronological timeline calendar view.
+  - Parsed start_at dates robustly to group and sort assignments vertically.
+  - Built left-aligned date nodes and connecting timeline strokes with semantic color coding (current=aqua, upcoming=sky, completed=gray).
+  - Fixed failing unit tests caused by the UI redesign.
+- **Current Status**: Redesign successfully implemented and tested.
+- **Next Actions**: Proceed to next user request or feature.
+
+### Phase 9: UI Polish and Notification Deep-linking Verification
+- **Timestamp**: 2026-08-13T05:13:01.925570
+- **Agent/Tool Used**: AntiGravity IDE
+- **Files Modified**:
+  - Version2Workspaces.kt
+- **Work Completed**:
+  - Polished DeliveryOperationsWorkspace to use accentGlass for a stunning Command Centre visual style.
+  - Evaluated and verified the existing Notification Deep-linking System implementation.
+  - Verified background sync configuration (SkillSyncNotificationWorker) and NotificationEngine delta tracking (allocations, feedback, demand).
+- **Current Status**: All UI polish and background/notification deep-linking functionality is fully working and verified. The Command Centre architecture correctly routes notification intents to the specified entities.
+- **Next Actions**: Await further instructions or user validation.
+
+### Phase 10: Production Release v3.18.0
+- **Timestamp**: 2026-08-13T05:19:42.540882
+- **Agent/Tool Used**: AntiGravity IDE (Gradle, Git, GH CLI)
+- **Files Modified**: pp/build.gradle.kts
+- **Work Completed**:
+  - Increment version to 3.18.0 (versionCode 101).
+  - Generated pp-release.apk and renamed to SkillEdge_v3.18.0.apk.
+  - Committed and pushed all final UI changes (Delivery Operations redesigned with accentGlass) and codebase configurations to the main GitHub branch.
+  - Published GitHub release v3.18.0 containing the APK and detailed release notes.
+- **Current Status**: Build succeeded. Version bumped, committed, and published to GitHub. The Delivery Operations and deep-linking system are fully in production.
+- **Next Actions**: Await new feature requests or bug reports from users post v3.18.0 release.
+
+## 2026-08-17 - Unified Release v3.23.0 (v3.22.0 Integration + Session Logout Fix, Live Notification Stream, Copilot Agent & KB Parser)
 
 - **Tool Used**: Antigravity
 - **Files Modified**:
+  - `SkillEdge_Android/app/build.gradle.kts`
   - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/SessionManager.kt`
   - `SkillEdge_Android/app/src/main/java/com/example/skillsync/Navigation.kt`
   - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/MainScreen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/TeamMemberCard.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/TeamCalendarScreen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/ManagerCommandCentre.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/HrMonthlyReportScreen.kt`
   - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/trainer/Trainer360Screen.kt`
-  - `SkillEdge_Android/app/build.gradle.kts`
-  - `backend.py`
   - `SkillEdge_Local/backend/app.py`
+  - `backend.py`
 - **Work Completed**:
+  - **Full v3.22.0 Feature Integration**: Incorporated all v3.21.0 & v3.22.0 capabilities — full-width People cards with designation and readiness badge, Team Calendar redesign with delivery mode / recording compliance badges, permanent Certification Band on Command Centre, HR Monthly Report screen, and Trainer 360 feedback quotes.
   - **Auth Session Race & Logout Fix**: Fixed the root cause of continuous logouts where `SessionManager.loginState` defaulted to `false` during initial composition before `init()` read `SharedPreferences`. Made `loginState` a nullable Boolean tri-state (`null` = loading/unknown, `true` = active, `false` = signed out) and updated `Navigation.kt` to only navigate to Login upon an explicit `false`.
   - **Live Notifications**: Upgraded the Notification Sheet in `MainScreen.kt` from a static stub to a reactive list observing the 60s foreground / 15m WorkManager polling stream. Styled notifications by event bucket (`allocation`, `feedback`, `demand`) with clear-all action.
   - **Deterministic Delivery Agent (`POST /api/agent/ask`)**: Added route in `backend.py` answering 9 distinct intent keys (availability, readiness, skills, cert gaps, utilization, risk, feedback, recommendations, summary) and all `CopilotChatSheet` query aliases from cached intelligence without requiring an external LLM.
   - **Copilot FAB Restored**: Re-enabled the Copilot Floating Action Button in `Trainer360Screen.kt` connected to `CopilotChatSheet` and `CopilotViewModel`.
   - **KB Parser Bug Fix**: Fixed `_read_kb_jsonl` in `SkillEdge_Local/backend/app.py` to parse JSONL line-by-line rather than attempting whole-file JSON parsing.
-  - **Version Bump**: Bumped app version to 3.17.0 (versionCode 100).
-- **Current Status**: All pending core issues resolved and validated.
-- **Next Actions**: Proceed with end-to-end delivery: commit, tag/release v3.17.0, build release APK, and deploy.
+  - **Version Bump**: Bumped app version to **v3.23.0** (`versionCode = 106`).
+- **Current Status**: All features from v3.21.0, v3.22.0, and 2026-08-17 fixes merged and verified.
+- **Next Actions**: Commit merge resolution, push to origin, trigger CI build for SkillEdge-v3.23.0.106.apk release.
