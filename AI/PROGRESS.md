@@ -1,4 +1,4 @@
-# SkillEdge Project Progress
+ï»¿# SkillEdge Project Progress
 
 ## 2026-08-12T21:40:00+05:30 - Fix infinite 401 login loop on Teams tab (v3.16.4)
 
@@ -2422,7 +2422,7 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   - TeamTab.kt
   - WeeklyMessage.kt
 - **Work Completed**:
-  - Remodelled the Team Tab per Design Vision v2 §7.2: removed subtabs, merged Capability (CoursesTab) conditionally into the Team Tab under the "By capability" lens.
+  - Remodelled the Team Tab per Design Vision v2 ï¿½7.2: removed subtabs, merged Capability (CoursesTab) conditionally into the Team Tab under the "By capability" lens.
   - Implemented the Header Intelligence Bar for one-tap filtering ("Needs attention", "Available now", "By capability").
   - Dynamically grouped the trainer roster under headers based on their status and severity.
   - Ensured that manager notes sent via the Weekly Message composer are sanitized, trimmed, and sentence-cased correctly to match the professional house style.
@@ -2442,3 +2442,24 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Current Status**: All tasks for Phase 7 (People Page Redesign & Messaging Format) are fully implemented, compiled, deployed, and published to GitHub Releases. The end-to-end delivery process is successfully concluded for v3.16.4.
 - **Next Actions**: Proceed to next feature or await feedback from the newly designed People tab.
 
+
+## 2026-08-17 - Session Logout Fix, Live Notification Stream, Copilot Agent & KB Parser (v3.17.0)
+
+- **Tool Used**: Antigravity
+- **Files Modified**:
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/SessionManager.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/Navigation.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/MainScreen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/trainer/Trainer360Screen.kt`
+  - `SkillEdge_Android/app/build.gradle.kts`
+  - `backend.py`
+  - `SkillEdge_Local/backend/app.py`
+- **Work Completed**:
+  - **Auth Session Race & Logout Fix**: Fixed the root cause of continuous logouts where `SessionManager.loginState` defaulted to `false` during initial composition before `init()` read `SharedPreferences`. Made `loginState` a nullable Boolean tri-state (`null` = loading/unknown, `true` = active, `false` = signed out) and updated `Navigation.kt` to only navigate to Login upon an explicit `false`.
+  - **Live Notifications**: Upgraded the Notification Sheet in `MainScreen.kt` from a static stub to a reactive list observing the 60s foreground / 15m WorkManager polling stream. Styled notifications by event bucket (`allocation`, `feedback`, `demand`) with clear-all action.
+  - **Deterministic Delivery Agent (`POST /api/agent/ask`)**: Added route in `backend.py` answering 9 distinct intent keys (availability, readiness, skills, cert gaps, utilization, risk, feedback, recommendations, summary) and all `CopilotChatSheet` query aliases from cached intelligence without requiring an external LLM.
+  - **Copilot FAB Restored**: Re-enabled the Copilot Floating Action Button in `Trainer360Screen.kt` connected to `CopilotChatSheet` and `CopilotViewModel`.
+  - **KB Parser Bug Fix**: Fixed `_read_kb_jsonl` in `SkillEdge_Local/backend/app.py` to parse JSONL line-by-line rather than attempting whole-file JSON parsing.
+  - **Version Bump**: Bumped app version to 3.17.0 (versionCode 100).
+- **Current Status**: All pending core issues resolved and validated.
+- **Next Actions**: Proceed with end-to-end delivery: commit, tag/release v3.17.0, build release APK, and deploy.

@@ -34,14 +34,17 @@ import com.example.skillsync.ui.trainer.Trainer360Screen
 
 @Composable
 fun MainNavigation() {
-    var current by remember { 
+    // SessionManager.loginState is nullable: null = init() not yet called (app
+    // cold start, prefs not read). We start with Login only if we KNOW the user
+    // is not logged in (i.e. state is false), never while it is still null.
+    var current by remember {
         mutableStateOf<NavKey>(
-            if (com.example.skillsync.data.SessionManager.isLoggedIn()) {
-                Main(com.example.skillsync.data.SessionManager.getEmail()!!)
-            } else {
-                Login
+            when {
+                com.example.skillsync.data.SessionManager.isLoggedIn() ->
+                    Main(com.example.skillsync.data.SessionManager.getEmail()!!)
+                else -> Login
             }
-        ) 
+        )
     }
 
     // Shared so a batch opened from the desk keeps its data and mark-skill state.
@@ -50,12 +53,23 @@ fun MainNavigation() {
     // cache that the dashboard and Courses tab read from.
     val mainViewModel: MainScreenViewModel = viewModel()
     val notificationDestination by com.example.skillsync.util.NotificationDestinationStore.pending.collectAsState()
-    
+
+    // loginState is Boolean? — null means init() has not run yet (cold start).
+    // Only redirect to Login when we get a DEFINITIVE false, so an app wake-up
+    // that reads prefs asynchronously does not flash the login screen.
     val isLoggedIn by com.example.skillsync.data.SessionManager.loginState.collectAsState()
-    
+
     LaunchedEffect(isLoggedIn) {
-        if (!isLoggedIn && current !is Login) {
-            current = Login
+        // isLoggedIn == null  → unknown, do nothing and wait for init() to settle
+        // isLoggedIn == false → definitively logged out, go to Login
+        // isLoggedIn == true  → logged in, restore to Main if we somehow ended up on Login
+        when (isLoggedIn) {
+            false -> if (current !is Login) current = Login
+            true  -> if (current is Login) {
+                val email = com.example.skillsync.data.SessionManager.getEmail()
+                if (!email.isNullOrBlank()) current = Main(email)
+            }
+            null  -> Unit // still initialising, hold position
         }
     }
 

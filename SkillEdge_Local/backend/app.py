@@ -694,9 +694,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path = refresh_service.KB_DIR / f"{name}.jsonl"
         if not path.exists():
             return []
+        out = []
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            return data if isinstance(data, list) else []
+            text = path.read_text(encoding="utf-8")
+            for line in text.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    out.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+            if not out:
+                try:
+                    data = json.loads(text)
+                    if isinstance(data, list):
+                        out = data
+                    elif isinstance(data, dict):
+                        out = [data]
+                except Exception:
+                    pass
+            return out
         except Exception:
             return []
 

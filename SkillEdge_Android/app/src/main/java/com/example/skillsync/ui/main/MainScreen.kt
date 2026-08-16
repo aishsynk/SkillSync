@@ -134,6 +134,10 @@ fun MainScreen(
 
     var todayWorkspace by rememberSaveable { mutableStateOf("BRIEF") }
 
+    // Accumulate in-app notification events so the bell sheet shows history.
+    // The list is reset when the sheet is dismissed (mark-as-read UX).
+    var notificationEvents by remember { mutableStateOf<List<com.example.skillsync.util.NotifyEvent>>(emptyList()) }
+
     LaunchedEffect(Unit) {
         viewModel.notification.collect { event ->
             // System notification — fires even if the manager is on a
@@ -142,6 +146,8 @@ fun MainScreen(
             // In-app toast for immediate visibility while the app is open. The
             // engine's own title is kept — it already says what changed.
             notify.info(event.title, event.message)
+            // Accumulate for the notification bell sheet (max 50, newest first).
+            notificationEvents = (listOf(event) + notificationEvents).take(50)
         }
     }
 
@@ -161,11 +167,68 @@ fun MainScreen(
     }
 
     if (showNotificationsSheet) {
-        ModalBottomSheet(onDismissRequest = { showNotificationsSheet = false }, containerColor = MaterialTheme.skill.cardBg) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
-                Text("Notifications", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.skill.bodyText)
+        ModalBottomSheet(
+            onDismissRequest = {
+                showNotificationsSheet = false
+                notificationEvents = emptyList() // mark all as read
+            },
+            containerColor = MaterialTheme.skill.cardBg,
+        ) {
+            Column(
+                Modifier.fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 36.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Notifications",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.skill.bodyText,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (notificationEvents.isNotEmpty()) {
+                        TextButton(onClick = { notificationEvents = emptyList() }) {
+                            Text("Clear all", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.skill.subText)
+                        }
+                    }
+                }
                 Spacer(Modifier.height(14.dp))
-                Text("No recent notifications.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.skill.subText)
+                if (notificationEvents.isEmpty()) {
+                    Text(
+                        "All caught up — new batch assignments and feedback requests will appear here.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.skill.subText,
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        notificationEvents.forEach { ev ->
+                            val tint = when (ev.bucket) {
+                                com.example.skillsync.util.NotificationEngine.BUCKET_ALLOCATION -> MaterialTheme.skill.sky
+                                com.example.skillsync.util.NotificationEngine.BUCKET_FEEDBACK   -> MaterialTheme.skill.crit
+                                com.example.skillsync.util.NotificationEngine.BUCKET_DEMAND     -> MaterialTheme.skill.warn
+                                else -> MaterialTheme.skill.brand
+                            }
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(tint.copy(alpha = 0.10f))
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                Box(
+                                    Modifier.size(8.dp).offset(y = 5.dp)
+                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(tint)
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(ev.title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.skill.bodyText, maxLines = 1)
+                                    Text(ev.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.skill.subText, maxLines = 2)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

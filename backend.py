@@ -1,4 +1,4 @@
-"""
+﻿"""
 SkillSync Backend API v6.0
 Deployed on Render — production backend for SkillSync Android app.
 
@@ -5759,6 +5759,285 @@ def get_action_audit(action_id):
                     "persistence": _action_repository.status()}), 200
 
 
+
+
+# ---------------------------------------------------------------------------
+# Deterministic delivery agent — POST /api/agent/ask
+# ---------------------------------------------------------------------------
+
+_AGENT_INTENTS = {
+    # canonical keys
+    "availability":       "What is their current availability?",
+    "readiness":          "Are they ready to deliver the next batch?",
+    "skills":             "What courses can they teach?",
+    "certification_gaps": "What certifications are they missing?",
+    "utilization":        "How busy are they right now?",
+    "risk":               "What risks do they present?",
+    "feedback":           "How has their feedback been recently?",
+    "recommendation":     "What should I do with them this week?",
+    "summary":            "Give me a summary.",
+    # aliases from CopilotChatSheet
+    "can_assign_now":     "Can I assign this trainer now?",
+    "can_deliver":        "What can this trainer deliver?",
+    "weak_spot":          "Where is this trainer weak?",
+    "missing_certs":      "Which certifications are missing?",
+    "best_course":        "What is the best course fit?",
+    "backup_trainers":    "Who are backup trainers?",
+    "why_not_first":      "Why is this trainer not the first choice?",
+    "compare_trainer":    "Compare with another trainer.",
+    "what_if_oem":        "What if I move to another OEM?",
+    "invest_oem":         "Which OEM should I invest in?",
+    "explain_readiness":  "Explain the readiness score.",
+    "explain_allocation": "Explain the allocation score.",
+    "why_low_confidence": "Why is confidence low?",
+    "next_action":        "What should I do next?",
+    "missing_data":       "What data is missing?",
+}
+
+# Normalise CopilotChatSheet aliases to canonical answer-engine keys.
+_INTENT_ALIASES: dict[str, str] = {
+    "can_assign_now":     "readiness",
+    "can_deliver":        "skills",
+    "weak_spot":          "certification_gaps",
+    "missing_certs":      "certification_gaps",
+    "best_course":        "skills",
+    "backup_trainers":    "recommendation",
+    "why_not_first":      "risk",
+    "compare_trainer":    "summary",
+    "what_if_oem":        "recommendation",
+    "invest_oem":         "recommendation",
+    "explain_readiness":  "readiness",
+    "explain_allocation": "availability",
+    "why_low_confidence": "risk",
+    "next_action":        "recommendation",
+    "missing_data":       "summary",
+}
+
+
+def _agent_answer(question_key, trainer_data, t360):
+    name = (trainer_data.get("trainer_name") or "").strip() or "This trainer"
+    util = trainer_data.get("current_utilization")
+    status = (trainer_data.get("availability_status") or "unknown").lower()
+    readiness = (trainer_data.get("readiness_bucket") or "").lower()
+    health = trainer_data.get("health_score", 0)
+    risk = (trainer_data.get("risk_level") or "low").lower()
+    rec_action = (trainer_data.get("recommended_action") or "").strip()
+    neg_fb = trainer_data.get("negative_feedback_count", 0) or 0
+    skills = trainer_data.get("skills") or []
+    fb_summary = t360.get("feedback") or {}
+    cert_gaps = (t360.get("certifications") or {}).get("gaps") or []
+    evidence = []
+
+    if question_key == "availability":
+        if status in ("teaching_now", "live"):
+            ans = f"{name} is currently delivering a batch."
+        elif status == "preparing":
+            ans = f"{name} is preparing for an upcoming batch — limited availability."
+        elif status == "free":
+            cap = 100 - (util or 0) if util is not None else None
+            cap_str = f" ({cap:.0f}% available capacity)" if cap is not None else ""
+            ans = f"{name} is free{cap_str}."
+        else:
+            ans = f"{name}'s availability is unknown — no RMS schedule data."
+        evidence = [f"Status: {status}"]
+        confidence = "high" if status != "unknown" else "low"
+
+    elif question_key == "readiness":
+        if readiness == "ready":
+            ans = f"{name} is ready to deliver (health {health}/100)."
+        elif readiness == "prep":
+            ans = f"{name} may need preparation (health {health}/100)."
+        else:
+            ans = f"{name} has blockers — resolve before the next assignment."
+        if rec_action:
+            ans += f" Action: {rec_action}."
+        evidence = [f"Readiness: {readiness or 'unknown'}", f"Health: {health}"]
+        confidence = "high" if readiness else "medium"
+
+    elif question_key == "skills":
+        if not skills:
+            ans = f"No skill data cached for {name}."
+            evidence = ["No rows in trainer_operations_df"]
+        else:
+            top = [s.get("course_name") or str(s) if isinstance(s, dict) else str(s) for s in skills[:5]]
+            ans = f"{name} can teach {len(skills)} course(s). Top: {', '.join(top)}."
+            evidence = ["Source: trainer_operations_df"]
+        confidence = "high" if skills else "medium"
+
+    elif question_key == "certification_gaps":
+        if not cert_gaps:
+            ans = f"No certification gaps found for {name}." if t360 else f"Cert gap data not cached — open Trainer 360."
+            evidence = ["Source: RMS key 213"]
+        else:
+            gap_names = [g.get("course_name") or str(g) if isinstance(g, dict) else str(g) for g in cert_gaps[:5]]
+            ans = f"{name} has {len(cert_gaps)} gap(s). Top: {', '.join(gap_names)}."
+            evidence = ["Source: cert gap analysis"]
+        confidence = "high" if t360 else "low"
+
+    elif question_key == "utilization":
+        if util is None:
+            ans = f"Utilization not available for {name}."
+            evidence = ["No RMS utilization data"]
+            confidence = "low"
+        else:
+            cap = 100 - util
+            bracket = "overloaded" if util >= 85 else ("optimal" if util >= 60 else "available")
+            ans = f"{name} is at {util:.0f}% utilization ({bracket}), ~{cap:.0f}% available."
+            evidence = [f"Utilization: {util}%", "Source: RMS key 55"]
+            confidence = "high"
+
+    elif question_key == "risk":
+        lvl = "high" if risk in ("high", "critical") else ("medium" if risk == "medium" else "low")
+        ans = f"{name} presents {lvl} risk."
+        if neg_fb > 0:
+            ans += f" {neg_fb} negative feedback record(s) on file."
+        if rec_action:
+            ans += f" Action: {rec_action}."
+        evidence = [f"Risk: {risk}", f"Negative feedback: {neg_fb}"]
+        confidence = "high"
+
+    elif question_key == "feedback":
+        neg_count = (fb_summary.get("negative_count") or neg_fb)
+        pos = fb_summary.get("positive_count") or 0
+        if neg_count == 0:
+            ans = f"No negative feedback recorded for {name}."
+        elif (fb_summary.get("sentiment") or "").lower() == "positive":
+            ans = f"{name}'s feedback is positive ({pos} pos, {neg_count} neg)."
+        else:
+            ans = f"{name} has {neg_count} negative feedback record(s) — may affect allocation."
+        evidence = [f"Negative feedback: {neg_count}", "Source: RMS key 58"]
+        confidence = "high" if t360 else "medium"
+
+    elif question_key == "recommendation":
+        if rec_action:
+            ans = f"This week for {name}: {rec_action}."
+        elif readiness == "ready" and (util or 0) < 70:
+            ans = f"{name} is ready and available — assign the next unallocated batch."
+        elif readiness == "blocked":
+            ans = f"{name} has blockers — resolve before the next assignment."
+        else:
+            ans = f"No specific action required for {name} right now."
+        evidence = [f"Recommended action: {rec_action or 'none'}", f"Readiness: {readiness}"]
+        confidence = "high" if rec_action else "medium"
+
+    elif question_key == "summary":
+        parts = [name]
+        if readiness:
+            parts.append(f"{readiness}-bucket, health {health}/100")
+        if util is not None:
+            parts.append(f"{util:.0f}% utilisation")
+        if status not in ("unknown", ""):
+            parts.append(f"status: {status.replace('_', ' ')}")
+        if risk != "low":
+            parts.append(f"{risk} risk")
+        if neg_fb > 0:
+            parts.append(f"{neg_fb} negative feedback record(s)")
+        if rec_action:
+            parts.append(f"action: {rec_action}")
+        ans = ". ".join(parts).capitalize() + "."
+        evidence = ["Source: unified-manager-intelligence"]
+        confidence = "high"
+
+    else:
+        ans = f"Unknown question key '{question_key}'. Use: {', '.join(sorted(_AGENT_INTENTS))}."
+        evidence = []
+        confidence = "low"
+
+    return {
+        "answer": ans,
+        "evidence": "; ".join(evidence) if evidence else None,
+        "source": evidence,
+        "confidence": confidence,
+        "decisionVersion": "deterministic-v1.0",
+        "error": None,
+    }
+
+
+@app.route('/api/agent/ask', methods=['POST'])
+def agent_ask():
+    """
+    Deterministic delivery-intelligence agent.
+    Body JSON: { manager_email, target_email, question_key }
+    question_key in: availability, readiness, skills, certification_gaps,
+                     utilization, risk, feedback, recommendation, summary
+    Returns: { answer, evidence, source, confidence, decisionVersion, error }
+    Reads only from in-memory session cache — no extra RMS calls.
+    """
+    session, error = _v2_manager_session("")
+    if error:
+        return error
+
+    body = request.get_json(force=True, silent=True) or {}
+    target_email = str(body.get("target_email", "")).strip().lower()
+    question_key = str(body.get("question_key", "")).strip().lower()
+
+    if not target_email:
+        return error_response("TARGET_REQUIRED", "target_email is required", 400)
+    # Normalise CopilotChatSheet aliases to canonical engine keys.
+    question_key = _INTENT_ALIASES.get(question_key, question_key)
+    if question_key not in _AGENT_INTENTS:
+        return error_response(
+            "UNKNOWN_QUESTION",
+            f"question_key must be one of: {', '.join(sorted(_AGENT_INTENTS))}",
+            400,
+        )
+
+    manager_email_verified = session["email"]
+
+    # 1. Try the allocation payload cache — it holds trainer_operations_df rows
+    #    that were already assembled for this manager's session.
+    trainer_row: dict = {}
+    try:
+        alloc_payload = _allocation_payload_cache.get(manager_email_verified)
+        if alloc_payload:
+            for row in (alloc_payload.get("trainer_operations_df") or []):
+                if isinstance(row, dict):
+                    em = (row.get("official_email") or row.get("trainer_email") or "").lower()
+                    if em == target_email:
+                        trainer_row = row
+                        break
+    except Exception:
+        pass
+
+    # 2. Fall back: read reportees from RMS cache and build a minimal row.
+    if not trainer_row:
+        reportees = _cache_get("reportees", {"email": manager_email_verified}) or []
+        for r in (reportees if isinstance(reportees, list) else []):
+            if isinstance(r, dict):
+                em = (r.get("OffEmail") or r.get("official_email") or "").strip().lower()
+                if em == target_email:
+                    trainer_row = {
+                        "trainer_name": r.get("TrainerName") or r.get("trainer_name") or "",
+                        "official_email": em,
+                        "current_utilization": None,
+                        "availability_status": "unknown",
+                        "readiness_bucket": "",
+                        "health_score": 0,
+                        "risk_level": "low",
+                        "recommended_action": "",
+                        "negative_feedback_count": 0,
+                        "skills": [],
+                    }
+                    break
+
+    # 3. Trainer-360 trainerDetails rows from RMS cache — capabilities/skills.
+    t360: dict = {}
+    try:
+        skill_rows = _cache_get("trainerDetails", {"email": target_email}) or []
+        if skill_rows and isinstance(skill_rows, list):
+            courses = [
+                {"course_name": s.get("CourseName") or "", "skill_level": s.get("SkillLevel") or ""}
+                for s in skill_rows if isinstance(s, dict) and s.get("CourseName")
+            ]
+            if courses:
+                trainer_row["skills"] = courses
+                t360["courses"] = courses
+    except Exception:
+        pass
+
+    result = _agent_answer(question_key, trainer_row, t360)
+    return jsonify(result), 200
+
 @app.errorhandler(404)
 def not_found(error):
     return error_response("NOT_FOUND", "Not found", 404)
@@ -5816,3 +6095,5 @@ def root():
 
 if __name__ == '__main__':
     app.run(debug=False, port=8080)
+
+

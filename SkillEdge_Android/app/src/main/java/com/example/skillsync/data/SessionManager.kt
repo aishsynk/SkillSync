@@ -5,6 +5,18 @@ import android.content.SharedPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
+/**
+ * Single source of truth for the manager's login state.
+ *
+ * `loginState` is a nullable Boolean tri-state:
+ *   null  — init() has not been called yet (app just started, prefs not read)
+ *   true  — logged in (prefs confirmed, or just saved via saveSession)
+ *   false — definitively logged out (clearSession was called AFTER init)
+ *
+ * Navigation must only redirect to Login when the state is `false`, never
+ * while it is `null` — that prevents the "starts as false → pushes to Login
+ * immediately on cold start" race that caused continuous logouts.
+ */
 object SessionManager {
     private const val PREF_NAME = "skilledge_session"
     private const val KEY_EMAIL = "logged_in_email"
@@ -12,10 +24,17 @@ object SessionManager {
 
     private lateinit var prefs: SharedPreferences
 
-    private val _loginState = MutableStateFlow(false)
-    val loginState: StateFlow<Boolean> = _loginState
+    // null = unknown (init not yet called), true = logged in, false = logged out
+    private val _loginState = MutableStateFlow<Boolean?>(null)
+    val loginState: StateFlow<Boolean?> = _loginState
 
     fun init(context: Context) {
+        if (::prefs.isInitialized) {
+            // Already initialised — re-read so the state reflects current prefs
+            // (e.g. WorkManager woke a fresh process and called init again).
+            _loginState.value = isLoggedIn()
+            return
+        }
         prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         _loginState.value = isLoggedIn()
     }
@@ -28,20 +47,23 @@ object SessionManager {
         _loginState.value = true
     }
 
-    fun getEmail(): String? = prefs.getString(KEY_EMAIL, null)
+    fun getEmail(): String? =
+        if (::prefs.isInitialized) prefs.getString(KEY_EMAIL, null) else null
 
-    fun getSessionId(): String? = prefs.getString(KEY_SESSION_ID, null)
+    fun getSessionId(): String? =
+        if (::prefs.isInitialized) prefs.getString(KEY_SESSION_ID, null) else null
 
     fun clearSession() {
-        prefs.edit().clear().apply()
+        if (::prefs.isInitialized) prefs.edit().clear().apply()
         _loginState.value = false
     }
 
     fun setLastSyncTime(timeMillis: Long) {
-        prefs.edit().putLong("last_sync_time", timeMillis).apply()
+        if (::prefs.isInitialized) prefs.edit().putLong("last_sync_time", timeMillis).apply()
     }
 
-    fun getLastSyncTime(): Long = prefs.getLong("last_sync_time", 0L)
+    fun getLastSyncTime(): Long =
+        if (::prefs.isInitialized) prefs.getLong("last_sync_time", 0L) else 0L
 
     fun isLoggedIn(): Boolean = getEmail() != null && getSessionId() != null
 }

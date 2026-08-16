@@ -1,4 +1,4 @@
-# SkillEdge / Manager OS — Decisions
+﻿# SkillEdge / Manager OS — Decisions
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
@@ -243,3 +243,13 @@ Important decisions and their rationale. Add new entries at the top (newest firs
 - **Rationale:** No such tracking existed; PROGRESS.md is the source of truth, CONTEXT.md
   holds stable project knowledge, DECISIONS.md records rationale — keeping history concise
   and AI-agnostic without storing logs or transcripts.
+
+## 2026-08-17 - Tri-state session login observation to prevent cold-start auto-logout
+
+- **Decision:** Change `SessionManager.loginState` to `StateFlow<Boolean?>` (`null` = uninitialized/cold start, `true` = authenticated, `false` = signed out). Update `Navigation.kt` to only navigate to Login when `loginState == false`.
+- **Rationale:** Previously, `loginState` was initialized to `false` by default. On Android cold start, Compose renders `Navigation.kt` before `SessionManager.init()` reads disk preferences. This triggered a `LaunchedEffect(loginState)` race condition that immediately replaced the authenticated `Main` destination with `Login`. Tri-state eliminates false logouts while preserving graceful sign-out UX.
+
+## 2026-08-17 - Restore Trainer 360 Copilot FAB with deterministic backend agent
+
+- **Decision:** Implement `POST /api/agent/ask` in `backend.py` with deterministic rule-based evaluation over cached manager and Trainer 360 intelligence, and restore the Copilot FAB on `Trainer360Screen.kt`.
+- **Rationale:** The route was previously a 404 gap preventing the on-device Copilot sheet from functioning. Implementing the deterministic backend handler satisfies the delivery copilot contract without requiring external LLM keys or extra network latency.
