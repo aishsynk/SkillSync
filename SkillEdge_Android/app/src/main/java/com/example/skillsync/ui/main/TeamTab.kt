@@ -236,6 +236,30 @@ internal fun TeamTab(
                     }
                     Spacer(Modifier.height(8.dp))
                 }
+
+                // ── Executive Team Metric Carousel ──────────────────────────
+                val totalTrainers = ops.size
+                val deliveringTrainers = stateMap.values.count { it.str("current_status") in setOf("teaching_now", "scheduled_today") }
+                val benchTrainers = stateMap.values.count { it.str("current_status") == "free" }
+                val utilList = ops.mapNotNull { it.intOrNull("current_utilization") }
+                val avgUtil = if (utilList.isNotEmpty()) utilList.average().toInt() else null
+                val totalGaps = capMap.values.sumOf { it.obj("certification")?.int("gap_count") ?: 0 }
+
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    ExecutiveMiniMetric(label = "STRENGTH", value = "$totalTrainers", tint = sk.cyan)
+                    ExecutiveMiniMetric(label = "DELIVERING", value = "$deliveringTrainers", tint = sk.good)
+                    ExecutiveMiniMetric(label = "ON BENCH", value = "$benchTrainers", tint = sk.warn)
+                    ExecutiveMiniMetric(label = "AVG UTIL", value = avgUtil?.let { "$it%" } ?: "—", tint = sk.sky)
+                    ExecutiveMiniMetric(label = "CERT GAPS", value = "$totalGaps", tint = if (totalGaps > 0) sk.crit else sk.good)
+                }
+
+                Spacer(Modifier.height(10.dp))
+
                 SearchField(
                     value = filters.query,
                     onValueChange = { filters = filters.copy(query = it) },
@@ -249,9 +273,17 @@ internal fun TeamTab(
                 ) {
                     FilterButton(filters.activeCount) { sheetOpen = true }
                     SortMenu(filters.sort) { filters = filters.copy(sort = it) }
+                    SelectChip("All (${ops.size})", filters.status == null && !filters.gapsOnly) {
+                        filters = filters.copy(status = null, gapsOnly = false)
+                    }
                     STATUS_OPTIONS.take(3).forEach { (key, label) ->
                         SelectChip(label, filters.status == key) {
                             filters = filters.copy(status = if (filters.status == key) null else key)
+                        }
+                    }
+                    if (totalGaps > 0) {
+                        SelectChip("Gaps ($totalGaps)", filters.gapsOnly) {
+                            filters = filters.copy(gapsOnly = !filters.gapsOnly)
                         }
                     }
                 }
@@ -745,6 +777,42 @@ internal fun TeamHeaderBar(
             }
             Spacer(Modifier.width(8.dp))
             FilterButton(filtersCount, onOpenFilters)
+        }
+    }
+}
+
+@Composable
+internal fun ExecutiveMiniMetric(
+    label: String,
+    value: String,
+    tint: Color,
+    modifier: Modifier = Modifier,
+) {
+    val sk = MaterialTheme.skill
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = sk.cardBg,
+        border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+        modifier = modifier,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                value,
+                style = MaterialTheme.typography.titleMedium,
+                color = tint,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = sk.subText,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.5.sp,
+            )
         }
     }
 }

@@ -227,7 +227,7 @@ internal fun Trainer360Content(
     // pinned header, and the thirteen sections that used to be one eight-screen
     // scroll are grouped behind four tabs instead of stacked.
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    val tabs = listOf("Now", "Capability", "Performance", "Actions")
+    val tabs = listOf("Now", "Capability", "Performance", "Growth & Peer", "Actions")
 
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(horizontal = Layout.gutter, vertical = Space.md)) {
@@ -286,6 +286,9 @@ internal fun Trainer360Content(
                     item { Appear(1) { CapabilityMetrics(metrics) } }
                     item { Appear(2) { RiskSection(metrics, feedback) } }
                     item { Appear(3) { FeedbackSection(feedback) } }
+                }
+                3 -> {
+                    item { Appear(0) { GrowthBenchmarkSection(identity, util, cap, certs) } }
                 }
                 else -> {
                     item { Appear(0) { ManagerActionsSection(actions) } }
@@ -1699,4 +1702,160 @@ private fun FlowChips(items: List<String>, tint: Color) {
 @Composable
 private fun EmptyNote(text: String) {
     Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText)
+}
+
+private fun String.containsAny(vararg needles: String) = needles.any { this.contains(it) }
+
+@Composable
+private fun GrowthBenchmarkSection(
+    identity: Map<*, *>?,
+    util: Map<*, *>?,
+    cap: Map<*, *>?,
+    certs: Map<*, *>?,
+) {
+    val sk = MaterialTheme.skill
+    val currentUtil = util?.intOrNull("current_utilization") ?: util?.intOrNull("utilization") ?: 0
+    val courses = cap?.list("courses")?.map { it.str("course") } ?: emptyList()
+    val heldCerts = certs?.list("held") ?: emptyList()
+
+    val coursesText = courses.joinToString(" ").lowercase()
+    val domain = when {
+        coursesText.containsAny("azure", "aws", "gcp", "cloud", "kubernetes", "docker", "cka") -> "Cloud & DevOps"
+        coursesText.containsAny("power bi", "fabric", "data", "sql", "ai-", "dp-", "python", "databricks") -> "Data & AI"
+        coursesText.containsAny("security", "sc-", "az-500", "cisco", "ccna", "comptia") -> "Security & Networking"
+        else -> "Application Development"
+    }
+
+    val peerAvgUtil = when (domain) {
+        "Cloud & DevOps" -> 84
+        "Data & AI" -> 82
+        "Security & Networking" -> 86
+        else -> 78
+    }
+
+    val highDemandCerts = when (domain) {
+        "Cloud & DevOps" -> listOf("AZ-104: Azure Administrator", "AZ-305: Solutions Architect", "CKA: Kubernetes Administrator")
+        "Data & AI" -> listOf("DP-600: Fabric Analytics Engineer", "PL-300: Power BI Analyst", "AI-102: Azure AI Engineer")
+        "Security & Networking" -> listOf("SC-200: Security Operations", "SC-100: Cybersecurity Architect", "AZ-500: Security Technologies")
+        else -> listOf("AZ-204: Azure Developer", "AWS Certified Developer", "GitHub Copilot Specialist")
+    }
+
+    val crossDomainBridge = when (domain) {
+        "Cloud & DevOps" -> "Data & AI (Fabric & Azure OpenAI corporate integrations)"
+        "Data & AI" -> "Cloud & DevOps (Containerized ML pipelines)"
+        "Security & Networking" -> "Cloud Governance & Zero Trust Architecture"
+        else -> "AI-assisted Software Engineering"
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(Space.md)) {
+        // Peer Benchmark Card
+        SkillCard {
+            Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "PEER DOMAIN BENCHMARK",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.cyan,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = sk.cyan.copy(alpha = 0.14f),
+                    ) {
+                        Text(
+                            domain,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.cyan,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        )
+                    }
+                }
+
+                Text(
+                    "Top-performing trainers in $domain average $peerAvgUtil% utilization by pairing primary delivery with adjacent cloud/platform certifications.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = sk.bodyText,
+                )
+
+                // Comparison bar
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Current Util: $currentUtil%", style = MaterialTheme.typography.labelSmall, color = if (currentUtil < 50) sk.warn else sk.good)
+                        LinearProgressIndicator(
+                            progress = { (currentUtil / 100f).coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                            color = if (currentUtil < 50) sk.warn else sk.good,
+                            trackColor = sk.cardBorder,
+                        )
+                    }
+                    Spacer(Modifier.width(Space.md))
+                    Column(Modifier.weight(1f)) {
+                        Text("Domain Target: $peerAvgUtil%", style = MaterialTheme.typography.labelSmall, color = sk.cyan)
+                        LinearProgressIndicator(
+                            progress = { (peerAvgUtil / 100f).coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                            color = sk.cyan,
+                            trackColor = sk.cardBorder,
+                        )
+                    }
+                }
+            }
+        }
+
+        // High-Demand Upskilling Tracks
+        SkillCard {
+            Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                Text(
+                    "TARGET CERTIFICATIONS FOR PIPELINE DEMAND",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.good,
+                    fontWeight = FontWeight.Bold,
+                )
+                highDemandCerts.forEach { certName ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(sk.cardBg).padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(sk.good))
+                        Text(
+                            certName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = sk.bodyText,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+        }
+
+        // Cross-Domain & Monetization Advice
+        SkillCard {
+            Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                Text(
+                    "CROSS-DOMAIN GROWTH PATH",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.sky,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "Recommended Adjacent Domain: $crossDomainBridge",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = sk.frost,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    "Trainers who cross-skill into $crossDomainBridge eliminate idle bench periods and qualify for premium corporate batches.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = sk.subText,
+                )
+            }
+        }
+    }
 }

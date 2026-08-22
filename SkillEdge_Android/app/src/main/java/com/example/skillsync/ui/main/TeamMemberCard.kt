@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,6 +24,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.Severity
 import com.example.skillsync.theme.Space
@@ -184,16 +186,67 @@ internal fun TeamMemberCard(
             }
 
             // Current course — shown when it is not already the headline.
-            // A trainer "on bench" may still have an upcoming course that the
-            // headline omits (because the first priority is the bench status).
             if (currentCourse.isNotBlank() && !headline.contains(currentCourse, ignoreCase = true)) {
                 Text(
-                    currentCourse,
+                    "Delivering: $currentCourse",
                     style = MaterialTheme.typography.labelSmall,
-                    color = sk.sky,
+                    color = sk.good,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+
+            // Quick actions row
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp)),
+                ) {
+                    Text(
+                        "Trainer 360 →",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                    )
+                }
+
+                if (gaps > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = sk.crit.copy(alpha = 0.12f),
+                    ) {
+                        Text(
+                            "$gaps cert gap${if (gaps == 1) "" else "s"}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.crit,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                        )
+                    }
+                } else if (util != null && util < 40) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = sk.warn.copy(alpha = 0.12f),
+                    ) {
+                        Text(
+                            "Growth opportunity",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.warn,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                        )
+                    }
+                }
             }
 
             Spacer(Modifier.height(2.dp))

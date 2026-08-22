@@ -49,6 +49,7 @@ object Agent {
         if (team.free.isNotEmpty()) add("Who is available right now?")
         if (team.unallocated.isNotEmpty()) add("Can we cover the open demand?")
         if (team.totalCertGaps > 0) add("Where are our certification gaps?")
+        add("How can we increase bench utilization?")
         add("How is the team doing?")
         add("What is our key person risk?")
         add("What does next week look like?")
@@ -92,7 +93,7 @@ object Agent {
             Intent.WHO_CAN_TEACH
         q.containsAny("needs my attention", "need attention", "who needs", "at risk", "worried", "problem") ->
             Intent.WHO_NEEDS_ATTENTION
-        q.containsAny("available", "free", "on bench", "bench", "spare capacity", "who is idle") ->
+        q.containsAny("available", "free", "on bench", "bench", "spare capacity", "who is idle", "increase util", "bench utilization", "growth") ->
             Intent.WHO_IS_AVAILABLE
         q.containsAny("cover", "demand", "unallocated", "open batch", "pipeline", "allocate") ->
             Intent.DEMAND_COVERAGE
