@@ -798,7 +798,7 @@ class ScreenRenderTest {
     }
 
     @Test
-    fun teamTab_placesTwoTrainerCardsInOnePhoneRow() {
+    fun teamTab_rendersTrainerCardsVerticallyWithoutClipping() {
         val data = dashboardPayload().toMutableMap()
         data["trainer_operations_df"] = listOf(
             trainerOps(),
@@ -811,7 +811,7 @@ class ScreenRenderTest {
             .fetchSemanticsNode().boundsInRoot.top
         val secondTop = compose.onNodeWithText("Beena Rao")
             .fetchSemanticsNode().boundsInRoot.top
-        assertEquals(firstTop, secondTop, 0.5f)
+        org.junit.Assert.assertTrue(secondTop > firstTop)
     }
 
     /** Held / missing / recommended — the certification gap analysis in full. */

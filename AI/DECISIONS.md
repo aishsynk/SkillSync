@@ -1,6 +1,10 @@
-﻿# SkillEdge / Manager OS — Decisions
+# SkillEdge / Manager OS — Decisions
 
 Important decisions and their rationale. Add new entries at the top (newest first).
+
+## 2026-08-22 - Durable HMAC Sessions, Resilient Interceptor & Managerial Coaching Intelligence
+- **Decision:** Implemented cryptographic HMAC-SHA256 session tokens (`base64(email:role:timestamp).hmac_sha256`) on the backend and silent re-authentication in the Android OkHttp interceptor. Replaced flat batch timeline in `TeamCalendarScreen` with an Outlook / Bootstrap 5 styled interactive monthly delivery calendar grid with green active indicators. Added cross-domain peer benchmarking intelligence in `WeeklyMessage` and `Recommender`.
+- **Rationale:** Render backend cold starts / process restarts wiped the in-memory `_sessions` dictionary, resulting in false 401s that triggered `SessionManager.clearSession()` and booted users out to the login screen during background polling and notification navigation. Cryptographic HMAC validation allows the backend to verify and revive valid session tokens across restarts without state loss. The Outlook calendar provides managers with immediate visual clarity on who is actively delivering each day, and the managerial coaching engine equips managers to upskill low-utilization reportees against high-demand cross-domain pipelines.
 
 ## 2026-08-09 - Product completion is a manager outcome plus verified phone geometry
 - **Decision:** Screens are designed and accepted by the decision a 20-50-person delivery manager can make, not by the number of fields/cards implemented. Dashboard, Team, Courses, Demand, Trainer 360 and Actions must lead with attention, availability, overload, allocation, risk, readiness and interventions. Phone-layout tests must assert vertical order/non-overlap and density-sensitive geometry; text presence alone is insufficient.

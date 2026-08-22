@@ -192,6 +192,20 @@ interface SkillEdgeApi {
         @Query("manager") manager: String,
         @Query("month") month: String,
     ): Map<String, Any>
+
+    /** Monthly delivery matrix with day-level active delivering trainers and leaves. */
+    @GET("api/v2/team/calendar")
+    suspend fun getCalendar(
+        @Query("manager") manager: String,
+        @Query("month") month: String? = null,
+    ): Map<String, Any>
+
+    /** Cross-domain peer benchmarking and upskilling roadmaps for a reportee. */
+    @GET("api/v2/trainer/growth-benchmark")
+    suspend fun getGrowthBenchmark(
+        @Query("email") email: String,
+        @Query("manager") manager: String,
+    ): Map<String, Any>
 }
 
 data class DemandCourseContext(

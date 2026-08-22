@@ -56,6 +56,10 @@ data class ReporteeSignals(
     val currentCourse: String = "",
     val nextCourse: String = "",
     val openActions: Int = 0,
+    /** Cross-domain and peer benchmark insights to help them grow and gain utilization. */
+    val domain: String = "",
+    val targetGrowthCourses: List<String> = emptyList(),
+    val peerBenchmarkNote: String = "",
 )
 
 /** The team's week. */
@@ -204,7 +208,16 @@ fun composeReporteeMessage(
             body.append("You are available this week")
             signals.utilisation?.let { body.append(" at $it percent utilisation") }
             body.append(". ")
-            body.append(bold("Please send me the two courses you would most like to pick up next, and I will match you to the incoming demand.", style))
+            if (signals.targetGrowthCourses.isNotEmpty()) {
+                val courses = signals.targetGrowthCourses.joinToString(" and ")
+                body.append("Our peer delivery data shows strong active client demand in $courses. ")
+                body.append(bold("Please prepare for $courses so I can match you to the open batches.", style))
+            } else if (signals.peerBenchmarkNote.isNotBlank()) {
+                body.append("${signals.peerBenchmarkNote} ")
+                body.append(bold("Please send me your upskilling plan by Friday so we can align you to incoming demand.", style))
+            } else {
+                body.append(bold("Please send me the two courses you would most like to pick up next, and I will match you to the incoming demand.", style))
+            }
             body.append(" ")
         }
         signals.openActions > 0 -> {

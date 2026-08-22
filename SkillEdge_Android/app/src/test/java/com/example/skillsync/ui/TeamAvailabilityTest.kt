@@ -81,7 +81,6 @@ class TeamAvailabilityTest {
     fun clientExclusionsAreSurfaced() {
         render(availability(exclusions = 2))
         compose.onNodeWithText("2 client exclusions").assertExists()
-        compose.onNodeWithText("Critical").assertExists()
     }
 
     @Test

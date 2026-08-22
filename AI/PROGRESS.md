@@ -1,4 +1,39 @@
-﻿
+
+## 2026-08-22T23:59:00+01:00 - API Audit & Integration, HMAC Session Resilience, Outlook Month Calendar & Managerial Growth Intelligence
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Python backend, pytest, Kotlin/Compose, Gradle)
+- **Files Modified**:
+  - `backend.py`
+  - `tests/test_v2_calendar_and_growth.py` (new)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/RetrofitClient.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/TeamCalendarScreen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/WeeklyMessage.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ai/Recommender.kt`
+  - `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/ScreenRenderTest.kt`
+  - `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/TeamAvailabilityTest.kt`
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Complete 37 API Audit**: Audited all 37 instruction files in `trainer_portal_api_details/`. Integrated the 8 missing endpoints into `_APIS` and `_CACHE_TTL` in `backend.py` (`courseTechnology`, `courseList`, `examCourseLinked`, `courseContentUrl`, `courseModule`, `courseDomain`, `latestCourseVersion`, `uniqueCertsCount`).
+  2. **Auto-Logout Resolution**:
+     - Implemented durable HMAC-SHA256 session token generation and verification in `backend.py`. Valid tokens now seamlessly survive Render cold starts and process restarts without invalidating logged-in managers.
+     - Upgraded OkHttp `sessionInterceptor` in `RetrofitClient.kt` with transparent silent re-authentication using the cached email, ensuring notification clicks and background sync never drop the user to the login screen.
+  3. **Outlook / Bootstrap 5 Interactive Calendar on Work Tab**:
+     - Replaced flat lists in `TeamCalendarScreen.kt` with an interactive monthly calendar grid (7-column layout, month navigation, today shortcut, green active delivery count badges, day inspection panel with live roster details, and a view mode toggle between Calendar and Timeline).
+     - Added `GET /api/v2/team/calendar` on the backend providing day-level delivery records and leave tracking.
+  4. **Managerial Coaching & Cross-Domain Benchmarking**:
+     - Added `GET /api/v2/trainer/growth-benchmark` computing cross-domain peer benchmarks, utilization drivers, and pipeline demand matches.
+     - Enhanced `WeeklyMessage.kt` with actionable growth messages (e.g. benchmarking against 80%+ peers, identifying specific courses/certifications needed to capture open client batches).
+     - Upgraded `Recommender.kt` to recommend cross-skilling tracks in Cloud, AI, and Kubernetes.
+  5. **Test Suite Verification**:
+     - Backend: 145 / 145 tests passed (`python -m pytest tests/ -q`).
+     - Android: 147 / 147 unit tests passed (`./gradlew :app:testDebugUnitTest`).
+- **Current Project State**: All tests green (145 backend, 147 Android). Core requirements implemented and verified.
+- **Pending Actions / Handover**:
+  - Build signed APK via GitHub Actions workflow (`.github/workflows/android-release.yml`) for production release.
+  - Deploy updated `backend.py` to Render production instance.
+
 ## 2026-08-13T14:30:00+05:30 - HR Monthly Report, Trainer360 recording compliance, drawables (v3.19.0)
 
 - **Tool Used**: Claude Code (Kotlin/Compose + Flask backend)

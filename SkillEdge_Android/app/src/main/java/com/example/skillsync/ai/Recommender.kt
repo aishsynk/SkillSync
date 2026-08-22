@@ -156,13 +156,14 @@ object Recommender {
                 )
             } else {
                 out += build(
-                    SuggestionKind.BUILD_BENCH_SKILL, t, weights, signal = 50,
-                    headline = "Give ${t.name.substringBefore(" ")} a skill target while on bench",
-                    rationale = "Bench time converts into future capacity only if it is pointed at a course the pipeline actually needs.",
+                    SuggestionKind.BUILD_BENCH_SKILL, t, weights, signal = 55,
+                    headline = "Align ${t.name.substringBefore(" ")} to high-demand peer skills while on bench",
+                    rationale = "Bench time converts into billable delivery only if pointed at cross-domain skills (Cloud, AI, Kubernetes) where active corporate pipeline is concentrated.",
                     evidence = buildList {
-                        t.utilisation?.let { add("Utilisation: $it percent") }
-                        add("Capacity: ${t.capacityBucket.ifBlank { "not measured" }}")
-                        if (t.certGaps.isNotEmpty()) add("Open gap: ${t.certGaps.first()}")
+                        t.utilisation?.let { add("Current utilisation: $it percent") }
+                        add("Domain peer target: 80%+ utilisation with adjacent tech certifications")
+                        if (t.certGaps.isNotEmpty()) add("Open gap to close: ${t.certGaps.first()}")
+                        add("Top cross-skilling tracks: Kubernetes (CKA), Microsoft Fabric, Azure Solutions (AZ-305)")
                     },
                 )
             }
