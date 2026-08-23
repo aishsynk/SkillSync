@@ -47,6 +47,7 @@ enum class CalendarViewMode {
 fun TeamCalendarScreen(
     batches: List<Map<*, *>>,
     modifier: Modifier = Modifier,
+    onTrainerClick: (String, String) -> Unit = { _, _ -> },
 ) {
     val sk = MaterialTheme.skill
     var viewMode by remember { mutableStateOf(CalendarViewMode.MONTH_CALENDAR) }
@@ -123,6 +124,7 @@ fun TeamCalendarScreen(
                 SelectedDateInspector(
                     date = date,
                     batches = batches,
+                    onTrainerClick = onTrainerClick,
                 )
             }
         } else {
@@ -134,7 +136,7 @@ fun TeamCalendarScreen(
                     color = sk.good,
                     fontWeight = FontWeight.Bold,
                 )
-                current.forEach { DeliveryCard(it, sk.good) }
+                current.forEach { DeliveryCard(it, sk.good, onTrainerClick) }
             }
 
             if (upcoming.isNotEmpty()) {
@@ -144,7 +146,7 @@ fun TeamCalendarScreen(
                     color = sk.sky,
                     fontWeight = FontWeight.Bold,
                 )
-                upcoming.forEach { DeliveryCard(it, sk.sky) }
+                upcoming.forEach { DeliveryCard(it, sk.sky, onTrainerClick) }
             }
 
             if (current.isEmpty() && upcoming.isEmpty()) {
@@ -422,6 +424,7 @@ private fun OutlookDayCell(
 private fun SelectedDateInspector(
     date: LocalDate,
     batches: List<Map<*, *>>,
+    onTrainerClick: (String, String) -> Unit = { _, _ -> },
 ) {
     val sk = MaterialTheme.skill
     val formattedDate = date.format(DateTimeFormatter.ofPattern("EEEE, dd MMMM yyyy", Locale.ENGLISH))
@@ -484,17 +487,21 @@ private fun SelectedDateInspector(
             )
         } else {
             deliveries.forEach { batch ->
-                DayDeliveryRow(batch)
+                DayDeliveryRow(batch, onTrainerClick)
             }
         }
     }
 }
 
 @Composable
-private fun DayDeliveryRow(batch: Map<*, *>) {
+private fun DayDeliveryRow(
+    batch: Map<*, *>,
+    onTrainerClick: (String, String) -> Unit = { _, _ -> },
+) {
     val sk = MaterialTheme.skill
     val course = batch.str("course_name").ifBlank { batch.str("demand_id").ifBlank { "Course" } }
     val trainer = batch.str("trainer_name")
+    val email = batch.str("trainer_email")
     val mode = batch.str("delivery_mode")
     val customer = batch.str("customer")
     val location = batch.str("location")
@@ -504,6 +511,9 @@ private fun DayDeliveryRow(batch: Map<*, *>) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(6.dp))
             .background(sk.cardBg.copy(alpha = 0.6f))
+            .clickable(enabled = email.isNotBlank() || trainer.isNotBlank()) {
+                onTrainerClick(email, trainer)
+            }
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -550,10 +560,15 @@ private fun DayDeliveryRow(batch: Map<*, *>) {
 }
 
 @Composable
-private fun DeliveryCard(batch: Map<*, *>, tint: Color) {
+private fun DeliveryCard(
+    batch: Map<*, *>,
+    tint: Color,
+    onTrainerClick: (String, String) -> Unit = { _, _ -> },
+) {
     val sk = MaterialTheme.skill
     val course = batch.str("course_name").ifBlank { batch.str("demand_id").ifBlank { "Unknown course" } }
     val trainer = batch.str("trainer_name")
+    val email = batch.str("trainer_email")
     val start = batch.str("start_date")
     val end = batch.str("end_date")
     val mode = batch.str("delivery_mode")
@@ -579,7 +594,10 @@ private fun DeliveryCard(batch: Map<*, *>, tint: Color) {
     Row(
         Modifier
             .fillMaxWidth()
-            .glassSurface(RoundedCornerShape(Radii.card)),
+            .glassSurface(RoundedCornerShape(Radii.card))
+            .clickable(enabled = email.isNotBlank() || trainer.isNotBlank()) {
+                onTrainerClick(email, trainer)
+            },
     ) {
         Box(
             Modifier

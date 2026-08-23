@@ -1,45 +1,31 @@
 package com.example.skillsync.ui.main
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.Box
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
-import java.time.format.TextStyle
-import java.util.Locale
-
-import com.example.skillsync.theme.glassSurface
+import androidx.compose.ui.unit.sp
+import com.example.skillsync.R
 import com.example.skillsync.theme.accentGlass
-import androidx.compose.material3.Surface
+import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
+import com.example.skillsync.ui.components.intOrNull
 import com.example.skillsync.ui.components.rows
 import com.example.skillsync.ui.components.str
 
@@ -49,6 +35,8 @@ private data class CommandResult(
     val detail: String,
     val trainerEmail: String = "",
     val demandId: String = "",
+    val badge: String = "",
+    val badgeColor: Color = Color.Unspecified,
 )
 
 @Composable
@@ -77,7 +65,7 @@ private fun WorkspaceSelector(
             TextButton(
                 onClick = { onSelect(key) },
                 modifier = Modifier.weight(1f)
-                    .background(if (selected == key) sk.surface3 else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(9.dp)),
+                    .background(if (selected == key) sk.surface3 else Color.Transparent, RoundedCornerShape(9.dp)),
             ) {
                 Text(
                     label,
@@ -89,6 +77,10 @@ private fun WorkspaceSelector(
     }
 }
 
+/**
+ * Universal Command Search — Instant discovery across Trainers, Courses,
+ * Unallocated Demand, and Manager Actions with quick filter chips and scope tabs.
+ */
 @Composable
 internal fun UniversalCommandSearch(
     dashboard: Map<String, Any>,
@@ -98,77 +90,224 @@ internal fun UniversalCommandSearch(
     onTrainer: (String, String) -> Unit,
     onDemand: (String) -> Unit,
 ) {
+    val sk = MaterialTheme.skill
     var query by remember { mutableStateOf("") }
+    var selectedScope by remember { mutableStateOf("ALL") }
     val needle = query.trim().lowercase()
-    val results = remember(needle, dashboard, capability, allocation, actions) {
+
+    val quickPrompts = listOf(
+        "🔥 High Risk" to "high",
+        "🏖️ On Bench" to "bench",
+        "⚡ FMAT" to "fmat",
+        "⚠️ Gap" to "gap",
+        "🌐 Azure" to "azure",
+        "📜 AWS" to "aws",
+    )
+
+    val allResults = remember(needle, dashboard, capability, allocation, actions) {
         if (needle.length < 2) emptyList() else buildList {
+            // Trainers
             dashboard.rows("trainer_operations_df").forEach { row ->
                 val name = row.str("trainer_name")
                 val email = row.str("official_email")
-                val detail = listOf(row.str("designation"), row.str("capacity_bucket"))
-                    .filter { it.isNotBlank() }.joinToString(" · ")
-                if ("$name $email $detail".lowercase().contains(needle)) {
-                    add(CommandResult("TRAINER", name.ifBlank { email }, detail, trainerEmail = email))
+                val designation = row.str("designation")
+                val capacity = row.str("capacity_bucket")
+                val risk = row.str("feedback_risk")
+                val detail = listOf(designation, capacity, if (risk.isNotBlank()) "$risk risk" else "").filter { it.isNotBlank() }.joinToString(" · ")
+                if ("$name $email $detail $risk $capacity".lowercase().contains(needle)) {
+                    val color = when {
+                        risk.equals("High", true) -> sk.crit
+                        capacity.contains("Bench", true) -> sk.cyan
+                        else -> sk.teal
+                    }
+                    add(CommandResult("TRAINER", name.ifBlank { email }, detail, trainerEmail = email, badge = capacity.ifBlank { "Trainer" }, badgeColor = color))
                 }
             }
+            // Courses
             capability?.rows("courses").orEmpty().forEach { row ->
                 val course = row.str("course_name").ifBlank { row.str("course") }
-                val detail = listOf(row.str("vendor"), row.str("coverage"))
-                    .filter { it.isNotBlank() }.joinToString(" · ")
-                if ("$course $detail".lowercase().contains(needle)) {
-                    add(CommandResult("COURSE", course, detail))
+                val vendor = row.str("vendor")
+                val coverage = row.str("coverage")
+                val certified = row.str("certified_count")
+                val detail = listOf(vendor, coverage, if (certified.isNotBlank()) "$certified certified" else "").filter { it.isNotBlank() }.joinToString(" · ")
+                if ("$course $detail $vendor".lowercase().contains(needle)) {
+                    add(CommandResult("COURSE", course, detail, badge = vendor.ifBlank { "Course" }, badgeColor = sk.sky))
                 }
             }
+            // Demand batches
             allocation?.rows("batches").orEmpty().forEach { row ->
                 val course = row.str("course_name")
-                val detail = listOf(row.str("delivery_mode"), row.str("location"), row.str("customer"))
-                    .filter { it.isNotBlank() }.joinToString(" · ")
-                if ("$course $detail".lowercase().contains(needle)) {
-                    add(CommandResult("DEMAND", course, detail, demandId = row.str("demand_id")))
+                val mode = row.str("delivery_mode")
+                val loc = row.str("location")
+                val cust = row.str("customer")
+                val detail = listOf(mode, loc, cust).filter { it.isNotBlank() }.joinToString(" · ")
+                if ("$course $detail $mode $cust".lowercase().contains(needle)) {
+                    add(CommandResult("DEMAND", course, detail, demandId = row.str("demand_id"), badge = mode.ifBlank { "Demand" }, badgeColor = sk.amber))
                 }
             }
+            // Actions
             actions.forEach { row ->
                 val title = row.str("title")
-                val detail = listOf(row.str("trainer_name"), row.str("category"), row.str("priority"))
-                    .filter { it.isNotBlank() }.joinToString(" · ")
-                if ("$title $detail".lowercase().contains(needle)) {
-                    add(CommandResult("ACTION", title, detail, trainerEmail = row.str("trainer_email")))
+                val trainer = row.str("trainer_name")
+                val cat = row.str("category")
+                val prio = row.str("priority")
+                val detail = listOf(trainer, cat, prio).filter { it.isNotBlank() }.joinToString(" · ")
+                if ("$title $detail $cat $prio".lowercase().contains(needle)) {
+                    val color = if (prio.equals("critical", true) || prio.equals("high", true)) sk.crit else sk.sky
+                    add(CommandResult("ACTION", title, detail, trainerEmail = row.str("trainer_email"), badge = prio.ifBlank { "Action" }, badgeColor = color))
                 }
             }
-        }.take(60)
+        }.take(80)
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp)) {
-        Text("Find anything", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.skill.bodyText)
-        Text("Trainers, capabilities, demand and actions in one command surface", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.skill.subText)
-        Spacer(Modifier.height(12.dp))
+    val filteredResults = remember(allResults, selectedScope) {
+        if (selectedScope == "ALL") allResults
+        else allResults.filter { it.kind == selectedScope }
+    }
+
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text("Universal Command Search", style = MaterialTheme.typography.titleMedium, color = sk.bodyText, fontWeight = FontWeight.Bold)
+                Text("Search across trainers, capability, demand and action queue", style = MaterialTheme.typography.bodySmall, color = sk.subText)
+            }
+            if (filteredResults.isNotEmpty()) {
+                Surface(color = sk.cardBg, shape = RoundedCornerShape(8.dp), border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder)) {
+                    Text("${filteredResults.size} matches", style = MaterialTheme.typography.labelSmall, color = sk.cyan, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                }
+            }
+        }
+
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            placeholder = { Text("Try “available Azure”, “FMAT” or a trainer name") },
+            placeholder = { Text("Search by name, Azure, AWS, FMAT, bench...", color = sk.subText) },
+            shape = RoundedCornerShape(12.dp),
+            leadingIcon = { Icon(painterResource(R.drawable.ic_search), null, tint = sk.cyan, modifier = Modifier.size(18.dp)) },
+            trailingIcon = {
+                if (query.isNotBlank()) {
+                    IconButton(onClick = { query = "" }) {
+                        Text("✕", color = sk.subText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
         )
-        Spacer(Modifier.height(10.dp))
+
+        // Quick Suggestion Chips
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            quickPrompts.forEach { (label, term) ->
+                Surface(
+                    onClick = { query = term },
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (query.contains(term, true)) sk.cyan.copy(alpha = 0.2f) else sk.cardBg,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (query.contains(term, true)) sk.cyan else sk.cardBorder),
+                ) {
+                    Text(label, style = MaterialTheme.typography.labelSmall, color = if (query.contains(term, true)) sk.cyan else sk.labelText, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                }
+            }
+        }
+
+        // Scope Filter Tabs
+        if (allResults.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                listOf("ALL" to "All (${allResults.size})", "TRAINER" to "Trainers", "COURSE" to "Courses", "DEMAND" to "Demand", "ACTION" to "Actions").forEach { (scope, label) ->
+                    val selected = selectedScope == scope
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (selected) MaterialTheme.colorScheme.primary else sk.cardBg)
+                            .clickable { selectedScope = scope }
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    ) {
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (selected) Color.White else sk.subText,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        )
+                    }
+                }
+            }
+        }
+
+        // Results List
         when {
-            needle.length < 2 -> Text("Enter at least two characters.", color = MaterialTheme.skill.subText)
-            results.isEmpty() -> Text("No matching people, courses, demand or actions.", color = MaterialTheme.skill.subText)
-            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(results) { result ->
-                    Column(
+            needle.length < 2 -> {
+                Box(Modifier.fillMaxSize().padding(top = 40.dp), contentAlignment = Alignment.TopCenter) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Type to explore the command surface", style = MaterialTheme.typography.bodyMedium, color = sk.subText)
+                        Text("Instant unified search across 100% of your organization", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+                    }
+                }
+            }
+            filteredResults.isEmpty() -> {
+                Box(Modifier.fillMaxSize().padding(top = 40.dp), contentAlignment = Alignment.TopCenter) {
+                    Text("No results matching “$query” in this scope.", style = MaterialTheme.typography.bodyMedium, color = sk.subText)
+                }
+            }
+            else -> LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                items(filteredResults) { result ->
+                    Row(
                         Modifier.fillMaxWidth()
-                            .glassSurface(RoundedCornerShape(14.dp))
+                            .glassSurface(RoundedCornerShape(12.dp))
                             .clickable(enabled = result.trainerEmail.isNotBlank() || result.demandId.isNotBlank()) {
                                 if (result.demandId.isNotBlank()) onDemand(result.demandId)
                                 else if (result.trainerEmail.isNotBlank()) onTrainer(result.trainerEmail, result.title)
                             }
-                            .padding(12.dp)
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(result.title, fontWeight = FontWeight.SemiBold, color = MaterialTheme.skill.bodyText, modifier = Modifier.weight(1f))
-                            Text(result.kind, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        // Category Icon
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(result.badgeColor.copy(alpha = 0.16f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                when (result.kind) {
+                                    "TRAINER" -> "👤"
+                                    "COURSE" -> "📚"
+                                    "DEMAND" -> "💼"
+                                    else -> "⚡"
+                                },
+                                fontSize = 16.sp,
+                            )
                         }
-                        if (result.detail.isNotBlank()) Text(result.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.skill.subText)
+
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text(result.title, fontWeight = FontWeight.SemiBold, color = sk.bodyText, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                if (result.badge.isNotBlank()) {
+                                    Surface(color = result.badgeColor.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
+                                        Text(result.badge.uppercase(), style = MaterialTheme.typography.labelSmall, color = result.badgeColor, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                                    }
+                                }
+                            }
+                            if (result.detail.isNotBlank()) {
+                                Text(result.detail, style = MaterialTheme.typography.bodySmall, color = sk.subText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
                     }
                 }
             }
@@ -176,6 +315,10 @@ internal fun UniversalCommandSearch(
     }
 }
 
+/**
+ * Delivery Operations Workspace — Fully features the interactive Outlook / Bootstrap 5
+ * Month Calendar grid, live active delivery indicators, date inspection, and timeline feed.
+ */
 @Composable
 internal fun DeliveryOperationsWorkspace(
     dashboard: Map<String, Any>,
@@ -183,112 +326,70 @@ internal fun DeliveryOperationsWorkspace(
 ) {
     val sk = MaterialTheme.skill
     val assignments = dashboard.rows("batch_engagement_df")
-    
-    // Parse dates and sort chronologically
-    val parsedAssignments = remember(assignments) {
-        assignments.mapNotNull { row ->
-            val startAt = row.str("start_at")
-            val dateStr = if (startAt.length >= 10) startAt.substring(0, 10) else ""
-            val date = try {
-                if (dateStr.isNotBlank()) LocalDate.parse(dateStr) else null
-            } catch (e: DateTimeParseException) { null }
-            if (date != null) Pair(date, row) else null
-        }.sortedBy { it.first }
-    }
 
-    // Group by Date
-    val grouped = parsedAssignments.groupBy { it.first }
+    val liveCount = assignments.count { it.str("engagement_state") == "current" }
+    val upcomingCount = assignments.count { it.str("engagement_state") == "upcoming" }
+    val totalPax = assignments.sumOf { it.intOrNull("participants") ?: 0 }
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // Top KPI Banner
         item {
-            Text("Delivery Operations", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.skill.bodyText)
-            Text("Calendar overview of all previous, current, and future assignments", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.skill.subText)
-            Spacer(Modifier.height(16.dp))
-        }
-
-        if (grouped.isEmpty()) {
-            item { Text("No assignments found.", color = MaterialTheme.skill.subText, style = MaterialTheme.typography.bodySmall) }
-        }
-
-        grouped.forEach { (date, rows) ->
-            // Determine state for color coding (if any is live, mark day as live, else future/past)
-            val states = rows.map { it.second.str("engagement_state") }
-            val lineColor = when {
-                states.contains("current") -> sk.teal
-                states.contains("upcoming") -> sk.sky
-                else -> sk.subText.copy(alpha = 0.3f)
-            }
-            
-            val dayOfWeek = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-            val dayOfMonth = date.dayOfMonth.toString()
-            val month = date.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-
-            item {
-                Row(Modifier.fillMaxWidth()) {
-                    // Date Column (Timeline)
-                    Column(
-                        Modifier
-                            .width(60.dp)
-                            .drawBehind {
-                                // Draw vertical timeline line
-                                drawLine(
-                                    color = lineColor,
-                                    start = Offset(size.width - 16.dp.toPx(), 0f),
-                                    end = Offset(size.width - 16.dp.toPx(), size.height),
-                                    strokeWidth = 2.dp.toPx()
-                                )
-                                // Draw node circle
-                                drawCircle(
-                                    color = lineColor,
-                                    radius = 4.dp.toPx(),
-                                    center = Offset(size.width - 16.dp.toPx(), 24.dp.toPx())
-                                )
-                            }
-                            .padding(top = 14.dp, end = 24.dp),
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Text(dayOfWeek.uppercase(), style = MaterialTheme.typography.labelSmall, color = if (states.contains("current")) sk.teal else sk.subText, fontWeight = FontWeight.Bold)
-                        Text(dayOfMonth, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.skill.bodyText, fontWeight = FontWeight.Black)
-                        Text(month.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = sk.cardBg,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+                ) {
+                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(sk.good))
+                            Text("DELIVERING", style = MaterialTheme.typography.labelSmall, color = sk.good, fontWeight = FontWeight.Bold)
+                        }
+                        Text("$liveCount live", style = MaterialTheme.typography.titleMedium, color = sk.bodyText, fontWeight = FontWeight.Black)
                     }
+                }
 
-                    // Assignments Column
-                    Column(
-                        Modifier.weight(1f).padding(top = 10.dp, bottom = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = sk.cardBg,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+                ) {
+                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("UPCOMING", style = MaterialTheme.typography.labelSmall, color = sk.sky, fontWeight = FontWeight.Bold)
+                        Text("$upcomingCount batches", style = MaterialTheme.typography.titleMedium, color = sk.bodyText, fontWeight = FontWeight.Black)
+                    }
+                }
+
+                if (totalPax > 0) {
+                    Surface(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        color = sk.cardBg,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
                     ) {
-                        rows.forEach { (_, row) ->
-                            val trainer = row.str("trainer_name")
-                            val email = row.str("trainer_email")
-                            val state = row.str("engagement_state")
-                            val cardBg = when (state) {
-                                "current" -> sk.teal
-                                "upcoming" -> sk.sky
-                                else -> sk.subText
-                            }
-                            Column(
-                                Modifier.fillMaxWidth()
-                                    .accentGlass(cardBg, RoundedCornerShape(14.dp))
-                                    .clickable(enabled = email.isNotBlank()) { onTrainer(email, trainer) }
-                                    .padding(12.dp)
-                            ) {
-                                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                    Text(row.str("course_name").ifBlank { "Course not supplied" }, fontWeight = FontWeight.SemiBold, color = MaterialTheme.skill.bodyText, modifier = Modifier.weight(1f))
-                                    Surface(color = cardBg.copy(alpha = 0.14f), shape = RoundedCornerShape(4.dp)) {
-                                        Text(state.uppercase(), style = MaterialTheme.typography.labelSmall, color = cardBg, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
-                                    }
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                Text(trainer.ifBlank { "Trainer not supplied" }, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                                Text(listOf(row.str("delivery_mode"), row.str("location")).filter { it.isNotBlank() }.joinToString(" · "), color = MaterialTheme.skill.subText, style = MaterialTheme.typography.bodySmall)
-                            }
+                        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("TOTAL PAX", style = MaterialTheme.typography.labelSmall, color = sk.cyan, fontWeight = FontWeight.Bold)
+                            Text("$totalPax learners", style = MaterialTheme.typography.titleMedium, color = sk.bodyText, fontWeight = FontWeight.Black)
                         }
                     }
                 }
             }
+        }
+
+        // Complete Outlook Month Calendar & Timeline view
+        item {
+            TeamCalendarScreen(
+                batches = assignments,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }

@@ -28,6 +28,7 @@ import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
+import com.example.skillsync.ui.main.CourseCurriculumSheet
 
 /**
  * Everything known about one unallocated batch, plus the four actions a manager
@@ -57,6 +58,8 @@ fun BatchDetailScreen(
 
     var showMine by remember { mutableStateOf(false) }
     var showReportee by remember { mutableStateOf(false) }
+    var showCurriculumSheet by remember { mutableStateOf(false) }
+    var showNetworkSheet by remember { mutableStateOf(false) }
     var shareTarget by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showMessagePreview by remember { mutableStateOf(false) }
 
@@ -338,13 +341,10 @@ fun BatchDetailScreen(
                     }
                 }
 
-                // Actions — one compact row rather than four full-width buttons,
-                // which took a third of the screen and pushed the batch facts off it.
+                // Actions — compact row with primary tools
                 ActionBar(
                     actions = listOf(
-                        ActionItem("Outline", R.drawable.ic_book, sk.blue) {
-                            BatchShare.openUrl(context, batch.str("toc_url"))
-                        },
+                        ActionItem("Curriculum", R.drawable.ic_book, sk.blue) { showCurriculumSheet = true },
                         ActionItem("My skill", R.drawable.ic_check, sk.teal) { showMine = true },
                         ActionItem("Reportee", R.drawable.ic_people, sk.indigo) { showReportee = true },
                         ActionItem("Message", R.drawable.ic_mail, sk.green) {
@@ -354,9 +354,35 @@ fun BatchDetailScreen(
                     ),
                 )
 
+                if (courseName.isNotBlank()) {
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = { showNetworkSheet = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                    ) {
+                        Text("Search Wider Trainer Network 🌐", style = MaterialTheme.typography.labelMedium, color = sk.cyan, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+
                 Spacer(Modifier.height(24.dp))
             }
         }
+    }
+
+    if (showCurriculumSheet && courseName.isNotBlank()) {
+        CourseCurriculumSheet(
+            courseName = courseName,
+            courseId = courseId,
+            onDismiss = { showCurriculumSheet = false },
+        )
+    }
+
+    if (showNetworkSheet && courseName.isNotBlank()) {
+        NetworkStaffingSheet(
+            courseName = courseName,
+            onDismiss = { showNetworkSheet = false },
+        )
     }
 
     if (showMessagePreview) {
