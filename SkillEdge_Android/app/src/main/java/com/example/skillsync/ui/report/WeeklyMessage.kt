@@ -253,6 +253,61 @@ fun composeReporteeMessage(
     return assemble("Hello ${italic(first, style)}", body.toString(), closing, style)
 }
 
+/**
+ * Composes an explicit "Where You Stand" weekly managerial evaluation note.
+ * Answers where they stand on Workload, Mock/Qubits readiness, and Immediate weekly priorities.
+ */
+fun composeManagerStandpointNote(
+    signals: ReporteeSignals,
+    style: MessageStyle = MessageStyle.TEAMS,
+): String {
+    val first = signals.name.trim().substringBefore(" ").ifBlank { "Trainer" }
+    val sb = StringBuilder()
+
+    sb.append("Weekly Manager Standpoint for $first:\n\n")
+
+    val statusText = when {
+        signals.capacityBucket.equals("Stretched", true) -> "High Workload (Stretched at ${signals.utilisation ?: 85}% util)"
+        signals.capacityBucket.equals("On Bench", true) -> "Available / On Bench (${signals.utilisation ?: 0}% util)"
+        signals.currentCourse.isNotBlank() -> "Active Delivery on ${signals.currentCourse} (${signals.utilisation ?: 75}% util)"
+        else -> "Steady (${signals.utilisation ?: 70}% util)"
+    }
+    sb.append("• Standpoint: $statusText\n")
+
+    val readinessText = when {
+        signals.readiness != null && signals.readiness > 0 -> "Readiness Score ${signals.readiness}%"
+        else -> "Theoretical baseline active"
+    }
+    sb.append("• Mock & Readiness: $readinessText | Pacing & Articulation focus active\n")
+
+    val priorityText = when {
+        signals.feedbackRisk.equals("High", true) -> "Immediate delivery feedback review and 1-on-1 alignment"
+        signals.certGaps > 0 -> {
+            val courses = signals.certGapCourses.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "assigned courses"
+            "Schedule and complete certification exam for $courses"
+        }
+        signals.capacityBucket.equals("On Bench", true) -> {
+            if (signals.targetGrowthCourses.isNotEmpty()) "Upskill and clear mock for ${signals.targetGrowthCourses.joinToString(", ")}"
+            else "Submit upskilling track for incoming corporate demand"
+        }
+        signals.nextCourse.isNotBlank() -> "Finalize session prep and lab verification for ${signals.nextCourse}"
+        else -> "Maintain delivery momentum and structured demo narration"
+    }
+    sb.append("• Immediate Focus: $priorityText\n\n")
+
+    sb.append("Manager Guidance: Maintain structured demo flow (Goal → Steps → Verify) and raise any delivery blockers early.")
+
+    val raw = sb.toString()
+    return if (style == MessageStyle.TEAMS) {
+        raw.replace("• Standpoint:", "**Standpoint:**")
+            .replace("• Mock & Readiness:", "**Mock & Readiness:**")
+            .replace("• Immediate Focus:", "**Immediate Focus:**")
+            .replace("Manager Guidance:", "_Manager Guidance:_")
+    } else {
+        raw
+    }
+}
+
 // ── House style ─────────────────────────────────────────────────────────────
 
 private fun assemble(

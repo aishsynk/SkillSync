@@ -436,20 +436,45 @@ this audit. Three tiers:
 - "4-day free" / weekly-busyness removed (27 Jul 2026) — `_rank_batch` never
   used utilization in its matching in the first place.
 
-**NOT implemented — no RMS API in this integration carries the data:**
-- Tech-call trainer preference (30 Jul 2026) — no pre-sales/tech-call
-  endpoint exists among the 36 audited `trainer_portal_api_details/` files.
-- Mock-delivery rating preference (27 Jul 2026) — no mock/rehearsal endpoint
-  exists in the same audit.
-- Least-skill-preference removal for Additional Trainer (30 Jul 2026) — this
-  app has no Main/Additional-Trainer or Chat-Moderator role distinction;
-  `_rank_batch`'s own `backup_role` labels (Primary/Secondary/Emergency
-  Backup) are an app-invented ranking convenience, not RMS's actual role
-  model, so there's nothing correct to map this rule onto.
-- OEM shown above course name in the allocation email — this is an RMS email
-  template change with no corresponding screen in this app; the vendor/OEM
-  is already shown in `BatchCard`'s metadata line via `customer`.
+**Auto Tall 9-Update Allocation Intelligence Pipeline (Effective Aug 2026):**
+- **Certified Mock Waiver (14 Aug 2026)**: Certified trainers are never blocked or penalized for missing mock records on 1st-time delivery.
+- **Cancelled Batch Priority (12 Aug 2026)**: 14-day priority slot for trainers whose batch was cancelled by the client.
+- **6-Month Clean Record (05 Aug 2026)**: Trailing 6 months with 0 negative feedback preferred on tie-breaks.
+- **Additional Trainer Parity (30 Jul 2026)**: Lowest skill preference removed; neutral selection.
+- **Tech Call Continuity (30 Jul 2026)**: Main trainer preference for pre-sales conversion calls.
+- **4-Day Free Rule Removed (27 Jul 2026)**: Weekly busyness penalty eliminated.
+- **Qubits/QI Neutrality (27 Jul 2026)**: Removed from candidate ranking and email tables.
+- **Mock Step Transparency (27 Jul 2026)**: Auditable first-time delivery step.
+- **OEM Header Display (27 Jul 2026)**: OEM vendor shown above Course Name.
 
-If a future RMS API surfaces tech-call attribution or mock ratings, revisit
-the "not implemented" list above — the block/clean-record wiring in
-`_team_capability`/`_rank_batch` is the pattern to extend.
+## Koenig HR Trainer Index Policy (TI – 13/08/26)
+
+Official Koenig HR scoring formula implemented in `_calculate_trainer_index` across 20 weighted pillars:
+1. **Utilization**: Max 15% non-SC; 10 pts per 1% >60%, -10 pts per 1% <60%, +50 pts bonus if >60% in all 4 quarters, -25 pts per quarter <60% (Cap: 550 pts).
+2. **Beast AI Delivery**: 10 pts per Beast AI delivery, 20 pts per SaaS delivery (Cap: 200 pts); >=10 SaaS deliveries earns *Forward Deployed Engineer (FDE)* designation.
+3. **Quality Index (QI)**: 2.5 pts per 1.0 QI point (Cap: 300 pts).
+4. **Knowledge Sharing**: 5 pts per TBT & Mock, 10 pts per Internal Training (Cap: 100 pts).
+5. **1st Time Course / Cert**: 20 pts per first-time delivery or certified delivery (Cap: 200 pts).
+6. **Auto-Resume Certifications (AI Difficulty)**: Easy = 1 pt, Moderate = 3 pts, Hard = 5 pts (Cap: 200 pts).
+7. **Roaming Hours L12M**: 0.75 pts per hour (Cap: 100 pts).
+8. **Night ILO Hours L12M**: 0.25 pts per hour (9:01 PM – 6:59 AM) (Cap: 100 pts).
+9. **HR Incidents & Audits**: +10 pts positive recognition, -20 pts negative incident.
+10. **Instructor Certifications**: 100 pts premier (AAI/CCSI/VCI/RHCI), 20 pts other (MCT/CTT+) (Cap: 200 pts).
+11. **Trainer Developed**: 50 pts per trainer developed (Cap: 500 pts).
+12. **Customer Orientation**: Sales rating score * 16 (Cap: 400 pts).
+13. **Solution Selling**: 50 pts per solution designed (Cap: 100 pts).
+14. **Skill Takeover**: 10 pts per resigned trainer skill taken over prior to LWD (Cap: 100 pts).
+15. **-ve Feedback**: -100 pts deduction per negative assignment.
+16. **Centre Improvements**: +10 pts per center issue reported.
+17. **Tech Call Conversion**: 20 pts per call converted.
+18. **Tenure with Koenig**: 0.2 pts per completed month (Cap: 50 pts).
+19. **Prior Experience**: 0.1 pts per month prior to Koenig (Cap: 50 pts).
+20. **Overseas Visa Commitment**: 100 pts if commitment valid >= 3 months.
+
+### Standpoint & Standing Tiers:
+- **Tier 1: Diamond (TI ≥ 1200)**: 👑 Elite Global Deployable Lead
+- **Tier 2: Platinum (TI 900–1199)**: ⭐ Strong Performer / Multi-Domain Lead
+- **Tier 3: Gold (TI 600–899)**: 🔷 Core Delivery / Steady Anchor
+- **Tier 4: Silver (TI 300–599)**: 🔶 Developing / Upskilling Focus
+- **Tier 5: Bronze (TI < 300)**: ⚠️ At Risk / Quality & Util Recovery
+

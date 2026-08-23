@@ -275,6 +275,7 @@ fun WeeklyReportScreen(
                             }
                         },
                         message = composeReporteeMessage(person, style, managerNote = note),
+                        standpointNote = composeManagerStandpointNote(person, style),
                         context = context,
                         notify = notify,
                     )
@@ -294,11 +295,15 @@ private fun MessageCard(
     severity: Severity,
     summary: @Composable () -> Unit,
     message: String,
+    standpointNote: String = "",
     context: Context,
     notify: NotifyState,
 ) {
     val sk = MaterialTheme.skill
     var expanded by rememberSaveable(title) { mutableStateOf(false) }
+    var showStandpoint by rememberSaveable(title) { mutableStateOf(false) }
+
+    val activeText = if (showStandpoint && standpointNote.isNotBlank()) standpointNote else message
 
     SkillCard(Modifier.fillMaxWidth(), severity = severity) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -319,10 +324,42 @@ private fun MessageCard(
         summary()
 
         if (expanded) {
+            if (standpointNote.isNotBlank()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Surface(
+                        onClick = { showStandpoint = false },
+                        shape = RoundedCornerShape(Radii.chip),
+                        color = if (!showStandpoint) sk.brand.copy(alpha = 0.85f) else sk.surface1,
+                    ) {
+                        Text(
+                            "Weekly Message",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (!showStandpoint) sk.frost else sk.subText,
+                            modifier = Modifier.padding(horizontal = Space.md, vertical = 6.dp),
+                        )
+                    }
+                    Surface(
+                        onClick = { showStandpoint = true },
+                        shape = RoundedCornerShape(Radii.chip),
+                        color = if (showStandpoint) sk.cyan.copy(alpha = 0.85f) else sk.surface1,
+                    ) {
+                        Text(
+                            "Manager Standpoint",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (showStandpoint) Color.Black else sk.subText,
+                            modifier = Modifier.padding(horizontal = Space.md, vertical = 6.dp),
+                        )
+                    }
+                }
+            }
+
             // Selectable, so the manager can also grab a single line by hand.
             SelectionContainer {
                 Text(
-                    message,
+                    activeText,
                     style = MaterialTheme.typography.bodyMedium,
                     color = sk.bodyText,
                     modifier = Modifier
@@ -332,7 +369,7 @@ private fun MessageCard(
                 )
             }
             Text(
-                "${message.length} of $MESSAGE_LIMIT characters",
+                "${activeText.length} of $MESSAGE_LIMIT characters",
                 style = MaterialTheme.typography.labelSmall,
                 color = sk.labelText,
             )
@@ -341,7 +378,7 @@ private fun MessageCard(
         Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             FilledTonalButton(
                 onClick = {
-                    copyToClipboard(context, title, message)
+                    copyToClipboard(context, title, activeText)
                     notify.success("Copied", "Paste it straight into Teams or Viber.")
                 },
                 modifier = Modifier.weight(1f),
@@ -353,7 +390,7 @@ private fun MessageCard(
             ) { Text("Copy", style = MaterialTheme.typography.labelLarge) }
 
             OutlinedButton(
-                onClick = { shareMessage(context, message) },
+                onClick = { shareMessage(context, activeText) },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(Radii.chip),
             ) { Text("Send", style = MaterialTheme.typography.labelLarge, color = sk.sky) }

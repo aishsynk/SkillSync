@@ -120,7 +120,7 @@ internal fun UniversalCommandSearch(
                         capacity.contains("Bench", true) -> sk.cyan
                         else -> sk.teal
                     }
-                    add(CommandResult("TRAINER", name.ifBlank { email }, detail, trainerEmail = email, badge = capacity.ifBlank { "Trainer" }, badgeColor = color))
+                    add(CommandResult("TRAINER", name.ifBlank { email }, detail, trainerEmail = email, badge = "Trainer", badgeColor = color))
                 }
             }
             // Courses
@@ -131,7 +131,7 @@ internal fun UniversalCommandSearch(
                 val certified = row.str("certified_count")
                 val detail = listOf(vendor, coverage, if (certified.isNotBlank()) "$certified certified" else "").filter { it.isNotBlank() }.joinToString(" · ")
                 if ("$course $detail $vendor".lowercase().contains(needle)) {
-                    add(CommandResult("COURSE", course, detail, badge = vendor.ifBlank { "Course" }, badgeColor = sk.sky))
+                    add(CommandResult("COURSE", course, detail, badge = "Course", badgeColor = sk.sky))
                 }
             }
             // Demand batches
@@ -142,7 +142,7 @@ internal fun UniversalCommandSearch(
                 val cust = row.str("customer")
                 val detail = listOf(mode, loc, cust).filter { it.isNotBlank() }.joinToString(" · ")
                 if ("$course $detail $mode $cust".lowercase().contains(needle)) {
-                    add(CommandResult("DEMAND", course, detail, demandId = row.str("demand_id"), badge = mode.ifBlank { "Demand" }, badgeColor = sk.amber))
+                    add(CommandResult("DEMAND", course, detail, demandId = row.str("demand_id"), badge = "Demand", badgeColor = sk.amber))
                 }
             }
             // Actions
@@ -154,7 +154,7 @@ internal fun UniversalCommandSearch(
                 val detail = listOf(trainer, cat, prio).filter { it.isNotBlank() }.joinToString(" · ")
                 if ("$title $detail $cat $prio".lowercase().contains(needle)) {
                     val color = if (prio.equals("critical", true) || prio.equals("high", true)) sk.crit else sk.sky
-                    add(CommandResult("ACTION", title, detail, trainerEmail = row.str("trainer_email"), badge = prio.ifBlank { "Action" }, badgeColor = color))
+                    add(CommandResult("ACTION", title, detail, trainerEmail = row.str("trainer_email"), badge = "Action", badgeColor = color))
                 }
             }
         }.take(80)
@@ -190,7 +190,7 @@ internal fun UniversalCommandSearch(
             onValueChange = { query = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            placeholder = { Text("Search by name, Azure, AWS, FMAT, bench...", color = sk.subText) },
+            placeholder = { Text("Try “available Azure”, “FMAT” or a trainer name", color = sk.subText) },
             shape = RoundedCornerShape(12.dp),
             leadingIcon = { Icon(painterResource(R.drawable.ic_search), null, tint = sk.cyan, modifier = Modifier.size(18.dp)) },
             trailingIcon = {
@@ -327,6 +327,7 @@ internal fun DeliveryOperationsWorkspace(
     val sk = MaterialTheme.skill
     val assignments = dashboard.rows("batch_engagement_df")
 
+    val currentBatches = assignments.filter { it.str("engagement_state") == "current" }
     val liveCount = assignments.count { it.str("engagement_state") == "current" }
     val upcomingCount = assignments.count { it.str("engagement_state") == "upcoming" }
     val totalPax = assignments.sumOf { it.intOrNull("participants") ?: 0 }
@@ -335,6 +336,15 @@ internal fun DeliveryOperationsWorkspace(
         Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        item {
+            Text(
+                "Delivery Operations",
+                style = MaterialTheme.typography.titleMedium,
+                color = sk.bodyText,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+
         // Top KPI Banner
         item {
             Row(
@@ -384,11 +394,52 @@ internal fun DeliveryOperationsWorkspace(
             }
         }
 
+        // Active Deliveries (if any currently running)
+        if (currentBatches.isNotEmpty()) {
+            item {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("ACTIVE DELIVERIES", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)
+                    Surface(color = sk.good.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
+                        Text("CURRENT", style = MaterialTheme.typography.labelSmall, color = sk.good, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                    }
+                }
+            }
+            items(currentBatches) { batch ->
+                val course = batch.str("course_name")
+                val trainer = batch.str("trainer_name")
+                val trainerEmail = batch.str("trainer_email")
+                val loc = batch.str("location")
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        if (trainerEmail.isNotBlank()) onTrainer(trainerEmail, trainer)
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = sk.cardBg,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+                ) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(course, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                            Surface(color = sk.good.copy(alpha = 0.18f), shape = RoundedCornerShape(4.dp)) {
+                                Text("LIVE", style = MaterialTheme.typography.labelSmall, color = sk.good, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                            }
+                        }
+                        Text(listOf(trainer, loc).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = sk.subText)
+                    }
+                }
+            }
+        }
+
         // Complete Outlook Month Calendar & Timeline view
         item {
             TeamCalendarScreen(
                 batches = assignments,
                 modifier = Modifier.fillMaxWidth(),
+                onTrainerClick = onTrainer,
             )
         }
     }

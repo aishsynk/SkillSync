@@ -165,6 +165,14 @@ interface SkillEdgeApi {
         @Query("trainerType") trainerType: String = "",
     ): Map<String, Any>
 
+    /** V2 20-Criteria Koenig HR Trainer Index (TI – 13/08/26) */
+    @GET("api/v2/trainer/trainer-index")
+    suspend fun getTrainerIndex(
+        @Query("email") email: String,
+        @Query("month") month: String? = null,
+    ): TrainerIndexResponseDto
+
+
     /** Ask Copilot a question */
     @POST("api/agent/ask")
     suspend fun agentAsk(
@@ -220,7 +228,24 @@ interface SkillEdgeApi {
         @Query("email") email: String,
         @Query("manager") manager: String,
     ): Map<String, Any>
+
+    /** Dedicated deep-dive evaluation and mock assessment for a trainer. */
+    @GET("api/v2/trainer/evaluation")
+    suspend fun getTrainerEvaluation(
+        @Query("email") email: String,
+        @Query("month") month: String? = null,
+    ): Map<String, Any>
 }
+
+data class StructuredFeedbackDto(
+    val strength: String = "",
+    @com.google.gson.annotations.SerializedName("area_of_improvement") val areaOfImprovement: String = "",
+    @com.google.gson.annotations.SerializedName("other_feedback") val otherFeedback: String = "",
+    val trajectory: String = "Improving",
+    val sentiment: String = "Constructive",
+    @com.google.gson.annotations.SerializedName("mock_summary") val mockSummary: String = "",
+    @com.google.gson.annotations.SerializedName("formatted_text") val formattedText: String = "",
+)
 
 data class DemandCourseContext(
     val name: String = "",
@@ -384,3 +409,41 @@ data class BulkAssignResult(
     val verified: Boolean = false,
     val message: String = "",
 )
+
+data class TrainerIndexCriteriaDto(
+    val s_no: Int = 0,
+    val criteria: String = "",
+    val raw_value: String = "",
+    val remarks: String = "",
+    val weightage: String = "",
+    val capping: String = "",
+    val points: Double = 0.0,
+)
+
+data class TrainerIndexDto(
+    val email: String = "",
+    val name: String = "",
+    val total_score: Double = 0.0,
+    val tier: String = "",
+    val tier_badge: String = "",
+    val tier_level: Int = 0,
+    val tier_description: String = "",
+    val is_fde_qualified: Boolean = false,
+    val utilization_pts: Double = 0.0,
+    val quality_pts: Double = 0.0,
+    val beast_ai_pts: Double = 0.0,
+    val certifications_pts: Double = 0.0,
+    val instructor_pts: Double = 0.0,
+    val knowledge_sharing_pts: Double = 0.0,
+    val deductions_pts: Double = 0.0,
+    val criteria: List<TrainerIndexCriteriaDto> = emptyList(),
+)
+
+data class TrainerIndexResponseDto(
+    val email: String = "",
+    val name: String = "",
+    val month: String = "",
+    val trainer_index: TrainerIndexDto = TrainerIndexDto(),
+    val timestamp: String = "",
+)
+

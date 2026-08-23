@@ -1,4 +1,128 @@
 
+## 2026-08-23T05:50:00+01:00 - Auto Tall 9-Update Allocation Engine Implementation & Auditable Candidate Pipeline (v3.30.0 / Build 113)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Python/Flask, pytest, Kotlin/Compose, Gradle)
+- **Files Modified**:
+  - `backend.py`
+  - `tests/test_auto_tall_policy.py` (new)
+  - `SkillEdge_Android/app/build.gradle.kts`
+  - `AI/PROGRESS.md`
+  - `AI/CONTEXT.md`
+- **Work Completed**:
+  1. **Auto Tall 9-Update Allocation Intelligence Pipeline (`backend.py`)**:
+     - **Rule 1 & 8 (14 Aug / 27 Jul 2026)**: Implemented **Certified Trainer Mock Waiver** in `evaluate_candidate`. Certified trainers are never filtered out or blocked for missing mock records on first-time deliveries; uncertified trainers are audited with clear gates (`mock_missing` or `mock_rating`).
+     - **Rule 2 (12 Aug 2026)**: Implemented **Post-Cancellation Priority Slot** (+20 fit contribution) for trainers whose batch was cancelled by client within trailing 14 days.
+     - **Rule 3 (05 Aug 2026)**: Implemented **6-Month Clean-Record Soft Preference** (+8 fit points for 0 negative feedback; -5 soft preference for recent feedback) across candidate ranking.
+     - **Rule 4 (30 Jul 2026)**: Enforced **Least-Skill Neutrality** for Additional Trainer and Chat Moderator roles.
+     - **Rule 5 (30 Jul 2026)**: Implemented **Pre-Sales Tech Call Trainer Continuity Preference** (+25 fit points) for the trainer who conducted client conversion call.
+     - **Rule 6 (27 Jul 2026)**: Verified complete elimination of the legacy 4-Day Free condition — evaluations check exact target date availability.
+     - **Rule 7 (27 Jul 2026)**: Verified Qubits and QI Category removal from allocation sorting and tie-breaking.
+     - **Rule 9 (27 Jul 2026)**: Verified OEM / Vendor display hierarchy above Course Name in batch metadata and allocation responses.
+  2. **Comprehensive Test Suite & Validation**:
+     - Added `tests/test_auto_tall_policy.py` testing certified mock waivers, uncertified mock gates, cancellation priorities, clean record soft-preferences, and tech call continuity.
+     - Full Pytest Suite: **157 / 157 passed (100% green)**.
+  3. **Version Bump**:
+     - Incremented Android app version to **3.30.0** (Build `113`).
+- **Current Project State**: All tests green. Production release build v3.30.0 (Build 113) validated and ready.
+- **Handover for Next Session**: Complete 9-update Auto Tall batch allocation engine active across candidate ranking, suitability scoring, and gating checks.
+
+## 2026-08-23T05:45:00+01:00 - Koenig HR Trainer Index (TI – 13/08/26) 20-Criteria Engine & Reportee Standing System (v3.29.0 / Build 112)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Python/Flask, pytest, Kotlin/Compose, Gradle)
+- **Files Modified**:
+  - `backend.py`
+  - `tests/test_v2_trainer_index.py` (new)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/HrMonthlyReportViewModel.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/HrMonthlyReportScreen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/trainer/Trainer360Screen.kt`
+  - `SkillEdge_Android/app/build.gradle.kts`
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Koenig HR Trainer Index Engine (`backend.py`)**:
+     - Built `_calculate_trainer_index(...)` strictly following the official Koenig HR Policy Circular (TI – 13/08/26) across all 20 weighted pillars:
+       1. **Utilization**: Max 15% non-SC; 10 pts per 1% >60%, -10 pts per 1% <60%, +50 pts bonus for all quarters >60%, -25 pts per quarter <60% (Cap: 550 pts).
+       2. **Beast AI Delivery**: 10 pts per Beast AI delivery, 20 pts per SaaS delivery (Cap: 200 pts); qualifies for *Forward Deployed Engineer (FDE)* designation at >= 10 SaaS deliveries.
+       3. **Quality Index (QI)**: 2.5 pts per 1.0 QI point (Cap: 300 pts).
+       4. **Knowledge Sharing**: 5 pts per TBT & Mock, 10 pts per Internal Training (Cap: 100 pts).
+       5. **1st Time Course / Cert**: 20 pts per first-time delivery or certified delivery (Cap: 200 pts).
+       6. **Auto-Resume Certifications (AI Difficulty)**: Easy = 1 pt, Moderate = 3 pts, Hard = 5 pts (Cap: 200 pts).
+       7. **Roaming Hours L12M**: 0.75 pts per hour (Cap: 100 pts).
+       8. **Night ILO Hours L12M**: 0.25 pts per hour for deliveries between 9:01 PM and 6:59 AM (Cap: 100 pts).
+       9. **HR Incidents & Audits**: +10 pts positive recognition, -20 pts negative incident.
+       10. **Instructor Certifications**: 100 pts for premier (AAI, CCSI, VCI, RHCI), 20 pts for others (MCT, CTT+) (Cap: 200 pts).
+       11. **Trainer Developed**: 50 pts per mentee/trainer developed (Cap: 500 pts).
+       12. **Customer Orientation**: Sales rating score * 16 (Cap: 400 pts).
+       13. **Solution Selling**: 50 pts per solution designed (Cap: 100 pts).
+       14. **Skill Takeover**: 10 pts per resigned trainer skill taken over prior to LWD (Cap: 100 pts).
+       15. **-ve Feedback**: -100 pts deduction per negative assignment.
+       16. **Centre Improvements**: +10 pts per center issue reported.
+       17. **Tech Call Conversion**: 20 pts per call converted.
+       18. **Tenure with Koenig**: 0.2 pts per completed month (Cap: 50 pts).
+       19. **Prior Experience**: 0.1 pts per month prior to Koenig (Cap: 50 pts).
+       20. **Overseas Visa Commitment**: 100 pts if commitment valid >= 3 months.
+     - Implemented 5 standing tiers:
+       - `👑 Tier 1: Diamond` (TI ≥ 1200) — Elite Global Deployable Lead
+       - `⭐ Tier 2: Platinum` (TI 900–1199) — Strong Performer / Multi-Domain Lead
+       - `🔷 Tier 3: Gold` (TI 600–899) — Core Delivery / Steady Anchor
+       - `🔶 Tier 4: Silver` (TI 300–599) — Developing / Upskilling Focus
+       - `⚠️ Tier 5: Bronze` (TI < 300) — At Risk / Quality & Util Recovery
+     - Added `GET /api/v2/trainer/trainer-index` endpoint and enriched `GET /api/v2/hr/monthly-report`.
+  2. **Android UI & Data Layer Integration**:
+     - Added `TrainerIndexDto` and `getTrainerIndex` in `SkillEdgeApi.kt`.
+     - Extended `ReporteeSnapshot` & `HrMonthlyReportViewModel.kt` with `TrainerIndexSummary` and `TrainerIndexCriteria`.
+     - Updated `HrMonthlyReportScreen.kt` with TI score chips, category summary cards, and integrated text copy/share exports.
+     - Implemented interactive `TrainerIndexCard` and full 20-criteria bottom sheet in `Trainer360Screen.kt` (Performance tab).
+  3. **Build & Quality Assurance**:
+     - Incremented version to `3.29.0` (Build `112`) in `app/build.gradle.kts`.
+     - Backend tests: 153 / 153 passing (100% green).
+     - Android unit tests: 147 / 147 passing (100% green).
+- **Current Project State**: All tests green. Production release build v3.29.0 (Build 112) validated and ready.
+- **Handover for Next Session**: Complete 20-criteria HR Trainer Index calculation engine and standing visibility deployed across backend and Android UI.
+
+## 2026-08-23T05:30:00+01:00 - Multi-Dimensional Managerial Evaluation & Coaching System: 3-Part Feedback, Mock Trajectory & Weekly Standpoint (v3.28.0 / Build 111)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Python/Flask, pytest, Kotlin/Compose, Gradle)
+- **Files Modified**:
+  - `backend.py`
+  - `tests/test_v2_evaluations.py` (new)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/HrMonthlyReportViewModel.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/HrMonthlyReportScreen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/WeeklyMessage.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/WeeklyReportScreen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/trainer/Trainer360Screen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/Version2Workspaces.kt`
+  - `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/WeeklyMessageTest.kt`
+  - `SkillEdge_Android/app/build.gradle.kts`
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Multi-Dimensional Manager Evaluation Engine (`backend.py`)**:
+     - Engineered `_generate_manager_evaluation(...)` combining Qubits metrics, mock session pacing/composure signals, unscripted Q&A resilience, demo narration structure (`Goal → Steps → Verify`), terminology pronunciation, positive HR awards, customer complaint histories, and active certification gaps.
+     - Formats monthly feedback into three strict executive sections:
+       - **Strength**: Highlighting theoretical grounding, pacing improvements, reduction in panic/breakdown moments, and topic familiarity.
+       - **Area of Improvement**: Sharpness of definitions, unscripted question composure, demo narration flow (`Goal → Steps → Verify`), active audience comprehension checks, and certification gaps.
+       - **Other Feedback / Manager's Verdict**: Assigning trajectory classification (`High Performer`, `Improving`, `In Transition`, `Needs Coaching`, `Bench Upskilling`) and concrete milestones.
+     - Enriched `GET /api/v2/hr/monthly-report` and added `GET /api/v2/trainer/evaluation` endpoints.
+  2. **Android HR Monthly Report Screen Enhancement**:
+     - Extended `ReporteeSnapshot` and `HrMonthlyReportViewModel.kt` to parse `structured_feedback` and trajectory fields.
+     - Enhanced `ReporteeSnapshotCard` in `HrMonthlyReportScreen.kt` with trajectory badges, three distinct colored evaluation cards (🟢 Strength, 🟠 Area of Improvement, 🔵 Manager's Verdict), and 1-tap "Copy Feedback" / "Share Review" actions.
+  3. **Weekly Manager Standpoint ("Where You Stand") System**:
+     - Added `composeManagerStandpointNote(signals, style)` in `WeeklyMessage.kt` generating structured weekly Standpoint, Mock/Readiness metrics, Immediate Focus, and Demo Flow guidance.
+     - Updated `WeeklyReportScreen.kt` with interactive switcher between `[ Weekly Message ]` and `[ Manager Standpoint ]` with 1-tap copy/send.
+  4. **Trainer 360 Growth & Evaluation Integration**:
+     - Added `ManagerEvaluationCard` to tab 2 ("Performance") in `Trainer360Screen.kt` displaying full 3-part coaching feedback with copy and share intents.
+  5. **Build & Quality Assurance**:
+     - Incremented Android version to `3.28.0` (Build `111`).
+     - Backend tests: 150 / 150 passing (100% green).
+     - Android unit tests: 147 / 147 passing (100% green).
+     - Android debug APK build: `assembleDebug` completed successfully.
+- **Current Project State**: All tests green. Production release build v3.28.0 (Build 111) validated and ready.
+- **Handover for Next Session**: Multi-Dimensional Managerial Evaluation system is fully deployed across backend synthesis engine, HR monthly report, weekly managerial standpoint notes, and Trainer 360 profile screens.
+
 ## 2026-08-23T04:45:00+01:00 - Full Makeover Across All Navigation Pages: Delivery Ops Calendar, Universal Command Search, Batch Outlines & Network Staffing (v3.27.0 / Build 110)
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)

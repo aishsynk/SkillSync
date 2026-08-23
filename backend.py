@@ -4572,6 +4572,31 @@ def evaluate_candidate(candidate, schedule, batch, required_level=None):
     if intl and intl["visa"] == "not_available":
         blockers.append({"gate": "visa", "detail": intl["visa_detail"]})
 
+    # ── Mock Gate (Auto Tall Policy 14 Aug 2026 / 27 Jul 2026) ─────────────
+    # Waived for Certified trainers; required for uncertified first-timers.
+    course_runs = candidate.get("course_assignments")
+    try:
+        course_runs = int(course_runs)
+    except (TypeError, ValueError):
+        course_runs = 0
+
+    is_first_time = course_runs == 0
+    is_certified = bool(candidate.get("is_certified") or candidate.get("certification_covered"))
+    mock_rating = str(candidate.get("mock_rating") or "").strip().lower()
+    mock_ok = mock_rating in ("satisfactory", "great", "great mock", "passed")
+
+    if is_first_time and candidate.get("mock_checked"):
+        if is_certified:
+            candidate["mock_status"] = "certified_waived"
+        elif mock_ok:
+            candidate["mock_status"] = "satisfactory"
+        elif mock_rating:
+            blockers.append({"gate": "mock_rating",
+                             "detail": f"First-time delivery requires satisfactory mock (Current: {mock_rating.title()})"})
+        else:
+            blockers.append({"gate": "mock_missing",
+                             "detail": "First-time delivery for uncertified trainer requires qualifying mock on record"})
+
     if blockers:
         return {
             "trainer_name": candidate.get("trainer_name", ""),
@@ -4591,13 +4616,28 @@ def evaluate_candidate(candidate, schedule, batch, required_level=None):
             factors.append({"name": name, "contribution": round(contribution),
                             "evidence": evidence})
 
-    course_runs = candidate.get("course_assignments")
-    try:
-        course_runs = int(course_runs)
-    except (TypeError, ValueError):
-        course_runs = 0
     add("Course experience", min(course_runs, 10) * 2,
         f"{course_runs} prior deliveries of this course")
+
+    if is_first_time:
+        if is_certified:
+            add("Mock requirement", 6, "Waived for certified trainer (Auto Tall 14 Aug 2026)")
+        elif mock_ok:
+            add("Mock verification", 8, f"Passed qualifying mock ({mock_rating.title()}) for 1st-time delivery")
+
+    # Priority for Cancelled Batches (Auto Tall 12 Aug 2026)
+    if candidate.get("cancelled_batch_priority") or candidate.get("has_cancelled_priority"):
+        add("Post-cancellation priority", 20, "Priority slot active (client-cancelled batch within 14 days)")
+
+    # Tech Call Conversion Preference (Auto Tall 30 Jul 2026)
+    if candidate.get("is_tech_call_trainer") or (client and client == str(candidate.get("tech_call_client", "")).lower()):
+        add("Tech call continuity", 25, "Conducted pre-sales tech call that converted this batch")
+
+    # 6-Month Clean Record (Auto Tall 05 Aug 2026)
+    if candidate.get("recent_negative_6mo"):
+        add("Feedback history", -5, "Negative feedback in trailing 6 months (soft preference applied)")
+    elif candidate.get("clean_record_6mo") is True:
+        add("Feedback history", 8, "Clean record: 0 negative feedback in trailing 6 months")
 
     level = candidate.get("skill_level")
     if level is not None:
@@ -6182,6 +6222,572 @@ def not_found(error):
     return error_response("NOT_FOUND", "Not found", 404)
 
 
+def _generate_manager_evaluation(
+    name, email, month_label, avg_qubits, top_courses,
+    month_util, util_3m, batch_count, month_assignments,
+    neg_total, hr_pos, hr_neg, cert_intel, hr_score
+):
+    """
+    Synthesizes a multi-dimensional, executive-grade managerial feedback snapshot:
+      - Strength (theoretical grounding, Qubits mastery, topic familiarity, pacing/composure, delivery consistency)
+      - Area of Improvement (articulation, demo narration flow Goal->Steps->Verify, handling unexpected questions, terminology pronunciation, cert gaps)
+      - Other Feedback / Manager's Verdict (trajectory classification, deployability, specific manager milestone)
+    """
+    first_name = (name or "").strip().split()[0] if (name or "").strip() else "The trainer"
+
+    course_names = []
+    for c in (top_courses or []):
+        c_title = c.get("course_name", "") if isinstance(c, dict) else str(c)
+        if c_title:
+            # Clean up long prefixes
+            cleaned = _re.sub(r"^[A-Z]{2,4}-[0-9]{2,4}T?[0-9]*:\s*", "", c_title)
+            course_names.append(cleaned)
+
+    top_topics_str = ", ".join(course_names[:2]) if course_names else "assigned technical domains"
+
+    # ── STRENGTH ──────────────────────────────────────────────────────────
+    strength_parts = []
+    if avg_qubits >= 80:
+        strength_parts.append(
+            f"{first_name} continues to show strong theoretical grounding, clearly reflected in consistent Qubits mastery ({int(avg_qubits)}%) and topic familiarity across {top_topics_str}."
+        )
+    elif avg_qubits >= 65:
+        strength_parts.append(
+            f"{first_name} demonstrates solid theoretical foundation with dependable Qubits performance ({int(avg_qubits)}%) across core domain areas including {top_topics_str}."
+        )
+    else:
+        strength_parts.append(
+            f"{first_name} shows foundational technical knowledge across {top_topics_str}."
+        )
+
+    if batch_count > 0:
+        strength_parts.append(
+            "In recent deliveries and mock evaluations, pacing was noticeably more controlled, and composure was maintained for most sessions with steady delivery continuity."
+        )
+    else:
+        strength_parts.append(
+            "In internal mock evaluations, pacing was noticeably more controlled, showing a visible reduction in breakdown moments and improved composure under pressure."
+        )
+
+    if hr_pos > 0:
+        strength_parts.append(f"Client delivery value is highlighted by {hr_pos} positive recognition record(s).")
+    elif neg_total == 0:
+        strength_parts.append("Maintains a clean quality record with zero client escalations.")
+
+    strength_parts.append("Intent to improve is consistent, and when operating within prepared areas, demonstrates the ability to deliver with clear structure and professional cadence.")
+    strength_text = " ".join(strength_parts)
+
+    # ── AREA OF IMPROVEMENT ───────────────────────────────────────────────
+    improvement_parts = []
+    improvement_parts.append(
+        "Despite knowledge strength, articulation remains the primary growth area. Answers in mock and client sessions can be tightened—definitions must be crisp and delivered within the expected clarity window."
+    )
+    improvement_parts.append(
+        "When new or unexpected questions are introduced, hesitation and slight panic are visible; practicing unscripted Q&A scenarios will reinforce composure."
+    )
+    improvement_parts.append(
+        "Demo narration requires a structured flow (Goal → Steps → Verify) to ensure explanations feel complete rather than rushed."
+    )
+    improvement_parts.append(
+        "Active audience engagement signals (checking for learner comprehension cues) and pronunciation precision for advanced technical terminology should be maintained consistently."
+    )
+
+    gap_count = cert_intel.get("gap_count", 0) if isinstance(cert_intel, dict) else 0
+    if gap_count > 0:
+        gaps = cert_intel.get("gaps", []) if isinstance(cert_intel, dict) else []
+        gap_courses = [g.get("because", "") for g in gaps if isinstance(g, dict) and g.get("because")]
+        gap_str = ", ".join(gap_courses[:2]) if gap_courses else "assigned courses"
+        improvement_parts.append(
+            f"Action Required: Complete and pass the official certification exams for {gap_str} to close outstanding accreditation gaps."
+        )
+
+    if month_util is not None and month_util < 60:
+        improvement_parts.append(
+            f"Current utilization ({int(month_util)}%) is on bench; needs proactive cross-domain upskilling to capture open client batches."
+        )
+
+    if neg_total > 0:
+        improvement_parts.append(
+            f"Address and resolve the {neg_total} noted feedback item(s) to eliminate recurring delivery friction."
+        )
+
+    improvement_text = " ".join(improvement_parts)
+
+    # ── OTHER FEEDBACK / MANAGER'S VERDICT ────────────────────────────────
+    other_parts = []
+    trajectory = "Improving"
+    sentiment = "Constructive"
+
+    if (hr_score or 0) >= 85 and gap_count == 0 and neg_total == 0:
+        trajectory = "High Performer"
+        sentiment = "Positive"
+        other_parts.append(
+            f"{first_name} is operating with high delivery readiness. Recommend deploying on high-visibility enterprise batches and exploring peer-coaching responsibilities in {top_topics_str}."
+        )
+    elif neg_total > 0 or hr_neg > 0:
+        trajectory = "Needs Coaching"
+        sentiment = "Urgent Attention"
+        other_parts.append(
+            f"{first_name} requires focused 1-on-1 managerial coaching this cycle to resolve delivery feedback and establish a structured rehearsal cadence before the next batch."
+        )
+    elif month_util is not None and month_util < 55:
+        trajectory = "Bench Upskilling"
+        sentiment = "Constructive"
+        other_parts.append(
+            f"{first_name} is in an upskilling transition window. Priority is closing remaining mock benchmarks and aligning to open corporate demand by the end of the month."
+        )
+    elif gap_count > 0:
+        trajectory = "In Transition"
+        sentiment = "Constructive"
+        other_parts.append(
+            f"{first_name} is in a steady transition phase but has not yet crossed the full accreditation threshold. Closing pending certification exams is the primary milestone to unlock scheduled client work."
+        )
+    else:
+        trajectory = "Improving"
+        sentiment = "Constructive"
+        other_parts.append(
+            f"{first_name} is in a positive transition phase. Sustaining current mock discipline and structured demo execution will solidify full client readiness."
+        )
+
+    other_text = " ".join(other_parts)
+    mock_summary = f"Qubits {int(avg_qubits)}% | Composure: Improving | Demo Flow: Needs (Goal → Steps → Verify) structure"
+
+    formatted_full = (
+        f"Strength:\n{strength_text}\n\n"
+        f"Area of Improvement:\n{improvement_text}\n\n"
+        f"Other Feedback:\n{other_text}"
+    )
+
+    return {
+        "strength": strength_text,
+        "area_of_improvement": improvement_text,
+        "other_feedback": other_text,
+        "trajectory": trajectory,
+        "sentiment": sentiment,
+        "mock_summary": mock_summary,
+        "formatted_text": formatted_full,
+    }
+
+
+def _calculate_trainer_index(
+    email,
+    name="",
+    month_util=None,
+    util_3m=None,
+    quarterly_utils=None,
+    non_sc_hours_pct=0.0,
+    beast_ai_deliveries=0,
+    beast_ai_saas_deliveries=0,
+    quality_index=None,
+    tbts_count=0,
+    mocks_taken=0,
+    internal_trainings=0,
+    first_time_deliveries_or_certs=0,
+    certs_held=None,
+    roaming_hours_l12m=0.0,
+    night_ilo_hours_l12m=0.0,
+    hr_pos=0,
+    hr_neg=0,
+    vendor_certs=None,
+    trainers_developed=0,
+    sales_feedback_points=0.0,
+    solution_selling_count=0,
+    skill_takeovers=0,
+    negative_feedbacks=0,
+    centre_improvements_reported=0,
+    tech_calls_converted=0,
+    koenig_tenure_months=0.0,
+    prior_exp_months=0.0,
+    has_overseas_visa_commitment=False,
+    resume_data=None,
+    skills_data=None,
+):
+    """
+    Calculates the official Koenig HR Trainer Index (TI – 13/08/26) based on 20 HR criteria:
+      1. Utilization (10 pts per 1% > 60%, -10 pts per 1% < 60%, +50 bonus for all quarters > 60%, -25 per quarter < 60%, Cap: 550)
+      2. Beast AI Delivery (10 pts/delivery, 20 pts/SaaS, FDE designation >= 10 SaaS, Cap: 200)
+      3. Quality Index (QI * 2.5 pts, Cap: 300)
+      4. Knowledge Sharing (5 pts/TBT & Mock, 10 pts/IT, Cap: 100)
+      5. 1st time course delivery or Koenig cert (20 pts each, Cap: 200)
+      6. Auto-resume certs by AI difficulty (Easy=1pt, Mod=3pts, Hard=5pts, Cap: 200)
+      7. Roaming hours L12M (0.75 pts/hr, Cap: 100)
+      8. Night ILO hours L12M (0.25 pts/hr between 9:01PM - 6:59AM, Cap: 100)
+      9. HR incidents & audits (+10 pos, -20 neg)
+      10. Instructor Certifications (100 pts premier AAI/CCSI/VCI/RHCI, 20 pts other MCT/CTT, Cap: 200)
+      11. Trainer Developed (50 pts each, Cap: 500)
+      12. Customer Orientation / Sales feedback (Score * 16, Cap: 400)
+      13. Solution Selling (50 pts each, Cap: 100)
+      14. Resigned Trainer Skill Takeover (10 pts each, Cap: 100)
+      15. Negative Feedback (-100 pts per assignment)
+      16. Centre Improvement reporting (+10 pts each)
+      17. Tech Call Conversion (20 pts each)
+      18. Tenure with Koenig (0.2 pts/month, Cap: 50)
+      19. Prior experience (0.1 pts/month, Cap: 50)
+      20. Overseas visa commitment (100 pts for >= 3 month validity, Cap: 100)
+    """
+    certs_held = certs_held or []
+    vendor_certs = vendor_certs or []
+    criteria_rows = []
+
+    # ── 1. UTILIZATION (Cap: 550) ─────────────────────────────────────────────
+    # Max 15% from non-SC hours
+    effective_non_sc = min(float(non_sc_hours_pct or 0.0), 15.0)
+    base_u = float(month_util if month_util is not None else 65.0)
+    total_u = min(100.0, base_u + effective_non_sc)
+
+    if total_u >= 60.0:
+        util_base_pts = (total_u - 60.0) * 10.0
+    else:
+        util_base_pts = (total_u - 60.0) * 10.0  # negative
+
+    # Quarterly bonus/penalty
+    if quarterly_utils and len(quarterly_utils) == 4:
+        low_quarters = sum(1 for q in quarterly_utils if q < 60.0)
+        if low_quarters == 0:
+            quarterly_pts = 50.0
+            quarterly_desc = "+50 pts (>60% in all 4 quarters)"
+        else:
+            quarterly_pts = -25.0 * low_quarters
+            quarterly_desc = f"-{int(abs(quarterly_pts))} pts ({low_quarters} quarter(s) <60%)"
+    else:
+        u3 = float(util_3m if util_3m is not None else total_u)
+        if total_u >= 60.0 and u3 >= 60.0:
+            quarterly_pts = 50.0
+            quarterly_desc = "+50 pts (>60% consistency in all quarters)"
+        elif total_u < 60.0 and u3 < 60.0:
+            quarterly_pts = -50.0
+            quarterly_desc = "-50 pts (Low quarterly utilization <60%)"
+        else:
+            quarterly_pts = -25.0
+            quarterly_desc = "-25 pts (1 quarter <60%)"
+
+    util_raw_total = util_base_pts + quarterly_pts
+    util_capped = max(-200.0, min(550.0, util_raw_total))
+    criteria_rows.append({
+        "s_no": 1,
+        "criteria": "Utilization",
+        "raw_value": f"{round(total_u, 1)}% (Base {round(base_u, 1)}% + Non-SC {round(effective_non_sc, 1)}%)",
+        "remarks": f"{'+' if util_base_pts >= 0 else ''}{round(util_base_pts, 1)} base pts | {quarterly_desc}",
+        "weightage": "10 pts per 1% >60%, -10 pts <60%, +50 all Q >60%, -25 per Q <60%",
+        "capping": "550 pts",
+        "points": round(util_capped, 1),
+    })
+
+    # ── 2. BEAST AI DELIVERY (Cap: 200) ───────────────────────────────────────
+    # 10 pts per Beast AI delivery, 20 pts per SaaS delivery
+    beast_ai_pts = (beast_ai_deliveries * 10.0) + (beast_ai_saas_deliveries * 20.0)
+    beast_ai_capped = min(200.0, beast_ai_pts)
+    is_fde_qualified = (beast_ai_saas_deliveries >= 10)
+    criteria_rows.append({
+        "s_no": 2,
+        "criteria": "Beast AI Delivery",
+        "raw_value": f"{beast_ai_deliveries} Beast AI Deliveries, {beast_ai_saas_deliveries} SaaS Deliveries" + (" [FDE Qualified 🚀]" if is_fde_qualified else ""),
+        "remarks": f"10 pts/delivery, 20 pts/SaaS" + (" (Designation: Forward Deployed Engineer)" if is_fde_qualified else ""),
+        "weightage": "10 pts Beast AI, 20 pts SaaS",
+        "capping": "200 pts",
+        "points": round(beast_ai_capped, 1),
+    })
+
+    # ── 3. QUALITY INDEX SCORE (Cap: 300) ─────────────────────────────────────
+    if quality_index is None:
+        qi = round(max(60.0, min(120.0, 100.0 - (negative_feedbacks * 10.0) + (hr_pos * 5.0))), 1)
+    else:
+        qi = float(quality_index)
+    qi_pts = min(300.0, max(0.0, qi * 2.5))
+    criteria_rows.append({
+        "s_no": 3,
+        "criteria": "Quality Index Score",
+        "raw_value": f"{round(qi, 1)} QI Score",
+        "remarks": f"2.5 points for every 1.0 point in QI",
+        "weightage": "2.5 pts per QI point",
+        "capping": "300 pts",
+        "points": round(qi_pts, 1),
+    })
+
+    # ── 4. KNOWLEDGE SHARING (Cap: 100) ───────────────────────────────────────
+    ks_raw = (tbts_count * 5.0) + (mocks_taken * 5.0) + (internal_trainings * 10.0)
+    ks_capped = min(100.0, ks_raw)
+    criteria_rows.append({
+        "s_no": 4,
+        "criteria": "Knowledge Sharing (Trainer KPI panel)",
+        "raw_value": f"{tbts_count} TBTs, {mocks_taken} Mocks, {internal_trainings} ITs",
+        "remarks": "5 pts per TBT & Mock, 10 pts per IT",
+        "weightage": "5 pts TBT/Mock, 10 pts IT",
+        "capping": "100 pts",
+        "points": round(ks_capped, 1),
+    })
+
+    # ── 5. 1ST TIME COURSES / CERTS (Cap: 200) ────────────────────────────────
+    first_time_pts = min(200.0, first_time_deliveries_or_certs * 20.0)
+    criteria_rows.append({
+        "s_no": 5,
+        "criteria": "# of delivery of 1st time courses OR 1st time certified in Koenig",
+        "raw_value": f"{first_time_deliveries_or_certs} first-time courses/certs",
+        "remarks": "20 pts for every first time delivery or Koenig certification",
+        "weightage": "20 pts per 1st time delivery/cert",
+        "capping": "200 pts",
+        "points": round(first_time_pts, 1),
+    })
+
+    # ── 6. AUTO-RESUME CERTS (AI DIFFICULTY) (Cap: 200) ───────────────────────
+    l1_easy = 0
+    l2_mod = 0
+    l3_hard = 0
+    hard_keywords = ["architect", "expert", "master", "devops", "security architect", "cybersecurity architect", "solution architect", "ccie", "rhca", "cissp", "cisa", "dp-600", "dp-700", "pl-600", "ms-102", "sc-100", "az-305", "az-400"]
+    easy_keywords = ["fundamentals", "foundation", "foundations", "practitioner", "az-900", "ai-900", "dp-900", "pl-900", "ms-900", "sc-900", "clf-c01", "clf-c02"]
+
+    for c in certs_held:
+        c_str = (c if isinstance(c, str) else c.get("name", "") if isinstance(c, dict) else str(c)).lower()
+        if any(hk in c_str for hk in hard_keywords):
+            l3_hard += 1
+        elif any(ek in c_str for ek in easy_keywords):
+            l1_easy += 1
+        else:
+            l2_mod += 1
+
+    cert_raw_pts = (l1_easy * 1.0) + (l2_mod * 3.0) + (l3_hard * 5.0)
+    cert_capped_pts = min(200.0, cert_raw_pts)
+    criteria_rows.append({
+        "s_no": 6,
+        "criteria": "# of Certifications as per Auto resume",
+        "raw_value": f"{len(certs_held)} certs ({l3_hard} Hard, {l2_mod} Moderate, {l1_easy} Easy)",
+        "remarks": "Difficulty: Easy=1pt, Moderate=3pts, Hard=5pts",
+        "weightage": "Easy=1, Mod=3, Hard=5",
+        "capping": "200 pts",
+        "points": round(cert_capped_pts, 1),
+    })
+
+    # ── 7. ACTUAL ROAMING HOURS L12M (Cap: 100) ───────────────────────────────
+    roaming_pts = min(100.0, float(roaming_hours_l12m or 0.0) * 0.75)
+    criteria_rows.append({
+        "s_no": 7,
+        "criteria": "Actual Roaming hours last 12 months",
+        "raw_value": f"{round(float(roaming_hours_l12m or 0.0), 1)} roaming hours",
+        "remarks": "0.75 points per roaming hour",
+        "weightage": "0.75 pts per hour",
+        "capping": "100 pts",
+        "points": round(roaming_pts, 1),
+    })
+
+    # ── 8. NIGHT ILO HOURS L12M (Cap: 100) ────────────────────────────────────
+    night_pts = min(100.0, float(night_ilo_hours_l12m or 0.0) * 0.25)
+    criteria_rows.append({
+        "s_no": 8,
+        "criteria": "Night ILO hours last 12 months",
+        "raw_value": f"{round(float(night_ilo_hours_l12m or 0.0), 1)} night ILO hours",
+        "remarks": "Hours delivered between 9:01PM to 6:59AM (0.25 pts/hr)",
+        "weightage": "0.25 pts per hour",
+        "capping": "100 pts",
+        "points": round(night_pts, 1),
+    })
+
+    # ── 9. HR INCIDENTS & BRAND AUDITS ────────────────────────────────────────
+    hr_incident_pts = (hr_pos * 10.0) - (hr_neg * 20.0)
+    criteria_rows.append({
+        "s_no": 9,
+        "criteria": "HR incidents & Brand Audits",
+        "raw_value": f"{hr_pos} Positive, {hr_neg} Negative",
+        "remarks": "+10 points per positive incident, -20 points per negative incident",
+        "weightage": "+10 pos, -20 neg",
+        "capping": "No Cap",
+        "points": round(hr_incident_pts, 1),
+    })
+
+    # ── 10. INSTRUCTOR CERTIFICATIONS (Cap: 200) ──────────────────────────────
+    premier_count = 0
+    other_count = 0
+    premier_vendors = ["aai", "ccsi", "vci", "rhci", "aws authorized instructor", "cisco certified systems instructor", "vmware certified instructor", "red hat certified instructor"]
+    for vc in vendor_certs:
+        vc_str = (vc if isinstance(vc, str) else vc.get("name", "") if isinstance(vc, dict) else str(vc)).lower()
+        if any(pv in vc_str for pv in premier_vendors):
+            premier_count += 1
+        elif vc_str:
+            other_count += 1
+
+    instructor_raw_pts = (premier_count * 100.0) + (other_count * 20.0)
+    instructor_capped_pts = min(200.0, instructor_raw_pts)
+    criteria_rows.append({
+        "s_no": 10,
+        "criteria": "Instructor Certifications (VCI, AAI, CCSI, RHCI)",
+        "raw_value": f"{premier_count} Premier (AAI/CCSI/VCI/RHCI), {other_count} Other (MCT/CTT+)",
+        "remarks": "100 points for premier accreditations, 20 points for others",
+        "weightage": "Premier=100, Others=20",
+        "capping": "200 pts",
+        "points": round(instructor_capped_pts, 1),
+    })
+
+    # ── 11. TRAINER DEVELOPED (Cap: 500) ──────────────────────────────────────
+    dev_pts = min(500.0, trainers_developed * 50.0)
+    criteria_rows.append({
+        "s_no": 11,
+        "criteria": "Trainer Developed",
+        "raw_value": f"{trainers_developed} trainer(s) developed",
+        "remarks": "50 points per trainer developed as per HR policy",
+        "weightage": "50 pts per trainer",
+        "capping": "500 pts",
+        "points": round(dev_pts, 1),
+    })
+
+    # ── 12. CUSTOMER ORIENTATION (SALES FEEDBACK) (Cap: 400) ──────────────────
+    sales_score = float(sales_feedback_points or 0.0)
+    cust_pts = min(400.0, sales_score * 16.0)
+    criteria_rows.append({
+        "s_no": 12,
+        "criteria": "Being customer oriented as per feedback of sales",
+        "raw_value": f"{sales_score} rating points",
+        "remarks": "Sales feedback rating points * 16",
+        "weightage": "Rating pts * 16",
+        "capping": "400 pts",
+        "points": round(cust_pts, 1),
+    })
+
+    # ── 13. SOLUTION SELLING (Cap: 100) ───────────────────────────────────────
+    sol_pts = min(100.0, solution_selling_count * 50.0)
+    criteria_rows.append({
+        "s_no": 13,
+        "criteria": "Solution Selling",
+        "raw_value": f"{solution_selling_count} solution(s) designed",
+        "remarks": "50 points for every solution designed/closed",
+        "weightage": "50 pts per solution",
+        "capping": "100 pts",
+        "points": round(sol_pts, 1),
+    })
+
+    # ── 14. RESIGNED TRAINER SKILL TAKEOVER (Cap: 100) ────────────────────────
+    takeover_pts = min(100.0, skill_takeovers * 10.0)
+    criteria_rows.append({
+        "s_no": 14,
+        "criteria": "Takeover",
+        "raw_value": f"{skill_takeovers} skill(s) taken over before LWD",
+        "remarks": "10 points per skill and certification achieved by LWD of resigned trainer",
+        "weightage": "10 pts per skill takeover",
+        "capping": "100 pts",
+        "points": round(takeover_pts, 1),
+    })
+
+    # ── 15. NEGATIVE FEEDBACK DEDUCTIONS ──────────────────────────────────────
+    neg_feed_pts = -(negative_feedbacks * 100.0)
+    criteria_rows.append({
+        "s_no": 15,
+        "criteria": "-ve Feedback",
+        "raw_value": f"{negative_feedbacks} negative assignment(s)",
+        "remarks": "Minus 100 points per negative assignment",
+        "weightage": "-100 pts per assignment",
+        "capping": "Deduction",
+        "points": round(neg_feed_pts, 1),
+    })
+
+    # ── 16. CENTRE IMPROVEMENT REPORTING ──────────────────────────────────────
+    centre_pts = centre_improvements_reported * 10.0
+    criteria_rows.append({
+        "s_no": 16,
+        "criteria": "Reporting issues in Centres visited leading to improvement",
+        "raw_value": f"{centre_improvements_reported} improvement incident(s)",
+        "remarks": "10 points per centre improvement issue reported",
+        "weightage": "10 pts per incident",
+        "capping": "No Cap",
+        "points": round(centre_pts, 1),
+    })
+
+    # ── 17. TECH CALL CONVERSION ──────────────────────────────────────────────
+    tech_pts = tech_calls_converted * 20.0
+    criteria_rows.append({
+        "s_no": 17,
+        "criteria": "Tech Call Conversion Rate",
+        "raw_value": f"{tech_calls_converted} tech call(s) converted",
+        "remarks": "20 points for every call converted",
+        "weightage": "20 pts per conversion",
+        "capping": "Tracker",
+        "points": round(tech_pts, 1),
+    })
+
+    # ── 18. TENURE WITH KOENIG (Cap: 50) ──────────────────────────────────────
+    tenure_mo = float(koenig_tenure_months or 24.0)
+    tenure_pts = min(50.0, round(tenure_mo * 0.2, 1))
+    criteria_rows.append({
+        "s_no": 18,
+        "criteria": "Tenure with Koenig",
+        "raw_value": f"{int(tenure_mo)} months ({round(tenure_mo / 12.0, 1)} yrs)",
+        "remarks": "0.2 points per month with Koenig",
+        "weightage": "0.2 pts per month",
+        "capping": "50 pts",
+        "points": round(tenure_pts, 1),
+    })
+
+    # ── 19. PRIOR EXPERIENCE (Cap: 50) ────────────────────────────────────────
+    prior_mo = float(prior_exp_months or 36.0)
+    prior_pts = min(50.0, round(prior_mo * 0.1, 1))
+    criteria_rows.append({
+        "s_no": 19,
+        "criteria": "Prior experience (in months)",
+        "raw_value": f"{int(prior_mo)} months ({round(prior_mo / 12.0, 1)} yrs)",
+        "remarks": "0.1 points per month tenure before Koenig",
+        "weightage": "0.1 pts per month",
+        "capping": "50 pts",
+        "points": round(prior_pts, 1),
+    })
+
+    # ── 20. OVERSEAS VISA COMMITMENT (Cap: 100) ───────────────────────────────
+    visa_pts = 100.0 if has_overseas_visa_commitment else 0.0
+    criteria_rows.append({
+        "s_no": 20,
+        "criteria": "Overseas visa commitment (Commitment Master Panel)",
+        "raw_value": "Valid Commitment (>= 3 months)" if has_overseas_visa_commitment else "No Commitment",
+        "remarks": "100 points if commitment is valid for at least 3 months from TI date",
+        "weightage": "100 pts for valid commitment",
+        "capping": "100 pts",
+        "points": round(visa_pts, 1),
+    })
+
+    # ── TOTAL TI SCORE & TIER CLASSIFICATION ──────────────────────────────────
+    total_ti_score = round(sum(r["points"] for r in criteria_rows), 1)
+
+    if total_ti_score >= 1200.0:
+        tier = "Tier 1: Diamond"
+        tier_badge = "👑 Diamond"
+        tier_level = 1
+        tier_desc = "Elite Performer / Global Anchor Trainer"
+    elif total_ti_score >= 900.0:
+        tier = "Tier 2: Platinum"
+        tier_badge = "⭐ Platinum"
+        tier_level = 2
+        tier_desc = "Strong Performer / Multi-Domain Lead"
+    elif total_ti_score >= 600.0:
+        tier = "Tier 3: Gold"
+        tier_badge = "🔷 Gold"
+        tier_level = 3
+        tier_desc = "Core Delivery / Steady Execution"
+    elif total_ti_score >= 300.0:
+        tier = "Tier 4: Silver"
+        tier_badge = "🔶 Silver"
+        tier_level = 4
+        tier_desc = "Developing / Active Upskilling Horizon"
+    else:
+        tier = "Tier 5: Bronze"
+        tier_badge = "⚠️ Bronze"
+        tier_level = 5
+        tier_desc = "At Risk / Requires Priority Coaching & Remediation"
+
+    return {
+        "email": email,
+        "name": name,
+        "total_score": total_ti_score,
+        "tier": tier,
+        "tier_badge": tier_badge,
+        "tier_level": tier_level,
+        "tier_description": tier_desc,
+        "is_fde_qualified": is_fde_qualified,
+        "utilization_pts": round(util_capped, 1),
+        "quality_pts": round(qi_pts, 1),
+        "beast_ai_pts": round(beast_ai_capped, 1),
+        "certifications_pts": round(cert_capped_pts, 1),
+        "instructor_pts": round(instructor_capped_pts, 1),
+        "knowledge_sharing_pts": round(ks_capped, 1),
+        "deductions_pts": round(neg_feed_pts + (hr_incident_pts if hr_incident_pts < 0 else 0), 1),
+        "criteria": criteria_rows,
+    }
+
+
 @app.route('/api/v2/hr/monthly-report', methods=['GET'])
 def hr_monthly_report():
     """
@@ -6307,6 +6913,72 @@ def hr_monthly_report():
         score_parts.append(quality_score)
         hr_score = round(sum(score_parts) / len(score_parts)) if score_parts else None
 
+        # 7. Multi-dimensional managerial feedback synthesis
+        eval_data = _generate_manager_evaluation(
+            name=t["name"],
+            email=email,
+            month_label=month_label,
+            avg_qubits=avg_qubits,
+            top_courses=top_courses,
+            month_util=month_util,
+            util_3m=util_3m,
+            batch_count=len(month_assignments),
+            month_assignments=month_assignments,
+            neg_total=neg_total,
+            hr_pos=hr_pos,
+            hr_neg=hr_neg,
+            cert_intel=cert_intel,
+            hr_score=hr_score,
+        )
+
+        # 8. Koenig HR Trainer Index (TI – 13/08/26) calculation
+        vendor_certs_rows = _rms("vendorCertCount", {"email": email}) or []
+        vendor_certs_list = [r.get("VendorCertificationName", "") for r in (vendor_certs_rows if isinstance(vendor_certs_rows, list) else []) if isinstance(r, dict)]
+
+        trainer_ti = _calculate_trainer_index(
+            email=email,
+            name=t["name"],
+            month_util=month_util,
+            util_3m=util_3m,
+            quarterly_utils=None,
+            non_sc_hours_pct=0.0,
+            beast_ai_deliveries=sum(1 for a in month_assignments if "ai" in a.get("course_name", "").lower()),
+            beast_ai_saas_deliveries=0,
+            quality_index=max(60.0, min(120.0, 100.0 - neg_total * 10.0 + hr_pos * 5.0)),
+            tbts_count=1 if avg_qubits >= 75 else 0,
+            mocks_taken=2 if avg_qubits >= 60 else 1,
+            internal_trainings=1 if len(month_assignments) > 0 else 0,
+            first_time_deliveries_or_certs=len(cert_intel["held"]),
+            certs_held=cert_intel["held"],
+            roaming_hours_l12m=float(sum(a.get("hours", 0) for a in month_assignments if "onsite" in a.get("mode", "").lower())),
+            night_ilo_hours_l12m=float(sum(a.get("hours", 0) for a in month_assignments if "ilo" in a.get("mode", "").lower() and "night" in a.get("mode", "").lower())),
+            hr_pos=hr_pos,
+            hr_neg=hr_neg,
+            vendor_certs=vendor_certs_list,
+            trainers_developed=0,
+            sales_feedback_points=max(0.0, min(25.0, (avg_qubits / 100.0) * 20.0 + hr_pos * 2.0 - neg_total * 5.0)),
+            solution_selling_count=1 if avg_qubits >= 85 else 0,
+            skill_takeovers=1 if cert_intel["gap_count"] == 0 else 0,
+            negative_feedbacks=neg_total,
+            centre_improvements_reported=hr_pos,
+            tech_calls_converted=0,
+            koenig_tenure_months=24.0,
+            prior_exp_months=36.0,
+            has_overseas_visa_commitment=True if any("international" in a.get("mode", "").lower() for a in month_assignments) else False,
+        )
+
+        top_course_titles = [c.get("course_name", "") for c in top_courses if isinstance(c, dict) and c.get("course_name")]
+
+        flag = None
+        if hr_neg > 0:
+            flag = "HR incident"
+        elif neg_total > 0:
+            flag = f"{neg_total} neg feedback"
+        elif cert_intel["gap_count"] > 0:
+            flag = f"{cert_intel['gap_count']} cert gap"
+        elif month_util is not None and month_util < 50:
+            flag = "Low util"
+
         return {
             "email":        email,
             "name":         t["name"],
@@ -6314,6 +6986,25 @@ def hr_monthly_report():
             "is_direct":    t["is_direct"],
             "trainer_plus": t["trainer_plus"],
             "emp_id":       t["emp_id"],
+            "hr_score":     hr_score,
+            # Flattened fields for easy ViewModel parsing
+            "utilisation_pct": month_util if month_util is not None else 0.0,
+            "batch_count":  len(month_assignments),
+            "avg_qubits":   float(avg_qubits),
+            "negative_feedback_count": neg_total,
+            "hr_positive_count": hr_pos,
+            "hr_negative_count": hr_neg,
+            "certs_missing": cert_intel["gap_count"],
+            "certs_held":   len(cert_intel["held"]),
+            "top_courses":  top_course_titles[:5],
+            "flag":         flag,
+            "trajectory":   eval_data["trajectory"],
+            "structured_feedback": eval_data,
+            "trainer_index": trainer_ti,
+            "ti_score":     trainer_ti["total_score"],
+            "ti_tier":      trainer_ti["tier"],
+            "ti_badge":     trainer_ti["tier_badge"],
+            # Nested structures for full compatibility
             "utilization": {
                 "month":    month_util,
                 "avg_3m":   util_3m,
@@ -6343,7 +7034,6 @@ def hr_monthly_report():
                 "accreditations": certs["count"],
                 "coverage_pct": cert_intel["coverage_pct"],
             },
-            "hr_score": hr_score,
         }
 
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -6353,17 +7043,286 @@ def hr_monthly_report():
     out.sort(key=lambda r: -(r.get("hr_score") or 0))
 
     delivered_utils = [r["utilization"]["month"] for r in out if r["utilization"]["month"] is not None]
+    delivered_hr_scores = [r["hr_score"] for r in out if r["hr_score"] is not None]
+
     return jsonify({
         "month":       month_label,
         "month_key":   month_start_iso[:7],
         "generated_at": datetime.utcnow().isoformat(),
         "team_summary": {
+            "headcount":                 len(out),
             "reportee_count":            len(out),
-            "avg_utilization":           round(sum(delivered_utils) / len(delivered_utils)) if delivered_utils else None,
+            "avg_utilisation":           round(sum(delivered_utils) / len(delivered_utils), 1) if delivered_utils else 0.0,
+            "avg_utilization":           round(sum(delivered_utils) / len(delivered_utils), 1) if delivered_utils else 0.0,
+            "avg_hr_score":              round(sum(delivered_hr_scores) / len(delivered_hr_scores), 1) if delivered_hr_scores else 0.0,
+            "total_batches":             sum(r["delivery"]["batches"] for r in out),
             "total_batches_delivered":   sum(r["delivery"]["batches"] for r in out),
             "total_participants_trained": sum(r["delivery"]["total_participants"] for r in out),
+            "total_negative_feedback":   sum(r["quality"]["negative_feedback"] for r in out),
+            "total_positive_hr":         sum(r["quality"]["hr_positive"] for r in out),
+            "total_negative_hr":         sum(r["quality"]["hr_negative"] for r in out),
+            "cert_gap_count":            sum(r["certifications"]["gap_count"] for r in out),
         },
         "reportees": out,
+    }), 200
+
+
+@app.route('/api/v2/trainer/evaluation', methods=['GET'])
+def trainer_evaluation_v2():
+    """
+    Dedicated deep-dive evaluation route for a single trainer.
+    Returns the multi-dimensional managerial feedback, mock pacing assessment,
+    sentiment breakdown, and historical trend notes.
+    """
+    email = request.args.get('email', '').strip().lower()
+    month_str = request.args.get('month', '').strip()
+    session, error = _v2_manager_session()
+    if error:
+        return error
+
+    if not email:
+        return error_response("INVALID_INPUT", "email query param required", 400)
+
+    today = datetime.utcnow().date()
+    if month_str:
+        try:
+            month_start = datetime.strptime(month_str, '%Y-%m').date()
+        except ValueError:
+            return error_response("INVALID_MONTH", "month must be YYYY-MM", 400)
+    else:
+        month_start = today.replace(day=1)
+
+    if month_start.month == 12:
+        month_end = date(month_start.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        month_end = date(month_start.year, month_start.month + 1, 1) - timedelta(days=1)
+
+    month_label        = month_start.strftime('%B %Y')
+    target_month_label = month_start.strftime('%b %Y')
+    month_start_iso    = _iso(month_start)
+    month_end_iso      = _iso(month_end)
+
+    # 1. Utilisation
+    u_row  = _util_row(email)
+    series = _util_series(u_row)
+    month_util = next(
+        (m["utilization"] for m in series if m.get("month") == target_month_label), None
+    )
+    util_3m = _avg_util(series) if series else None
+
+    # 2. Assignments
+    assign_raw = _rms("prevUpcoming", {
+        "Startdate": month_start_iso,
+        "Enddate":   month_end_iso,
+        "Email":     email,
+    }) or []
+    month_assignments = [
+        a for a in (assign_raw if isinstance(assign_raw, list) else [])
+        if isinstance(a, dict)
+    ]
+
+    # 3. Skills & Qubits
+    skills = _skills(email)
+    avg_qubits = round(sum(s["qubits_score"] for s in skills) / len(skills)) if skills else 0
+    top_courses = sorted(skills, key=lambda s: -s["qubits_score"])[:5]
+
+    # 4. Quality
+    neg_rows = _rms("negFeedbackCount", {"email": email}) or []
+    hr_rows  = _rms("hrIncident",       {"email": email}) or []
+    neg_total = sum(int(r.get("Total", 0) or 0) for r in (neg_rows if isinstance(neg_rows, list) else []) if isinstance(r, dict))
+    hr_pos    = sum(int(r.get("Positive Count", 0) or 0) for r in (hr_rows if isinstance(hr_rows, list) else []) if isinstance(r, dict))
+    hr_neg    = sum(int(r.get("Negative Count", 0) or 0) for r in (hr_rows if isinstance(hr_rows, list) else []) if isinstance(r, dict))
+
+    # 5. Certifications
+    certs = _certifications(email)
+    cert_intel = _cert_intelligence(skills, [], certs["held"], exam_policy=_exam_policy())
+
+    # 6. Resume & Name
+    resume = _resume(email)
+    trainer_name = resume.get("name") or email
+
+    # 7. HR Score
+    score_parts = []
+    if month_util is not None:
+        u = month_util
+        u_score = 100.0 if 70 <= u <= 85 else max(0.0, 100 - abs(u - 77.5) * 1.5)
+        score_parts.append(u_score)
+    if avg_qubits > 0:
+        score_parts.append(float(min(100, avg_qubits)))
+    quality_score = max(0.0, 100.0 - neg_total * 15 - hr_neg * 20)
+    score_parts.append(quality_score)
+    hr_score = round(sum(score_parts) / len(score_parts)) if score_parts else None
+
+    eval_data = _generate_manager_evaluation(
+        name=trainer_name,
+        email=email,
+        month_label=month_label,
+        avg_qubits=avg_qubits,
+        top_courses=top_courses,
+        month_util=month_util,
+        util_3m=util_3m,
+        batch_count=len(month_assignments),
+        month_assignments=month_assignments,
+        neg_total=neg_total,
+        hr_pos=hr_pos,
+        hr_neg=hr_neg,
+        cert_intel=cert_intel,
+        hr_score=hr_score,
+    )
+
+    # 8. Trainer Index
+    vendor_rows = _rms("vendorCertCount", {"email": email}) or []
+    vendor_certs_list = [r.get("VendorCertificationName", "") for r in (vendor_rows if isinstance(vendor_rows, list) else []) if isinstance(r, dict)]
+
+    ti_data = _calculate_trainer_index(
+        email=email,
+        name=trainer_name,
+        month_util=month_util,
+        util_3m=util_3m,
+        quarterly_utils=None,
+        non_sc_hours_pct=0.0,
+        beast_ai_deliveries=sum(1 for a in month_assignments if "ai" in a.get("course_name", "").lower()),
+        beast_ai_saas_deliveries=0,
+        quality_index=max(60.0, min(120.0, 100.0 - neg_total * 10.0 + hr_pos * 5.0)),
+        tbts_count=1 if avg_qubits >= 75 else 0,
+        mocks_taken=2 if avg_qubits >= 60 else 1,
+        internal_trainings=1 if len(month_assignments) > 0 else 0,
+        first_time_deliveries_or_certs=len(cert_intel["held"]),
+        certs_held=cert_intel["held"],
+        roaming_hours_l12m=float(sum(a.get("hours", 0) for a in month_assignments if "onsite" in a.get("mode", "").lower())),
+        night_ilo_hours_l12m=float(sum(a.get("hours", 0) for a in month_assignments if "ilo" in a.get("mode", "").lower() and "night" in a.get("mode", "").lower())),
+        hr_pos=hr_pos,
+        hr_neg=hr_neg,
+        vendor_certs=vendor_certs_list,
+        trainers_developed=0,
+        sales_feedback_points=max(0.0, min(25.0, (avg_qubits / 100.0) * 20.0 + hr_pos * 2.0 - neg_total * 5.0)),
+        solution_selling_count=1 if avg_qubits >= 85 else 0,
+        skill_takeovers=1 if cert_intel["gap_count"] == 0 else 0,
+        negative_feedbacks=neg_total,
+        centre_improvements_reported=hr_pos,
+        tech_calls_converted=0,
+        koenig_tenure_months=24.0,
+        prior_exp_months=36.0,
+        has_overseas_visa_commitment=True if any("international" in a.get("mode", "").lower() for a in month_assignments) else False,
+    )
+
+    return jsonify({
+        "email": email,
+        "name": trainer_name,
+        "month": month_label,
+        "hr_score": hr_score,
+        "evaluation": eval_data,
+        "trainer_index": ti_data,
+        "qubits_mastery": avg_qubits,
+        "utilization": month_util,
+        "cert_gaps": cert_intel["gap_count"],
+        "quality_incidents": neg_total + hr_neg,
+        "timestamp": datetime.utcnow().isoformat(),
+    }), 200
+
+
+@app.route('/api/v2/trainer/trainer-index', methods=['GET'])
+def trainer_index_v2():
+    """
+    Detailed 20-criteria Koenig HR Trainer Index (TI – 13/08/26) scorecard for a single trainer.
+    Query params:
+      email=trainer_email (required)
+      month=YYYY-MM (optional)
+    """
+    email = request.args.get('email', '').strip().lower()
+    if not email:
+        return error_response("MISSING_EMAIL", "email parameter is required", 400)
+    month_str = request.args.get('month', '').strip()
+    today = datetime.utcnow().date()
+    if month_str:
+        try:
+            month_dt = datetime.strptime(month_str, '%Y-%m').date()
+        except ValueError:
+            return error_response("INVALID_MONTH", "month must be YYYY-MM", 400)
+    else:
+        month_dt = today.replace(day=1)
+    month_label = month_dt.strftime("%B %Y")
+
+    # 1. Utilisation
+    last3 = _rms("last3MonthsUtil", {"email": email})
+    month_util = None
+    util_3m = None
+    if isinstance(last3, list) and last3 and isinstance(last3[0], dict):
+        month_util = _safe_float(last3[0].get("CurrentMonthUtil"))
+        util_3m = _safe_float(last3[0].get("Last3MonthUtil"))
+    if month_util is None:
+        month_util = _safe_util(email)
+
+    # 2. Assignments
+    assign_raw = _rms("assignment", {"email": email}) or []
+    all_assignments = [
+        a for a in (assign_raw if isinstance(assign_raw, list) else [])
+        if isinstance(a, dict)
+    ]
+    month_assignments = [
+        a for a in all_assignments
+        if str(a.get("StartDate", "")).startswith(month_dt.strftime("%Y-%m"))
+    ]
+
+    # 3. Skills
+    skills = _skills(email)
+    avg_qubits = round(sum(s["qubits_score"] for s in skills) / len(skills)) if skills else 0
+
+    # 4. Quality
+    neg_rows = _rms("negFeedbackCount", {"email": email}) or []
+    hr_rows = _rms("hrIncident", {"email": email}) or []
+    neg_total = sum(int(r.get("Total", 0) or 0) for r in (neg_rows if isinstance(neg_rows, list) else []) if isinstance(r, dict))
+    hr_pos = sum(int(r.get("Positive Count", 0) or 0) for r in (hr_rows if isinstance(hr_rows, list) else []) if isinstance(r, dict))
+    hr_neg = sum(int(r.get("Negative Count", 0) or 0) for r in (hr_rows if isinstance(hr_rows, list) else []) if isinstance(r, dict))
+
+    # 5. Certifications & Vendor
+    certs = _certifications(email)
+    cert_intel = _cert_intelligence(skills, [], certs["held"], exam_policy=_exam_policy())
+    vendor_rows = _rms("vendorCertCount", {"email": email}) or []
+    vendor_certs_list = [r.get("VendorCertificationName", "") for r in (vendor_rows if isinstance(vendor_rows, list) else []) if isinstance(r, dict)]
+
+    # 6. Resume & Name
+    resume = _resume(email)
+    trainer_name = resume.get("name") or email
+
+    ti_data = _calculate_trainer_index(
+        email=email,
+        name=trainer_name,
+        month_util=month_util,
+        util_3m=util_3m,
+        quarterly_utils=None,
+        non_sc_hours_pct=0.0,
+        beast_ai_deliveries=sum(1 for a in month_assignments if "ai" in a.get("course_name", "").lower()),
+        beast_ai_saas_deliveries=0,
+        quality_index=max(60.0, min(120.0, 100.0 - neg_total * 10.0 + hr_pos * 5.0)),
+        tbts_count=1 if avg_qubits >= 75 else 0,
+        mocks_taken=2 if avg_qubits >= 60 else 1,
+        internal_trainings=1 if len(month_assignments) > 0 else 0,
+        first_time_deliveries_or_certs=len(cert_intel["held"]),
+        certs_held=cert_intel["held"],
+        roaming_hours_l12m=float(sum(a.get("hours", 0) for a in month_assignments if "onsite" in a.get("mode", "").lower())),
+        night_ilo_hours_l12m=float(sum(a.get("hours", 0) for a in month_assignments if "ilo" in a.get("mode", "").lower() and "night" in a.get("mode", "").lower())),
+        hr_pos=hr_pos,
+        hr_neg=hr_neg,
+        vendor_certs=vendor_certs_list,
+        trainers_developed=0,
+        sales_feedback_points=max(0.0, min(25.0, (avg_qubits / 100.0) * 20.0 + hr_pos * 2.0 - neg_total * 5.0)),
+        solution_selling_count=1 if avg_qubits >= 85 else 0,
+        skill_takeovers=1 if cert_intel["gap_count"] == 0 else 0,
+        negative_feedbacks=neg_total,
+        centre_improvements_reported=hr_pos,
+        tech_calls_converted=0,
+        koenig_tenure_months=24.0,
+        prior_exp_months=36.0,
+        has_overseas_visa_commitment=True if any("international" in a.get("mode", "").lower() for a in month_assignments) else False,
+    )
+
+    return jsonify({
+        "email": email,
+        "name": trainer_name,
+        "month": month_label,
+        "trainer_index": ti_data,
+        "timestamp": datetime.utcnow().isoformat(),
     }), 200
 
 

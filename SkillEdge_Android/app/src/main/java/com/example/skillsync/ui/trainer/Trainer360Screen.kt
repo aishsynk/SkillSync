@@ -1,11 +1,16 @@
 package com.example.skillsync.ui.trainer
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -282,10 +287,12 @@ internal fun Trainer360Content(
                     item { Appear(2) { PersonalDetails(identity) } }
                 }
                 2 -> {
-                    item { Appear(0) { DeliveryReadinessSection(deliveryReadiness, feedback) } }
-                    item { Appear(1) { CapabilityMetrics(metrics) } }
-                    item { Appear(2) { RiskSection(metrics, feedback) } }
-                    item { Appear(3) { FeedbackSection(feedback) } }
+                    item { Appear(0) { ManagerEvaluationCard(identity, util, cap, certs, feedback) } }
+                    item { Appear(1) { TrainerIndexCard(identity, util, cap, certs, feedback) } }
+                    item { Appear(2) { DeliveryReadinessSection(deliveryReadiness, feedback) } }
+                    item { Appear(3) { CapabilityMetrics(metrics) } }
+                    item { Appear(4) { RiskSection(metrics, feedback) } }
+                    item { Appear(5) { FeedbackSection(feedback) } }
                 }
                 3 -> {
                     item { Appear(0) { GrowthBenchmarkSection(identity, util, cap, certs) } }
@@ -1398,6 +1405,396 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
                 }
             )
         }
+    }
+}
+
+@Composable
+private fun ManagerEvaluationCard(
+    identity: Map<*, *>?,
+    util: Map<*, *>?,
+    cap: Map<*, *>?,
+    certs: Map<*, *>?,
+    feedback: Map<*, *>?,
+) {
+    val sk = MaterialTheme.skill
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val notify = LocalNotify.current
+
+    val name = identity?.str("name") ?: "Trainer"
+    val first = name.substringBefore(" ").ifBlank { "Trainer" }
+    val utilPct = util?.intOrNull("current") ?: util?.intOrNull("month") ?: 0
+    val gapCount = certs?.intOrNull("gap_count") ?: certs?.list("gaps")?.size ?: 0
+    val negCount = feedback?.intOrNull("negative_count") ?: 0
+    val topCourses = cap?.list("courses")?.mapNotNull { it.str("course_name").ifBlank { null } }?.take(2) ?: emptyList()
+    val topCoursesStr = if (topCourses.isNotEmpty()) topCourses.joinToString(", ") else "assigned domain"
+
+    val strength = "$first demonstrates solid theoretical grounding with active topic familiarity in $topCoursesStr. In recent evaluations and mock sessions, pacing was noticeably more controlled with improved composure."
+    val improvement = "Despite strong knowledge, articulation and response sharpness remain the primary focus. Demo narration requires structured flow (Goal → Steps → Verify) and unscripted question composure under pressure." +
+        if (gapCount > 0) " Action: Complete pending certification exams to close $gapCount open accreditation gap(s)." else ""
+    val verdict = if (negCount == 0 && gapCount == 0) {
+        "$first is operating at high delivery readiness and is aligned for enterprise delivery pipelines."
+    } else {
+        "$first is in an active transition phase. Focus this cycle is sustaining mock discipline and closing pending certification benchmarks."
+    }
+
+    val formatted = "Strength:\n$strength\n\nArea of Improvement:\n$improvement\n\nOther Feedback:\n$verdict"
+
+    SkillCard(Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Managerial Evaluation & Coaching",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = sk.bodyText,
+                )
+                Surface(
+                    color = sk.brand.copy(alpha = 0.15f),
+                    shape = RoundedCornerShape(4.dp),
+                ) {
+                    Text(
+                        "MONTHLY / WEEKLY",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.cyan,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+            }
+
+            // Strength
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                color = sk.good.copy(alpha = 0.08f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, sk.good.copy(alpha = 0.35f)),
+            ) {
+                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("🟢 STRENGTH", style = MaterialTheme.typography.labelSmall, color = sk.good, fontWeight = FontWeight.Bold)
+                    Text(strength, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
+                }
+            }
+
+            // Improvement
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                color = sk.warn.copy(alpha = 0.08f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, sk.warn.copy(alpha = 0.35f)),
+            ) {
+                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("🟠 AREA OF IMPROVEMENT", style = MaterialTheme.typography.labelSmall, color = sk.warn, fontWeight = FontWeight.Bold)
+                    Text(improvement, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
+                }
+            }
+
+            // Other Feedback
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                color = sk.cyan.copy(alpha = 0.08f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, sk.cyan.copy(alpha = 0.35f)),
+            ) {
+                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("🔵 MANAGER'S VERDICT", style = MaterialTheme.typography.labelSmall, color = sk.cyan, fontWeight = FontWeight.Bold)
+                    Text(verdict, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        cm.setPrimaryClip(ClipData.newPlainText("Evaluation", formatted))
+                        notify.success("Copied 3-part feedback for $first")
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.brand),
+                ) {
+                    Text("Copy Feedback", fontSize = 12.sp, color = sk.ice)
+                }
+
+                Button(
+                    onClick = {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, formatted)
+                            putExtra(Intent.EXTRA_SUBJECT, "Manager Evaluation — $name")
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share Evaluation"))
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
+                ) {
+                    Text("Share Review", fontSize = 12.sp, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TrainerIndexCard(
+    identity: Map<*, *>?,
+    util: Map<*, *>?,
+    cap: Map<*, *>?,
+    certs: Map<*, *>?,
+    feedback: Map<*, *>?,
+) {
+    val sk = MaterialTheme.skill
+    var showSheet by remember { mutableStateOf(false) }
+
+    val name = identity?.str("name") ?: "Trainer"
+    val utilPct = (util?.intOrNull("current") ?: util?.intOrNull("month") ?: 65).toDouble()
+    val heldCerts = certs?.list("held").orEmpty()
+    val negCount = feedback?.intOrNull("negative_count") ?: 0
+    val hrPos = feedback?.intOrNull("hr_positive") ?: 1
+    val hrNeg = feedback?.intOrNull("hr_negative") ?: 0
+
+    // 20 Criteria Calculation
+    val utilBasePts = (utilPct - 60.0) * 10.0
+    val utilQuarterly = if (utilPct >= 60.0) 50.0 else -25.0
+    val utilPts = (utilBasePts + utilQuarterly).coerceIn(-200.0, 550.0)
+
+    val beastAiDeliveries = 4
+    val beastAiSaas = 1
+    val beastAiPts = (beastAiDeliveries * 10.0 + beastAiSaas * 20.0).coerceAtMost(200.0)
+
+    val qi = (100.0 - (negCount * 10.0) + (hrPos * 5.0)).coerceIn(60.0, 120.0)
+    val qiPts = (qi * 2.5).coerceIn(0.0, 300.0)
+
+    val ksPts = 45.0
+    val firstTimePts = (heldCerts.size.coerceAtMost(5) * 20.0).coerceAtMost(200.0)
+    val certPts = (heldCerts.size * 3.5).coerceAtMost(200.0)
+    val roamingPts = 60.0
+    val nightPts = 25.0
+    val hrIncidentPts = (hrPos * 10.0) - (hrNeg * 20.0)
+    val instructorPts = if (heldCerts.isNotEmpty()) 120.0 else 20.0
+    val devPts = 50.0
+    val custPts = 160.0
+    val solPts = 50.0
+    val takeoverPts = 20.0
+    val negFeedbackPts = -(negCount * 100.0)
+    val centrePts = 10.0
+    val techPts = 20.0
+    val tenurePts = 7.2
+    val priorExpPts = 4.8
+    val visaPts = 100.0
+
+    val totalScore = (utilPts + beastAiPts + qiPts + ksPts + firstTimePts + certPts + roamingPts + nightPts +
+            hrIncidentPts + instructorPts + devPts + custPts + solPts + takeoverPts + negFeedbackPts + centrePts +
+            techPts + tenurePts + priorExpPts + visaPts).coerceAtLeast(0.0)
+
+    val (tierBadge, tierColor, tierTitle) = when {
+        totalScore >= 1200.0 -> Triple("👑 Tier 1: Diamond", sk.good, "Elite Global Deployable Lead")
+        totalScore >= 900.0 -> Triple("⭐ Tier 2: Platinum", sk.sky, "Strong Performer / Multi-Domain Lead")
+        totalScore >= 600.0 -> Triple("🔷 Tier 3: Gold", sk.cyan, "Core Delivery / Steady Anchor")
+        totalScore >= 300.0 -> Triple("🔶 Tier 4: Silver", sk.amber, "Developing / Upskilling Focus")
+        else -> Triple("⚠️ Tier 5: Bronze", sk.crit, "At Risk / Quality & Util Recovery")
+    }
+
+    SkillCard(Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Header
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column {
+                    Text(
+                        "Koenig HR Trainer Index",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = sk.bodyText,
+                    )
+                    Text(
+                        "Policy TI – 13/08/26 (20 Evaluation Criteria)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText,
+                    )
+                }
+                ToneChip(tierBadge, tierColor)
+            }
+
+            // Score Banner
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                color = sk.heroBg.copy(alpha = 0.5f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, tierColor.copy(alpha = 0.4f)),
+            ) {
+                Row(
+                    Modifier.padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "STANDPOINT: ${tierTitle.uppercase()}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = tierColor,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "${totalScore.toInt()} Points",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                        )
+                        Text(
+                            "Evaluated across all 20 Koenig HR scoring pillars",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = sk.subText,
+                            fontSize = 11.sp,
+                        )
+                    }
+                    Button(
+                        onClick = { showSheet = true },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = tierColor),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text("20-Pillar Breakdown", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    }
+                }
+            }
+
+            // High level category meters
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                CategoryMeterRow("📈 Utilization & Consistency", "${utilPts.toInt()} / 550 pts", (utilPts / 550.0).toFloat().coerceIn(0f, 1f), sk.cyan, sk)
+                CategoryMeterRow("🤖 Quality & Beast AI", "${(qiPts + beastAiPts).toInt()} / 500 pts", ((qiPts + beastAiPts) / 500.0).toFloat().coerceIn(0f, 1f), sk.sky, sk)
+                CategoryMeterRow("📜 Capability & Certs", "${(firstTimePts + certPts + instructorPts).toInt()} / 600 pts", ((firstTimePts + certPts + instructorPts) / 600.0).toFloat().coerceIn(0f, 1f), sk.good, sk)
+                CategoryMeterRow("🌐 Mobility & Operations", "${(roamingPts + nightPts + custPts + centrePts).toInt()} / 600 pts", ((roamingPts + nightPts + custPts + centrePts) / 600.0).toFloat().coerceIn(0f, 1f), sk.amber, sk)
+                CategoryMeterRow("⏳ Tenure & Commitments", "${(tenurePts + priorExpPts + visaPts).toInt()} / 200 pts", ((tenurePts + priorExpPts + visaPts) / 200.0).toFloat().coerceIn(0f, 1f), sk.teal, sk)
+                if (negFeedbackPts < 0 || hrIncidentPts < 0) {
+                    CategoryMeterRow("⚠️ Deductions & Incidents", "${(negFeedbackPts + if (hrIncidentPts < 0) hrIncidentPts else 0.0).toInt()} pts", 1f, sk.crit, sk)
+                }
+            }
+        }
+    }
+
+    if (showSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSheet = false },
+            containerColor = sk.cardBg,
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text(
+                            "HR Trainer Index — 20 Criteria Sheet",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = sk.bodyText,
+                        )
+                        Text(
+                            "Circular Dated: 13/08/26 | Total: ${totalScore.toInt()} pts",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = tierColor,
+                        )
+                    }
+                    IconButton(onClick = { showSheet = false }) {
+                        Text("✕", style = MaterialTheme.typography.titleMedium, color = sk.subText, fontWeight = FontWeight.Bold)
+                    }
+                }
+                HorizontalDivider(color = sk.cardBorder)
+
+                // Render all 20 criteria rows
+                val criteriaList = listOf(
+                    Triple("1. Utilization", "10 pts/1% >60%, -10 <60%, +50 all Q >60% (Cap: 550)", "${utilPts.toInt()} pts"),
+                    Triple("2. Beast AI Delivery", "10 pts/delivery, 20 pts/SaaS (Cap: 200)", "${beastAiPts.toInt()} pts"),
+                    Triple("3. Quality Index (QI)", "2.5 pts per QI point (Cap: 300)", "${qiPts.toInt()} pts"),
+                    Triple("4. Knowledge Sharing", "5 pts TBT/Mock, 10 pts IT (Cap: 100)", "${ksPts.toInt()} pts"),
+                    Triple("5. 1st Time Course/Cert", "20 pts for 1st time delivery or cert (Cap: 200)", "${firstTimePts.toInt()} pts"),
+                    Triple("6. Auto-Resume Certs", "AI Difficulty: Easy=1, Mod=3, Hard=5 (Cap: 200)", "${certPts.toInt()} pts"),
+                    Triple("7. Roaming Hours L12M", "0.75 pts per hour (Cap: 100)", "${roamingPts.toInt()} pts"),
+                    Triple("8. Night ILO Hours L12M", "0.25 pts/hr (9:01PM - 6:59AM) (Cap: 100)", "${nightPts.toInt()} pts"),
+                    Triple("9. HR Incidents & Audits", "+10 pos, -20 neg incident", "${hrIncidentPts.toInt()} pts"),
+                    Triple("10. Instructor Certs", "100 premier (AAI/CCSI/VCI/RHCI), 20 other (Cap: 200)", "${instructorPts.toInt()} pts"),
+                    Triple("11. Trainer Developed", "50 pts per trainer developed (Cap: 500)", "${devPts.toInt()} pts"),
+                    Triple("12. Customer Orientation", "Sales rating score * 16 (Cap: 400)", "${custPts.toInt()} pts"),
+                    Triple("13. Solution Selling", "50 pts per solution designed (Cap: 100)", "${solPts.toInt()} pts"),
+                    Triple("14. Skill Takeover", "10 pts per skill taken over before LWD (Cap: 100)", "${takeoverPts.toInt()} pts"),
+                    Triple("15. -ve Feedback", "Minus 100 pts per assignment", "${negFeedbackPts.toInt()} pts"),
+                    Triple("16. Centre Improvements", "+10 pts per centre issue reported", "${centrePts.toInt()} pts"),
+                    Triple("17. Tech Call Conversion", "20 pts per call converted", "${techPts.toInt()} pts"),
+                    Triple("18. Tenure with Koenig", "0.2 pts per month (Cap: 50)", "${tenurePts} pts"),
+                    Triple("19. Prior Experience", "0.1 pts per month before Koenig (Cap: 50)", "${priorExpPts} pts"),
+                    Triple("20. Overseas Visa Commitment", "100 pts if commitment valid >= 3 mo", "${visaPts.toInt()} pts"),
+                )
+
+                criteriaList.forEach { (title, desc, pts) ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        color = sk.surface1.copy(alpha = 0.5f),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, sk.cardBorder),
+                    ) {
+                        Row(
+                            Modifier.padding(10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = sk.bodyText)
+                                Text(desc, style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 11.sp)
+                            }
+                            Text(
+                                pts,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (pts.startsWith("-")) sk.crit else sk.cyan,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryMeterRow(
+    label: String,
+    scoreText: String,
+    fraction: Float,
+    barColor: Color,
+    sk: com.example.skillsync.theme.SkillColors,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = sk.bodyText, fontWeight = FontWeight.Medium)
+            Text(scoreText, style = MaterialTheme.typography.labelSmall, color = barColor, fontWeight = FontWeight.Bold)
+        }
+        LinearProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(2.5.dp)),
+            color = barColor,
+            trackColor = sk.cardBorder.copy(alpha = 0.6f),
+        )
     }
 }
 

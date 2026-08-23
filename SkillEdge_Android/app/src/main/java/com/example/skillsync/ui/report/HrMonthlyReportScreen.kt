@@ -273,13 +273,15 @@ private fun ReporteeSnapshotCard(
     onCopy: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val notify = LocalNotify.current
 
     SkillCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { expanded = !expanded },
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             // Header row
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Score badge
@@ -299,8 +301,32 @@ private fun ReporteeSnapshotCard(
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(rep.name.ifBlank { rep.email }, fontWeight = FontWeight.SemiBold, color = sk.bodyText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${rep.utilisationPct.toInt()}% util · ${rep.batchCount} batches", color = sk.subText, fontSize = 12.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(rep.name.ifBlank { rep.email }, fontWeight = FontWeight.Bold, color = sk.bodyText, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
+                        ToneChip(
+                            rep.trajectory,
+                            when (rep.trajectory) {
+                                "High Performer" -> sk.good
+                                "Needs Coaching" -> sk.crit
+                                "Bench Upskilling" -> sk.cyan
+                                "In Transition" -> sk.warn
+                                else -> sk.sky
+                            }
+                        )
+                        if (rep.trainerIndex.totalScore > 0) {
+                            ToneChip(
+                                "TI ${rep.trainerIndex.totalScore.toInt()} ${rep.trainerIndex.tierBadge.substringBefore(" ")}",
+                                when (rep.trainerIndex.tierLevel) {
+                                    1 -> sk.good
+                                    2 -> sk.sky
+                                    3 -> sk.cyan
+                                    4 -> sk.warn
+                                    else -> sk.crit
+                                }
+                            )
+                        }
+                    }
+                    Text("${rep.utilisationPct.toInt()}% util · ${rep.batchCount} batches · Qubits ${rep.avgQubits.toInt()}%", color = sk.subText, fontSize = 12.sp)
                 }
                 // Flag chip
                 rep.flag?.let {
@@ -313,9 +339,12 @@ private fun ReporteeSnapshotCard(
             }
 
             // Inline KPI row (always visible)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (rep.avgQubits > 0) {
                     MiniChip("Qubits ${rep.avgQubits.toInt()}", sk.brand)
+                }
+                if (rep.trainerIndex.totalScore > 0) {
+                    MiniChip("TI ${rep.trainerIndex.totalScore.toInt()}", sk.amber)
                 }
                 if (rep.hrPositiveCount > 0) {
                     MiniChip("+${rep.hrPositiveCount} HR", sk.good)
@@ -331,18 +360,132 @@ private fun ReporteeSnapshotCard(
                 }
             }
 
-            // Expanded details
+            // Expanded structured feedback & details
             AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    HorizontalDivider(color = sk.track)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HorizontalDivider(color = sk.cardBorder)
+
+                    // 1. STRENGTH BLOCK
+                    if (rep.structuredFeedback.strength.isNotBlank()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = sk.good.copy(alpha = 0.08f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.good.copy(alpha = 0.35f)),
+                        ) {
+                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("🟢 STRENGTH", style = MaterialTheme.typography.labelSmall, color = sk.good, fontWeight = FontWeight.Bold)
+                                Text(rep.structuredFeedback.strength, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
+                            }
+                        }
+                    }
+
+                    // 2. AREA OF IMPROVEMENT BLOCK
+                    if (rep.structuredFeedback.areaOfImprovement.isNotBlank()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = sk.warn.copy(alpha = 0.08f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.warn.copy(alpha = 0.35f)),
+                        ) {
+                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("🟠 AREA OF IMPROVEMENT", style = MaterialTheme.typography.labelSmall, color = sk.warn, fontWeight = FontWeight.Bold)
+                                Text(rep.structuredFeedback.areaOfImprovement, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
+                            }
+                        }
+                    }
+
+                    // 3. OTHER FEEDBACK / MANAGER'S VERDICT BLOCK
+                    if (rep.structuredFeedback.otherFeedback.isNotBlank()) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = sk.cyan.copy(alpha = 0.08f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.cyan.copy(alpha = 0.35f)),
+                        ) {
+                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("🔵 OTHER FEEDBACK / MANAGER'S VERDICT", style = MaterialTheme.typography.labelSmall, color = sk.cyan, fontWeight = FontWeight.Bold)
+                                Text(rep.structuredFeedback.otherFeedback, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
+                            }
+                        }
+                    }
+
+                    // 4. TRAINER INDEX SCORECARD (20 CRITERIA)
+                    if (rep.trainerIndex.totalScore > 0) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            color = sk.surface1.copy(alpha = 0.6f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+                        ) {
+                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column {
+                                        Text("🏆 HR TRAINER INDEX (TI – 13/08/26)", style = MaterialTheme.typography.labelSmall, color = sk.amber, fontWeight = FontWeight.Bold)
+                                        Text("${rep.trainerIndex.tier} (${rep.trainerIndex.totalScore.toInt()} pts)", style = MaterialTheme.typography.bodyMedium, color = sk.bodyText, fontWeight = FontWeight.Bold)
+                                    }
+                                    ToneChip(rep.trainerIndex.tierBadge, sk.amber)
+                                }
+                                Text(
+                                    "Util: ${rep.trainerIndex.utilizationPts.toInt()} · Quality/AI: ${(rep.trainerIndex.qualityPts + rep.trainerIndex.beastAiPts).toInt()} · Certs: ${(rep.trainerIndex.certificationsPts + rep.trainerIndex.instructorPts).toInt()} · Knowledge: ${rep.trainerIndex.knowledgeSharingPts.toInt()}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = sk.subText,
+                                    fontSize = 11.sp,
+                                )
+                            }
+                        }
+                    }
+
                     if (rep.topCourses.isNotEmpty()) {
                         Text("Top courses: ${rep.topCourses.joinToString(" · ")}", color = sk.subText, fontSize = 12.sp)
                     }
+
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         DetailCell("Certs held", rep.certsHeld.toString(), sk, Modifier.weight(1f))
                         DetailCell("Cert gaps", rep.certsMissing.toString(), sk, Modifier.weight(1f),
                             if (rep.certsMissing > 0) sk.warn else null)
-                        DetailCell("Avg Qubits", if (rep.avgQubits > 0) rep.avgQubits.toInt().toString() else "—", sk, Modifier.weight(1f))
+                        DetailCell("Avg Qubits", if (rep.avgQubits > 0) "${rep.avgQubits.toInt()}%" else "—", sk, Modifier.weight(1f))
+                    }
+
+                    // Quick Action Buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                val text = rep.structuredFeedback.formattedText.ifBlank {
+                                    buildReporteeText(rep, "")
+                                }
+                                copyToClipboard(context, text)
+                                notify.success("Copied 3-part feedback for ${rep.name.substringBefore(" ")}")
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.brand),
+                        ) {
+                            Text("Copy Feedback", fontSize = 12.sp, color = sk.ice)
+                        }
+
+                        Button(
+                            onClick = {
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, rep.structuredFeedback.formattedText)
+                                    putExtra(Intent.EXTRA_SUBJECT, "Manager Evaluation — ${rep.name}")
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "Share Evaluation"))
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
+                        ) {
+                            Text("Share Review", fontSize = 12.sp, color = Color.White)
+                        }
                     }
                 }
             }
@@ -384,18 +527,21 @@ private fun hrScoreColor(score: Int, sk: SkillColors): Color = when {
 
 private fun buildReporteeText(rep: ReporteeSnapshot, month: String): String {
     val sb = StringBuilder()
-    sb.appendLine("HR Report — ${rep.name} — $month")
-    sb.appendLine("HR Score: ${rep.hrScore}/100")
-    sb.appendLine("Utilisation: ${rep.utilisationPct.toInt()}%")
-    sb.appendLine("Batches: ${rep.batchCount}")
-    if (rep.avgQubits > 0) sb.appendLine("Avg Qubits Score: ${rep.avgQubits.toInt()}")
+    val monthPart = if (month.isNotBlank()) " — $month" else ""
+    sb.appendLine("HR Evaluation — ${rep.name}$monthPart")
+    val tiPart = if (rep.trainerIndex.totalScore > 0) " | TI: ${rep.trainerIndex.totalScore.toInt()} pts (${rep.trainerIndex.tierBadge})" else ""
+    sb.appendLine("HR Score: ${rep.hrScore}/100 | Trajectory: ${rep.trajectory}$tiPart")
+    sb.appendLine("Utilisation: ${rep.utilisationPct.toInt()}% | Batches: ${rep.batchCount} | Avg Qubits: ${rep.avgQubits.toInt()}%")
     if (rep.hrPositiveCount > 0) sb.appendLine("HR Recognition: ${rep.hrPositiveCount}")
     if (rep.hrNegativeCount > 0) sb.appendLine("HR Incidents: ${rep.hrNegativeCount}")
     if (rep.negativeFeedbackCount > 0) sb.appendLine("Negative Feedback: ${rep.negativeFeedbackCount}")
     if (rep.certsMissing > 0) sb.appendLine("Certification Gaps: ${rep.certsMissing}")
     if (rep.certsHeld > 0) sb.appendLine("Certifications Held: ${rep.certsHeld}")
     if (rep.topCourses.isNotEmpty()) sb.appendLine("Top Courses: ${rep.topCourses.joinToString(", ")}")
-    rep.flag?.let { sb.appendLine("Flag: $it") }
+    sb.appendLine()
+    if (rep.structuredFeedback.formattedText.isNotBlank()) {
+        sb.appendLine(rep.structuredFeedback.formattedText)
+    }
     return sb.toString().trim()
 }
 
@@ -405,7 +551,10 @@ private fun shareReport(context: Context, data: HrReportData) {
     sb.appendLine("Team: ${data.teamSummary.headcount} reportees, Avg HR Score ${data.teamSummary.avgHrScore.toInt()}/100")
     sb.appendLine()
     data.reportees.forEach { rep ->
-        sb.appendLine("${rep.name}: ${rep.hrScore}/100 | ${rep.utilisationPct.toInt()}% util | ${rep.batchCount} batches")
+        sb.appendLine("${rep.name}: ${rep.hrScore}/100 | ${rep.utilisationPct.toInt()}% util | ${rep.trajectory}")
+        if (rep.structuredFeedback.strength.isNotBlank()) {
+            sb.appendLine("Strength: ${rep.structuredFeedback.strength.take(120)}...")
+        }
     }
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"

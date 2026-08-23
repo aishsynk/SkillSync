@@ -4,6 +4,7 @@ import com.example.skillsync.ui.report.MESSAGE_LIMIT
 import com.example.skillsync.ui.report.MessageStyle
 import com.example.skillsync.ui.report.ReporteeSignals
 import com.example.skillsync.ui.report.TeamSignals
+import com.example.skillsync.ui.report.composeManagerStandpointNote
 import com.example.skillsync.ui.report.composeReporteeMessage
 import com.example.skillsync.ui.report.composeTeamMessage
 import com.example.skillsync.ui.report.weekReference
@@ -219,5 +220,43 @@ class WeeklyMessageTest {
     fun plainStyleStillEmitsNoMarkers() {
         val msg = composeReporteeMessage(ReporteeSignals("A", 72, "Balanced"), MessageStyle.PLAIN, monday)
         assertFalse(msg.contains("_"))
+    }
+
+    // ── Manager Standpoint ───────────────────────────────────────────────────
+
+    @Test
+    fun managerStandpoint_containsStandpointMockReadinessAndImmediateFocus() {
+        val signals = ReporteeSignals(
+            name = "Abhinav Samant",
+            utilisation = 88,
+            capacityBucket = "Stretched",
+            readiness = 82,
+            certGaps = 1,
+            certGapCourses = listOf("AZ-104"),
+        )
+        val note = composeManagerStandpointNote(signals, MessageStyle.TEAMS)
+        assertTrue(note.contains("Weekly Manager Standpoint for Abhinav"))
+        assertTrue(note.contains("**Standpoint:**"))
+        assertTrue(note.contains("High Workload (Stretched at 88% util)"))
+        assertTrue(note.contains("**Mock & Readiness:**"))
+        assertTrue(note.contains("Readiness Score 82%"))
+        assertTrue(note.contains("**Immediate Focus:**"))
+        assertTrue(note.contains("Schedule and complete certification exam for AZ-104"))
+        assertTrue(note.contains("Goal → Steps → Verify"))
+    }
+
+    @Test
+    fun managerStandpoint_handlesBenchAndFeedbackRisk() {
+        val signals = ReporteeSignals(
+            name = "Divya Nair",
+            utilisation = 20,
+            capacityBucket = "On Bench",
+            feedbackRisk = "High",
+            targetGrowthCourses = listOf("DP-203"),
+        )
+        val note = composeManagerStandpointNote(signals, MessageStyle.PLAIN)
+        assertTrue(note.contains("Weekly Manager Standpoint for Divya"))
+        assertTrue(note.contains("• Standpoint: Available / On Bench (20% util)"))
+        assertTrue(note.contains("Immediate delivery feedback review"))
     }
 }
