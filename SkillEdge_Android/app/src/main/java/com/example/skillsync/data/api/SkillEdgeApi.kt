@@ -151,6 +151,20 @@ interface SkillEdgeApi {
     @GET("api/data/alternative-trainers")
     suspend fun getAlternativeTrainers(@Query("course") course: String): Map<String, Any>
 
+    /** V2 Course Curriculum: Modules, lab URLs, TOC, public schedules (Keys 206, 156, 246, 248) */
+    @GET("api/v2/course/curriculum")
+    suspend fun getCourseCurriculum(
+        @Query("courseName") courseName: String = "",
+        @Query("courseId") courseId: String = "",
+    ): Map<String, Any>
+
+    /** V2 Wider Network & Freelance Trainers (Key 70 / API 157) */
+    @GET("api/v2/network/trainers")
+    suspend fun getNetworkTrainers(
+        @Query("course") course: String,
+        @Query("trainerType") trainerType: String = "",
+    ): Map<String, Any>
+
     /** Ask Copilot a question */
     @POST("api/agent/ask")
     suspend fun agentAsk(

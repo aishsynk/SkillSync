@@ -1,4 +1,35 @@
 
+## 2026-08-23T04:15:00+01:00 - Unlocked Full 37 RMS APIs: Course Curriculum & Public Schedules, Wider Network Staffing, Corporate Portfolio (v3.26.0 / Build 109)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Python/Flask, pytest, Kotlin/Compose, Gradle)
+- **Files Modified**:
+  - `backend.py`
+  - `tests/test_v2_calendar_and_growth.py`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/CourseCurriculumSheet.kt` (new)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/NetworkStaffingSheet.kt` (new)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/CoursesTab.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt`
+  - `SkillEdge_Android/app/build.gradle.kts`
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Course Curriculum, Modules & Public Schedules (Keys 206, 156, 246, 248)**:
+     - Added backend route `GET /api/v2/course/curriculum` aggregating day-wise module breakdowns, official lab URLs, syllabus PDF TOC, and upcoming public scheduled dates across regions.
+     - Built `CourseCurriculumSheet.kt` in Compose with interactive tabs (Modules, Public Schedules, Lab Resources) and direct PDF/lab links.
+     - Added `"Curriculum & Labs ↗"` action button to every course card in `CoursesTab.kt`.
+  2. **Wider Trainer Network & Freelancer Staffing Finder (Key 70 / API 157)**:
+     - Added backend route `GET /api/v2/network/trainers` allowing managers to search in-house and freelance trainers across Koenig for demand fulfillment.
+     - Built `NetworkStaffingSheet.kt` with In-House / Freelance filter chips and 1-tap Email & Phone dialer actions.
+     - Added `"Search Wider Trainer Network 🌐"` staffing button directly to `BatchCard` on the Allocation Desk.
+  3. **Version Increment & Quality Verification**:
+     - Incremented Android version to `3.26.0` (Build `109`).
+     - Backend tests: 147 / 147 passing (100% green).
+     - Android unit tests: 147 / 147 passing (100% green).
+     - Android build: `assembleDebug` succeeded in 17s.
+- **Current Project State**: All tests green. Production release build v3.26.0 (Build 109) ready.
+- **Handover for Next Session**: Complete 37 RMS API capabilities unlocked and visually integrated across Courses, Demand Allocation, and Trainer profiles.
+
 ## 2026-08-23T00:32:00+01:00 - Full-App Makeover, Executive Metrics Carousel, Growth & Peer Tab (v3.25.0 / Build 108)
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)

@@ -100,6 +100,7 @@ internal fun AllocationDeskContent(
     var selectedSkillLevels by remember { mutableStateOf(setOf<String>()) }
     var showFilters by remember { mutableStateOf(false) }
     var selectedLens by remember { mutableStateOf("All demand") }
+    var networkCourse by remember { mutableStateOf<String?>(null) }
 
     // Built from what's actually in the data, not a guessed enum — RMS's real
     // delivery-mode strings have proven inconsistent before (see AI/CONTEXT.md).
@@ -342,6 +343,7 @@ internal fun AllocationDeskContent(
                     "ILO" -> sk.indigo
                     else -> sk.crit
                 },
+                onFindInNetwork = { networkCourse = it },
                 onClick = { onBatchClick(batch) },
             )
         }
@@ -349,6 +351,12 @@ internal fun AllocationDeskContent(
         item { Spacer(Modifier.height(20.dp)) }
     }
 
+    networkCourse?.let { cName ->
+        NetworkStaffingSheet(
+            courseName = cName,
+            onDismiss = { networkCourse = null },
+        )
+    }
 }
 
 // ── Filters ──────────────────────────────────────────────────────────────────
@@ -594,6 +602,7 @@ internal fun BatchCard(
     isPriority: Boolean = true,
     globalFeatured: Boolean = false,
     modeTint: Color? = null,
+    onFindInNetwork: (courseName: String) -> Unit = {},
     onClick: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
@@ -936,7 +945,15 @@ internal fun BatchCard(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (managerRecommendation.bool("availability_verified")) sk.green else sk.warn,
                             )
-                        }
+                val courseName = b.str("course_name")
+                if (courseName.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { onFindInNetwork(courseName) },
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    ) {
+                        Text("Search Wider Trainer Network 🌐", style = MaterialTheme.typography.labelSmall, color = sk.cyan)
                     }
                 }
             }

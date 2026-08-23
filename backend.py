@@ -6649,6 +6649,107 @@ def trainer_growth_benchmark():
     }), 200
 
 
+@app.route('/api/v2/course/curriculum', methods=['GET'])
+def v2_course_curriculum():
+    """
+    Curriculum, module breakdown, lab URLs, syllabus TOC and public schedule
+    for any course in the catalogue, aggregating Keys 206, 156, 246, 248.
+    """
+    course_name = str(request.args.get("courseName", "") or request.args.get("course", "")).strip()
+    course_id = str(request.args.get("courseId", "") or request.args.get("cid", "")).strip()
+    _, error = _v2_manager_session("")
+    if error:
+        return error
+    if not course_name and not course_id:
+        return error_response("INVALID_PARAMS", "courseName or courseId query param required", 400)
+
+    # Parallel fetch across the 4 course intelligence endpoints
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        f_modules = pool.submit(_rms, "courseModule", {"Cid": course_id}) if course_id else None
+        f_content = pool.submit(_rms, "courseContentUrl", {"CourseName": course_name}) if course_name else None
+        f_schedule = pool.submit(_course_schedule, course_name) if course_name else None
+        f_syllabus = pool.submit(_rms, "courseSyllabus", {})
+
+        raw_modules = (f_modules.result() or []) if f_modules else []
+        raw_content = (f_content.result() or []) if f_content else []
+        schedule_info = f_schedule.result() if f_schedule else {}
+        syllabus_rows = f_syllabus.result() or []
+
+    modules = []
+    for r in (raw_modules if isinstance(raw_modules, list) else []):
+        if isinstance(r, dict):
+            modules.append({
+                "module_no": r.get("ModuleNo") or r.get("module_no") or len(modules) + 1,
+                "title": str(r.get("ModuleName") or r.get("Title") or r.get("module_name") or "").strip(),
+                "duration_hours": r.get("Duration") or r.get("duration") or 8,
+                "topics": str(r.get("Topics") or r.get("topics") or "").strip(),
+            })
+
+    content_urls = []
+    for r in (raw_content if isinstance(raw_content, list) else []):
+        if isinstance(r, dict):
+            url = str(r.get("ContentUrl") or r.get("Url") or r.get("LabUrl") or "").strip()
+            if url:
+                content_urls.append({
+                    "title": str(r.get("Title") or r.get("Name") or "Course Resource").strip(),
+                    "url": url,
+                })
+
+    # Syllabus link matching
+    syllabus_url = ""
+    if course_name and isinstance(syllabus_rows, list):
+        norm_target = _norm_course(course_name)
+        for r in syllabus_rows:
+            if isinstance(r, dict) and _norm_course(str(r.get("Course_Name", ""))) == norm_target:
+                syllabus_url = str(r.get("TOC") or r.get("Course_Page") or "").strip()
+                break
+
+    return jsonify({
+        "course_name": course_name or (schedule_info.get("course_name") if schedule_info else ""),
+        "course_id": course_id or (schedule_info.get("course_id") if schedule_info else ""),
+        "modules": modules,
+        "content_resources": content_urls,
+        "public_schedule_dates": (schedule_info.get("schedule_dates") or []) if schedule_info else [],
+        "syllabus_url": syllabus_url,
+        "has_curriculum": bool(modules or content_urls or (schedule_info and schedule_info.get("available"))),
+        "timestamp": datetime.utcnow().isoformat(),
+    }), 200
+
+
+@app.route('/api/v2/network/trainers', methods=['GET'])
+def v2_network_trainers():
+    """
+    Search in-house and freelance trainers across Koenig for staffing (Key 70 / API 157).
+    """
+    course = str(request.args.get("course", "") or request.args.get("courseName", "")).strip()
+    trainer_type = str(request.args.get("trainerType", "")).strip()
+    _, error = _v2_manager_session("")
+    if error:
+        return error
+    if not course:
+        return error_response("INVALID_COURSE", "course query param required", 400)
+
+    rows = _rms("globalTrainers", {"Course": course, "TrainerType": trainer_type})
+    trainers = []
+    for r in (rows if isinstance(rows, list) else []):
+        if isinstance(r, dict) and "Column1" not in r:
+            trainers.append({
+                "name": str(r.get("TrainerName") or r.get("Name") or "").strip(),
+                "email": str(r.get("TrainerEmail") or r.get("Email") or "").strip().lower(),
+                "trainer_type": str(r.get("TrainerType") or r.get("Type") or (trainer_type or "In-House")).strip(),
+                "location": str(r.get("Location") or r.get("City") or "").strip(),
+                "phone": str(r.get("Phone") or r.get("Mobile") or "").strip(),
+            })
+
+    return jsonify({
+        "course": course,
+        "trainer_type_filter": trainer_type,
+        "total_count": len(trainers),
+        "trainers": trainers,
+        "timestamp": datetime.utcnow().isoformat(),
+    }), 200
+
+
 @app.errorhandler(500)
 def internal_error(error):
     return error_response("INTERNAL_ERROR", "Internal server error", 500)

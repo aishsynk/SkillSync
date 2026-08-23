@@ -93,6 +93,7 @@ internal fun CoursesTab(
     var vendor by remember { mutableStateOf<String?>(null) }
     var assignmentCourse by remember { mutableStateOf<Map<*, *>?>(null) }
     var showAssignment by remember { mutableStateOf(false) }
+    var curriculumCourse by remember { mutableStateOf<Map<*, *>?>(null) }
 
     val vendors = remember(courses) {
         courses.map { it.str("vendor") }.filter { it.isNotBlank() }.distinct().sorted()
@@ -191,9 +192,24 @@ internal fun CoursesTab(
             }
         }
         itemsIndexed(shown) { i, c ->
-            Appear(i) { CourseCard(c, onTrainerClick) { assignmentCourse = c; showAssignment = true } }
+            Appear(i) {
+                CourseCard(
+                    course = c,
+                    onTrainerClick = onTrainerClick,
+                    onTransfer = { assignmentCourse = c; showAssignment = true },
+                    onInspectCurriculum = { curriculumCourse = c },
+                )
+            }
         }
         item { Spacer(Modifier.height(16.dp)) }
+    }
+
+    curriculumCourse?.let { c ->
+        CourseCurriculumSheet(
+            courseName = c.str("course"),
+            courseId = c.str("course_id").ifBlank { c.str("exam_code") },
+            onDismiss = { curriculumCourse = null },
+        )
     }
 
     if (showAssignment) {
@@ -368,7 +384,12 @@ private fun CatalogueFigure(label: String, value: String, tint: Color) {
 }
 
 @Composable
-private fun CourseCard(course: Map<*, *>, onTrainerClick: (String, String) -> Unit, onTransfer: () -> Unit) {
+private fun CourseCard(
+    course: Map<*, *>,
+    onTrainerClick: (String, String) -> Unit,
+    onTransfer: () -> Unit,
+    onInspectCurriculum: () -> Unit = {},
+) {
     val sk = MaterialTheme.skill
     val owners = course.list("owners")
     val single = course.str("coverage") == "single"
@@ -531,9 +552,26 @@ private fun CourseCard(course: Map<*, *>, onTrainerClick: (String, String) -> Un
                             )
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(onClick = onTransfer, modifier = Modifier.fillMaxWidth()) {
-                        Text("Assign to Team Members")
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Button(
+                            onClick = onInspectCurriculum,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        ) {
+                            Text("Curriculum & Labs ↗", style = MaterialTheme.typography.labelSmall)
+                        }
+                        OutlinedButton(
+                            onClick = onTransfer,
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        ) {
+                            Text("Assign Skill", style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
             }

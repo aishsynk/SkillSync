@@ -38,3 +38,38 @@ def test_growth_benchmark_requires_auth():
     with app.test_client() as client:
         resp = client.get('/api/v2/trainer/growth-benchmark?email=trainer@koenig-solutions.com&manager=manager@koenig-solutions.com')
         assert resp.status_code == 401
+
+
+def test_curriculum_v2_endpoint_validation():
+    with app.test_client() as client:
+        token = _generate_session_token("manager@koenig-solutions.com", "Delivery Manager")
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        # Missing params
+        resp = client.get('/api/v2/course/curriculum', headers=headers)
+        assert resp.status_code == 400
+        
+        # Valid courseName
+        resp = client.get('/api/v2/course/curriculum?courseName=AZ-104T00', headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "course_name" in data
+        assert "modules" in data
+        assert "content_resources" in data
+
+
+def test_network_trainers_v2_endpoint():
+    with app.test_client() as client:
+        token = _generate_session_token("manager@koenig-solutions.com", "Delivery Manager")
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        # Missing course param
+        resp = client.get('/api/v2/network/trainers', headers=headers)
+        assert resp.status_code == 400
+        
+        # Valid search
+        resp = client.get('/api/v2/network/trainers?course=AZ-104', headers=headers)
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "course" in data
+        assert "trainers" in data
