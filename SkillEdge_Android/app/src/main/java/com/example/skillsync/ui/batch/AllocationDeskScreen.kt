@@ -945,6 +945,10 @@ internal fun BatchCard(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (managerRecommendation.bool("availability_verified")) sk.green else sk.warn,
                             )
+                        }
+                    }
+                }
+
                 val courseName = b.str("course_name")
                 if (courseName.isNotBlank()) {
                     Spacer(Modifier.height(8.dp))

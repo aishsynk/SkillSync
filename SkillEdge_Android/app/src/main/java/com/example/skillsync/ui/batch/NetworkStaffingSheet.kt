@@ -43,7 +43,7 @@ fun NetworkStaffingSheet(
     LaunchedEffect(courseName) {
         loading = true
         try {
-            val res = RetrofitClient.api.getNetworkTrainers(course = courseName)
+            val res = RetrofitClient.instance.getNetworkTrainers(course = courseName)
             networkData = res
         } catch (_: Exception) {
             networkData = null
@@ -85,7 +85,7 @@ fun NetworkStaffingSheet(
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(painterResource(R.drawable.ic_close), "Close", tint = sk.subText)
+                    Text("✕", color = sk.subText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
 

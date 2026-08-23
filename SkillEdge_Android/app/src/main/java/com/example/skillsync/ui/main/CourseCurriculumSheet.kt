@@ -47,7 +47,7 @@ fun CourseCurriculumSheet(
     LaunchedEffect(courseName, courseId) {
         loading = true
         try {
-            val res = RetrofitClient.api.getCourseCurriculum(courseName = courseName, courseId = courseId)
+            val res = RetrofitClient.instance.getCourseCurriculum(courseName = courseName, courseId = courseId)
             curriculumData = res
         } catch (_: Exception) {
             curriculumData = null
@@ -87,7 +87,7 @@ fun CourseCurriculumSheet(
                     }
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(painterResource(R.drawable.ic_close), "Close", tint = sk.subText)
+                    Text("✕", color = sk.subText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
