@@ -1,4 +1,36 @@
 
+## 2026-08-24T14:21:00+05:30 - Sprint A & Sprint B Complete: Client DNC/Specified Trainer Radar, Courseware Slide Hub, Demand-Led Upskilling IDP & Positive Recognitions (v3.36.0 / Build 119)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Python/Flask, pytest, Kotlin/Compose, Gradle, Git)
+- **Files Modified**:
+  - `backend.py` (implemented client DNC exclusion hard gate & specified trainer boost in `_rank_batch` and `evaluate_candidate`; upgraded `v2_demand_context` and `v2_course_curriculum` to extract official courseware slide PDFs and active versions; built `/api/v2/upskilling/demand-opportunities`; enriched `trainer_360` with structured appreciations and positive commendations)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt` (added `content_url` and `latest_version` to `DemandCourseContext`; added `getDemandUpskillingOpportunities` endpoint)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/BatchDetailScreen.kt` (rendered red `🚫 Client DNC Blocked` badge and glowing `⭐ Client Requested Trainer` badge; added 1-tap **"Open Slides PDF ↗"** and active version card)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/GatedCandidates.kt` (rendered client requested badge and DNC exclusion alert)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/CourseCurriculumSheet.kt` (added active version display and 1-tap **"Slides PDF ↗"** button)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/trainer/Trainer360Screen.kt` (added **"🏆 Appreciations & Commendations"** showcase card)
+  - `SkillEdge_Android/app/build.gradle.kts` (bumped version to v3.36.0 / Build 119)
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Sprint A — Feature 3 (Client DNC & Specified Trainer Radar)**:
+     - Parsed `DNC` and `SpecifiedTrainer` from RMS Key 111 (`trainerRCSchedule`).
+     - Excluded candidates marked DNC with hard blockers and red badge (`🚫 Client DNC Blocked`).
+     - Preferred candidates requested by client receive a +25 fit bonus and glowing badge (`⭐ Client Requested Trainer`).
+  2. **Sprint A — Feature 1 (Curriculum Versioning & Slide PDFs)**:
+     - Queried RMS Key 156 (`courseContentUrl`) and Key 172 (`latestCourseVersion`).
+     - In `BatchDetailScreen` and `CourseCurriculumSheet`, added 1-tap access to official Koenig slide decks (PDF) and real-time version badges.
+  3. **Sprint B — Feature 4 (Demand-Led Upskilling IDP Engine)**:
+     - Built `/api/v2/upskilling/demand-opportunities` correlating unallocated demand batches against team skills to recommend high-ROI upskilling targets with ready-to-write RMS Key 255 payload.
+  4. **Sprint B — Feature 5 (Positive Appreciations & Commendations)**:
+     - Extracted positive HR incident commendations (Key 59) and CSAT feedback in `trainer_360`.
+     - Rendered a dedicated appreciations showcase card in `Trainer360Screen`.
+  5. **Quality & Validation**:
+     - Backend pytest suite: **109 / 109 passing (100% green)**.
+     - Android unit test suite: **147 / 147 passing (100% green)**.
+- **Current Project State**: Production release build v3.36.0 (Build 119) verified and ready for deployment.
+- **Handover for Next Session**: Sprint A and Sprint B features are fully delivered across backend and Android client.
+
 ## 2026-08-24T14:06:00+05:30 - Audible Notification Sound & Vibration Alerts with High-Priority Channel (v3.35.0 / Build 118)
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)

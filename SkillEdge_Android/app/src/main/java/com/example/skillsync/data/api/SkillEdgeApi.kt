@@ -71,6 +71,12 @@ interface SkillEdgeApi {
         @Query("refresh") refresh: Int? = null,
     ): Map<String, Any>
 
+    /** Demand-led upskilling opportunities correlated against team competency. */
+    @GET("api/v2/upskilling/demand-opportunities")
+    suspend fun getDemandUpskillingOpportunities(
+        @Query("manager") manager: String? = null,
+    ): Map<String, Any>
+
     /** Authenticated Version 2 operational evidence for one demand. */
     @GET("api/v2/operations/demand-context")
     suspend fun getDemandContext(
@@ -261,6 +267,8 @@ data class DemandCourseContext(
     val status: String = "",
     @com.google.gson.annotations.SerializedName("is_duplicate") val isDuplicate: Any? = null,
     @com.google.gson.annotations.SerializedName("is_discontinued") val isDiscontinued: Any? = null,
+    @com.google.gson.annotations.SerializedName("content_url") val contentUrl: String = "",
+    @com.google.gson.annotations.SerializedName("latest_version") val latestVersion: String = "",
 )
 
 data class SalesConfirmationContext(

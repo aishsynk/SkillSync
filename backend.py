@@ -1443,6 +1443,18 @@ def _rank_batch(batch, team, availability_sources=None, candidate_context=None):
             batch, best, best_q, availability_row, util, feedback, languages,
             context.get(email, {}).get("certification_codes", []),
         )
+        batch_cust = str(batch.get("customer") or "").strip().lower()
+        trainer_dnc = context.get(email, {}).get("dnc_clients", set())
+        trainer_specified = context.get(email, {}).get("specified_clients", set())
+        is_dnc = bool(batch_cust and batch_cust in trainer_dnc)
+        is_client_req = bool(batch_cust and batch_cust in trainer_specified)
+
+        if is_dnc:
+            suitability = 0
+            coverage = "DNC Blocked"
+        elif is_client_req:
+            suitability = min(100, suitability + 25)
+
         candidates.append({
             "trainer_name":  name if not is_self else f"{name} (You)",
             "trainer_email": email,
@@ -1464,7 +1476,9 @@ def _rank_batch(batch, team, availability_sources=None, candidate_context=None):
             "exact":         best >= 92,
             "category":      coverage,
             "coverage":      coverage,
-            "blocked":             feedback["blocked"],
+            "dnc_flag":      is_dnc,
+            "client_requested": is_client_req,
+            "blocked":             feedback["blocked"] or is_dnc,
             "blocked_until":       feedback["blocked_until"],
             "recent_negative_6mo": feedback["recent_negative_6mo"],
         })
@@ -3437,6 +3451,15 @@ def trainer_360():
             "hr_positive":      hr_pos,
             "hr_negative":      hr_neg,
             "negative_details": [r for r in neg_detail if isinstance(r, dict)],
+            "appreciations":    [
+                {
+                    "title": str(r.get("Title") or r.get("IncidentTitle") or "Positive Commendation").strip(),
+                    "detail": str(r.get("IncidentDetails") or r.get("Positive Details") or r.get("Description") or "").strip(),
+                    "date": str(r.get("Date") or r.get("IncidentDate") or "").strip(),
+                }
+                for r in (hr_rows if isinstance(hr_rows, list) else [])
+                if isinstance(r, dict) and str(r.get("IncidentDetails") or r.get("Positive Details") or r.get("Description") or "").strip()
+            ] or ([{"title": "Positive HR Commendation", "detail": f"{hr_pos} official appreciation records on file.", "date": "RMS Verified"}] if hr_pos > 0 else []),
             "responses":        feedback_responses,
         },
         # Surfaced so the UI can say "no data" honestly rather than implying zero.
@@ -3835,11 +3858,16 @@ def v2_demand_context():
     if not course_name or len(course_name) > 200:
         return error_response("INVALID_COURSE_NAME", "courseName is required", 400)
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         course_future = pool.submit(_rms, "courseAvailability", {"CourseName": course_name})
         scid_future = pool.submit(_rms, "scid", {"assignmentid": demand_id})
+        content_future = pool.submit(_rms, "courseContentUrl", {"CourseName": course_name})
+        version_future = pool.submit(_rms, "latestCourseVersion", {"CName": course_name})
+
         course_rows = course_future.result() or []
         scid_rows = scid_future.result() or []
+        content_rows = content_future.result() or []
+        version_rows = version_future.result() or []
 
     course_row = next((r for r in course_rows if isinstance(r, dict)), {})
     scid_values = []
@@ -3848,6 +3876,22 @@ def v2_demand_context():
             continue
         raw = str(row.get("SCIDs", "") or "").strip()
         scid_values.extend(v.strip() for v in _re.split(r"[,#;]", raw) if v.strip())
+
+    content_url = ""
+    for r in (content_rows if isinstance(content_rows, list) else []):
+        if isinstance(r, dict):
+            u = str(r.get("ContentURL") or r.get("ContentUrl") or r.get("Url") or "").strip()
+            if u:
+                content_url = u
+                break
+
+    latest_ver = ""
+    for r in (version_rows if isinstance(version_rows, list) else []):
+        if isinstance(r, dict):
+            v = str(r.get("LatestVersion") or r.get("Version") or r.get("Latest_Version") or "").strip()
+            if v and "select the course" not in v.lower():
+                latest_ver = v
+                break
 
     course_verified = bool(course_row)
     scid_verified = bool(scid_values)
@@ -3861,6 +3905,8 @@ def v2_demand_context():
             "status": str(course_row.get("Course Status", "") or ""),
             "is_duplicate": course_row.get("Is Duplicate") if course_verified else None,
             "is_discontinued": course_row.get("Is Discontinued") if course_verified else None,
+            "content_url": content_url,
+            "latest_version": latest_ver,
         },
         "sales_confirmations": {
             "verified": scid_verified,
@@ -4683,12 +4729,19 @@ def evaluate_candidate(candidate, schedule, batch, required_level=None):
     if blockers:
         return {
             "trainer_name": candidate.get("trainer_name", ""),
-            "eligible": False, "blockers": blockers, "availability": avail,
-            "international": intl, "fit": 0, "factors": [],
+            "eligible": False,
+            "dnc_flag": any(b.get("gate") == "dnc" for b in blockers),
+            "client_requested": False,
+            "blockers": blockers,
+            "availability": avail,
+            "international": intl,
+            "fit": 0,
+            "factors": [],
         }
 
-    if client and client in schedule.get("specified_clients", set()):
-        add("Client preference", 10, f"{batch.get('customer')} has asked for this trainer")
+    is_client_specified = bool(client and client in schedule.get("specified_clients", set()))
+    if is_client_specified:
+        add("Client preference", 25, f"{batch.get('customer')} explicitly requested this trainer")
 
     mode = str(batch.get("delivery_mode") or "").strip().lower()
     if mode:
@@ -4715,6 +4768,8 @@ def evaluate_candidate(candidate, schedule, batch, required_level=None):
     return {
         "trainer_name": candidate.get("trainer_name", ""),
         "eligible": True,
+        "dnc_flag": False,
+        "client_requested": is_client_specified,
         "blockers": [],
         "availability": avail,
         "international": intl,
@@ -7871,17 +7926,19 @@ def v2_course_curriculum():
     if not course_name and not course_id:
         return error_response("INVALID_PARAMS", "courseName or courseId query param required", 400)
 
-    # Parallel fetch across the 4 course intelligence endpoints
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    # Parallel fetch across the 5 course intelligence endpoints
+    with ThreadPoolExecutor(max_workers=5) as pool:
         f_modules = pool.submit(_rms, "courseModule", {"Cid": course_id}) if course_id else None
         f_content = pool.submit(_rms, "courseContentUrl", {"CourseName": course_name}) if course_name else None
         f_schedule = pool.submit(_course_schedule, course_name) if course_name else None
         f_syllabus = pool.submit(_rms, "courseSyllabus", {})
+        f_version = pool.submit(_rms, "latestCourseVersion", {"CName": course_name}) if course_name else None
 
         raw_modules = (f_modules.result() or []) if f_modules else []
         raw_content = (f_content.result() or []) if f_content else []
         schedule_info = f_schedule.result() if f_schedule else {}
         syllabus_rows = f_syllabus.result() or []
+        version_rows = (f_version.result() or []) if f_version else []
 
     modules = []
     for r in (raw_modules if isinstance(raw_modules, list) else []):
@@ -7894,14 +7951,25 @@ def v2_course_curriculum():
             })
 
     content_urls = []
+    official_courseware_url = ""
     for r in (raw_content if isinstance(raw_content, list) else []):
         if isinstance(r, dict):
-            url = str(r.get("ContentUrl") or r.get("Url") or r.get("LabUrl") or "").strip()
+            url = str(r.get("ContentURL") or r.get("ContentUrl") or r.get("Url") or r.get("LabUrl") or "").strip()
             if url:
+                if not official_courseware_url:
+                    official_courseware_url = url
                 content_urls.append({
-                    "title": str(r.get("Title") or r.get("Name") or "Course Resource").strip(),
+                    "title": str(r.get("Title") or r.get("Name") or "Official Course Slides / PDF").strip(),
                     "url": url,
                 })
+
+    latest_version = ""
+    for r in (version_rows if isinstance(version_rows, list) else []):
+        if isinstance(r, dict):
+            v = str(r.get("LatestVersion") or r.get("Version") or r.get("Latest_Version") or "").strip()
+            if v and "select the course" not in v.lower():
+                latest_version = v
+                break
 
     # Syllabus link matching
     syllabus_url = ""
@@ -7917,6 +7985,8 @@ def v2_course_curriculum():
         "course_id": course_id or (schedule_info.get("course_id") if schedule_info else ""),
         "modules": modules,
         "content_resources": content_urls,
+        "official_courseware_url": official_courseware_url,
+        "latest_version": latest_version,
         "public_schedule_dates": (schedule_info.get("schedule_dates") or []) if schedule_info else [],
         "syllabus_url": syllabus_url,
         "has_curriculum": bool(modules or content_urls or (schedule_info and schedule_info.get("available"))),
@@ -7954,6 +8024,89 @@ def v2_network_trainers():
         "trainer_type_filter": trainer_type,
         "total_count": len(trainers),
         "trainers": trainers,
+        "timestamp": datetime.utcnow().isoformat(),
+    }), 200
+
+
+@app.route('/api/v2/upskilling/demand-opportunities', methods=['GET'])
+def v2_upskilling_demand_opportunities():
+    """
+    Correlates unallocated demand (Key 190) against team competency gaps (Key 217)
+    to surface demand-led upskilling recommendations with 1-tap IDP skill assignment.
+    """
+    manager = str(request.args.get("manager", "")).strip().lower()
+    session, error = _v2_manager_session(manager)
+    if error:
+        return error
+
+    manager_email = session["email"] if session else manager
+    team = _team(manager_email)
+    demand = _demand_rows() or []
+
+    # Group unallocated demand by course
+    course_demand = {}
+    for b in demand:
+        c_name = str(b.get("course_name", "")).strip()
+        c_id = str(b.get("course_id", "")).strip()
+        if not c_name:
+            continue
+        if c_name not in course_demand:
+            course_demand[c_name] = {
+                "course_name": c_name,
+                "course_id": c_id,
+                "vendor": str(b.get("customer", "")).strip(),
+                "delivery_mode": str(b.get("delivery_mode", "")).strip(),
+                "batch_count": 0,
+                "earliest_start": b.get("start_date"),
+            }
+        course_demand[c_name]["batch_count"] += 1
+        st = b.get("start_date")
+        if st and (not course_demand[c_name]["earliest_start"] or st < course_demand[c_name]["earliest_start"]):
+            course_demand[c_name]["earliest_start"] = st
+
+    # Sort demand by highest unallocated batch frequency
+    top_demand_courses = sorted(course_demand.values(), key=lambda x: -x["batch_count"])[:8]
+
+    opportunities = []
+    for c in top_demand_courses:
+        target_name = c["course_name"]
+        norm_target = _norm_course(target_name)
+        suggested = []
+        for name, email in team:
+            trainer_skills = _skills(email)
+            already_has = any(_norm_course(s.get("course_name", "")) == norm_target for s in trainer_skills)
+            if already_has:
+                continue
+
+            best_adj_score = 0
+            best_adj_course = ""
+            for s in trainer_skills:
+                m = _fuzzy_match(norm_target, _norm_course(s.get("course_name", "")))
+                if m > best_adj_score:
+                    best_adj_score = m
+                    best_adj_course = s.get("course_name", "")
+
+            suggested.append({
+                "trainer_name": name,
+                "trainer_email": email,
+                "adjacent_skill": best_adj_course or (trainer_skills[0].get("course_name", "") if trainer_skills else "Core Domain"),
+                "readiness_score": best_adj_score if best_adj_score > 0 else 50,
+            })
+
+        suggested.sort(key=lambda x: -x["readiness_score"])
+        opportunities.append({
+            "course_name": c["course_name"],
+            "course_id": c["course_id"],
+            "vendor": c["vendor"],
+            "delivery_mode": c["delivery_mode"],
+            "unallocated_batch_count": c["batch_count"],
+            "earliest_start_date": _iso(c["earliest_start"]),
+            "suggested_trainers": suggested[:3],
+        })
+
+    return jsonify({
+        "total_demand_courses": len(course_demand),
+        "high_priority_opportunities": opportunities,
         "timestamp": datetime.utcnow().isoformat(),
     }), 200
 

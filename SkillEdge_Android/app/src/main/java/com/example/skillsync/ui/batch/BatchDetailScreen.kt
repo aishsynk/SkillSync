@@ -274,6 +274,43 @@ fun BatchDetailScreen(
                     }
                 }
 
+                // Official Courseware & Versioning Access
+                val contentPdf = operationalContext?.course?.contentUrl.orEmpty()
+                val activeVer = operationalContext?.course?.latestVersion.orEmpty()
+                if (contentPdf.isNotBlank() || activeVer.isNotBlank()) {
+                    Box(Modifier.fillMaxWidth().glassSurface()) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                if (activeVer.isNotBlank()) {
+                                    Text("🏷️ Active RMS Version: $activeVer", style = MaterialTheme.typography.titleSmall, color = sk.aqua, fontWeight = FontWeight.Bold)
+                                }
+                                if (contentPdf.isNotBlank()) {
+                                    Text("Official Koenig slide deck available", style = MaterialTheme.typography.bodySmall, color = sk.subText)
+                                }
+                            }
+                            if (contentPdf.isNotBlank()) {
+                                Button(
+                                    onClick = {
+                                        try {
+                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(contentPdf))
+                                            context.startActivity(intent)
+                                        } catch (_: Exception) {}
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = sk.cyan),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                ) {
+                                    Text("Open Slides PDF ↗", style = MaterialTheme.typography.labelSmall, color = Color.Black, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Recommended allocation
                 Box(Modifier.fillMaxWidth().glassSurface()) {
                     Column(Modifier.padding(16.dp)) {
@@ -303,6 +340,8 @@ fun BatchDetailScreen(
                                     Modifier.fillMaxWidth().padding(vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
+                                    val isDnc = c.bool("dnc_flag")
+                                    val isClientReq = c.bool("client_requested")
                                     Column(Modifier.weight(1f)) {
                                         Text(
                                             c.str("trainer_name"),
@@ -314,8 +353,21 @@ fun BatchDetailScreen(
                                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                                         )
                                         val coverage = c.str("coverage")
-                                        if (coverage.isNotBlank()) {
-                                            Spacer(Modifier.height(2.dp))
+
+                                        Spacer(Modifier.height(2.dp))
+                                        if (isDnc) {
+                                            Text(
+                                                "🚫 Client DNC Blocked",
+                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = sk.crit,
+                                            )
+                                        } else if (isClientReq) {
+                                            Text(
+                                                "⭐ Client Requested Trainer",
+                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = sk.amber,
+                                            )
+                                        } else if (coverage.isNotBlank()) {
                                             Text(
                                                 listOfNotNull(
                                                     coverage,
@@ -328,7 +380,7 @@ fun BatchDetailScreen(
                                             )
                                         }
                                     }
-                                    Chip("${c.int("match")}%", relevanceColor(c.int("match")))
+                                    Chip("${c.int("match")}%", if (isDnc) sk.crit else relevanceColor(c.int("match")))
                                     // Addresses the message to this trainer by name rather
                                     // than sending an unaddressed team broadcast.
                                     TextButton(onClick = {

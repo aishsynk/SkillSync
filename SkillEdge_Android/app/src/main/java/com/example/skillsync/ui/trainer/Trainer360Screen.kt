@@ -1314,6 +1314,50 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
             }
         }
 
+        // Appreciations & Positive Recognitions
+        val appreciations = feedback?.list("appreciations").orEmpty()
+        if (appreciations.isNotEmpty() || hrP > 0) {
+            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(color = sk.cardBorder)
+            Spacer(Modifier.height(8.dp))
+            Label("🏆 Appreciations & Commendations ($hrP)")
+            appreciations.forEach { app ->
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(sk.amber.copy(alpha = 0.12f), RoundedCornerShape(Radii.chip))
+                        .padding(horizontal = Space.md, vertical = Space.sm),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("⭐", fontSize = 14.sp)
+                    Spacer(Modifier.width(Space.sm))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            app.str("title").ifBlank { "Positive Commendation" },
+                            style = MaterialTheme.typography.titleSmall,
+                            color = sk.amber,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        if (app.str("detail").isNotBlank()) {
+                            Text(
+                                app.str("detail"),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = sk.bodyText,
+                            )
+                        }
+                        if (app.str("date").isNotBlank()) {
+                            Text(
+                                app.str("date"),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = sk.subText,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // Per-question responses — positive and negative both, unlike the
         // negative-only list above.
         val responses = feedback?.list("responses").orEmpty()

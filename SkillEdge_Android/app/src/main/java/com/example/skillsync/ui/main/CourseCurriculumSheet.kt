@@ -85,6 +85,10 @@ fun CourseCurriculumSheet(
                     if (courseId.isNotBlank()) {
                         Text("Course Code: $courseId", style = MaterialTheme.typography.labelSmall, color = sk.cyan)
                     }
+                    val activeVersion = curriculumData?.str("latest_version").orEmpty()
+                    if (activeVersion.isNotBlank()) {
+                        Text("🏷️ Active RMS Version: $activeVersion", style = MaterialTheme.typography.labelSmall, color = sk.aqua, fontWeight = FontWeight.Bold)
+                    }
                 }
                 IconButton(onClick = onDismiss) {
                     Text("✕", color = sk.subText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -106,12 +110,28 @@ fun CourseCurriculumSheet(
                 val contentUrls = data?.list("content_resources") ?: emptyList()
                 val schedules = data?.list("public_schedule_dates")?.map { it.toString() } ?: emptyList()
                 val syllabusUrl = data?.str("syllabus_url").orEmpty()
+                val officialPdf = data?.str("official_courseware_url").orEmpty()
 
                 // Quick Action Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    if (officialPdf.isNotBlank()) {
+                        Button(
+                            onClick = {
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(officialPdf))
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {}
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = sk.cyan),
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        ) {
+                            Text("Slides PDF ↗", style = MaterialTheme.typography.labelMedium, color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    }
                     if (syllabusUrl.isNotBlank()) {
                         Button(
                             onClick = {
@@ -124,10 +144,10 @@ fun CourseCurriculumSheet(
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                         ) {
-                            Text("Syllabus PDF ↗", style = MaterialTheme.typography.labelMedium, color = Color.White)
+                            Text("Syllabus ↗", style = MaterialTheme.typography.labelMedium, color = Color.White)
                         }
                     }
-                    if (contentUrls.isNotEmpty()) {
+                    if (contentUrls.isNotEmpty() && officialPdf.isBlank()) {
                         Button(
                             onClick = {
                                 val firstUrl = contentUrls.firstOrNull()?.str("url").orEmpty()

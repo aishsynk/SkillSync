@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.skillsync.R
@@ -172,6 +173,22 @@ private fun EligibleCandidate(c: Map<String, Any>) {
                     .copy(fontFeatureSettings = "tnum"),
                 color = sk.aqua,
             )
+        }
+
+        if (c["client_requested"] == true) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(sk.amber.copy(alpha = 0.15f), RoundedCornerShape(Radii.chip))
+                    .padding(horizontal = Space.md, vertical = Space.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "⭐ Client Requested Trainer",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = sk.amber,
+                )
+            }
         }
 
         if (c["requires_verification"] == true) {
