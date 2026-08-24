@@ -1,4 +1,29 @@
 
+## 2026-08-24T11:05:00+05:30 - Background Scanning, Unallocated Demand Pipeline Audit & Production Release v3.31.0 (Build 114)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Python/Flask, pytest, Kotlin/Compose, Gradle, gh CLI)
+- **Files Modified**:
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Background App & Scanning Verification**:
+     - Verified end-to-end WorkManager scheduling (`PeriodicWorkRequest` 15 min interval with `NetworkType.CONNECTED` constraint via `SkillSyncNotificationWorker` & `SyncScheduler`).
+     - Verified connectivity restoration automatic trigger (`ConnectivityManager.NetworkCallback` -> `SkillEdgeConnectivitySync`).
+     - Verified foreground polling loop (`MainScreenViewModel.startPolling` running every 2 min).
+  2. **Unallocated Demand Data Pipeline Live Probe**:
+     - Probed live RMS API Key 190 (`Unallocated Assignment`) returning 7 active batches with full metadata (dates, delivery modes, vendors).
+     - Probed production Render backend (`https://skilledge-backend-fpcl.onrender.com/healthz`) returning HTTP 200 OK (`version 6.1.0`).
+     - Verified `unallocated_demand_df` payload in `unified-manager-intelligence` and `allocation-desk` with live candidate suitability matching.
+  3. **Notification Deduplication & Delta Delivery Verification**:
+     - Audited `NotificationEngine.detect` and `NotificationStateStore`: confirmed initial seed suppression prevents alert flooding on login, while delta detection immediately triggers system notifications and in-app alerts whenever new `demand_id` records appear.
+  4. **Test & Release Validation**:
+     - Backend pytest suite: **160 / 160 passing (100% green)**.
+     - Android unit test suite: **147 / 147 passing (100% green)**.
+     - Local APK compilation: `assembleDebug` completed successfully in 35s.
+     - Git commit `64e45db` pushed to `origin/main`, triggering GitHub CI/CD workflow to generate signed release APK `SkillEdge-v3.31.0.114.apk`.
+- **Current Project State**: Production release build v3.31.0 (Build 114) fully validated and building on GitHub CI/CD.
+- **Handover for Next Session**: Background scanning, unallocated demand pipeline, and dedicated Reports Hub fully operational and verified.
+
 ## 2026-08-23T06:28:00+01:00 - Real KPI-Grounded Weekly & HR Monthly Reporting Suite & Dedicated Reports Hub (v3.31.0 / Build 114)
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
