@@ -278,7 +278,12 @@ fun ManagerCommandCentre(
 
         // ── Delivery Pulse ──────────────────────────────────────────────────
         SectionHeading("Delivery Pulse", "Team calendar")
-        TeamCalendarScreen(batches = batches)
+        TeamCalendarScreen(
+            batches = batches,
+            demand = demand,
+            readiness = calendarReadiness,
+            onTrainerClick = onTrainerClick,
+        )
 
         // ── 5b · Who is carrying the work ───────────────────────────────────
         // Promoted out of the collapsed Explore section: a manager asked for
