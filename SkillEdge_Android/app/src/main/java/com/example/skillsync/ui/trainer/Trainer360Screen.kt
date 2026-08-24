@@ -583,6 +583,30 @@ private fun UtilisationSection(
                     color = tint,
                 )
             }
+            val trajectory = util?.obj("trajectory_3mo")
+            val streakAlert = trajectory?.str("streak_alert").orEmpty()
+            val status = trajectory?.str("status").orEmpty()
+            if (streakAlert.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                val badgeColor = when (status) {
+                    "fatigue_risk" -> sk.warn
+                    "cooling_down" -> sk.cyan
+                    else -> sk.teal
+                }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(badgeColor.copy(alpha = 0.12f), RoundedCornerShape(Radii.chip))
+                        .padding(horizontal = Space.md, vertical = Space.xs),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        streakAlert,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = badgeColor,
+                    )
+                }
+            }
         } else {
             EmptyNote("No utilisation series returned — this is missing data, not zero utilisation.")
         }

@@ -23,6 +23,7 @@ import com.example.skillsync.R
 import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.IconSlot
 import com.example.skillsync.theme.Radii
+import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.StatusBarIcons
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
@@ -167,6 +168,7 @@ fun BatchDetailScreen(
                         )
                         Spacer(Modifier.height(6.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (batch.bool("is_fast_track") || operationalContext?.course?.isFastTrack == true) { Chip("⚡ Fast-Track (No Exam)", sk.aqua); Spacer(Modifier.width(6.dp)) }
                             if (batch.bool("is_priority")) { Chip("★ Priority", sk.teal); Spacer(Modifier.width(6.dp)) }
                             if (batch.str("tentative").equals("Yes", true)) { Chip("Tentative", sk.amber); Spacer(Modifier.width(6.dp)) }
                             if (batch.str("third_party").equals("Yes", true)) { Chip("Third party", sk.indigo) }
@@ -271,6 +273,58 @@ fun BatchDetailScreen(
                         // and the daily time already shown in the grid. The
                         // window is extracted once, server-side, as
                         // `session_time`.
+                    }
+                }
+
+                // Live Enrolled Class Participants (Key 208)
+                val paxList = operationalContext?.participantsRoster?.students.orEmpty()
+                if (paxList.isNotEmpty()) {
+                    Box(Modifier.fillMaxWidth().glassSurface()) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("👥 Enrolled Participants", fontWeight = FontWeight.SemiBold, color = sk.frost)
+                                    Spacer(Modifier.width(6.dp))
+                                    Chip("${paxList.size}", sk.ice)
+                                }
+                            }
+                            paxList.forEach { student ->
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .background(sk.surface3.copy(alpha = 0.5f), RoundedCornerShape(Radii.chip))
+                                        .padding(horizontal = Space.md, vertical = Space.xs),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            student.name.ifBlank { "Participant" },
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = sk.frost,
+                                        )
+                                        if (student.email.isNotBlank()) {
+                                            Text(
+                                                student.email,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = sk.sky,
+                                            )
+                                        }
+                                    }
+                                    if (student.company.isNotBlank()) {
+                                        Text(
+                                            student.company,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = sk.subText,
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 

@@ -1,4 +1,35 @@
 
+## 2026-08-24T14:38:00+05:30 - Sprint C & Sprint D Complete: Fast-Track Zero-Exam Radar, Class Participant Roster, 90-Day Trajectory Fatigue Radar & Global Staffing Exchange (v3.37.0 / Build 120)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Python/Flask, pytest, Kotlin/Compose, Gradle, Git)
+- **Files Modified**:
+  - `backend.py` (integrated `_exam_policy()` in `_demand_rows()`, `allocation_desk`, and `v2_demand_context` to expose `is_fast_track: true` for zero-exam batches; wired `assignmentPax` in `v2_demand_context` and created `/api/v2/operations/batch-pax` endpoint; integrated `last3MonthsUtil` in `trainer_360` to calculate 3-month month-by-month trajectory and fatigue streak status; ensured `v2_network_trainers` returns location and contact methods)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt` (added `isFastTrack` and `participantsRoster` to `DemandCourseContext`/`DemandContextResponse`; added `getBatchPax` API method)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt` (added `⚡ Fast-track` lens SelectChip and filter matching)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/BatchDetailScreen.kt` (added `⚡ Fast-Track (No Exam)` chip in headline chips; rendered interactive **"👥 Enrolled Participants"** roster card with student names, emails, and company metadata)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/trainer/Trainer360Screen.kt` (added 90-day trajectory workload streak / fatigue badge in `UtilisationSection`)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/NetworkStaffingSheet.kt` (polished 1-tap **"📞 Call"** and **"✉️ Email"** intent actions)
+  - `SkillEdge_Android/app/build.gradle.kts` (bumped version to v3.37.0 / Build 120)
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Sprint C — Feature 1 (Fast-Track "Zero-Exam Barrier" Allocation Radar)**:
+     - Queried RMS Key 271 (`courseWithoutExam`) to check whether vendor certification exams are required.
+     - Tagged zero-exam batches with `is_fast_track: true` and added `⚡ Fast-track` filter chip on Allocation Desk and `⚡ Fast-Track (No Exam)` badge on Batch Details.
+  2. **Sprint C — Feature 2 (Live Class Participant Roster & Corporate Student Directory)**:
+     - Integrated RMS Key 208 (`assignmentPax`) via parallel ThreadPoolExecutor and created `/api/v2/operations/batch-pax`.
+     - Rendered expandable **"👥 Enrolled Participants"** roster card showing student names, corporate emails, and company info on `BatchDetailScreen`.
+  3. **Sprint D — Feature 3 (90-Day Trajectory & Workload Fatigue Engine)**:
+     - Integrated RMS Key 277 (`last3MonthsUtil`) in `trainer_360` to track 3-month month-by-month trajectory.
+     - Computed fatigue status: `fatigue_risk` (`🔥 Heavy Delivery Streak`), `cooling_down` (`📉 Available for Immediate Pipeline`), or `balanced` (`⚖️ Balanced Workload`).
+  4. **Sprint D — Feature 4 (Global Koenig Pool & Freelance Staffing Exchange)**:
+     - Polished `NetworkStaffingSheet` with In-House vs Freelance filter tabs and direct 1-tap email and dialer intent triggers.
+  5. **Quality & Validation**:
+     - Backend pytest suite: **160 / 160 passing (100% green)**.
+     - Android unit test suite: **147 / 147 passing (100% green)**.
+- **Current Project State**: Production release build v3.37.0 (Build 120) fully verified and ready for release.
+- **Handover for Next Session**: Sprint C and Sprint D features are fully delivered across backend and Android client.
+
 ## 2026-08-24T14:21:00+05:30 - Sprint A & Sprint B Complete: Client DNC/Specified Trainer Radar, Courseware Slide Hub, Demand-Led Upskilling IDP & Positive Recognitions (v3.36.0 / Build 119)
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)

@@ -3256,6 +3256,30 @@ def trainer_360():
     emp_code = certs.get("emp_code", "")
     # Negative-feedback detail keys off employee_id, not email.
     neg_detail = (_rms("trainerNegFeedback", {"employee_id": emp_code}) or []) if emp_code else []
+    last3_raw = (_rms("last3MonthsUtil", {"EmpCode": str(emp_code)}) or []) if emp_code else []
+    trajectory_points = []
+    for r in (last3_raw if isinstance(last3_raw, list) else []):
+        if isinstance(r, dict):
+            m_name = str(r.get("MonthName", "")).strip()
+            u_val = r.get("Utilization")
+            try:
+                u_num = round(float(u_val or 0))
+            except (ValueError, TypeError):
+                u_num = 0
+            if m_name:
+                trajectory_points.append({"month": m_name, "utilization": u_num})
+
+    fatigue_status = "balanced"
+    if len(trajectory_points) >= 2 and all(p["utilization"] >= 85 for p in trajectory_points):
+        fatigue_status = "fatigue_risk"
+    elif trajectory_points and trajectory_points[-1]["utilization"] < 40:
+        fatigue_status = "cooling_down"
+
+    trajectory_3mo = {
+        "points": trajectory_points,
+        "status": fatigue_status,
+        "streak_alert": "🔥 Heavy Delivery Streak (Fatigue Risk)" if fatigue_status == "fatigue_risk" else ("📉 Available for Immediate Pipeline" if fatigue_status == "cooling_down" else "⚖️ Balanced Workload"),
+    }
 
     # Per-question feedback (positive and negative both) — separate from the
     # negative-only detail above. Field names are unverified against a live
@@ -3412,6 +3436,7 @@ def trainer_360():
             "peak":    max((m["utilization"] for m in series), default=0),
             "upcoming_load": sum(1 for a in assigns
                                  if _engagement_state(a, today) == "upcoming"),
+            "trajectory_3mo": trajectory_3mo,
             # Months at zero since the most recent non-zero month.
             "bench_months": next(
                 (i for i, m in enumerate(reversed(series)) if m["utilization"] > 0), len(series)
@@ -3477,15 +3502,21 @@ def _demand_rows():
     raw = _rms("unallocated", {})
     if raw is None:
         return None
+    policy = _exam_policy()
     out = []
     for d in (raw if isinstance(raw, list) else []):
         if not isinstance(d, dict):
             continue
+        c_name = str(d.get("Coursename", "") or "").strip()
+        norm_c = _norm_course(c_name)
+        exam_info = policy.get(norm_c)
+        is_fast_track = bool(exam_info and not exam_info.get("required", True))
+
         st, en = _parse_date(d.get("CourseSDate", "")), _parse_date(d.get("CourseEDate", ""))
         out.append({
             "demand_id":     str(d.get("AssignmentID", "")),
             "course_id":     str(d.get("CourseId", "")),
-            "course_name":   str(d.get("Coursename", "") or "").strip(),
+            "course_name":   c_name,
             "start_date":    _iso(st),
             "end_date":      _iso(en),
             "days":          ((en - st).days + 1) if (st and en) else None,
@@ -3502,6 +3533,7 @@ def _demand_rows():
             "remarks":       str(d.get("fmatRemarks", "") or "").strip(),
             "toc_url":       str(d.get("TOC", "") or "").strip(),
             "course_url":    str(d.get("CourseURL", "") or "").strip(),
+            "is_fast_track": is_fast_track,
             # SCID and TOTRecords arrive as HTML blobs; strip to readable text.
             "scid":          _re.sub(r"<[^>]+>", " ", str(d.get("SCID", "") or "")).strip(),
             "schedule":      _re.sub(r"<br\s*/?>", "\n", str(d.get("TOTRecords", "") or "")),
@@ -3858,16 +3890,18 @@ def v2_demand_context():
     if not course_name or len(course_name) > 200:
         return error_response("INVALID_COURSE_NAME", "courseName is required", 400)
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=5) as pool:
         course_future = pool.submit(_rms, "courseAvailability", {"CourseName": course_name})
         scid_future = pool.submit(_rms, "scid", {"assignmentid": demand_id})
         content_future = pool.submit(_rms, "courseContentUrl", {"CourseName": course_name})
         version_future = pool.submit(_rms, "latestCourseVersion", {"CName": course_name})
+        pax_future = pool.submit(_rms, "assignmentPax", {"AssignmentId": demand_id})
 
         course_rows = course_future.result() or []
         scid_rows = scid_future.result() or []
         content_rows = content_future.result() or []
         version_rows = version_future.result() or []
+        pax_rows = pax_future.result() or []
 
     course_row = next((r for r in course_rows if isinstance(r, dict)), {})
     scid_values = []
@@ -3893,6 +3927,23 @@ def v2_demand_context():
                 latest_ver = v
                 break
 
+    pax_list = []
+    for r in (pax_rows if isinstance(pax_rows, list) else []):
+        if not isinstance(r, dict):
+            continue
+        p_name = str(r.get("StudentName", r.get("Name", "")) or "").strip()
+        p_email = str(r.get("StudentEmail", r.get("Email", "")) or "").strip()
+        if p_name or p_email:
+            pax_list.append({
+                "name": p_name or "Participant",
+                "email": p_email,
+                "company": str(r.get("Company", r.get("Client", "")) or "").strip(),
+            })
+
+    policy = _exam_policy()
+    exam_info = policy.get(_norm_course(course_name))
+    is_fast_track = bool(exam_info and not exam_info.get("required", True))
+
     course_verified = bool(course_row)
     scid_verified = bool(scid_values)
     return jsonify({
@@ -3907,11 +3958,16 @@ def v2_demand_context():
             "is_discontinued": course_row.get("Is Discontinued") if course_verified else None,
             "content_url": content_url,
             "latest_version": latest_ver,
+            "is_fast_track": is_fast_track,
         },
         "sales_confirmations": {
             "verified": scid_verified,
             "count": len(set(scid_values)),
             "ids": sorted(set(scid_values)),
+        },
+        "participants_roster": {
+            "count": len(pax_list),
+            "students": pax_list,
         },
         "confidence": "verified" if course_verified and scid_verified else "partial",
         "note": "Unavailable fields are unverified, not assumed empty.",
@@ -8107,6 +8163,36 @@ def v2_upskilling_demand_opportunities():
     return jsonify({
         "total_demand_courses": len(course_demand),
         "high_priority_opportunities": opportunities,
+        "timestamp": datetime.utcnow().isoformat(),
+    }), 200
+
+
+@app.route('/api/v2/operations/batch-pax', methods=['GET'])
+def v2_batch_pax():
+    """Live enrolled participant roster for an assignment/demand (RMS Key 208)."""
+    assignment_id = str(request.args.get("assignmentId", "") or request.args.get("demandId", "")).strip()
+    if not assignment_id or not assignment_id.isdigit():
+        return error_response("INVALID_PARAMS", "assignmentId is required", 400)
+    _, error = _v2_manager_session("")
+    if error:
+        return error
+
+    rows = _rms("assignmentPax", {"AssignmentId": assignment_id}) or []
+    participants = []
+    for r in (rows if isinstance(rows, list) else []):
+        if isinstance(r, dict):
+            name = str(r.get("StudentName", r.get("Name", "")) or "").strip()
+            email = str(r.get("StudentEmail", r.get("Email", "")) or "").strip()
+            if name or email:
+                participants.append({
+                    "name": name or "Participant",
+                    "email": email,
+                    "company": str(r.get("Company", r.get("Client", "")) or "").strip(),
+                })
+    return jsonify({
+        "assignment_id": assignment_id,
+        "total_count": len(participants),
+        "participants": participants,
         "timestamp": datetime.utcnow().isoformat(),
     }), 200
 

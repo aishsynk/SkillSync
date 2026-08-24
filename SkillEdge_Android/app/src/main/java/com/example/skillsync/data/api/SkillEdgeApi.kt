@@ -178,6 +178,12 @@ interface SkillEdgeApi {
         @Query("month") month: String? = null,
     ): TrainerIndexResponseDto
 
+    /** V2 Enrolled Participant Roster (Key 208) */
+    @GET("api/v2/operations/batch-pax")
+    suspend fun getBatchPax(
+        @Query("assignmentId") assignmentId: String,
+    ): Map<String, Any>
+
 
     /** Ask Copilot a question */
     @POST("api/agent/ask")
@@ -269,6 +275,18 @@ data class DemandCourseContext(
     @com.google.gson.annotations.SerializedName("is_discontinued") val isDiscontinued: Any? = null,
     @com.google.gson.annotations.SerializedName("content_url") val contentUrl: String = "",
     @com.google.gson.annotations.SerializedName("latest_version") val latestVersion: String = "",
+    @com.google.gson.annotations.SerializedName("is_fast_track") val isFastTrack: Boolean = false,
+)
+
+data class ParticipantInfo(
+    val name: String = "",
+    val email: String = "",
+    val company: String = "",
+)
+
+data class ParticipantRosterContext(
+    val count: Int = 0,
+    val students: List<ParticipantInfo> = emptyList(),
 )
 
 data class SalesConfirmationContext(
@@ -282,6 +300,7 @@ data class DemandContextResponse(
     @com.google.gson.annotations.SerializedName("demand_id") val demandId: String = "",
     val course: DemandCourseContext = DemandCourseContext(),
     @com.google.gson.annotations.SerializedName("sales_confirmations") val salesConfirmations: SalesConfirmationContext = SalesConfirmationContext(),
+    @com.google.gson.annotations.SerializedName("participants_roster") val participantsRoster: ParticipantRosterContext = ParticipantRosterContext(),
     val confidence: String = "partial",
     val note: String = "",
 )

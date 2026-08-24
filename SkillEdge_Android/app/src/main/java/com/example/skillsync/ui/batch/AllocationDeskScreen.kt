@@ -133,6 +133,7 @@ internal fun AllocationDeskContent(
             val matchesLens = when (selectedLens) {
                 "Priority" -> b.bool("is_priority")
                 "At risk" -> b.bool("at_risk")
+                "Fast-track" -> b.bool("is_fast_track")
                 else -> true // "All demand", "Need trainers"
             }
             matchesQuery && matchesBand && matchesMode && matchesLang && matchesSkill && matchesLens
@@ -263,6 +264,7 @@ internal fun AllocationDeskContent(
                             SelectChip("Need trainers", selectedLens == "Need trainers") { selectedLens = "Need trainers" }
                             SelectChip("Priority", selectedLens == "Priority") { selectedLens = "Priority" }
                             SelectChip("At risk", selectedLens == "At risk") { selectedLens = "At risk" }
+                            SelectChip("⚡ Fast-track", selectedLens == "Fast-track") { selectedLens = "Fast-track" }
                         }
                         Spacer(Modifier.height(24.dp))
                         Row(
