@@ -87,6 +87,7 @@ fun ManagerCommandCentre(
     onOpenHrReport: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
     onOpenDelivery: () -> Unit = {},
+    onBatchClick: (String) -> Unit = {},
     /**
      * Real calendar availability per trainer email. Named explicitly because
      * `readiness` in this function is already the team capability score.
@@ -160,7 +161,10 @@ fun ManagerCommandCentre(
                 actions = actions,
                 events = recentNotifications,
                 onTrainerTap = onTrainerClick,
-                onDemandTap = onOpenDemand,
+                onDemandTap = { demandId ->
+                    if (demandId.isNotBlank()) onBatchClick(demandId)
+                    else onOpenDemand()
+                },
             )
         }
 

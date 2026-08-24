@@ -3100,13 +3100,30 @@ def unified_intelligence():
             })
 
     if demand_df:
-        notifications.append({
-            "id": "DEM-open", "severity": "INFO", "category": "DEMAND",
-            "title": "Unallocated demand waiting",
-            "message": "%d unallocated batch%s need a trainer assigned."
-                       % (len(demand_df), "" if len(demand_df) == 1 else "es"),
-            "trainer_email": "", "read": False,
-        })
+        for _d in demand_df[:3]:
+            _did = str(_d.get("demand_id") or "")
+            _cname = _d.get("course_name") or "Unallocated batch"
+            notifications.append({
+                "id": "DEM-" + _did,
+                "severity": "WARNING",
+                "category": "DEMAND",
+                "title": "Unallocated: " + _cname,
+                "message": "%s needs an instructor. Tap to open details and mark skill / allocate." % _cname,
+                "trainer_email": "",
+                "target_type": "demand",
+                "target_id": _did,
+                "read": False,
+            })
+        if len(demand_df) > 3:
+            notifications.append({
+                "id": "DEM-open", "severity": "INFO", "category": "DEMAND",
+                "title": "Unallocated demand waiting",
+                "message": "%d unallocated batches in total need a trainer assigned." % len(demand_df),
+                "trainer_email": "",
+                "target_type": "demand_list",
+                "target_id": "",
+                "read": False,
+            })
 
     notifications.extend(synthetic_notes)
 

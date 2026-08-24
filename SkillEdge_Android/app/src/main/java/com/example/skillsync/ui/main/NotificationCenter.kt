@@ -37,7 +37,7 @@ fun NotificationCenter(
     actions: List<Map<String, Any>>,
     events: List<NotifyEvent> = emptyList(),
     onTrainerTap: (email: String, name: String) -> Unit = { _, _ -> },
-    onDemandTap: () -> Unit = {},
+    onDemandTap: (demandId: String) -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
     val openActions = actions.filter {
@@ -102,8 +102,9 @@ fun NotificationCenter(
                             "trainer" -> if (event.targetId.isNotBlank()) {
                                 onTrainerTap(event.targetId, event.targetLabel)
                             }
-                            "demand", "demand_list" -> onDemandTap()
-                            else -> if (event.bucket == NotificationEngine.BUCKET_DEMAND) onDemandTap()
+                            "demand" -> onDemandTap(event.targetId)
+                            "demand_list" -> onDemandTap("")
+                            else -> if (event.bucket == NotificationEngine.BUCKET_DEMAND) onDemandTap(event.targetId)
                         }
                     },
                 )

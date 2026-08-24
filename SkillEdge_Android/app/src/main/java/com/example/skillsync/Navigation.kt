@@ -256,10 +256,26 @@ fun MainNavigation() {
                 val data = (allocState as? AllocationState.Success)?.data
                 val dashData = (dashState as? DashboardState.Success)?.intelligenceData
 
+                val rawTarget = screen.demandId.removePrefix("DEM-").trim()
                 val batch = data?.rows("batches")
-                    ?.firstOrNull { it.str("demand_id") == screen.demandId }
+                    ?.firstOrNull { 
+                        it.str("demand_id") == screen.demandId || 
+                        it.str("demand_id") == rawTarget ||
+                        it.str("course_name").equals(screen.demandId, ignoreCase = true) ||
+                        it.str("course_id") == screen.demandId ||
+                        it.str("course_id") == rawTarget
+                    }
                     ?: dashData?.rows("unallocated_demand_df")
-                        ?.firstOrNull { it.str("demand_id") == screen.demandId }
+                        ?.firstOrNull { 
+                            it.str("demand_id") == screen.demandId || 
+                            it.str("demand_id") == rawTarget ||
+                            it.str("course_name").equals(screen.demandId, ignoreCase = true) ||
+                            it.str("course_id") == screen.demandId ||
+                            it.str("course_id") == rawTarget
+                        }
+                    ?: if (screen.demandId.isBlank() || screen.demandId == "demand_list" || screen.demandId == "DEM-open") {
+                        data?.rows("batches")?.firstOrNull() ?: dashData?.rows("unallocated_demand_df")?.firstOrNull()
+                    } else null
 
                 if (batch == null) {
                     // A notification may launch directly into detail before the

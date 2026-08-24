@@ -1,4 +1,28 @@
 
+## 2026-08-24T18:31:00+05:30 - Deep-Linked Unallocated Batch Notifications & Direct Skill Marking Release (v3.44.0 / Build 127)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Kotlin/Compose, Gradle, Python/Flask, Git)
+- **Files Modified**:
+  - `backend.py` (updated demand notifications to generate individual actionable items with explicit `target_type: "demand"` and `target_id: <demand_id>` so tapping unallocated notifications routes directly into that specific batch's detail view)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/NotificationCenter.kt` (updated `NotificationCenter` so `onDemandTap` passes the tapped batch ID instead of just switching tabs)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/ManagerCommandCentre.kt` (added `onBatchClick` handler and wired it through `NotificationCenter`)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/MainScreen.kt` (routed all unallocated batch notifications from both the in-app notification sheet and dashboard directly to `onBatchClick(demandId)` / `BatchDetailScreen`)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/Navigation.kt` (made batch lookup in `BatchDetail` robust against ID prefixes, course IDs, and course names)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/BatchDetailScreen.kt` (removed legacy revenue metrics per guidelines and ensured "My skill" & "Reportee skill" marking dialogs are instantly accessible)
+  - `SkillEdge_Android/app/build.gradle.kts` (bumped `versionCode = 127` and `versionName = "3.44.0"` with deterministic release signing)
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Direct Notification-to-Batch Detail Deep Linking**:
+     - When an "un-allocated batch" notification appears (in the Today dashboard NotificationCenter or the Notifications bottom sheet), clicking on it now navigates straight to `BatchDetailScreen` for that specific batch.
+  2. **Direct Skill Marking & Allocation in Batch Details**:
+     - Inside `BatchDetailScreen`, the manager can immediately tap **"My skill"** to mark their own skill level or **"Reportee"** to mark any team member's skill and assign them to the batch.
+  3. **Build & Test Verification**:
+     - Android unit tests: **147 / 147 passing (100% green)** (`:app:testDebugUnitTest`).
+     - Both `app-debug.apk` and `app-release.apk` compiled and signed with `keystore/skillsync-release.jks`.
+- **Current Project State**: Production release build v3.44.0 (Build 127) verified, compiled, and ready for deployment.
+- **Handover for Next Session**: 1-tap notification deep linking to BatchDetailScreen and skill marking is live.
+
 ## 2026-08-24T18:07:00+05:30 - Live Data Hydration & In-Place Update Upgrade Release (v3.43.0 / Build 126)
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)

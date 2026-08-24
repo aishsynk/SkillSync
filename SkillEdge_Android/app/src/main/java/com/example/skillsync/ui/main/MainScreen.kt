@@ -237,7 +237,14 @@ fun MainScreen(
                                             }
                                             "trainer_list" -> onTabChange(HomeTab.TEAM)
                                             "actions" -> onTabChange(HomeTab.ACTIONS)
-                                            else -> onTabChange(HomeTab.DASHBOARD)
+                                            else -> {
+                                                if (ev.bucket == com.example.skillsync.util.NotificationEngine.BUCKET_DEMAND) {
+                                                    if (ev.targetId.isNotBlank()) onBatchClick(ev.targetId)
+                                                    else onTabChange(HomeTab.DEMAND)
+                                                } else {
+                                                    onTabChange(HomeTab.DASHBOARD)
+                                                }
+                                            }
                                         }
                                     }
                                     .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -529,6 +536,7 @@ fun MainScreen(
                                         onOpenHrReport = onOpenHrReport,
                                         onOpenCopilot = onOpenCopilot,
                                         onOpenDelivery = { onTabChange(HomeTab.DELIVERY) },
+                                        onBatchClick = onBatchClick,
                                         calendarReadiness = teamReadiness,
                                         fromCache = s.fromCache,
                                         cachedAt = s.cachedAt,
@@ -743,6 +751,7 @@ internal fun DashboardTab(
     onOpenHrReport: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
     onOpenDelivery: () -> Unit = {},
+    onBatchClick: (String) -> Unit = {},
     calendarReadiness: Map<String, Map<String, Any>> = emptyMap(),
     /** Disk-write time of the payload, so the hero can state a real "as of". */
     fromCache: Boolean = false,
@@ -824,6 +833,7 @@ internal fun DashboardTab(
                     onOpenHrReport = onOpenHrReport,
                     onOpenCopilot = onOpenCopilot,
                     onOpenDelivery = onOpenDelivery,
+                    onBatchClick = onBatchClick,
                     calendarReadiness = calendarReadiness,
                 )
             }

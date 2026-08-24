@@ -179,7 +179,7 @@ fun BatchDetailScreen(
                         HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f), thickness = 0.5.dp)
                         Spacer(Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                            DetailStat("Opportunity", batch.str("revenue_potential").ifBlank { "—" }, sk.indigo)
+                            DetailStat("Mode", batch.str("delivery_mode").ifBlank { "ILO" }, sk.indigo)
                             DetailStat("Priority", "${batch.intOrNull("priority_score") ?: 0}", sk.teal)
                             DetailStat("Risk", risk.ifBlank { "—" }, riskTint)
                             DetailStat("Coverage", "$relevance%", relevanceColor(relevance))
