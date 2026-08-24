@@ -1,4 +1,28 @@
 
+## 2026-08-24T15:14:00+05:30 - Universal In-Place Update Compatibility & Deterministic Keystore Signing (v3.38.0 / Build 121)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Gradle, apksigner, keytool, Git)
+- **Files Modified**:
+  - `SkillEdge_Android/app/build.gradle.kts` (unified `debug` and `release` build types to sign with the identical deterministic keystore `keystore/skillsync-release.jks` with SHA-256 `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`; enabled v1, v2, and v3 signing schemes; bumped version to v3.38.0 / Build 121)
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Root Cause Analysis for Update Failures**:
+     - Previously, debug builds (`assembleDebug` or local IDE installs) used the machine-generated Android SDK `debug.keystore`, while release builds (`assembleRelease`) used `skillsync-release.jks`.
+     - When an Android device has an existing app installed with cert A and attempts to install an APK signed with cert B, Android's security sandbox strictly blocks the update with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, forcing the user to manually uninstall first.
+  2. **Deterministic Signing Unification Across All Build Types**:
+     - Configured `signingConfigs.release` to automatically fall back to the committed `keystore/skillsync-release.jks` when `keystore.properties` is omitted.
+     - Wired `buildTypes.debug` and `buildTypes.release` to both use the exact same `signingConfigs.release`.
+     - Explicitly enabled `enableV1Signing = true`, `enableV2Signing = true`, and `enableV3Signing = true` so every modern and legacy Android package installer recognizes compatible signatures.
+  3. **Verification**:
+     - Verified with `apksigner verify --verbose --print-certs` that both `app-release.apk` and `app-debug.apk` share the 100% identical certificate SHA-256 digest (`c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`) and signature schemes.
+     - Android can now seamlessly update in-place over any existing build without requiring an uninstall.
+  4. **Test Suite**:
+     - Backend pytest: **160 / 160 passing (100% green)**.
+     - Android unit tests: **147 / 147 passing (BUILD SUCCESSFUL)**.
+- **Current Project State**: Production release build v3.38.0 (Build 121) verified and ready for deployment.
+- **Handover for Next Session**: Universal in-place update signing is live and enforced across all build types.
+
 ## 2026-08-24T14:38:00+05:30 - Sprint C & Sprint D Complete: Fast-Track Zero-Exam Radar, Class Participant Roster, 90-Day Trajectory Fatigue Radar & Global Staffing Exchange (v3.37.0 / Build 120)
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)

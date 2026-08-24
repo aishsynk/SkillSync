@@ -24,27 +24,45 @@ android {
         applicationId = "com.example.skillsync"
         minSdk = 24
         targetSdk = 34
-        versionCode = 120
-        versionName = "3.37.0"
+        versionCode = 121
+        versionName = "3.38.0"
     }
 
     signingConfigs {
         create("release") {
-            if (keystoreProps.containsKey("storeFile")) {
-                storeFile = rootProject.file(keystoreProps["storeFile"] as String)
-                storePassword = keystoreProps["storePassword"] as String
-                keyAlias = keystoreProps["keyAlias"] as String
-                keyPassword = keystoreProps["keyPassword"] as String
+            val keystoreFile = if (keystoreProps.containsKey("storeFile")) {
+                rootProject.file(keystoreProps["storeFile"] as String)
+            } else {
+                rootProject.file("keystore/skillsync-release.jks")
+            }
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = keystoreProps.getProperty("storePassword", "ZKawzv4nwYFf4OPGeeHe5yz3")
+                keyAlias = keystoreProps.getProperty("keyAlias", "skillsync-release")
+                keyPassword = keystoreProps.getProperty("keyPassword", "ZKawzv4nwYFf4OPGeeHe5yz3")
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }
 
     buildTypes {
+        debug {
+            // Sign debug builds with the exact same release keystore so that local builds,
+            // debug APKs, and release APKs share an identical certificate and can update
+            // seamlessly over each other without ever prompting for an uninstall!
+            val relConfig = signingConfigs.findByName("release")
+            if (relConfig?.storeFile?.exists() == true) {
+                signingConfig = relConfig
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (keystoreProps.containsKey("storeFile")) {
-                signingConfig = signingConfigs.getByName("release")
+            val relConfig = signingConfigs.findByName("release")
+            if (relConfig?.storeFile?.exists() == true) {
+                signingConfig = relConfig
             }
         }
     }
