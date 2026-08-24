@@ -134,6 +134,7 @@ internal fun AllocationDeskContent(
                 "Priority" -> b.bool("is_priority")
                 "At risk" -> b.bool("at_risk")
                 "Fast-track" -> b.bool("is_fast_track")
+                "Client requested" -> b.str("allocation_for").isNotBlank() || b.bool("client_trainer_requested")
                 else -> true // "All demand", "Need trainers"
             }
             matchesQuery && matchesBand && matchesMode && matchesLang && matchesSkill && matchesLens
@@ -265,6 +266,7 @@ internal fun AllocationDeskContent(
                             SelectChip("Priority", selectedLens == "Priority") { selectedLens = "Priority" }
                             SelectChip("At risk", selectedLens == "At risk") { selectedLens = "At risk" }
                             SelectChip("⚡ Fast-track", selectedLens == "Fast-track") { selectedLens = "Fast-track" }
+                            SelectChip("⭐ Client requested", selectedLens == "Client requested") { selectedLens = "Client requested" }
                         }
                         Spacer(Modifier.height(24.dp))
                         Row(

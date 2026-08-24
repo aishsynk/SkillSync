@@ -3,7 +3,9 @@ package com.example.skillsync.ui.main
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -31,17 +33,50 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
-enum class CalendarViewMode {
-    MONTH_CALENDAR,
-    TIMELINE_QUEUE
+enum class CalendarViewMode(val label: String) {
+    MONTH("Month"),
+    WEEK("Week"),
+    DAY("Day"),
+    TIMELINE("Timeline")
 }
 
+enum class EventCategory(
+    val label: String,
+    val icon: String,
+    val color: Color,
+    val lightBg: Color,
+) {
+    DELIVERY("Delivery", "📦", Color(0xFF0284C7), Color(0x330284C7)),
+    MOCK("Mock", "🎯", Color(0xFF9333EA), Color(0x339333EA)),
+    WEBINAR("Webinar", "🎤", Color(0xFFEC4899), Color(0x33EC4899)),
+    LEAVE("Leave", "🏖️", Color(0xFFF59E0B), Color(0x33F59E0B)),
+    UPSKILLING("Upskilling", "🚀", Color(0xFF10B981), Color(0x3310B981)),
+    MEETING("Meeting", "💬", Color(0xFF06B6D4), Color(0x3306B6D4))
+}
+
+data class CalendarEventItem(
+    val id: String,
+    val title: String,
+    val category: EventCategory,
+    val startDate: LocalDate,
+    val endDate: LocalDate,
+    val timeSlot: String,
+    val trainerName: String,
+    val trainerEmail: String,
+    val customer: String,
+    val location: String,
+    val deliveryMode: String,
+    val pax: Int?,
+    val rawBatch: Map<*, *>?,
+)
+
 /**
- * Rich Outlook / Bootstrap 5 styled Delivery Operations & Team Calendar.
- * Supports interactive monthly calendar grid with green delivery indicators,
- * date inspection, and timeline queue mode.
+ * Designer-grade Delivery Operations & Scheduling Calendar.
+ * Supports Month, Week, Day, and Timeline views with multi-day spanning
+ * event banners, color-coded categories, and rich day inspection.
  */
 @Composable
 fun TeamCalendarScreen(
@@ -50,222 +85,404 @@ fun TeamCalendarScreen(
     onTrainerClick: (String, String) -> Unit = { _, _ -> },
 ) {
     val sk = MaterialTheme.skill
-    var viewMode by remember { mutableStateOf(CalendarViewMode.MONTH_CALENDAR) }
+    var viewMode by remember { mutableStateOf(CalendarViewMode.MONTH) }
     var currentYearMonth by remember { mutableStateOf(YearMonth.now()) }
-    var selectedDate by remember { mutableStateOf<LocalDate?>(LocalDate.now()) }
+    var selectedDate by remember { mutableStateOf<LocalDate>(LocalDate.now()) }
+    var selectedCategoryFilter by remember { mutableStateOf<EventCategory?>(null) }
+    var inspectedEvent by remember { mutableStateOf<CalendarEventItem?>(null) }
 
-    val current = remember(batches) {
-        batches.filter { it["engagement_state"]?.toString() == "current" }
+    // Parse all raw batches into structured CalendarEventItems
+    val allEvents = remember(batches) {
+        batches.mapNotNull { b ->
+            val course = b.str("course_name").ifBlank { b.str("demand_id").ifBlank { "Delivery" } }
+            val startStr = b.str("start_date").take(10)
+            val endStr = b.str("end_date").take(10).ifBlank { startStr }
+
+            val start = try {
+                if (startStr.isNotBlank()) LocalDate.parse(startStr) else null
+            } catch (_: Exception) { null }
+
+            if (start == null) return@mapNotNull null
+
+            val end = try {
+                if (endStr.isNotBlank()) LocalDate.parse(endStr) else start
+            } catch (_: Exception) { start }
+
+            val actualEnd = if (end.isBefore(start)) start else end
+            val mode = b.str("delivery_mode")
+            val remarks = b.str("remarks").lowercase()
+            val courseLower = course.lowercase()
+
+            val cat = when {
+                courseLower.contains("mock") || remarks.contains("mock") || mode.equals("Mock", ignoreCase = true) -> EventCategory.MOCK
+                courseLower.contains("webinar") || remarks.contains("webinar") || mode.equals("Webinar", ignoreCase = true) -> EventCategory.WEBINAR
+                courseLower.contains("leave") || remarks.contains("leave") || mode.equals("Leave", ignoreCase = true) -> EventCategory.LEAVE
+                courseLower.contains("idp") || courseLower.contains("upskill") || remarks.contains("upskill") -> EventCategory.UPSKILLING
+                courseLower.contains("meet") || remarks.contains("meeting") -> EventCategory.MEETING
+                else -> EventCategory.DELIVERY
+            }
+
+            CalendarEventItem(
+                id = b.str("demand_id").ifBlank { "${course}_${start}" },
+                title = course,
+                category = cat,
+                startDate = start,
+                endDate = actualEnd,
+                timeSlot = b.str("session_time").ifBlank { "09:00 - 17:00" },
+                trainerName = b.str("trainer_name"),
+                trainerEmail = b.str("trainer_email"),
+                customer = b.str("customer"),
+                location = b.str("location"),
+                deliveryMode = mode,
+                pax = b.intOrNull("participants"),
+                rawBatch = b,
+            )
+        }
     }
-    val upcoming = remember(batches) {
-        batches.filter { it["engagement_state"]?.toString() == "upcoming" }
+
+    // Filtered events
+    val filteredEvents = remember(allEvents, selectedCategoryFilter) {
+        if (selectedCategoryFilter == null) allEvents
+        else allEvents.filter { it.category == selectedCategoryFilter }
     }
 
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(Space.md),
     ) {
-        // ── View Mode Switcher Header ───────────────────────────────────────
+        // ── Top Control Bar (Month / Week / Day Switcher + Navigation) ─────────
+        CalendarTopHeader(
+            viewMode = viewMode,
+            onViewModeChange = { viewMode = it },
+            yearMonth = currentYearMonth,
+            selectedDate = selectedDate,
+            onPrev = {
+                when (viewMode) {
+                    CalendarViewMode.MONTH -> currentYearMonth = currentYearMonth.minusMonths(1)
+                    CalendarViewMode.WEEK -> {
+                        selectedDate = selectedDate.minusWeeks(1)
+                        currentYearMonth = YearMonth.from(selectedDate)
+                    }
+                    CalendarViewMode.DAY, CalendarViewMode.TIMELINE -> {
+                        selectedDate = selectedDate.minusDays(1)
+                        currentYearMonth = YearMonth.from(selectedDate)
+                    }
+                }
+            },
+            onNext = {
+                when (viewMode) {
+                    CalendarViewMode.MONTH -> currentYearMonth = currentYearMonth.plusMonths(1)
+                    CalendarViewMode.WEEK -> {
+                        selectedDate = selectedDate.plusWeeks(1)
+                        currentYearMonth = YearMonth.from(selectedDate)
+                    }
+                    CalendarViewMode.DAY, CalendarViewMode.TIMELINE -> {
+                        selectedDate = selectedDate.plusDays(1)
+                        currentYearMonth = YearMonth.from(selectedDate)
+                    }
+                }
+            },
+            onToday = {
+                val now = LocalDate.now()
+                selectedDate = now
+                currentYearMonth = YearMonth.now()
+            },
+        )
+
+        // ── Event Category Filter Pills ──────────────────────────────────────
+        EventCategoryFilterBar(
+            selectedCategory = selectedCategoryFilter,
+            onSelectCategory = { selectedCategoryFilter = it },
+            allCount = allEvents.size,
+            deliveryCount = allEvents.count { it.category == EventCategory.DELIVERY },
+            mockCount = allEvents.count { it.category == EventCategory.MOCK },
+            webinarCount = allEvents.count { it.category == EventCategory.WEBINAR },
+            leaveCount = allEvents.count { it.category == EventCategory.LEAVE },
+        )
+
+        // ── Active View Rendering ────────────────────────────────────────────
+        when (viewMode) {
+            CalendarViewMode.MONTH -> {
+                SpanningMonthCalendarGrid(
+                    yearMonth = currentYearMonth,
+                    events = filteredEvents,
+                    selectedDate = selectedDate,
+                    onDateSelected = { selectedDate = it },
+                    onEventClick = { inspectedEvent = it },
+                )
+
+                // Day Inspection summary below grid
+                SelectedDayInspectionCard(
+                    date = selectedDate,
+                    eventsOnDay = filteredEvents.filter { !selectedDate.isBefore(it.startDate) && !selectedDate.isAfter(it.endDate) },
+                    onTrainerClick = onTrainerClick,
+                    onEventClick = { inspectedEvent = it },
+                )
+            }
+
+            CalendarViewMode.WEEK -> {
+                WeekScheduleView(
+                    selectedDate = selectedDate,
+                    events = filteredEvents,
+                    onDateSelected = { selectedDate = it },
+                    onEventClick = { inspectedEvent = it },
+                    onTrainerClick = onTrainerClick,
+                )
+            }
+
+            CalendarViewMode.DAY -> {
+                DayScheduleView(
+                    date = selectedDate,
+                    events = filteredEvents.filter { !selectedDate.isBefore(it.startDate) && !selectedDate.isAfter(it.endDate) },
+                    onTrainerClick = onTrainerClick,
+                    onEventClick = { inspectedEvent = it },
+                )
+            }
+
+            CalendarViewMode.TIMELINE -> {
+                TimelineQueueView(
+                    events = filteredEvents,
+                    onTrainerClick = onTrainerClick,
+                    onEventClick = { inspectedEvent = it },
+                )
+            }
+        }
+
+        // Event Inspection Bottom Sheet / Dialog
+        inspectedEvent?.let { ev ->
+            EventDetailSheet(
+                event = ev,
+                onDismiss = { inspectedEvent = null },
+                onTrainerClick = onTrainerClick,
+            )
+        }
+    }
+}
+
+// ── Top Header Bar ──────────────────────────────────────────────────────────
+
+@Composable
+private fun CalendarTopHeader(
+    viewMode: CalendarViewMode,
+    onViewModeChange: (CalendarViewMode) -> Unit,
+    yearMonth: YearMonth,
+    selectedDate: LocalDate,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    onToday: () -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    val headerTitle = when (viewMode) {
+        CalendarViewMode.MONTH -> yearMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH))
+        CalendarViewMode.WEEK -> {
+            val weekStart = selectedDate.with(DayOfWeek.SUNDAY)
+            val weekEnd = selectedDate.with(DayOfWeek.SATURDAY)
+            if (weekStart.month == weekEnd.month) {
+                "${weekStart.format(DateTimeFormatter.ofPattern("d"))}–${weekEnd.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH))}"
+            } else {
+                "${weekStart.format(DateTimeFormatter.ofPattern("d MMM"))} – ${weekEnd.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH))}"
+            }
+        }
+        CalendarViewMode.DAY, CalendarViewMode.TIMELINE -> {
+            selectedDate.format(DateTimeFormatter.ofPattern("EEE, d MMMM yyyy", Locale.ENGLISH))
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassSurface(RoundedCornerShape(Radii.card))
+            .padding(horizontal = Space.md, vertical = Space.sm),
+        verticalArrangement = Arrangement.spacedBy(Space.xs),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                "DELIVERY PULSE & SCHEDULE",
-                style = MaterialTheme.typography.labelSmall,
-                color = sk.cyan,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-            )
-
+            // Segmented View Mode Tabs (Month | Week | Day)
             Surface(
                 shape = RoundedCornerShape(8.dp),
                 color = sk.cardBg,
                 border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
             ) {
                 Row(modifier = Modifier.padding(2.dp)) {
-                    CalendarModeTab(
-                        label = "Calendar",
-                        selected = viewMode == CalendarViewMode.MONTH_CALENDAR,
-                        onClick = { viewMode = CalendarViewMode.MONTH_CALENDAR },
-                    )
-                    CalendarModeTab(
-                        label = "Timeline",
-                        selected = viewMode == CalendarViewMode.TIMELINE_QUEUE,
-                        onClick = { viewMode = CalendarViewMode.TIMELINE_QUEUE },
-                    )
+                    CalendarViewMode.values().take(3).forEach { mode ->
+                        val isSelected = viewMode == mode
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isSelected) Color(0xFF0284C7) else Color.Transparent)
+                                .clickable { onViewModeChange(mode) }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                mode.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isSelected) Color.White else sk.subText,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 11.sp,
+                            )
+                        }
+                    }
                 }
             }
-        }
 
-        if (viewMode == CalendarViewMode.MONTH_CALENDAR) {
-            // ── Month Navigation Bar ─────────────────────────────────────────
-            MonthNavigationBar(
-                yearMonth = currentYearMonth,
-                onPrev = { currentYearMonth = currentYearMonth.minusMonths(1) },
-                onNext = { currentYearMonth = currentYearMonth.plusMonths(1) },
-                onToday = {
-                    currentYearMonth = YearMonth.now()
-                    selectedDate = LocalDate.now()
-                },
+            // Month / Range Title
+            Text(
+                headerTitle,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = sk.bodyText,
             )
 
-            // ── Outlook / Bootstrap 5 Month Grid ────────────────────────────
-            OutlookMonthGrid(
-                yearMonth = currentYearMonth,
-                batches = batches,
-                selectedDate = selectedDate,
-                onDateSelected = { selectedDate = it },
-            )
+            // Navigation Controls (< > Today)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Surface(
+                    onClick = onToday,
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color(0xFF0284C7).copy(alpha = 0.15f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF0284C7).copy(alpha = 0.4f)),
+                ) {
+                    Text(
+                        "Today",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF38BDF8),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                    )
+                }
 
-            // ── Selected Date Details Inspector ─────────────────────────────
-            selectedDate?.let { date ->
-                SelectedDateInspector(
-                    date = date,
-                    batches = batches,
-                    onTrainerClick = onTrainerClick,
-                )
-            }
-        } else {
-            // ── Timeline / Queue View ───────────────────────────────────────
-            if (current.isNotEmpty()) {
-                Text(
-                    "CURRENTLY DELIVERING (${current.size})",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.good,
-                    fontWeight = FontWeight.Bold,
-                )
-                current.forEach { DeliveryCard(it, sk.good, onTrainerClick) }
-            }
+                IconButton(onClick = onPrev, modifier = Modifier.size(30.dp)) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_chevron),
+                        contentDescription = "Previous",
+                        tint = sk.bodyText,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
 
-            if (upcoming.isNotEmpty()) {
-                Text(
-                    "LINED UP (${upcoming.size})",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.sky,
-                    fontWeight = FontWeight.Bold,
-                )
-                upcoming.forEach { DeliveryCard(it, sk.sky, onTrainerClick) }
-            }
-
-            if (current.isEmpty() && upcoming.isEmpty()) {
-                Text(
-                    "No batches assigned to the team.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = sk.subText,
-                )
+                IconButton(onClick = onNext, modifier = Modifier.size(30.dp)) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_chevron),
+                        contentDescription = "Next",
+                        tint = sk.bodyText,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
             }
         }
     }
 }
 
+// ── Category Filter Bar ─────────────────────────────────────────────────────
+
 @Composable
-private fun CalendarModeTab(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
+private fun EventCategoryFilterBar(
+    selectedCategory: EventCategory?,
+    onSelectCategory: (EventCategory?) -> Unit,
+    allCount: Int,
+    deliveryCount: Int,
+    mockCount: Int,
+    webinarCount: Int,
+    leaveCount: Int,
 ) {
     val sk = MaterialTheme.skill
-    Box(
+
+    Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        contentAlignment = Alignment.Center,
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (selected) Color.White else sk.subText,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        FilterPill(
+            label = "All Events ($allCount)",
+            selected = selectedCategory == null,
+            tint = sk.cyan,
+            onClick = { onSelectCategory(null) },
+        )
+        FilterPill(
+            label = "📦 Deliveries ($deliveryCount)",
+            selected = selectedCategory == EventCategory.DELIVERY,
+            tint = EventCategory.DELIVERY.color,
+            onClick = { onSelectCategory(if (selectedCategory == EventCategory.DELIVERY) null else EventCategory.DELIVERY) },
+        )
+        FilterPill(
+            label = "🎯 Mocks ($mockCount)",
+            selected = selectedCategory == EventCategory.MOCK,
+            tint = EventCategory.MOCK.color,
+            onClick = { onSelectCategory(if (selectedCategory == EventCategory.MOCK) null else EventCategory.MOCK) },
+        )
+        FilterPill(
+            label = "🎤 Webinars ($webinarCount)",
+            selected = selectedCategory == EventCategory.WEBINAR,
+            tint = EventCategory.WEBINAR.color,
+            onClick = { onSelectCategory(if (selectedCategory == EventCategory.WEBINAR) null else EventCategory.WEBINAR) },
+        )
+        FilterPill(
+            label = "🏖️ Leaves ($leaveCount)",
+            selected = selectedCategory == EventCategory.LEAVE,
+            tint = EventCategory.LEAVE.color,
+            onClick = { onSelectCategory(if (selectedCategory == EventCategory.LEAVE) null else EventCategory.LEAVE) },
         )
     }
 }
 
 @Composable
-private fun MonthNavigationBar(
-    yearMonth: YearMonth,
-    onPrev: () -> Unit,
-    onNext: () -> Unit,
-    onToday: () -> Unit,
+private fun FilterPill(
+    label: String,
+    selected: Boolean,
+    tint: Color,
+    onClick: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
-    val monthTitle = yearMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH))
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .glassSurface(RoundedCornerShape(Radii.card))
-            .padding(horizontal = Space.md, vertical = Space.sm),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) tint.copy(alpha = 0.22f) else sk.cardBg,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (selected) tint else sk.cardBorder,
+        ),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                monthTitle,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = sk.bodyText,
-            )
-            Spacer(Modifier.width(Space.sm))
-            Surface(
-                onClick = onToday,
-                shape = RoundedCornerShape(6.dp),
-                color = sk.cardBg,
-                border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-            ) {
-                Text(
-                    "Today",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.cyan,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            IconButton(onClick = onPrev, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_chevron),
-                    contentDescription = "Previous Month",
-                    tint = sk.bodyText,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-            IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_chevron),
-                    contentDescription = "Next Month",
-                    tint = sk.bodyText,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-        }
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) tint else sk.subText,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            fontSize = 11.sp,
+        )
     }
 }
 
+// ── Multi-Day Spanning Month Calendar Grid ──────────────────────────────────
+
 @Composable
-private fun OutlookMonthGrid(
+private fun SpanningMonthCalendarGrid(
     yearMonth: YearMonth,
-    batches: List<Map<*, *>>,
-    selectedDate: LocalDate?,
+    events: List<CalendarEventItem>,
+    selectedDate: LocalDate,
     onDateSelected: (LocalDate) -> Unit,
+    onEventClick: (CalendarEventItem) -> Unit,
 ) {
     val sk = MaterialTheme.skill
-    val firstDayOfMonth = yearMonth.atDay(1)
+    val firstOfMonth = yearMonth.atDay(1)
     val daysInMonth = yearMonth.lengthOfMonth()
-    
-    // Day of week offset (Mon = 1 ... Sun = 7)
-    val firstDayOfWeek = firstDayOfMonth.dayOfWeek.value // 1 (Mon) to 7 (Sun)
-    val leadingEmptyDays = firstDayOfWeek - 1
 
-    val daysOfWeek = listOf(
-        DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
-        DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY
-    )
+    // Week starts on Sunday (value 7 in Java Time DayOfWeek)
+    // Sunday = 0, Monday = 1, ... Saturday = 6
+    val leadingDays = firstOfMonth.dayOfWeek.value % 7
+
+    val daysOfWeek = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+
+    val totalSlots = leadingDays + daysInMonth
+    val totalWeeks = (totalSlots + 6) / 7
 
     Column(
         modifier = Modifier
@@ -274,174 +491,188 @@ private fun OutlookMonthGrid(
             .padding(Space.sm),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        // Day of Week Header (Mon-Sun)
+        // ── Day of Week Headers (Sun - Sat) ──────────────────────────────────
         Row(modifier = Modifier.fillMaxWidth()) {
-            daysOfWeek.forEach { dow ->
+            daysOfWeek.forEachIndexed { idx, name ->
+                val isWeekend = idx == 0 || idx == 6
                 Text(
-                    text = dow.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase(),
+                    text = name,
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) sk.subText.copy(alpha = 0.6f) else sk.labelText,
+                    color = if (isWeekend) sk.subText.copy(alpha = 0.5f) else sk.labelText,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                 )
             }
         }
 
-        HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f), thickness = 0.5.dp)
+        HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.4f), thickness = 0.5.dp)
 
-        // Day cells in rows of 7
-        val totalCells = leadingEmptyDays + daysInMonth
-        val rows = (totalCells + 6) / 7
+        // ── Week Rows with Spanning Bars ─────────────────────────────────────
+        for (weekIdx in 0 until totalWeeks) {
+            val weekStartDate = if (weekIdx == 0 && leadingDays > 0) {
+                firstOfMonth.minusDays(leadingDays.toLong())
+            } else {
+                firstOfMonth.plusDays((weekIdx * 7 - leadingDays).toLong())
+            }
 
-        for (row in 0 until rows) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                for (col in 0 until 7) {
-                    val cellIndex = row * 7 + col
-                    val dayNum = cellIndex - leadingEmptyDays + 1
-                    
-                    if (dayNum in 1..daysInMonth) {
-                        val cellDate = yearMonth.atDay(dayNum)
-                        val isSelected = selectedDate == cellDate
-                        val isToday = cellDate == LocalDate.now()
+            MonthWeekRow(
+                weekStartDate = weekStartDate,
+                yearMonth = yearMonth,
+                events = events,
+                selectedDate = selectedDate,
+                onDateSelected = onDateSelected,
+                onEventClick = onEventClick,
+            )
+        }
+    }
+}
 
-                        // Calculate delivering batches on this day
-                        val deliveringOnDay = batches.filter { b ->
-                            val s = b.str("start_date").take(10)
-                            val e = b.str("end_date").take(10).ifBlank { s }
-                            if (s.isNotBlank()) {
-                                try {
-                                    val st = LocalDate.parse(s)
-                                    val en = if (e.isNotBlank()) LocalDate.parse(e) else st
-                                    !cellDate.isBefore(st) && !cellDate.isAfter(en)
-                                } catch (_: Exception) { false }
-                            } else false
-                        }
+@Composable
+private fun MonthWeekRow(
+    weekStartDate: LocalDate,
+    yearMonth: YearMonth,
+    events: List<CalendarEventItem>,
+    selectedDate: LocalDate,
+    onDateSelected: (LocalDate) -> Unit,
+    onEventClick: (CalendarEventItem) -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    val weekEndDate = weekStartDate.plusDays(6)
 
-                        OutlookDayCell(
-                            dayNum = dayNum,
-                            date = cellDate,
-                            isToday = isToday,
-                            isSelected = isSelected,
-                            deliveryCount = deliveringOnDay.size,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onDateSelected(cellDate) },
+    // Events active in this week
+    val weekEvents = remember(events, weekStartDate) {
+        events.filter { ev ->
+            !ev.endDate.isBefore(weekStartDate) && !ev.startDate.isAfter(weekEndDate)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(0.5.dp, sk.cardBorder.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
+            .padding(2.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        // 1. Day Number Headers
+        Row(modifier = Modifier.fillMaxWidth()) {
+            for (dayOffset in 0..6) {
+                val dayDate = weekStartDate.plusDays(dayOffset.toLong())
+                val isCurrentMonth = dayDate.month == yearMonth.month
+                val isToday = dayDate == LocalDate.now()
+                val isSelected = dayDate == selectedDate
+                val isWeekend = dayOffset == 0 || dayOffset == 6
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(
+                            when {
+                                isSelected -> Color(0xFF0284C7).copy(alpha = 0.3f)
+                                isToday -> sk.cyan.copy(alpha = 0.15f)
+                                else -> Color.Transparent
+                            }
                         )
-                    } else {
-                        // Empty slot
-                        Box(modifier = Modifier.weight(1f).height(44.dp))
+                        .clickable { onDateSelected(dayDate) }
+                        .padding(vertical = 2.dp, horizontal = 2.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "${dayDate.dayOfMonth}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = when {
+                            isSelected -> Color.White
+                            isToday -> Color(0xFF38BDF8)
+                            !isCurrentMonth -> sk.subText.copy(alpha = 0.3f)
+                            isWeekend -> sk.subText.copy(alpha = 0.6f)
+                            else -> sk.bodyText
+                        },
+                        fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
+                        fontSize = 11.sp,
+                    )
+                }
+            }
+        }
+
+        // 2. Multi-Day Spanning Event Banners
+        if (weekEvents.isNotEmpty()) {
+            val topEvents = weekEvents.take(3)
+            topEvents.forEach { ev ->
+                val startCol = ChronoUnit.DAYS.between(weekStartDate, ev.startDate).toInt().coerceIn(0, 6)
+                val endCol = ChronoUnit.DAYS.between(weekStartDate, ev.endDate).toInt().coerceIn(0, 6)
+                val isMultiDay = ev.startDate != ev.endDate || startCol != endCol
+
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    if (startCol > 0) {
+                        Spacer(modifier = Modifier.weight(startCol.toFloat()))
+                    }
+
+                    val spanLength = (endCol - startCol + 1).coerceAtLeast(1)
+                    val isStart = ev.startDate == weekStartDate.plusDays(startCol.toLong())
+                    val isEnd = ev.endDate == weekStartDate.plusDays(endCol.toLong())
+
+                    Box(
+                        modifier = Modifier
+                            .weight(spanLength.toFloat())
+                            .padding(vertical = 1.dp, horizontal = 1.dp)
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = if (isStart) 4.dp else 0.dp,
+                                    bottomStart = if (isStart) 4.dp else 0.dp,
+                                    topEnd = if (isEnd) 4.dp else 0.dp,
+                                    bottomEnd = if (isEnd) 4.dp else 0.dp,
+                                )
+                            )
+                            .background(ev.category.color)
+                            .clickable { onEventClick(ev) }
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = if (isMultiDay) "${ev.category.icon} ${ev.title}" else "● ${ev.title}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+
+                    val remainingCols = 6 - endCol
+                    if (remainingCols > 0) {
+                        Spacer(modifier = Modifier.weight(remainingCols.toFloat()))
                     }
                 }
             }
-        }
-    }
-}
 
-@Composable
-private fun OutlookDayCell(
-    dayNum: Int,
-    date: LocalDate,
-    isToday: Boolean,
-    isSelected: Boolean,
-    deliveryCount: Int,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    val sk = MaterialTheme.skill
-    val isDelivering = deliveryCount > 0
-    val isWeekend = date.dayOfWeek == DayOfWeek.SATURDAY || date.dayOfWeek == DayOfWeek.SUNDAY
-
-    val bgColor = when {
-        isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-        isDelivering -> sk.good.copy(alpha = 0.12f)
-        isToday -> sk.cyan.copy(alpha = 0.12f)
-        isWeekend -> Color.Black.copy(alpha = 0.2f)
-        else -> Color.Transparent
-    }
-
-    val borderColor = when {
-        isSelected -> MaterialTheme.colorScheme.primary
-        isToday -> sk.cyan
-        isDelivering -> sk.good.copy(alpha = 0.5f)
-        else -> Color.Transparent
-    }
-
-    Box(
-        modifier = modifier
-            .height(48.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .background(bgColor)
-            .border(1.dp, borderColor, RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick)
-            .padding(2.dp),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = "$dayNum",
-                style = MaterialTheme.typography.labelSmall,
-                color = when {
-                    isSelected -> Color.White
-                    isToday -> sk.cyan
-                    isDelivering -> sk.good
-                    isWeekend -> sk.subText.copy(alpha = 0.6f)
-                    else -> sk.bodyText
-                },
-                fontWeight = if (isToday || isSelected || isDelivering) FontWeight.Bold else FontWeight.Normal,
-                fontSize = 11.sp,
-            )
-
-            if (isDelivering) {
-                // Bright Green Active Delivery Indicator
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(sk.good)
-                        .padding(horizontal = 4.dp, vertical = 1.dp),
-                ) {
-                    Text(
-                        text = if (deliveryCount == 1) "1 live" else "$deliveryCount",
-                        color = Color.Black,
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                    )
-                }
-            } else {
-                Spacer(Modifier.height(4.dp))
+            if (weekEvents.size > 3) {
+                Text(
+                    "+${weekEvents.size - 3} more",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.cyan,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(start = 4.dp),
+                )
             }
+        } else {
+            Spacer(Modifier.height(14.dp))
         }
     }
 }
 
+// ── Selected Date Inspector Card ────────────────────────────────────────────
+
 @Composable
-private fun SelectedDateInspector(
+private fun SelectedDayInspectionCard(
     date: LocalDate,
-    batches: List<Map<*, *>>,
-    onTrainerClick: (String, String) -> Unit = { _, _ -> },
+    eventsOnDay: List<CalendarEventItem>,
+    onTrainerClick: (String, String) -> Unit,
+    onEventClick: (CalendarEventItem) -> Unit,
 ) {
     val sk = MaterialTheme.skill
-    val formattedDate = date.format(DateTimeFormatter.ofPattern("EEEE, dd MMMM yyyy", Locale.ENGLISH))
-
-    val deliveries = remember(date, batches) {
-        batches.filter { b ->
-            val s = b.str("start_date").take(10)
-            val e = b.str("end_date").take(10).ifBlank { s }
-            if (s.isNotBlank()) {
-                try {
-                    val st = LocalDate.parse(s)
-                    val en = if (e.isNotBlank()) LocalDate.parse(e) else st
-                    !date.isBefore(st) && !date.isAfter(en)
-                } catch (_: Exception) { false }
-            } else false
-        }
-    }
+    val formatted = date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.ENGLISH))
 
     Column(
         modifier = Modifier
@@ -455,261 +686,417 @@ private fun SelectedDateInspector(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                formattedDate,
-                style = MaterialTheme.typography.titleSmall,
-                color = sk.cyan,
-                fontWeight = FontWeight.Bold,
-            )
-            if (deliveries.isNotEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(sk.good.copy(alpha = 0.15f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
+            Column {
+                Text(
+                    formatted,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF38BDF8),
+                )
+                Text(
+                    if (eventsOnDay.isEmpty()) "No activities scheduled" else "${eventsOnDay.size} active engagements",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.subText,
+                )
+            }
+
+            if (eventsOnDay.isNotEmpty()) {
+                Surface(
+                    color = Color(0xFF0284C7).copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(6.dp),
                 ) {
                     Text(
-                        "${deliveries.size} DELIVERING",
-                        color = sk.good,
+                        "${eventsOnDay.size} ACTIVE",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                         style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF38BDF8),
                         fontWeight = FontWeight.Bold,
                     )
                 }
             }
         }
 
-        if (deliveries.isEmpty()) {
+        if (eventsOnDay.isEmpty()) {
             Text(
-                "No team deliveries scheduled on this date.",
+                "No team deliveries, mocks, webinars or leaves on this day.",
                 style = MaterialTheme.typography.bodySmall,
                 color = sk.subText,
-                modifier = Modifier.padding(vertical = 6.dp),
+                modifier = Modifier.padding(vertical = Space.xs),
             )
         } else {
-            deliveries.forEach { batch ->
-                DayDeliveryRow(batch, onTrainerClick)
+            eventsOnDay.forEach { ev ->
+                EventCardRow(event = ev, onTrainerClick = onTrainerClick, onEventClick = onEventClick)
             }
         }
     }
 }
 
+// ── Week View ───────────────────────────────────────────────────────────────
+
 @Composable
-private fun DayDeliveryRow(
-    batch: Map<*, *>,
-    onTrainerClick: (String, String) -> Unit = { _, _ -> },
+private fun WeekScheduleView(
+    selectedDate: LocalDate,
+    events: List<CalendarEventItem>,
+    onDateSelected: (LocalDate) -> Unit,
+    onEventClick: (CalendarEventItem) -> Unit,
+    onTrainerClick: (String, String) -> Unit,
 ) {
     val sk = MaterialTheme.skill
-    val course = batch.str("course_name").ifBlank { batch.str("demand_id").ifBlank { "Course" } }
-    val trainer = batch.str("trainer_name")
-    val email = batch.str("trainer_email")
-    val mode = batch.str("delivery_mode")
-    val customer = batch.str("customer")
-    val location = batch.str("location")
+    val weekStart = selectedDate.with(DayOfWeek.SUNDAY)
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Space.sm),
+    ) {
+        for (dayOffset in 0..6) {
+            val date = weekStart.plusDays(dayOffset.toLong())
+            val isSelected = date == selectedDate
+            val isToday = date == LocalDate.now()
+            val dayEvents = events.filter { !date.isBefore(it.startDate) && !date.isAfter(it.endDate) }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .glassSurface(RoundedCornerShape(Radii.card))
+                    .clickable { onDateSelected(date) }
+                    .padding(Space.sm),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Space.xs),
+                    ) {
+                        Text(
+                            date.format(DateTimeFormatter.ofPattern("EEE, d MMM", Locale.ENGLISH)),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = if (isToday) Color(0xFF38BDF8) else sk.bodyText,
+                            fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                        )
+                        if (isToday) {
+                            Surface(color = Color(0xFF0284C7), shape = RoundedCornerShape(4.dp)) {
+                                Text(
+                                    "TODAY",
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        "${dayEvents.size} events",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText,
+                    )
+                }
+
+                if (dayEvents.isEmpty()) {
+                    Text(
+                        "Clear schedule",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText.copy(alpha = 0.5f),
+                    )
+                } else {
+                    dayEvents.forEach { ev ->
+                        EventCardRow(event = ev, onTrainerClick = onTrainerClick, onEventClick = onEventClick)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Day View ────────────────────────────────────────────────────────────────
+
+@Composable
+private fun DayScheduleView(
+    date: LocalDate,
+    events: List<CalendarEventItem>,
+    onTrainerClick: (String, String) -> Unit,
+    onEventClick: (CalendarEventItem) -> Unit,
+) {
+    val sk = MaterialTheme.skill
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Space.sm),
+    ) {
+        if (events.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .glassSurface(RoundedCornerShape(Radii.card))
+                    .padding(Space.xl),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "No deliveries or events scheduled for this day.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = sk.subText,
+                )
+            }
+        } else {
+            events.forEach { ev ->
+                EventCardRow(event = ev, onTrainerClick = onTrainerClick, onEventClick = onEventClick)
+            }
+        }
+    }
+}
+
+// ── Timeline Queue View ─────────────────────────────────────────────────────
+
+@Composable
+private fun TimelineQueueView(
+    events: List<CalendarEventItem>,
+    onTrainerClick: (String, String) -> Unit,
+    onEventClick: (CalendarEventItem) -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    val today = LocalDate.now()
+
+    val current = remember(events) { events.filter { !today.isBefore(it.startDate) && !today.isAfter(it.endDate) } }
+    val upcoming = remember(events) { events.filter { it.startDate.isAfter(today) }.sortedBy { it.startDate } }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Space.md),
+    ) {
+        if (current.isNotEmpty()) {
+            Text(
+                "CURRENTLY DELIVERING (${current.size})",
+                style = MaterialTheme.typography.labelSmall,
+                color = EventCategory.DELIVERY.color,
+                fontWeight = FontWeight.Bold,
+            )
+            current.forEach { EventCardRow(it, onTrainerClick, onEventClick) }
+        }
+
+        if (upcoming.isNotEmpty()) {
+            Text(
+                "UPCOMING ENGAGEMENTS (${upcoming.size})",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF38BDF8),
+                fontWeight = FontWeight.Bold,
+            )
+            upcoming.forEach { EventCardRow(it, onTrainerClick, onEventClick) }
+        }
+    }
+}
+
+// ── Event Card Row ──────────────────────────────────────────────────────────
+
+@Composable
+private fun EventCardRow(
+    event: CalendarEventItem,
+    onTrainerClick: (String, String) -> Unit,
+    onEventClick: (CalendarEventItem) -> Unit,
+) {
+    val sk = MaterialTheme.skill
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .background(sk.cardBg.copy(alpha = 0.6f))
-            .clickable(enabled = email.isNotBlank() || trainer.isNotBlank()) {
-                onTrainerClick(email, trainer)
-            }
-            .padding(8.dp),
+            .clip(RoundedCornerShape(8.dp))
+            .background(event.category.color.copy(alpha = 0.08f))
+            .border(1.dp, event.category.color.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+            .clickable { onEventClick(event) }
+            .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // Green active dot
-        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(sk.good))
+        // Category Accent Dot / Icon
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(event.category.color.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(event.category.icon, fontSize = 14.sp)
+        }
 
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                course,
-                style = MaterialTheme.typography.bodyMedium,
-                color = sk.bodyText,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    event.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = sk.bodyText,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Surface(
+                    color = event.category.color.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(4.dp),
+                ) {
+                    Text(
+                        event.category.label.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = event.category.color,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 9.sp,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                    )
+                }
+            }
+
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (trainer.isNotBlank()) {
+                if (event.trainerName.isNotBlank()) {
                     Text(
-                        trainer,
+                        event.trainerName,
                         style = MaterialTheme.typography.labelSmall,
-                        color = sk.cyan,
-                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF38BDF8),
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clickable {
+                            onTrainerClick(event.trainerEmail, event.trainerName)
+                        },
                     )
                 }
-                if (customer.isNotBlank()) {
+                if (event.customer.isNotBlank()) {
                     Text("·", style = MaterialTheme.typography.labelSmall, color = sk.subText)
-                    Text(customer, style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                    Text(
+                        event.customer,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
-                if (location.isNotBlank()) {
+                if (event.deliveryMode.isNotBlank()) {
                     Text("·", style = MaterialTheme.typography.labelSmall, color = sk.subText)
-                    Text(location, style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                    Text(
+                        event.deliveryMode,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.labelText,
+                    )
                 }
             }
-        }
 
-        if (mode.isNotBlank()) {
-            ModeBadge(mode, sk.good)
+            Text(
+                "${event.startDate.format(DateTimeFormatter.ofPattern("d MMM"))} – ${event.endDate.format(DateTimeFormatter.ofPattern("d MMM yyyy"))} · ${event.timeSlot}",
+                style = MaterialTheme.typography.labelSmall,
+                color = sk.subText.copy(alpha = 0.8f),
+                fontSize = 10.sp,
+            )
         }
     }
 }
 
+// ── Event Detail Bottom Sheet / Modal ───────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DeliveryCard(
-    batch: Map<*, *>,
-    tint: Color,
-    onTrainerClick: (String, String) -> Unit = { _, _ -> },
+private fun EventDetailSheet(
+    event: CalendarEventItem,
+    onDismiss: () -> Unit,
+    onTrainerClick: (String, String) -> Unit,
 ) {
     val sk = MaterialTheme.skill
-    val course = batch.str("course_name").ifBlank { batch.str("demand_id").ifBlank { "Unknown course" } }
-    val trainer = batch.str("trainer_name")
-    val email = batch.str("trainer_email")
-    val start = batch.str("start_date")
-    val end = batch.str("end_date")
-    val mode = batch.str("delivery_mode")
-    val customer = batch.str("customer")
-    val pax = batch.intOrNull("participants")
-    val location = batch.str("location")
-    val days = batch.intOrNull("days")
-    val recStatus = batch.str("recording_status")
 
-    val dateText = when {
-        start.isNotBlank() && end.isNotBlank() -> "$start – $end"
-        start.isNotBlank() -> "From $start"
-        else -> "Dates pending"
-    }
-
-    val recTint: Color? = when {
-        recStatus.equals("uploaded", ignoreCase = true) || recStatus.equals("compliant", ignoreCase = true) -> sk.good
-        recStatus.equals("overdue", ignoreCase = true) || recStatus.equals("missing", ignoreCase = true) -> sk.crit
-        recStatus.isNotBlank() && !recStatus.equals("N/A", ignoreCase = true) && !recStatus.equals("na", ignoreCase = true) -> sk.warn
-        else -> null
-    }
-
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .glassSurface(RoundedCornerShape(Radii.card))
-            .clickable(enabled = email.isNotBlank() || trainer.isNotBlank()) {
-                onTrainerClick(email, trainer)
-            },
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = sk.cardBg,
     ) {
-        Box(
-            Modifier
-                .width(4.dp)
-                .fillMaxHeight()
-                .background(Brush.verticalGradient(listOf(tint, tint.copy(alpha = 0.25f)))),
-        )
-
         Column(
-            Modifier
-                .weight(1f)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Space.lg),
+            verticalArrangement = Arrangement.spacedBy(Space.md),
         ) {
-            Text(
-                course,
-                style = MaterialTheme.typography.titleSmall,
-                color = sk.bodyText,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            val hasMetaRow = mode.isNotBlank() || customer.isNotBlank() || pax != null
-            if (hasMetaRow) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Surface(
+                    color = event.category.color.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(6.dp),
                 ) {
-                    if (mode.isNotBlank()) ModeBadge(mode, tint)
-                    if (customer.isNotBlank()) {
-                        Text(
-                            customer,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = sk.subText,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                    }
-                    if (pax != null) {
-                        Text(
-                            "$pax pax",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = sk.subText,
-                        )
-                    }
+                    Text(
+                        "${event.category.icon} ${event.category.label.uppercase()}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = event.category.color,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
                 }
-            }
-
-            val trainerLocation = listOfNotNull(
-                trainer.takeIf { it.isNotBlank() },
-                location.takeIf { it.isNotBlank() },
-            ).joinToString(" · ")
-            if (trainerLocation.isNotBlank()) {
                 Text(
-                    trainerLocation,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = sk.labelText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    "${event.startDate} to ${event.endDate}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.subText,
                 )
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(dateText, style = MaterialTheme.typography.labelSmall, color = tint)
-                if (days != null) {
-                    Text("${days}d", style = MaterialTheme.typography.labelSmall, color = sk.subText)
-                }
-                if (recTint != null) {
-                    Spacer(Modifier.weight(1f))
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(recTint.copy(alpha = 0.15f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                    ) {
-                        Text(
-                            "REC ${recStatus.uppercase()}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = recTint,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+            Text(
+                event.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = sk.bodyText,
+            )
+
+            HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f))
+
+            // Metadata Grid
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                DetailRow("Trainer", event.trainerName.ifBlank { "Unassigned" }) {
+                    if (event.trainerName.isNotBlank()) {
+                        onTrainerClick(event.trainerEmail, event.trainerName)
+                        onDismiss()
                     }
                 }
+                DetailRow("Client / Customer", event.customer.ifBlank { "Internal / Retail" })
+                DetailRow("Timing Slot", event.timeSlot)
+                DetailRow("Delivery Mode", event.deliveryMode.ifBlank { "Standard ILT" })
+                if (event.location.isNotBlank()) DetailRow("Location", event.location)
+                if (event.pax != null) DetailRow("Enrolled Attendees", "${event.pax} pax")
+            }
+
+            Spacer(Modifier.height(Space.sm))
+
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = event.category.color),
+            ) {
+                Text("Close", fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 
 @Composable
-private fun ModeBadge(mode: String, tint: Color) {
-    val label = when (mode.uppercase().trim()) {
-        "INSTRUCTOR LED TRAINING", "ILT" -> "ILT"
-        "INSTRUCTOR LED ONLINE", "ILO" -> "ILO"
-        "FACE TO FACE", "FMAT" -> "FMAT"
-        "VIRTUAL", "VIL" -> "VIL"
-        else -> mode.take(4).uppercase()
-    }
-    Box(
-        Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(tint.copy(alpha = 0.15f))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+private fun DetailRow(label: String, value: String, onClick: (() -> Unit)? = null) {
+    val sk = MaterialTheme.skill
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = sk.subText)
         Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = tint,
-            fontWeight = FontWeight.Bold,
+            value,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (onClick != null) Color(0xFF38BDF8) else sk.bodyText,
+            fontWeight = if (onClick != null) FontWeight.Bold else FontWeight.Medium,
         )
     }
 }

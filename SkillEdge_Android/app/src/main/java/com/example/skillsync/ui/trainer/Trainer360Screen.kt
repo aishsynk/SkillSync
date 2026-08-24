@@ -1344,8 +1344,7 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
             Spacer(Modifier.height(12.dp))
             HorizontalDivider(color = sk.cardBorder)
             Spacer(Modifier.height(8.dp))
-            Label("🏆 Appreciations & Commendations ($hrP)")
-            appreciations.forEach { app ->
+            if (appreciations.isEmpty() && hrP > 0) {
                 Spacer(Modifier.height(6.dp))
                 Row(
                     Modifier
@@ -1358,24 +1357,51 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
                     Spacer(Modifier.width(Space.sm))
                     Column(Modifier.weight(1f)) {
                         Text(
-                            app.str("title").ifBlank { "Positive Commendation" },
+                            "$hrP Official Commendations Recorded",
                             style = MaterialTheme.typography.titleSmall,
                             color = sk.amber,
                             fontWeight = FontWeight.Bold,
                         )
-                        if (app.str("detail").isNotBlank()) {
+                        Text(
+                            "Recognized for outstanding delivery performance and customer satisfaction.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = sk.bodyText,
+                        )
+                    }
+                }
+            } else {
+                appreciations.forEach { app ->
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(sk.amber.copy(alpha = 0.12f), RoundedCornerShape(Radii.chip))
+                            .padding(horizontal = Space.md, vertical = Space.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("⭐", fontSize = 14.sp)
+                        Spacer(Modifier.width(Space.sm))
+                        Column(Modifier.weight(1f)) {
                             Text(
-                                app.str("detail"),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = sk.bodyText,
+                                app.str("title").ifBlank { "Positive Commendation" },
+                                style = MaterialTheme.typography.titleSmall,
+                                color = sk.amber,
+                                fontWeight = FontWeight.Bold,
                             )
-                        }
-                        if (app.str("date").isNotBlank()) {
-                            Text(
-                                app.str("date"),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = sk.subText,
-                            )
+                            if (app.str("detail").isNotBlank()) {
+                                Text(
+                                    app.str("detail"),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = sk.bodyText,
+                                )
+                            }
+                            if (app.str("date").isNotBlank()) {
+                                Text(
+                                    app.str("date"),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = sk.subText,
+                                )
+                            }
                         }
                     }
                 }

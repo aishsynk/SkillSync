@@ -1,9 +1,11 @@
 package com.example.skillsync.ui.batch
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -276,50 +278,89 @@ fun BatchDetailScreen(
                     }
                 }
 
-                // Live Enrolled Class Participants (Key 208)
-                val paxList = operationalContext?.participantsRoster?.students.orEmpty()
-                if (paxList.isNotEmpty()) {
-                    Box(Modifier.fillMaxWidth().glassSurface()) {
-                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("👥 Enrolled Participants", fontWeight = FontWeight.SemiBold, color = sk.frost)
-                                    Spacer(Modifier.width(6.dp))
-                                    Chip("${paxList.size}", sk.ice)
+                // ── Official Courseware & Materials Hub ──────────────────────────────
+                val contentPdf = operationalContext?.course?.contentUrl.orEmpty()
+                val activeVer = operationalContext?.course?.latestVersion.orEmpty()
+                val isFastTrack = operationalContext?.course?.isFastTrack ?: batch.bool("is_fast_track")
+
+                Box(Modifier.fillMaxWidth().glassSurface()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "📚 Courseware & Curriculum",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = sk.frost,
+                            )
+                            if (isFastTrack) {
+                                Surface(
+                                    color = sk.teal.copy(alpha = 0.16f),
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.teal.copy(alpha = 0.4f)),
+                                ) {
+                                    Text(
+                                        "⚡ Fast-Track (No Exam)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = sk.teal,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                    )
                                 }
                             }
-                            paxList.forEach { student ->
-                                Row(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .background(sk.surface3.copy(alpha = 0.5f), RoundedCornerShape(Radii.chip))
-                                        .padding(horizontal = Space.md, vertical = Space.xs),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                        }
+
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                if (activeVer.isNotBlank()) {
+                                    Text(
+                                        "Version: $activeVer",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = sk.aqua,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                } else {
+                                    Text(
+                                        "Standard Koenig Syllabus",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = sk.bodyText,
+                                    )
+                                }
+                                Text(
+                                    if (contentPdf.isNotBlank()) "Official slide deck & trainer notes ready" else "Syllabus verified in RMS",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = sk.subText,
+                                )
+                            }
+
+                            if (contentPdf.isNotBlank()) {
+                                Surface(
+                                    onClick = {
+                                        try {
+                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(contentPdf))
+                                            context.startActivity(intent)
+                                        } catch (_: Exception) {}
+                                    },
+                                    color = Color(0xFF0284C7),
+                                    shape = RoundedCornerShape(8.dp),
                                 ) {
-                                    Column(Modifier.weight(1f)) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    ) {
                                         Text(
-                                            student.name.ifBlank { "Participant" },
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = sk.frost,
-                                        )
-                                        if (student.email.isNotBlank()) {
-                                            Text(
-                                                student.email,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = sk.sky,
-                                            )
-                                        }
-                                    }
-                                    if (student.company.isNotBlank()) {
-                                        Text(
-                                            student.company,
+                                            "Slides PDF ↗",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = sk.subText,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
                                         )
                                     }
                                 }
@@ -328,37 +369,98 @@ fun BatchDetailScreen(
                     }
                 }
 
-                // Official Courseware & Versioning Access
-                val contentPdf = operationalContext?.course?.contentUrl.orEmpty()
-                val activeVer = operationalContext?.course?.latestVersion.orEmpty()
-                if (contentPdf.isNotBlank() || activeVer.isNotBlank()) {
+                // ── Live Class Participant Roster (Key 208) ──────────────────────────
+                val paxList = operationalContext?.participantsRoster?.students.orEmpty()
+                if (paxList.isNotEmpty()) {
                     Box(Modifier.fillMaxWidth().glassSurface()) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                if (activeVer.isNotBlank()) {
-                                    Text("🏷️ Active RMS Version: $activeVer", style = MaterialTheme.typography.titleSmall, color = sk.aqua, fontWeight = FontWeight.Bold)
-                                }
-                                if (contentPdf.isNotBlank()) {
-                                    Text("Official Koenig slide deck available", style = MaterialTheme.typography.bodySmall, color = sk.subText)
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text("👥 Enrolled Participants", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = sk.frost)
+                                    Surface(
+                                        color = Color(0xFF0284C7).copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(6.dp),
+                                    ) {
+                                        Text(
+                                            "${paxList.size} STUDENTS",
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF38BDF8),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 10.sp,
+                                        )
+                                    }
                                 }
                             }
-                            if (contentPdf.isNotBlank()) {
-                                Button(
-                                    onClick = {
-                                        try {
-                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(contentPdf))
-                                            context.startActivity(intent)
-                                        } catch (_: Exception) {}
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = sk.cyan),
-                                    shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+
+                            paxList.forEach { student ->
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(sk.cardBg.copy(alpha = 0.7f))
+                                        .border(0.5.dp, sk.cardBorder.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 ) {
-                                    Text("Open Slides PDF ↗", style = MaterialTheme.typography.labelSmall, color = Color.Black, fontWeight = FontWeight.Bold)
+                                    // Initials Avatar
+                                    val initials = student.name.split(" ").mapNotNull { it.firstOrNull()?.uppercase() }.take(2).joinToString("").ifBlank { "ST" }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF0284C7).copy(alpha = 0.25f)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(initials, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    }
+
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                                        Text(
+                                            student.name.ifBlank { "Participant" },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = sk.bodyText,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                        if (student.email.isNotBlank()) {
+                                            Text(
+                                                student.email,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color(0xFF38BDF8),
+                                                modifier = Modifier.clickable {
+                                                    try {
+                                                        val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
+                                                            data = android.net.Uri.parse("mailto:${student.email}")
+                                                        }
+                                                        context.startActivity(intent)
+                                                    } catch (_: Exception) {}
+                                                },
+                                            )
+                                        }
+                                    }
+
+                                    if (student.company.isNotBlank()) {
+                                        Surface(
+                                            color = sk.surface3,
+                                            shape = RoundedCornerShape(4.dp),
+                                        ) {
+                                            Text(
+                                                student.company,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = sk.subText,
+                                                fontSize = 10.sp,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
