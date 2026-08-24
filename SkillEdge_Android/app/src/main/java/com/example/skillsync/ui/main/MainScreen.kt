@@ -223,11 +223,28 @@ fun MainScreen(
                                 Modifier.fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(tint.copy(alpha = 0.10f))
+                                    .clickable {
+                                        showNotificationsSheet = false
+                                        when (ev.targetType) {
+                                            "demand" -> {
+                                                if (ev.targetId.isNotBlank()) onBatchClick(ev.targetId)
+                                                else onTabChange(HomeTab.DEMAND)
+                                            }
+                                            "demand_list" -> onTabChange(HomeTab.DEMAND)
+                                            "trainer" -> {
+                                                if (ev.targetId.isNotBlank()) onTrainerClick(ev.targetId, ev.targetLabel)
+                                                else onTabChange(HomeTab.TEAM)
+                                            }
+                                            "trainer_list" -> onTabChange(HomeTab.TEAM)
+                                            "actions" -> onTabChange(HomeTab.ACTIONS)
+                                            else -> onTabChange(HomeTab.DASHBOARD)
+                                        }
+                                    }
                                     .padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.Top,
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Box(
-                                    Modifier.size(8.dp).offset(y = 5.dp)
+                                    Modifier.size(8.dp)
                                         .clip(androidx.compose.foundation.shape.CircleShape)
                                         .background(tint)
                                 )
@@ -236,6 +253,13 @@ fun MainScreen(
                                     Text(ev.title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.skill.bodyText, maxLines = 1)
                                     Text(ev.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.skill.subText, maxLines = 2)
                                 }
+                                Spacer(Modifier.width(6.dp))
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_chevron),
+                                    contentDescription = "View detail",
+                                    tint = tint,
+                                    modifier = Modifier.size(16.dp),
+                                )
                             }
                         }
                     }

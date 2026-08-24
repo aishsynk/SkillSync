@@ -17,9 +17,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavKey
+import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.auth.LoginScreen
 import com.example.skillsync.ui.batch.AllocationState
 import com.example.skillsync.ui.batch.AllocationViewModel
@@ -28,6 +35,7 @@ import com.example.skillsync.ui.components.list
 import com.example.skillsync.ui.components.rows
 import com.example.skillsync.ui.components.str
 import com.example.skillsync.ui.components.Motion
+import com.example.skillsync.ui.main.DashboardState
 import com.example.skillsync.ui.main.MainScreen
 import com.example.skillsync.ui.main.MainScreenViewModel
 import com.example.skillsync.ui.trainer.Trainer360Screen
@@ -78,9 +86,10 @@ fun MainNavigation() {
         val email = com.example.skillsync.data.SessionManager.getEmail()
         if (!email.isNullOrBlank()) {
             current = when (target.type) {
-                "demand" -> BatchDetail(email, target.id)
+                "demand" -> if (target.id.isNotBlank()) BatchDetail(email, target.id) else Main(email, HomeTab.DEMAND)
                 "demand_list" -> Main(email, HomeTab.DEMAND)
                 "trainer" -> if (target.id.isNotBlank()) Trainer360(email, target.id, target.label) else Main(email, HomeTab.TEAM)
+                "trainer_list" -> Main(email, HomeTab.TEAM)
                 "actions" -> Main(email, HomeTab.ACTIONS)
                 else -> Main(email, HomeTab.DASHBOARD)
             }
@@ -236,6 +245,7 @@ fun MainNavigation() {
 
             is BatchDetail -> {
                 val allocState by allocationViewModel.state.collectAsState()
+                val dashState by mainViewModel.uiState.collectAsState()
                 val markState by allocationViewModel.mark.collectAsState()
                 val demandContext by allocationViewModel.demandContext.collectAsState()
                 val demandContextLoading by allocationViewModel.demandContextLoading.collectAsState()
@@ -244,15 +254,44 @@ fun MainNavigation() {
                 val gatedLoading by allocationViewModel.gatedCandidatesLoading.collectAsState()
                 val gatedUnverified by allocationViewModel.gatedCandidatesUnverified.collectAsState()
                 val data = (allocState as? AllocationState.Success)?.data
+                val dashData = (dashState as? DashboardState.Success)?.intelligenceData
+
                 val batch = data?.rows("batches")
                     ?.firstOrNull { it.str("demand_id") == screen.demandId }
+                    ?: dashData?.rows("unallocated_demand_df")
+                        ?.firstOrNull { it.str("demand_id") == screen.demandId }
 
                 if (batch == null) {
                     // A notification may launch directly into detail before the
-                    // allocation cache is hydrated. Load incrementally and keep
-                    // the destination instead of bouncing the manager away.
-                    LaunchedEffect(screen.email) { allocationViewModel.load(screen.email, context) }
-                    androidx.compose.material3.CircularProgressIndicator()
+                    // allocation cache is hydrated. Trigger fresh network fetches.
+                    LaunchedEffect(screen.email, screen.demandId) {
+                        allocationViewModel.refresh(screen.email, context)
+                        mainViewModel.loadData(screen.email, context)
+                    }
+                    Box(
+                        modifier = Modifier.fillMaxSize().background(MaterialTheme.skill.cardBg),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                            modifier = Modifier.padding(24.dp),
+                        ) {
+                            CircularProgressIndicator(color = MaterialTheme.skill.aqua)
+                            Text(
+                                "Loading unallocated batch details...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.skill.subText,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = { current = Main(screen.email, HomeTab.DEMAND) },
+                                shape = RoundedCornerShape(10.dp),
+                            ) {
+                                Text("Back to Demand Desk", color = MaterialTheme.skill.brand)
+                            }
+                        }
+                    }
                 } else {
                     LaunchedEffect(screen.demandId, batch.str("course_name")) {
                         allocationViewModel.loadDemandContext(screen.email, screen.demandId, batch.str("course_name"))
@@ -271,7 +310,7 @@ fun MainNavigation() {
                     }
                     // Candidates are this manager's reportees, which is exactly the
                     // set they may mark a skill for.
-                    val reportees = data.rows("batches")
+                    val reportees = (data?.rows("batches") ?: dashData?.rows("unallocated_demand_df") ?: emptyList())
                         .flatMap { it.list("candidates") }
                         .map { it.str("trainer_name") to it.str("trainer_email") }
                         .filter { it.second.isNotBlank() }

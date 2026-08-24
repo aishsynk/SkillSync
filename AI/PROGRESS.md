@@ -1,4 +1,33 @@
 
+## 2026-08-24T13:28:00+05:30 - Notification Panel Click Redirection & Resilient Batch Detail Hydration (v3.33.0 / Build 116)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Python/Flask, pytest, Kotlin/Compose, Gradle, gh CLI)
+- **Files Modified**:
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/MainScreen.kt` (added clickable navigation with chevron on in-app notification sheet items to route directly to detail screens)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/Navigation.kt` (enhanced notification target routing for demand, trainer, and action buckets; upgraded BatchDetail hydration with dual data sources from allocation and dashboard intelligence + graceful loading view)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/util/NotificationEngine.kt` (set accurate targetType mappings for summary notifications)
+  - `SkillEdge_Android/app/build.gradle.kts` (bumped version to v3.33.0 / Build 116)
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **In-App Notification Bell Sheet Click Redirection**:
+     - Made every notification card in the in-app notification bottom sheet interactive (`.clickable`).
+     - Tapping a **Demand** notification (`targetType == "demand"`) immediately closes the sheet and routes to `BatchDetailScreen(demand_id)`.
+     - Tapping a **Trainer** notification (`targetType == "trainer"`) routes to `Trainer360Screen(email)`.
+     - Tapping **Actions / Feedback** routes to `HomeTab.ACTIONS`.
+     - Added visual chevron affordance (`ic_chevron`) to clearly communicate clickability.
+  2. **System Notification Panel Deep Linking**:
+     - System notifications launched via `NotificationDestinationStore` seamlessly route directly to the respective detail view (`BatchDetail` or `Trainer360`).
+  3. **Resilient BatchDetail Data Hydration**:
+     - Resolved batches from both `allocState` (`batches`) AND `dashState` (`unallocated_demand_df`), eliminating latency when clicking freshly detected batches.
+     - Added graceful loading view with progress indicator and a "Back to Demand Desk" fallback button if network hydration is in progress.
+  4. **Quality & Validation**:
+     - Backend pytest suite: **160 / 160 passing (100% green)**.
+     - Android unit test suite: **147 / 147 passing (100% green)**.
+     - Android debug APK assembled cleanly: **BUILD SUCCESSFUL**.
+- **Current Project State**: Production release build v3.33.0 (Build 116) fully validated and ready for CI release.
+- **Handover for Next Session**: Direct notification deep-linking and detail redirection fully operational.
+
 ## 2026-08-24T13:10:00+05:30 - Real-Time Live Demand Radar, 60s Chained Background Worker & 15s Low-Latency Cache (v3.32.0 / Build 115)
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)

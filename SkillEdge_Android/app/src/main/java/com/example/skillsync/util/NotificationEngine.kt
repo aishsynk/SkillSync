@@ -100,10 +100,15 @@ object NotificationEngine {
                     BUCKET_DEMAND -> "New Unallocated Batches"
                     else -> "SkillSync Update"
                 }
+                val targetType = when (bucket) {
+                    BUCKET_DEMAND -> "demand_list"
+                    BUCKET_ALLOCATION -> "trainer_list"
+                    else -> "actions"
+                }
                 listOf(NotifyEvent(
                     id = "${bucket}_summary", bucket = bucket, title = title,
                     message = "${group.size} updates — open the app for details.",
-                    targetType = if (bucket == BUCKET_DEMAND) "demand_list" else "actions",
+                    targetType = targetType,
                     targetId = "",
                 ))
             }
