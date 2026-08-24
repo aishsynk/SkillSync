@@ -3671,11 +3671,25 @@ def allocation_desk():
             payload = dict(cached)
             payload["refresh_in_progress"] = start_build
             return jsonify(payload), 200
+        # Cold cache fast-path: serve immediate raw demand while background enrichment warms
+        fast_demand = _demand_rows() or []
+        for b in fast_demand:
+            b.setdefault("relevance", 0)
+            b.setdefault("candidates", [])
+            b.setdefault("coverage_status", "Checking...")
+            b.setdefault("relevance_band", "none")
+            b.setdefault("is_priority", False)
+            b.setdefault("assignment_risk", "Low")
         return jsonify({
-            "manager": email, "batches": [], "summary": {},
-            "loading": True, "refresh_in_progress": True,
-            "note": "Demand intelligence is being prepared from RMS. Retry shortly.",
-        }), 202
+            "manager": email,
+            "team_size": 0,
+            "batches": fast_demand,
+            "summary": {"total": len(fast_demand), "high": 0, "medium": 0, "unmatched": len(fast_demand), "priority": 0},
+            "loading": False,
+            "refresh_in_progress": True,
+            "timestamp": datetime.utcnow().isoformat(),
+            "note": "Immediate demand loaded; deep candidate matching in progress.",
+        }), 200
 
     if _wants_fresh():
         _cache_purge(email)

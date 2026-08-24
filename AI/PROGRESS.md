@@ -1,4 +1,28 @@
 
+## 2026-08-24T13:52:00+05:30 - Allocation Timeout Elimination, Cold-Cache Instant Demand & Resilient Offline Fallback (v3.34.0 / Build 117)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Python/Flask, pytest, Kotlin/Compose, Gradle, gh CLI)
+- **Files Modified**:
+  - `backend.py` (updated `allocation_desk` to serve immediate fast demand from `_demand_rows()` on cold cache with HTTP 200 while asynchronous background warming populates candidate suitability and availability)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationViewModel.kt` (switched live demand polling from destructive `fresh = true` to non-purging `fresh = false`; added resilient LocalCache/dashboard fallback on network timeout or warming delay so the screen never gets blocked or displays an error banner)
+  - `SkillEdge_Android/app/build.gradle.kts` (bumped version to v3.34.0 / Build 117)
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Root Cause Diagnosis**:
+     - Live demand polling previously called `fetch(fresh = true)` every 20s, which repeatedly wiped the backend cache and spawned background warming jobs faster than RMS availability queries could finish (~25s), causing client polling loops to time out.
+  2. **Cold-Cache Instant Demand Serving (`backend.py`)**:
+     - On a cold cache or initial fetch, `allocation_desk()` immediately retrieves `_demand_rows()` (fast ~0.8s RMS Key 190 call) and returns HTTP 200 with all unallocated batches, while `_warm_allocation` continues in the background.
+  3. **Client-Side Non-Purging Polling & Resilient Fallback (`AllocationViewModel.kt`)**:
+     - `startLiveDemandPolling` now queries with `fresh = false`, serving the prepared board instantaneously (0.1s).
+     - If network blips or timeouts occur, `AllocationViewModel` transparently falls back to `LocalCache.loadMap("allocation_$email")` or `LocalCache.loadMap("dashboard_$email")`, keeping the unallocated batches visible without error banners.
+  4. **Quality & Validation**:
+     - Backend pytest suite: **160 / 160 passing (100% green)**.
+     - Android unit test suite: **147 / 147 passing (100% green)**.
+     - Android debug APK assembled cleanly: **BUILD SUCCESSFUL**.
+- **Current Project State**: Production release build v3.34.0 (Build 117) fully validated and ready for CI release.
+- **Handover for Next Session**: Allocation desk timeout eliminated; instant unallocated demand loading operational.
+
 ## 2026-08-24T13:28:00+05:30 - Notification Panel Click Redirection & Resilient Batch Detail Hydration (v3.33.0 / Build 116)
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)

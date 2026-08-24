@@ -236,7 +236,7 @@ class AllocationViewModel(
             while (true) {
                 delay(20_000) // 20s active Demand radar
                 if (RetrofitClient.isNetworkAvailable(context)) {
-                    fetch(email, context, fresh = true)
+                    fetch(email, context, fresh = false)
                 }
             }
         }
@@ -268,6 +268,7 @@ class AllocationViewModel(
         // 1. Instantly read from LocalCache if not already loaded and no fresh push requested
         if (!fresh && _state.value !is AllocationState.Success) {
             val cached = com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))
+                ?: com.example.skillsync.data.cache.LocalCache.loadMap("dashboard_$email")
             if (cached != null) {
                 _newIds.value = SeenBatches.diffAndRemember(context, email, cached)
                 lastAdoptedAt = com.example.skillsync.data.cache.LocalCache.savedAt(cacheKey(email))
@@ -277,7 +278,11 @@ class AllocationViewModel(
 
         // 2. Network Check
         if (!RetrofitClient.isNetworkAvailable(context)) {
-            if (_state.value !is AllocationState.Success) {
+            val cached = com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))
+                ?: com.example.skillsync.data.cache.LocalCache.loadMap("dashboard_$email")
+            if (cached != null) {
+                _state.value = AllocationState.Success(cached)
+            } else if (_state.value !is AllocationState.Success) {
                 _state.value = AllocationState.Error("No internet connection")
             }
             return
@@ -286,19 +291,31 @@ class AllocationViewModel(
         // 3. Fetch from API in background
         try {
             var result = repository.allocation(email, fresh)
-            var data = result.data ?: throw IllegalStateException(result.error ?: "Could not load demand")
+            var data = result.data ?: run {
+                val cached = com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))
+                    ?: com.example.skillsync.data.cache.LocalCache.loadMap("dashboard_$email")
+                if (cached != null) {
+                    _state.value = AllocationState.Success(cached)
+                    return
+                }
+                throw IllegalStateException(result.error ?: "Could not load demand")
+            }
             // A cold backend prepares the expensive RMS board in the background
             // and answers 202 immediately, avoiding a proxy 502. Poll briefly
             // while keeping any existing board visible.
-            repeat(12) {
+            repeat(8) {
                 if (data["loading"] != true) return@repeat
-                delay(3_000)
+                delay(2_500)
                 result = repository.allocation(email, fresh = false)
                 data = result.data ?: data
             }
             if (data["loading"] == true) {
-                if (_state.value !is AllocationState.Success) {
-                    _state.value = AllocationState.Error("Demand intelligence is still preparing. Pull to refresh shortly.")
+                val cached = com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))
+                    ?: com.example.skillsync.data.cache.LocalCache.loadMap("dashboard_$email")
+                if (cached != null) {
+                    _state.value = AllocationState.Success(cached)
+                } else if (_state.value !is AllocationState.Success) {
+                    _state.value = AllocationState.Error("Demand intelligence is preparing from RMS. Pull to refresh shortly.")
                 }
                 return
             }
@@ -307,7 +324,11 @@ class AllocationViewModel(
             _state.value = AllocationState.Success(data)
             fetchCapacityPlan(email)
         } catch (e: Exception) {
-            if (_state.value !is AllocationState.Success) {
+            val cached = com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))
+                ?: com.example.skillsync.data.cache.LocalCache.loadMap("dashboard_$email")
+            if (cached != null) {
+                _state.value = AllocationState.Success(cached)
+            } else if (_state.value !is AllocationState.Success) {
                 _state.value = AllocationState.Error(e.userMessage("load unallocated batches"))
             }
         }
