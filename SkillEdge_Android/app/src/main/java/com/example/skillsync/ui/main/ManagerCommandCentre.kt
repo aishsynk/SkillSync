@@ -26,6 +26,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
 import com.example.skillsync.theme.Figure
@@ -168,64 +169,6 @@ fun ManagerCommandCentre(
             )
         }
 
-        // ── 1b · Reports & Intelligence Hub (1-Tap Fast Launch) ────────────
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { onOpenWeeklyReport() },
-                shape = RoundedCornerShape(Radii.chip),
-                color = sk.brand.copy(alpha = 0.20f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, sk.brand.copy(alpha = 0.55f)),
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(
-                        painterResource(R.drawable.ic_calendar),
-                        contentDescription = "Weekly Report",
-                        tint = sk.cyan,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Column {
-                        Text("Weekly Report", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
-                        Text("Standpoint & Digest ↗", color = sk.subText, fontSize = 10.sp)
-                    }
-                }
-            }
-
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable { onOpenHrReport() },
-                shape = RoundedCornerShape(Radii.chip),
-                color = sk.amber.copy(alpha = 0.16f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, sk.amber.copy(alpha = 0.45f)),
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(
-                        painterResource(R.drawable.ic_certificate),
-                        contentDescription = "HR Monthly Report",
-                        tint = sk.amber,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Column {
-                        Text("HR Monthly Report", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
-                        Text("TI Score & Review ↗", color = sk.subText, fontSize = 10.sp)
-                    }
-                }
-            }
-        }
-
         // ── 2 · What is on fire? ────────────────────────────────────────────
         val alerts = buildAlerts(atRisk, overloaded, demand, openActions, gaps, onDrill, onOpenDemand)
         if (alerts.isNotEmpty()) {
@@ -289,20 +232,164 @@ fun ManagerCommandCentre(
             onOpenDelivery = onOpenDelivery,
         )
 
+        // ── Executive Command Deck (4-Tile Fast Launch) ─────────────────────
+        SectionHeading("Executive Operations", "One-tap operational reports and dispatch")
+        Column(
+            Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onOpenWeeklyReport() },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0x281D4ED8),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x6638BDF8)),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0x3338BDF8)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_calendar),
+                                contentDescription = "Weekly Report",
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Column {
+                            Text("Weekly Report", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text("Standpoint & Digest ↗", color = sk.sky, fontSize = 10.sp)
+                        }
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onOpenHrReport() },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0x28F59E0B),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66FBBF24)),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0x33FBBF24)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_certificate),
+                                contentDescription = "HR Monthly Report",
+                                tint = Color(0xFFFBBF24),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Column {
+                            Text("HR Monthly Review", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text("TI Score & Review ↗", color = Color(0xFFFBBF24), fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onOpenDemand() },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0x2806B6D4),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x6622D3EE)),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0x3322D3EE)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_inbox),
+                                contentDescription = "Allocation Desk",
+                                tint = Color(0xFF22D3EE),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Column {
+                            Text("Allocation Desk", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text("${demand.size} Batches Waiting ↗", color = Color(0xFF22D3EE), fontSize = 10.sp)
+                        }
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onOpenDelivery() },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0x2810B981),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x6634D399)),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0x3334D399)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_calendar),
+                                contentDescription = "Delivery Operations",
+                                tint = Color(0xFF34D399),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Column {
+                            Text("Delivery Ops", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text("${ops.size} Instructors Live ↗", color = Color(0xFF34D399), fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+        }
+
         // ── 5b · Who is carrying the work ───────────────────────────────────
-        // Promoted out of the collapsed Explore section: a manager asked for
-        // their top five to be permanently visible, and a roster hidden behind
-        // a disclosure is a roster nobody reads.
         TopPerformersPanel(ops, capTrainers, onTrainerClick)
 
         // ── 5b2 · Certification health ──────────────────────────────────────
         CertificationBand(coverage = coverage, gaps = gaps, loading = capabilityLoading)
-
-        // ── 5c · The weekly message ─────────────────────────────────────────
-        WeeklyReportCta(onOpenWeeklyReport)
-
-        // ── 5c2 · HR monthly report ─────────────────────────────────────────
-        HrReportCta(onOpenHrReport)
 
         // ── 5d · The agent ──────────────────────────────────────────────────
         AgentCta(onOpenCopilot)
@@ -354,65 +441,68 @@ private fun BriefingHero(
             .padding(Space.lg),
         verticalArrangement = Arrangement.spacedBy(Space.md),
     ) {
-        // Identity row — folded in, so it costs no extra vertical band.
+        // Identity row — folded in with high-end executive styling
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.clip(RoundedCornerShape(Radii.chip)).clickable(onClick = onOpenProfile),
+                Modifier
+                    .clip(RoundedCornerShape(Radii.chip))
+                    .border(1.5.dp, Color(0x6638BDF8), RoundedCornerShape(Radii.chip))
+                    .clickable(onClick = onOpenProfile),
                 contentAlignment = Alignment.BottomEnd,
             ) {
-                Avatar(name = name, photoUrl = profile?.str("photo_url").orEmpty(), size = 36.dp)
+                Avatar(name = name, photoUrl = profile?.str("photo_url").orEmpty(), size = 42.dp)
             }
             Spacer(Modifier.width(Space.md))
             Column(Modifier.weight(1f)) {
                 Text(
                     name,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = sk.heroText,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    // A single "as of" stamp. The payload's own from_cache /
-                    // cache.age fields are static literals that misreport
-                    // freshness, so this uses the real disk-write time instead.
                     when {
                         age == null -> "DELIVERY MANAGER · LIVE"
                         fromCache -> "OFFLINE COPY · $age".uppercase()
                         else -> "LIVE · UPDATED $age".uppercase()
                     },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (fromCache) sk.warn else sk.ice,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.04.em
+                    ),
+                    color = if (fromCache) sk.warn else Color(0xFF38BDF8),
                     maxLines = 1,
                 )
             }
             Box(
                 Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(Radii.icon))
-                    .background(Color.White.copy(alpha = 0.10f))
-                    .border(1.dp, sk.ice.copy(alpha = 0.24f), RoundedCornerShape(Radii.icon))
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .border(1.dp, Color(0x4038BDF8), RoundedCornerShape(12.dp))
                     .clickable(onClick = onOpenNotifications),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     painterResource(R.drawable.ic_alert),
                     contentDescription = "Alerts",
-                    tint = sk.ice,
-                    modifier = Modifier.size(17.dp),
+                    tint = Color.White,
+                    modifier = Modifier.size(19.dp),
                 )
                 if (openActions > 0) {
                     Box(
                         Modifier
                             .align(Alignment.TopEnd)
                             .offset(x = 4.dp, y = (-4).dp)
-                            .defaultMinSize(minWidth = 16.dp, minHeight = 16.dp)
+                            .defaultMinSize(minWidth = 17.dp, minHeight = 17.dp)
                             .clip(CircleShape)
-                            .background(sk.crit)
+                            .background(Color(0xFFEF4444))
                             .border(2.dp, Surface0, CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
                             "$openActions",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = Color.White,
                             modifier = Modifier.padding(horizontal = 3.dp),
                         )
@@ -421,45 +511,75 @@ private fun BriefingHero(
             }
         }
 
-        // The readiness reading — the largest thing on the screen.
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // The readiness reading — executive hero display
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0x20000000))
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Column(Modifier.weight(1f)) {
-                Text("TEAM READINESS", style = MaterialTheme.typography.labelSmall, color = sk.ice)
                 Text(
-                    readiness?.toString() ?: "—",
-                    style = MaterialTheme.typography.displayLarge.copy(fontFeatureSettings = "tnum"),
-                    color = sk.heroText,
+                    "TEAM READINESS",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.05.em
+                    ),
+                    color = Color(0xFF93C5FD)
+                )
+                Text(
+                    readiness?.let { "$it%" } ?: "—",
+                    style = MaterialTheme.typography.displayLarge.copy(
+                        fontFeatureSettings = "tnum",
+                        fontWeight = FontWeight.ExtraBold,
+                    ),
+                    color = Color.White,
                 )
                 if (utilDelta != null) {
-                    Text(
-                        (if (utilDelta >= 0) "▲ +$utilDelta%" else "▼ $utilDelta%") + " utilisation vs last month",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (utilDelta >= 0) sk.aqua else sk.warn,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            (if (utilDelta >= 0) "▲ +$utilDelta%" else "▼ $utilDelta%") + " utilisation vs last month",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = if (utilDelta >= 0) Color(0xFF34D399) else sk.warn,
+                        )
+                    }
                 }
             }
             ReadinessRing(readiness, utilisation, size = 92.dp)
         }
 
-        // The brief itself — the sentence a manager can read and act on.
-        Text(
-            buildList {
-                add("$deployed of $team deployed")
-                utilisation?.let {
-                    add("utilisation $it%" + when {
-                        utilDelta == null -> ""
-                        utilDelta > 0 -> " and rising"
-                        utilDelta < 0 -> " and falling"
-                        else -> " and flat"
-                    })
-                }
-                if (atRisk > 0) add("$atRisk ${plural(atRisk, "trainer", "trainers")} at risk")
-                if (unallocated > 0) add("$unallocated ${plural(unallocated, "demand", "demands")} unallocated")
-                if (atRisk == 0 && unallocated == 0) add("nothing waiting on you")
-            }.joinToString(" · "),
-            style = MaterialTheme.typography.bodyMedium,
-            color = sk.heroMuted,
-        )
+        // The brief itself — high-contrast executive summary pills
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = Color(0x26000000),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x2093C5FD)),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                buildList {
+                    add("$deployed of $team deployed")
+                    utilisation?.let {
+                        add("utilisation $it%" + when {
+                            utilDelta == null -> ""
+                            utilDelta > 0 -> " and rising"
+                            utilDelta < 0 -> " and falling"
+                            else -> " and flat"
+                        })
+                    }
+                    if (atRisk > 0) add("$atRisk ${plural(atRisk, "trainer", "trainers")} at risk")
+                    if (unallocated > 0) add("$unallocated ${plural(unallocated, "demand", "demands")} unallocated")
+                    if (atRisk == 0 && unallocated == 0) add("all deliveries covered")
+                }.joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                color = Color(0xFFDBEAFE),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        }
     }
 }
 

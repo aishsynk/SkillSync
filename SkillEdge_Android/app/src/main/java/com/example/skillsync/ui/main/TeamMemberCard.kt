@@ -1,6 +1,7 @@
 package com.example.skillsync.ui.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -89,30 +91,44 @@ internal fun TeamMemberCard(
             .glassSurface(RoundedCornerShape(Radii.card))
             .pressable(onClick),
     ) {
-        // Severity as position and shape, not only colour. The chip is gone —
-        // this bar IS the urgency signal.
+        // Glowing severity indicator bar on the left edge
         Box(
             Modifier
                 .width(4.dp)
                 .fillMaxHeight()
-                .background(Brush.verticalGradient(listOf(tint, tint.copy(alpha = 0.25f))))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            tint,
+                            tint.copy(alpha = 0.40f)
+                        )
+                    )
+                )
         )
 
         Column(
             Modifier
                 .weight(1f)
-                .padding(horizontal = Space.md, vertical = Space.sm),
+                .padding(horizontal = Space.md, vertical = Space.md),
             verticalArrangement = Arrangement.spacedBy(Space.xs),
         ) {
-            // Identity row: avatar + name/designation + readiness badge
+            // Identity row: avatar with glowing border + name/designation + readiness badge
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Avatar(name, capability?.str("photo_url"), 40.dp)
-                Spacer(Modifier.width(Space.sm))
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.dp, Color(0x4038BDF8), RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Avatar(name, capability?.str("photo_url"), 44.dp)
+                }
+                Spacer(Modifier.width(Space.md))
                 Column(Modifier.weight(1f)) {
                     Text(
                         name,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = sk.bodyText,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -120,7 +136,7 @@ internal fun TeamMemberCard(
                         Text(
                             designation,
                             style = MaterialTheme.typography.bodySmall,
-                            color = sk.subText,
+                            color = Color(0xFF93C5FD),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -129,22 +145,22 @@ internal fun TeamMemberCard(
                 if (readiness != null) {
                     Spacer(Modifier.width(Space.sm))
                     val rColor = when {
-                        readiness >= 80 -> sk.good
-                        readiness >= 60 -> sk.warn
-                        else -> sk.crit
+                        readiness >= 80 -> Color(0xFF34D399)
+                        readiness >= 60 -> Color(0xFFFBBF24)
+                        else -> Color(0xFFFB7185)
                     }
                     Box(
                         Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(rColor.copy(alpha = 0.14f))
-                            .padding(horizontal = 7.dp, vertical = 3.dp),
+                            .background(rColor.copy(alpha = 0.16f))
+                            .border(1.dp, rColor.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            "$readiness%",
-                            style = MaterialTheme.typography.labelSmall,
+                            "$readiness% Ready",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = rColor,
-                            fontWeight = FontWeight.SemiBold,
                         )
                     }
                 }

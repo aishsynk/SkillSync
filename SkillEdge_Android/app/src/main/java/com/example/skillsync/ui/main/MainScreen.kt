@@ -606,21 +606,42 @@ internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
-            .background(sk.surface1)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color(0xF00D1527),
+                        Color(0xF8090F1C),
+                    )
+                )
+            )
     ) {
         Column {
-            Box(Modifier.fillMaxWidth().height(1.dp).background(sk.glassBorder))
+            // Glowing cyan highlight along the top edge of the navbar
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color(0x1038BDF8),
+                                Color(0x8038BDF8),
+                                Color(0x1038BDF8),
+                            )
+                        )
+                    )
+            )
             Row(
                 Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .height(58.dp),
+                    .height(60.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 items.forEach { (key, icon, label) ->
                     val selected = current == key
                     val tint by animateColorAsState(
-                        if (selected) sk.sky else sk.labelText,
+                        if (selected) Color(0xFF38BDF8) else sk.labelText,
                         tween(Motion.FAST), label = "navTint",
                     )
                     Column(
@@ -636,22 +657,37 @@ internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
                         verticalArrangement = Arrangement.Center,
                     ) {
                         Box(
-                            Modifier.size(width = 38.dp, height = 28.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (selected) sk.brand.copy(alpha = 0.16f) else Color.Transparent),
+                            Modifier
+                                .size(width = 44.dp, height = 30.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (selected) Brush.horizontalGradient(
+                                        listOf(
+                                            Color(0xFF2563EB).copy(alpha = 0.28f),
+                                            Color(0xFF06B6D4).copy(alpha = 0.28f),
+                                        )
+                                    ) else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
+                                )
+                                .then(
+                                    if (selected) Modifier.border(
+                                        1.dp,
+                                        Color(0x6638BDF8),
+                                        RoundedCornerShape(12.dp)
+                                    ) else Modifier
+                                ),
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
                                 painterResource(icon),
                                 contentDescription = label,
                                 tint = tint,
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(19.dp),
                             )
                         }
                         Spacer(Modifier.height(3.dp))
                         Text(
                             label,
-                            fontSize = 9.sp,
+                            fontSize = 10.sp,
                             color = tint,
                             maxLines = 1,
                             letterSpacing = 0.03.em,

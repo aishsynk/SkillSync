@@ -55,41 +55,54 @@ object Space {
 @Composable
 fun AuroraBackground(modifier: Modifier = Modifier) {
     Canvas(modifier.fillMaxSize()) {
+        // Deep luxury Midnight-Cobalt base
         drawRect(
             Brush.linearGradient(
-                colors = GradientAurora,
+                colors = listOf(
+                    Color(0xFF070B12),
+                    Color(0xFF0C1322),
+                    Color(0xFF090E18),
+                ),
                 start = Offset(0f, 0f),
                 end = Offset(size.width, size.height),
             )
         )
-        // Royal bloom, upper left — the brand anchor.
+        // Vibrant Royal Blue bloom, upper left — primary identity anchor
         drawRect(
             Brush.radialGradient(
-                colors = listOf(BrandBlue.copy(alpha = 0.07f), Color.Transparent),
-                center = Offset(size.width * 0.12f, -size.height * 0.04f),
-                radius = size.width * 1.05f,
+                colors = listOf(BrandBlue.copy(alpha = 0.18f), Color.Transparent),
+                center = Offset(size.width * 0.15f, -size.height * 0.05f),
+                radius = size.width * 1.2f,
             )
         )
-        // Cyan bloom, upper right — keeps the ground from reading flat navy.
+        // Electric Cyan bloom, upper right — provides vibrant executive glow
         drawRect(
             Brush.radialGradient(
-                colors = listOf(Cyan.copy(alpha = 0.03f), Color.Transparent),
-                center = Offset(size.width * 0.95f, size.height * 0.05f),
-                radius = size.width * 0.8f,
+                colors = listOf(Cyan.copy(alpha = 0.10f), Color.Transparent),
+                center = Offset(size.width * 0.95f, size.height * 0.08f),
+                radius = size.width * 0.9f,
             )
         )
-        // Deep navy settle at the bottom so long scrolls stay legible.
+        // Subtle Amethyst / Violet ambient light mid-screen for depth
+        drawRect(
+            Brush.radialGradient(
+                colors = listOf(Color(0xFF8B5CF6).copy(alpha = 0.06f), Color.Transparent),
+                center = Offset(size.width * 0.05f, size.height * 0.55f),
+                radius = size.width * 0.85f,
+            )
+        )
+        // Crisp grounded vignette at the bottom for flawless contrast
         drawRect(
             Brush.verticalGradient(
-                colors = listOf(Color.Transparent, Surface0.copy(alpha = 0.75f)),
-                startY = size.height * 0.45f,
+                colors = listOf(Color.Transparent, Surface0.copy(alpha = 0.85f)),
+                startY = size.height * 0.60f,
                 endY = size.height,
             )
         )
     }
 }
 
-/** Frosted card surface: translucent fill, top-edge sheen, ice hairline. */
+/** Frosted card surface: rich translucent gradient with top-edge sheen and ice hairline border. */
 fun Modifier.glassSurface(
     shape: Shape = RoundedCornerShape(Radii.card),
     tint: Color = Color.Transparent,
@@ -98,18 +111,27 @@ fun Modifier.glassSurface(
     .background(
         Brush.verticalGradient(
             listOf(
-                Color(0xB31E293B),   // Surface-3 @ 70% — catches light at the top
-                Color(0x99172030),   // Surface-2 @ 60%
+                Color(0xFF1E293B).copy(alpha = 0.82f),
+                Color(0xFF0F172A).copy(alpha = 0.94f),
             )
         )
     )
     .then(if (tint == Color.Transparent) Modifier else Modifier.background(tint))
-    .border(1.dp, Color(0xFF263345), shape)
+    .border(
+        1.dp,
+        Brush.verticalGradient(
+            listOf(
+                Color(0x5293C5FD), // glowing ice highlight on top edge
+                Color(0x1F38BDF8),
+                Color(0x121E293B),
+            )
+        ),
+        shape
+    )
 
 /**
- * Glass card carrying a status accent: a 3dp gradient stripe down the left edge
- * plus a matching wash. Severity has to be readable as shape and position, not
- * colour alone, so the stripe is the primary carrier and the tint reinforces it.
+ * Glass card carrying a status accent: a glowing gradient stripe down the left edge
+ * plus a matching translucent wash.
  */
 fun Modifier.accentGlass(
     accent: Color,
@@ -120,24 +142,50 @@ fun Modifier.accentGlass(
     .background(
         Brush.horizontalGradient(
             listOf(
-                accent.copy(alpha = if (strong) 0.15f else 0.07f),
-                Surface2,
+                accent.copy(alpha = if (strong) 0.18f else 0.10f),
+                Color(0xFF131D2E).copy(alpha = 0.92f),
+                Color(0xFF0F172A).copy(alpha = 0.96f),
             )
         )
     )
-    .border(1.dp, accent.copy(alpha = if (strong) 0.48f else 0.24f), shape)
+    .border(
+        1.dp,
+        Brush.horizontalGradient(
+            listOf(
+                accent.copy(alpha = if (strong) 0.65f else 0.40f),
+                accent.copy(alpha = 0.15f),
+                Color(0x2093C5FD),
+            )
+        ),
+        shape
+    )
 
 /** Hero surface: Deep Navy → Brand Blue at 135°, the app's single loudest fill. */
 fun Modifier.heroSurface(shape: Shape = RoundedCornerShape(Radii.hero)): Modifier = this
     .clip(shape)
     .background(
         Brush.linearGradient(
-            colors = listOf(Color(0xFF172554), Color(0xFF1E3A8A), RoyalBlue),
+            colors = listOf(
+                Color(0xFF0F265C),
+                Color(0xFF1E3A8A),
+                Color(0xFF1E40AF),
+                Color(0xFF172554),
+            ),
             start = Offset(0f, 0f),
             end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
         )
     )
-    .border(1.dp, LightAzure.copy(alpha = 0.26f), shape)
+    .border(
+        1.dp,
+        Brush.linearGradient(
+            listOf(
+                Color(0x8060A5FA),
+                Color(0x3338BDF8),
+                Color(0x101D4ED8),
+            )
+        ),
+        shape
+    )
 
 /** Soft blue glow ring for focused, active or pressed elements. */
 fun Modifier.glowRing(
