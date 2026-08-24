@@ -17,10 +17,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.TimeUnit
 
-/** Schedules OS-backed periodic sync and an immediate pass when internet returns. */
+/** Schedules OS-backed periodic sync, rapid chained background passes, and an immediate pass when internet returns. */
 object SyncScheduler {
     private const val PERIODIC_NAME = "SkillEdgeDataSync"
     private const val IMMEDIATE_NAME = "SkillEdgeConnectivitySync"
+    private const val RAPID_CHAIN_NAME = "SkillEdgeRapidSync"
     @Volatile private var callbackRegistered = false
     private val _online = MutableStateFlow(false)
     val online = _online.asStateFlow()
@@ -39,6 +40,7 @@ object SyncScheduler {
         )
         registerConnectivityCallback(app)
         enqueueImmediate(app)
+        enqueueRapidChain(app, delaySeconds = 60)
     }
 
     fun enqueueImmediate(context: Context) {
@@ -47,7 +49,22 @@ object SyncScheduler {
                 Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
             ).build()
         WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
-            IMMEDIATE_NAME, ExistingWorkPolicy.KEEP, request,
+            IMMEDIATE_NAME, ExistingWorkPolicy.REPLACE, request,
+        )
+    }
+
+    /**
+     * Rapid chained background pass: schedules next high-frequency check
+     * so unallocated demand alerts trigger within ~60s rather than waiting 15 min.
+     */
+    fun enqueueRapidChain(context: Context, delaySeconds: Long = 60) {
+        val request = OneTimeWorkRequestBuilder<SkillSyncNotificationWorker>()
+            .setInitialDelay(delaySeconds, TimeUnit.SECONDS)
+            .setConstraints(
+                Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+            ).build()
+        WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
+            RAPID_CHAIN_NAME, ExistingWorkPolicy.REPLACE, request,
         )
     }
 

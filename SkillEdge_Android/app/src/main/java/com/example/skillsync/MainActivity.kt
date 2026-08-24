@@ -45,6 +45,11 @@ class MainActivity : ComponentActivity() {
     }
   }
 
+  override fun onResume() {
+    super.onResume()
+    com.example.skillsync.data.sync.SyncScheduler.enqueueImmediate(applicationContext)
+  }
+
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)

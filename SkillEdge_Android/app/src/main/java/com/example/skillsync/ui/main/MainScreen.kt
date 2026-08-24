@@ -73,6 +73,15 @@ fun MainScreen(
         onDispose { viewModel.stopPolling() }
     }
 
+    DisposableEffect(email, tab) {
+        if (tab == HomeTab.DEMAND) {
+            allocationViewModel.startLiveDemandPolling(email, context)
+        }
+        onDispose {
+            allocationViewModel.stopLiveDemandPolling()
+        }
+    }
+
     LaunchedEffect(email, tab) {
         viewModel.loadData(email, context)
         if (tab == HomeTab.DEMAND || tab == HomeTab.SEARCH) allocationViewModel.load(email, context)

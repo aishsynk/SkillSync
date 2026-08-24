@@ -327,7 +327,7 @@ class MainScreenViewModel(
                 if (fresh != null) checkForNotifications(email, fresh)
             } catch (_: Exception) {}
             while (true) {
-                kotlinx.coroutines.delay(120000)
+                kotlinx.coroutines.delay(20000) // 20-second active live pulse for real-time demand alerts
                 try {
                     com.example.skillsync.data.sync.SyncCoordinator.sync(context)
                     adoptBackgroundSync(email)

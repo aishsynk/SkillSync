@@ -265,11 +265,36 @@ internal fun AllocationDeskContent(
                             SelectChip("At risk", selectedLens == "At risk") { selectedLens = "At risk" }
                         }
                         Spacer(Modifier.height(24.dp))
-                        Text(
-                            "$total unallocated · ranked against your team's capability",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = sk.labelText,
-                        )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "$total unallocated · ranked against your team's capability",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = sk.labelText,
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(sk.teal.copy(alpha = 0.14f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Box(
+                                    Modifier.size(6.dp)
+                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(sk.aqua)
+                                )
+                                Text(
+                                    "LIVE RADAR (20s)",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                                    color = sk.aqua,
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(14.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             StatFigure("${globalBatches.size}", "GLOBAL", if (globalBatches.isNotEmpty()) sk.aqua else sk.subText, Modifier.weight(1f))

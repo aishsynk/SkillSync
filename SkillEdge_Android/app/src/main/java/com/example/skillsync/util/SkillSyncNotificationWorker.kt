@@ -36,14 +36,21 @@ class SkillSyncNotificationWorker(
                 return@withContext Result.success() // Not logged in, nothing to do
             }
 
-            if (!SyncCoordinator.sync(context)) return@withContext Result.retry()
-            val data = LocalCache.loadMap("dashboard_$email") ?: return@withContext Result.retry()
+            if (!SyncCoordinator.sync(context)) {
+                com.example.skillsync.data.sync.SyncScheduler.enqueueRapidChain(context, delaySeconds = 45)
+                return@withContext Result.retry()
+            }
+            val data = LocalCache.loadMap("dashboard_$email") ?: run {
+                com.example.skillsync.data.sync.SyncScheduler.enqueueRapidChain(context, delaySeconds = 45)
+                return@withContext Result.retry()
+            }
 
             if (NotificationStateStore.isFirstRun(email)) {
                 // Seed from whatever already exists without notifying — the
                 // first check after install/login must not fire once per
                 // pre-existing batch.
                 seedSeenState(email, data)
+                com.example.skillsync.data.sync.SyncScheduler.enqueueRapidChain(context, delaySeconds = 60)
                 return@withContext Result.success()
             }
 
@@ -60,9 +67,12 @@ class SkillSyncNotificationWorker(
                     NotificationStateStore.addSeen(email, bucket, group.map { it.id }.toSet())
                 }
             }
+            // Enqueue next rapid chained pass for real-time detection on the go
+            com.example.skillsync.data.sync.SyncScheduler.enqueueRapidChain(context, delaySeconds = 60)
             Result.success()
         } catch (e: Exception) {
             Log.e("NotificationWorker", "Exception in background check", e)
+            com.example.skillsync.data.sync.SyncScheduler.enqueueRapidChain(context, delaySeconds = 60)
             Result.retry()
         }
     }

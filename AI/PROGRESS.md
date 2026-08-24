@@ -1,4 +1,36 @@
 
+## 2026-08-24T13:10:00+05:30 - Real-Time Live Demand Radar, 60s Chained Background Worker & 15s Low-Latency Cache (v3.32.0 / Build 115)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Python/Flask, pytest, Kotlin/Compose, Gradle, gh CLI)
+- **Files Modified**:
+  - `backend.py` (reduced `unallocated` cache TTL from 180s to 15s for instant demand ingestion)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/sync/SyncScheduler.kt` (added 60s rapid chained OneTimeWorkRequest loop `SkillEdgeRapidSync`)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/util/SkillSyncNotificationWorker.kt` (wired rapid chaining on work completion)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/MainScreenViewModel.kt` (lowered foreground polling from 120s to 20s)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationViewModel.kt` (added active 20s live demand polling and instant revision observer)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/MainScreen.kt` (wired Demand tab live radar polling lifecycle)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/AllocationDeskScreen.kt` (added visual Live Radar 20s pulsating indicator badge)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/MainActivity.kt` (added onResume immediate sync trigger)
+  - `SkillEdge_Android/app/build.gradle.kts` (bumped to v3.32.0 / Build 115)
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Instant Real-Time Unallocated Demand Ingestion**:
+     - Reduced backend unallocated cache TTL from 3 minutes to **15 seconds** (`_CACHE_TTL["unallocated"] = 15`), ensuring batches added to RMS appear in API responses within seconds.
+  2. **High-Frequency Background Scanning (WorkManager Chaining)**:
+     - Implemented `SyncScheduler.enqueueRapidChain(delaySeconds = 60)` chaining lightweight one-time work passes every **60 seconds** in background, bypassing the 15-minute periodic OS limit while preserving the 15-minute periodic safety anchor.
+  3. **Real-Time Live Demand Radar (Foreground & Demand Desk)**:
+     - Upgraded foreground polling in `MainScreenViewModel` to **20 seconds** (down from 2 minutes).
+     - Added `startLiveDemandPolling` in `AllocationViewModel` running an active 20-second pulse and listening to `SyncCoordinator.revisions` so newly added batches appear dynamically on the screen without manual refresh.
+     - Added live visual indicator badge (`🟢 LIVE RADAR (20s)`) in `AllocationDeskScreen.kt`.
+     - Added `MainActivity.onResume` immediate sync trigger.
+  4. **Quality & Validation**:
+     - Backend pytest suite: **160 / 160 passing (100% green)**.
+     - Android unit test suite: **147 / 147 passing (100% green)**.
+     - Android debug APK assembled cleanly: **BUILD SUCCESSFUL**.
+- **Current Project State**: Production release build v3.32.0 (Build 115) fully validated and ready for CI release.
+- **Handover for Next Session**: Real-time live demand radar (20s pulse) and high-frequency background worker (60s chaining) operational.
+
 ## 2026-08-24T11:05:00+05:30 - Background Scanning, Unallocated Demand Pipeline Audit & Production Release v3.31.0 (Build 114)
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)

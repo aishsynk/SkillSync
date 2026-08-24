@@ -576,7 +576,7 @@ _CACHE_TTL = {
     "trainerFeedback":   900,   # per-question detail, same volatility as the count endpoints
     "assignmentPax":     600,   # roster can still change until the batch starts
     "prevUpcoming":      600,   # assignment calendar
-    "unallocated":       180,   # demand turns over during the day
+    "unallocated":        15,   # demand turns over rapidly during the day; 15s TTL for real-time updates
     "courseWithoutExam": 21600,  # catalogue-wide exam policy; changes rarely
     "courseSyllabus":    21600,  # 12k-row syllabus index; static, fetch once
     "courseCatalogue":   21600,  # 8.8k-row catalogue metadata; changes rarely

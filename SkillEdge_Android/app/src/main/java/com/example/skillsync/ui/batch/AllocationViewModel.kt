@@ -217,6 +217,36 @@ class AllocationViewModel(
         }
     }
 
+    private var livePollingJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Active real-time live demand scanner:
+     * Listens to SyncCoordinator revisions for instant updates on the go,
+     * and pulses a fresh demand fetch every 20s while the Demand tab is active.
+     */
+    fun startLiveDemandPolling(email: String, context: Context) {
+        if (livePollingJob?.isActive == true) return
+        livePollingJob = viewModelScope.launch {
+            // Instant adoption whenever SyncCoordinator emits a new revision
+            launch {
+                com.example.skillsync.data.sync.SyncCoordinator.revisions.collect {
+                    adoptBackgroundSync(email, context)
+                }
+            }
+            while (true) {
+                delay(20_000) // 20s active Demand radar
+                if (RetrofitClient.isNetworkAvailable(context)) {
+                    fetch(email, context, fresh = true)
+                }
+            }
+        }
+    }
+
+    fun stopLiveDemandPolling() {
+        livePollingJob?.cancel()
+        livePollingJob = null
+    }
+
     private fun cacheKey(email: String) = "allocation_$email"
 
     fun adoptBackgroundSync(email: String, context: Context) {
