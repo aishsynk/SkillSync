@@ -215,6 +215,13 @@ interface SkillEdgeApi {
         @Query("month") month: String,
     ): Map<String, Any>
 
+    /** V2 Weekly Delivery & Operations Intelligence Snapshot */
+    @GET("api/v2/report/weekly")
+    suspend fun getWeeklyReport(
+        @Query("manager") manager: String,
+        @Query("week") week: String? = null,
+    ): Map<String, Any>
+
     /** Monthly delivery matrix with day-level active delivering trainers and leaves. */
     @GET("api/v2/team/calendar")
     suspend fun getCalendar(

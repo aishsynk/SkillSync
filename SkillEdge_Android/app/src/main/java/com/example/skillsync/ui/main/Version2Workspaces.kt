@@ -322,7 +322,8 @@ internal fun UniversalCommandSearch(
 @Composable
 internal fun DeliveryOperationsWorkspace(
     dashboard: Map<String, Any>,
-    onTrainer: (String, String) -> Unit,
+    onOpenWeeklyReport: () -> Unit = {},
+    onTrainer: (String, String) -> Unit = { _, _ -> },
 ) {
     val sk = MaterialTheme.skill
     val assignments = dashboard.rows("batch_engagement_df")
@@ -337,12 +338,33 @@ internal fun DeliveryOperationsWorkspace(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Text(
-                "Delivery Operations",
-                style = MaterialTheme.typography.titleMedium,
-                color = sk.bodyText,
-                fontWeight = FontWeight.Bold,
-            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Delivery Operations",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = sk.bodyText,
+                    fontWeight = FontWeight.Bold,
+                )
+                Surface(
+                    onClick = onOpenWeeklyReport,
+                    shape = RoundedCornerShape(10.dp),
+                    color = sk.brand.copy(alpha = 0.20f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.brand.copy(alpha = 0.50f)),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(painterResource(R.drawable.ic_calendar), "Weekly Report", tint = sk.cyan, modifier = Modifier.size(14.dp))
+                        Text("Weekly Report ↗", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = sk.cyan)
+                    }
+                }
+            }
         }
 
         // Top KPI Banner

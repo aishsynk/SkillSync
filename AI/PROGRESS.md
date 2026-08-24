@@ -1,4 +1,39 @@
 
+## 2026-08-23T06:28:00+01:00 - Real KPI-Grounded Weekly & HR Monthly Reporting Suite & Dedicated Reports Hub (v3.31.0 / Build 114)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Python/Flask, pytest, Kotlin/Compose, Gradle)
+- **Files Modified**:
+  - `backend.py` (added `GET /api/v2/report/weekly` weekly delivery intelligence aggregator)
+  - `tests/test_v2_weekly_report.py` (new pytest suite)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/WeeklyReportViewModel.kt` (new)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/WeeklyReportScreen.kt` (rebuilt with real KPI data, week navigation, standpoint switcher, and CSV exports)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/HrMonthlyReportScreen.kt` (enhanced with 20-criteria inspector dialog, CSV export, and trajectory filter chips)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/ManagerCommandCentre.kt` (added top-level Reports & Intelligence Hub launcher)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/TeamTab.kt` (added Reports launcher row)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/Version2Workspaces.kt` (added 1-tap Weekly Report launcher in Delivery Operations)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/MainScreen.kt` (wired report callbacks)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/Navigation.kt` (wired report screen transitions & Trainer 360 drilldowns)
+  - `SkillEdge_Android/app/build.gradle.kts`
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Strict Real Data & Stats Compliance**:
+     - All weekly messages, standpoint notes, and monthly evaluations (Strength, Area of Improvement, Manager's Verdict, and 20-criteria Trainer Index) are dynamically synthesised from actual returned RMS API records (`prevUpcoming`, `utilization`, `negFeedbackCount`, `hrIncident`, `trainerDetails`, `trainerSkills`, `vendorCertCount`, `trainerResume`, `courseWithoutExam`, `unallocated`). Zero hardcoded placeholders.
+  2. **Dedicated Server-Side Weekly Aggregator (`GET /api/v2/report/weekly`)**:
+     - Computes Monday-to-Sunday 7-day windows, fetches exact batch schedules, live participant totals, active courses, cert gaps, and generates pre-composed whole-team broadcast digests.
+  3. **Interactive Time-Horizon Navigation & Multi-Format Exports**:
+     - Weekly Report: Interactive Week Switcher (`◀ Week of 17 Aug – 23 Aug 2026 ▶` with 1-tap "Today" reset), filter chips (`All`, `Delivering`, `On Bench`, `At Risk`, `Cert Gaps`), 1-tap Teams Broadcast copy, and full CSV export.
+     - HR Monthly Report: Interactive Month Switcher, Trajectory & Tier filtering (`Diamond`, `Platinum`, `High Performer`, `Needs Coaching`), full CSV export, and 20-Criteria Trainer Index Inspector Modal.
+  4. **Prominent Top-Level Navigation & Reports Hub**:
+     - Added 1-tap prominent Reports Hub action strip directly at the top of Dashboard (`ManagerCommandCentre.kt`), Team tab (`TeamTab.kt`), and Work tab (`DeliveryOperationsWorkspace`).
+  5. **Verification & Quality**:
+     - Added backend unit test suite `tests/test_v2_weekly_report.py`: **160 / 160 passed (100% green)**.
+     - Full Android test suite (`./gradlew :app:testDebugUnitTest`): **147 / 147 passed (100% green)**.
+     - Android debug APK assembled cleanly (`./gradlew :app:assembleDebug`): **BUILD SUCCESSFUL**.
+- **Current Project State**: Production release build v3.31.0 (Build 114) fully validated and operational.
+- **Handover for Next Session**: Complete Weekly and HR Monthly reporting suite fully active and verified against live RMS APIs.
+
 ## 2026-08-23T05:50:00+01:00 - Auto Tall 9-Update Allocation Engine Implementation & Auditable Candidate Pipeline (v3.30.0 / Build 113)
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)

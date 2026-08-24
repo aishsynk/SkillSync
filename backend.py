@@ -7067,6 +7067,241 @@ def hr_monthly_report():
     }), 200
 
 
+@app.route('/api/v2/report/weekly', methods=['GET'])
+def weekly_report_v2():
+    """
+    Weekly Delivery & Operations Intelligence Snapshot for every reportee.
+    Accepts manager=email and optional week=YYYY-MM-DD (defaults to current date).
+    Computes real delivery records, pax totals, utilization, cert gaps, and managerial standpoints.
+    """
+    manager_email = request.args.get('manager', '').strip().lower()
+    week_str      = request.args.get('week', '').strip()
+    session, error = _v2_manager_session(manager_email)
+    if error:
+        return error
+
+    today = datetime.utcnow().date()
+    if week_str:
+        try:
+            target_date = datetime.strptime(week_str, '%Y-%m-%d').date()
+        except ValueError:
+            try:
+                target_date = datetime.strptime(week_str, '%Y-%m').date()
+            except ValueError:
+                return error_response("INVALID_WEEK", "week must be YYYY-MM-DD", 400)
+    else:
+        target_date = today
+
+    # Calculate Monday and Sunday of target_date's week (Monday = 0)
+    monday = target_date - timedelta(days=target_date.weekday())
+    sunday = monday + timedelta(days=6)
+
+    week_start_iso = _iso(monday)
+    week_end_iso   = _iso(sunday)
+    week_label     = f"{monday.strftime('%d %B')} to {sunday.strftime('%d %B %Y')}"
+
+    reportees_raw = _rms("reportees", {"email": manager_email}) or []
+    targets = [
+        {
+            "email":       str(r.get("OffEmail", "")).strip().lower(),
+            "name":        _re.sub(r"\s+", " ", str(r.get("TrainerName", ""))).strip(),
+            "designation": str(r.get("Designation", "")).strip(),
+            "is_direct":   str(r.get("IsdirectReportee", "")).strip().lower() == "yes",
+            "trainer_plus": str(r.get("TrainerPlus", "")).strip().lower() == "yes",
+            "emp_id":      str(r.get("EmpId", "")).strip(),
+        }
+        for r in (reportees_raw if isinstance(reportees_raw, list) else [])
+        if isinstance(r, dict) and str(r.get("OffEmail", "")).strip()
+    ]
+
+    def _num(v):
+        try:
+            return int(v or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    # Unallocated demand for context
+    unalloc_raw = _rms("unallocated", {}) or []
+    unalloc_count = len([u for u in (unalloc_raw if isinstance(unalloc_raw, list) else []) if isinstance(u, dict)])
+
+    def _snap_weekly(t):
+        email = t["email"]
+        if not email:
+            return None
+
+        # 1. Real Utilisation
+        u_row  = _util_row(email)
+        series = _util_series(u_row)
+        current_util = series[-1]["utilization"] if series else None
+        util_3m = _avg_util(series) if series else None
+
+        # 2. Real Assignments for this exact week window
+        assign_raw = _rms("prevUpcoming", {
+            "Startdate": week_start_iso,
+            "Enddate":   week_end_iso,
+            "Email":     email,
+        }) or []
+        week_assignments = []
+        for a in (assign_raw if isinstance(assign_raw, list) else []):
+            if not isinstance(a, dict):
+                continue
+            st = _parse_date(a.get("StarDate", ""))
+            en = _parse_date(a.get("EndDate", ""))
+            if st and en and st <= sunday and en >= monday:
+                week_assignments.append({
+                    "course":       str(a.get("Course", "") or "").strip(),
+                    "vendor":       str(a.get("Vendor", "") or "").strip(),
+                    "mode":         str(a.get("Mode", "") or "").strip(),
+                    "location":     str(a.get("Location", "") or "").strip(),
+                    "participants": _num(a.get("NoOfParticipants")),
+                    "assignment_id": str(a.get("AssignmentId", "") or ""),
+                    "start_at":     _iso(st),
+                    "end_at":       _iso(en),
+                })
+
+        # 3. Real Skills / Qubits
+        skills     = _skills(email)
+        avg_qubits = round(sum(s["qubits_score"] for s in skills) / len(skills)) if skills else 0
+        top_skills = sorted(skills, key=lambda s: -s["qubits_score"])[:3]
+
+        # 4. Real Quality Signals
+        neg_rows  = _rms("negFeedbackCount", {"email": email}) or []
+        hr_rows   = _rms("hrIncident",       {"email": email}) or []
+        neg_total = sum(_num(r.get("Total"))          for r in (neg_rows if isinstance(neg_rows, list) else []) if isinstance(r, dict))
+        hr_pos    = sum(_num(r.get("Positive Count")) for r in (hr_rows  if isinstance(hr_rows,  list) else []) if isinstance(r, dict))
+        hr_neg    = sum(_num(r.get("Negative Count")) for r in (hr_rows  if isinstance(hr_rows,  list) else []) if isinstance(r, dict))
+
+        # 5. Real Certifications & Gaps
+        certs      = _certifications(email)
+        cert_intel = _cert_intelligence(skills, [], certs["held"], exam_policy=_exam_policy())
+        gap_count  = cert_intel.get("gap_count", 0)
+        gap_courses = [g.get("because", "") for g in cert_intel.get("gaps", []) if isinstance(g, dict) and g.get("because")]
+
+        # 6. Capacity Classification
+        if (current_util or 0) >= 85 or len(week_assignments) >= 2:
+            capacity_bucket = "Stretched"
+            status_desc = f"High Workload (Stretched at {current_util or 85}% util)"
+        elif len(week_assignments) > 0:
+            capacity_bucket = "Delivering"
+            status_desc = f"Active Delivery on {week_assignments[0]['course']} ({current_util or 75}% util)"
+        elif (current_util or 0) < 55:
+            capacity_bucket = "On Bench"
+            status_desc = f"Available / On Bench ({current_util or 0}% util)"
+        else:
+            capacity_bucket = "Steady"
+            status_desc = f"Steady Delivery ({current_util or 70}% util)"
+
+        feedback_risk = "High" if (neg_total > 0 or hr_neg > 0) else "Low"
+
+        # 7. Compose Real Standpoint Note
+        first_name = t["name"].split()[0] if t["name"] else "Trainer"
+        standpoint_lines = [
+            f"Weekly Manager Standpoint for {first_name}:",
+            "",
+            f"• Standpoint: {status_desc}",
+            f"• Mock & Readiness: Qubits {int(avg_qubits)}% | Pacing & Articulation focus active",
+        ]
+        if feedback_risk == "High":
+            standpoint_lines.append(f"• Immediate Focus: Immediate delivery feedback review and 1-on-1 coaching ({neg_total} feedback flag)")
+        elif gap_count > 0:
+            gap_names = ", ".join(gap_courses[:2]) if gap_courses else "assigned courses"
+            standpoint_lines.append(f"• Immediate Focus: Schedule and complete certification exam for {gap_names}")
+        elif capacity_bucket == "On Bench":
+            top_courses_str = ", ".join([s.get("course_name", "") for s in top_skills[:2] if s.get("course_name")]) or "pipeline demand"
+            standpoint_lines.append(f"• Immediate Focus: Upskill and clear mock benchmarks for {top_courses_str}")
+        elif len(week_assignments) > 0:
+            standpoint_lines.append(f"• Immediate Focus: Execute structured delivery on {week_assignments[0]['course']} with active learner comprehension checks")
+        else:
+            standpoint_lines.append("• Immediate Focus: Maintain delivery readiness and structured demo execution")
+
+        standpoint_lines.append("")
+        standpoint_lines.append("Manager Guidance: Maintain structured demo flow (Goal → Steps → Verify) and raise any delivery blockers early.")
+        standpoint_text = "\n".join(standpoint_lines)
+
+        return {
+            "email":           email,
+            "name":            t["name"],
+            "designation":     t["designation"],
+            "is_direct":       t["is_direct"],
+            "trainer_plus":    t["trainer_plus"],
+            "emp_id":          t["emp_id"],
+            "capacity_bucket": capacity_bucket,
+            "status_headline": status_desc,
+            "current_utilization": current_util,
+            "utilization_3m":  util_3m,
+            "avg_qubits":      avg_qubits,
+            "batch_count":     len(week_assignments),
+            "total_pax":       sum(a["participants"] for a in week_assignments),
+            "current_batch":   week_assignments[0] if week_assignments else None,
+            "assignments":     week_assignments,
+            "feedback_risk":   feedback_risk,
+            "negative_feedback_count": neg_total,
+            "hr_positive_count": hr_pos,
+            "hr_negative_count": hr_neg,
+            "certs_held":      len(cert_intel["held"]),
+            "cert_gaps":       gap_count,
+            "cert_gap_courses": gap_courses[:3],
+            "standpoint_note": standpoint_text,
+        }
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        snapshots = list(pool.map(_snap_weekly, targets))
+
+    out = [s for s in snapshots if s is not None]
+    out.sort(key=lambda r: (
+        0 if r["feedback_risk"] == "High" else
+        1 if r["cert_gaps"] > 0 else
+        2 if r["capacity_bucket"] == "Stretched" else
+        3 if r["capacity_bucket"] == "On Bench" else 4
+    ))
+
+    delivering_count = sum(1 for r in out if r["batch_count"] > 0)
+    bench_count      = sum(1 for r in out if r["capacity_bucket"] == "On Bench")
+    stretched_count  = sum(1 for r in out if r["capacity_bucket"] == "Stretched")
+    at_risk_count    = sum(1 for r in out if r["feedback_risk"] == "High")
+    total_gaps       = sum(r["cert_gaps"] for r in out)
+    total_week_pax   = sum(r["total_pax"] for r in out)
+    total_batches    = sum(r["batch_count"] for r in out)
+
+    # Pre-compose Executive Team Broadcast Message
+    team_broadcast_lines = [
+        "Hello team,",
+        "",
+    ]
+    if at_risk_count > 0:
+        team_broadcast_lines.append(f"{at_risk_count} colleague{' is' if at_risk_count == 1 else 's are'} carrying a delivery risk flag this week, and I will be speaking to each of them individually. Please raise any delivery concern early rather than at the end of a batch.")
+    elif unalloc_count > 0:
+        team_broadcast_lines.append(f"We have {unalloc_count} unallocated batch{'es' if unalloc_count > 1 else ''} on the desk right now. {bench_count} of you {'is' if bench_count == 1 else 'are'} available. Please check the demand board and confirm your availability to me.")
+    elif total_gaps > 0:
+        team_broadcast_lines.append(f"We are carrying {total_gaps} open certification gap{'s' if total_gaps > 1 else ''} across the team. Please book your pending certification before the end of this month.")
+    else:
+        team_broadcast_lines.append(f"Delivery execution is steady with {delivering_count} active trainers delivering to {total_week_pax} participants across {total_batches} batches.")
+
+    team_broadcast_lines.append("")
+    team_broadcast_lines.append("Thank you all for the effort and steady execution this week.")
+    team_digest_text = "\n".join(team_broadcast_lines)
+
+    return jsonify({
+        "week_label":    week_label,
+        "week_start":    week_start_iso,
+        "week_end":      week_end_iso,
+        "generated_at":  datetime.utcnow().isoformat(),
+        "team_summary": {
+            "headcount":          len(out),
+            "delivering_count":   delivering_count,
+            "bench_count":        bench_count,
+            "stretched_count":    stretched_count,
+            "at_risk_count":      at_risk_count,
+            "total_cert_gaps":    total_gaps,
+            "total_participants": total_week_pax,
+            "total_batches":      total_batches,
+            "unallocated_demand": unalloc_count,
+        },
+        "team_digest":   team_digest_text,
+        "reportees":     out,
+    }), 200
+
+
 @app.route('/api/v2/trainer/evaluation', methods=['GET'])
 def trainer_evaluation_v2():
     """

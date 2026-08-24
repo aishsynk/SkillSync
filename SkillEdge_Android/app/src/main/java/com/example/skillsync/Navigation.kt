@@ -211,21 +211,19 @@ fun MainNavigation() {
                 val capability by mainViewModel.capability.collectAsState()
                 val weeklyActions by mainViewModel.teamActions.collectAsState()
                 val payload = (dash as? com.example.skillsync.ui.main.DashboardState.Success)?.intelligenceData
-                if (payload == null) {
-                    LaunchedEffect(screen.email) { mainViewModel.loadData(screen.email, context) }
-                    androidx.compose.material3.CircularProgressIndicator()
-                } else {
-                    com.example.skillsync.ui.report.WeeklyReportScreen(
-                        data = payload,
-                        capability = capability,
-                        actions = weeklyActions.map { it.asMap() },
-                        onBack = { current = Main(screen.email, HomeTab.DASHBOARD) },
-                    )
-                }
+                com.example.skillsync.ui.report.WeeklyReportScreen(
+                    managerEmail = screen.email,
+                    data = payload ?: emptyMap(),
+                    capability = capability,
+                    actions = weeklyActions.map { it.asMap() },
+                    onTrainerClick = { email, name -> current = Trainer360(screen.email, email, name) },
+                    onBack = { current = Main(screen.email, HomeTab.DASHBOARD) },
+                )
             }
 
             is HrReport -> com.example.skillsync.ui.report.HrMonthlyReportScreen(
                 managerEmail = screen.email,
+                onTrainerClick = { email, name -> current = Trainer360(screen.email, email, name) },
                 onBack = { current = Main(screen.email, HomeTab.TEAM) },
             )
 

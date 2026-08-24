@@ -11,11 +11,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,7 +36,6 @@ import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.SkillColors
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.ToneChip
-import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.LocalNotify
@@ -43,6 +44,7 @@ import com.example.skillsync.ui.components.LocalNotify
 @Composable
 fun HrMonthlyReportScreen(
     managerEmail: String,
+    onTrainerClick: (email: String, name: String) -> Unit = { _, _ -> },
     onBack: () -> Unit,
     vm: HrMonthlyReportViewModel = viewModel(),
 ) {
@@ -55,6 +57,9 @@ fun HrMonthlyReportScreen(
     val state by vm.state.collectAsState()
     val displayMonth by vm.displayMonth.collectAsState()
     val canNext by remember { derivedStateOf { vm.canGoNext() } }
+
+    var selectedFilter by rememberSaveable { mutableStateOf("All") }
+    var inspectingReportee by remember { mutableStateOf<ReporteeSnapshot?>(null) }
 
     Scaffold(
         containerColor = sk.pageBg,
@@ -73,7 +78,14 @@ fun HrMonthlyReportScreen(
                 },
                 actions = {
                     if (state is HrReportState.Success) {
-                        IconButton(onClick = { shareReport(context, (state as HrReportState.Success).data) }) {
+                        val reportData = (state as HrReportState.Success).data
+                        IconButton(onClick = {
+                            exportHrCsv(context, reportData)
+                            notify.success("Exported HR Monthly CSV")
+                        }) {
+                            Icon(painterResource(R.drawable.ic_copy), "Export CSV", tint = Color.White)
+                        }
+                        IconButton(onClick = { shareReport(context, reportData) }) {
                             Icon(painterResource(R.drawable.ic_share), "Share", tint = Color.White)
                         }
                     }
@@ -140,23 +152,68 @@ fun HrMonthlyReportScreen(
 
                 is HrReportState.Success -> {
                     val data = s.data
+                    val allReportees = data.reportees
+
+                    val filteredReportees = remember(allReportees, selectedFilter) {
+                        when (selectedFilter) {
+                            "Diamond" -> allReportees.filter { it.trainerIndex.tierLevel == 1 }
+                            "Platinum" -> allReportees.filter { it.trainerIndex.tierLevel == 2 }
+                            "High Performer" -> allReportees.filter { it.trajectory == "High Performer" }
+                            "Needs Coaching" -> allReportees.filter { it.trajectory == "Needs Coaching" }
+                            "Bench" -> allReportees.filter { it.trajectory == "Bench Upskilling" || it.utilisationPct < 50 }
+                            else -> allReportees
+                        }
+                    }
+
                     LazyColumn(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         item { TeamSummaryCard(data.teamSummary, sk) }
+
+                        // Trajectory & Tier Filter Chips
+                        item {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                val filterItems = listOf(
+                                    "All" to allReportees.size,
+                                    "Diamond" to allReportees.count { it.trainerIndex.tierLevel == 1 },
+                                    "Platinum" to allReportees.count { it.trainerIndex.tierLevel == 2 },
+                                    "High Performer" to allReportees.count { it.trajectory == "High Performer" },
+                                    "Needs Coaching" to allReportees.count { it.trajectory == "Needs Coaching" },
+                                )
+                                items(filterItems) { (label, count) ->
+                                    val active = selectedFilter == label
+                                    Surface(
+                                        onClick = { selectedFilter = label },
+                                        shape = RoundedCornerShape(Radii.chip),
+                                        color = if (active) sk.brand.copy(alpha = 0.85f) else sk.surface1,
+                                    ) {
+                                        Text(
+                                            "$label ($count)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (active) Color.White else sk.subText,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         item {
                             Text(
-                                "Reportees (${data.reportees.size})",
+                                "Reportees (${filteredReportees.size})",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = sk.bodyText,
                                 modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
                             )
                         }
-                        items(data.reportees) { rep ->
+
+                        items(filteredReportees, key = { it.email.ifBlank { it.name } }) { rep ->
                             ReporteeSnapshotCard(
                                 rep = rep,
                                 sk = sk,
+                                onTrainerClick = { onTrainerClick(rep.email, rep.name) },
+                                onInspectCriteria = { inspectingReportee = rep },
                                 onCopy = {
                                     val text = buildReporteeText(rep, data.month)
                                     copyToClipboard(context, text)
@@ -169,6 +226,15 @@ fun HrMonthlyReportScreen(
                 }
             }
         }
+    }
+
+    // 20-Criteria Inspector Dialog
+    inspectingReportee?.let { rep ->
+        TrainerIndexCriteriaDialog(
+            rep = rep,
+            onDismiss = { inspectingReportee = null },
+            sk = sk,
+        )
     }
 }
 
@@ -270,6 +336,8 @@ private fun SummaryMetric(
 private fun ReporteeSnapshotCard(
     rep: ReporteeSnapshot,
     sk: SkillColors,
+    onTrainerClick: () -> Unit,
+    onInspectCriteria: () -> Unit,
     onCopy: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -301,7 +369,11 @@ private fun ReporteeSnapshotCard(
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.clickable { onTrainerClick() },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
                         Text(rep.name.ifBlank { rep.email }, fontWeight = FontWeight.Bold, color = sk.bodyText, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
                         ToneChip(
                             rep.trajectory,
@@ -413,7 +485,7 @@ private fun ReporteeSnapshotCard(
                     // 4. TRAINER INDEX SCORECARD (20 CRITERIA)
                     if (rep.trainerIndex.totalScore > 0) {
                         Surface(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().clickable { onInspectCriteria() },
                             shape = RoundedCornerShape(8.dp),
                             color = sk.surface1.copy(alpha = 0.6f),
                             border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
@@ -428,7 +500,7 @@ private fun ReporteeSnapshotCard(
                                         Text("🏆 HR TRAINER INDEX (TI – 13/08/26)", style = MaterialTheme.typography.labelSmall, color = sk.amber, fontWeight = FontWeight.Bold)
                                         Text("${rep.trainerIndex.tier} (${rep.trainerIndex.totalScore.toInt()} pts)", style = MaterialTheme.typography.bodyMedium, color = sk.bodyText, fontWeight = FontWeight.Bold)
                                     }
-                                    ToneChip(rep.trainerIndex.tierBadge, sk.amber)
+                                    ToneChip("Inspect 20 Criteria ↗", sk.amber)
                                 }
                                 Text(
                                     "Util: ${rep.trainerIndex.utilizationPts.toInt()} · Quality/AI: ${(rep.trainerIndex.qualityPts + rep.trainerIndex.beastAiPts).toInt()} · Certs: ${(rep.trainerIndex.certificationsPts + rep.trainerIndex.instructorPts).toInt()} · Knowledge: ${rep.trainerIndex.knowledgeSharingPts.toInt()}",
@@ -491,6 +563,61 @@ private fun ReporteeSnapshotCard(
             }
         }
     }
+}
+
+@Composable
+private fun TrainerIndexCriteriaDialog(
+    rep: ReporteeSnapshot,
+    onDismiss: () -> Unit,
+    sk: SkillColors,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text("Koenig HR Trainer Index", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = sk.bodyText)
+                Text("${rep.name} · ${rep.trainerIndex.tier} (${rep.trainerIndex.totalScore.toInt()} pts)", fontSize = 12.sp, color = sk.amber)
+            }
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(rep.trainerIndex.criteria) { c ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(6.dp),
+                        color = sk.surface1.copy(alpha = 0.5f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+                    ) {
+                        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("${c.sNo}. ${c.criteria}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = sk.bodyText, modifier = Modifier.weight(1f))
+                                Text(
+                                    "${if (c.points >= 0) "+" else ""}${c.points.toInt()} pts",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (c.points > 0) sk.good else if (c.points < 0) sk.crit else sk.subText,
+                                )
+                            }
+                            Text("Raw Value: ${c.rawValue} · ${c.remarks}", fontSize = 10.sp, color = sk.subText)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss, colors = ButtonDefaults.buttonColors(containerColor = sk.brand)) {
+                Text("Close")
+            }
+        },
+        containerColor = sk.cardBg,
+    )
 }
 
 @Composable
@@ -562,6 +689,20 @@ private fun shareReport(context: Context, data: HrReportData) {
         putExtra(Intent.EXTRA_SUBJECT, "HR Monthly Report ${data.month}")
     }
     context.startActivity(Intent.createChooser(intent, "Share HR Report"))
+}
+
+private fun exportHrCsv(context: Context, data: HrReportData) {
+    val sb = StringBuilder()
+    sb.appendLine("Trainer Name,Email,HR Score,Trajectory,Trainer Index Score,TI Tier,Util%,Batches,Avg Qubits%,HR Pos,HR Neg,Neg Feedback,Cert Gaps")
+    data.reportees.forEach { r ->
+        sb.appendLine("\"${r.name}\",\"${r.email}\",${r.hrScore},\"${r.trajectory}\",${r.trainerIndex.totalScore},\"${r.trainerIndex.tier}\",${r.utilisationPct.toInt()},${r.batchCount},${r.avgQubits.toInt()},${r.hrPositiveCount},${r.hrNegativeCount},${r.negativeFeedbackCount},${r.certsMissing}")
+    }
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, sb.toString())
+        putExtra(Intent.EXTRA_SUBJECT, "HR_Monthly_Report_${data.month.replace(" ", "_")}.csv")
+    }
+    context.startActivity(Intent.createChooser(intent, "Export HR Report CSV"))
 }
 
 private fun copyToClipboard(context: Context, text: String) {

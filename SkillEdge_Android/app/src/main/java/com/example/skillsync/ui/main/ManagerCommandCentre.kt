@@ -23,8 +23,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
 import com.example.skillsync.theme.Figure
 import com.example.skillsync.theme.FigureSize
@@ -159,6 +161,64 @@ fun ManagerCommandCentre(
                 onTrainerTap = onTrainerClick,
                 onDemandTap = onOpenDemand,
             )
+        }
+
+        // ── 1b · Reports & Intelligence Hub (1-Tap Fast Launch) ────────────
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onOpenWeeklyReport() },
+                shape = RoundedCornerShape(Radii.chip),
+                color = sk.brand.copy(alpha = 0.20f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, sk.brand.copy(alpha = 0.55f)),
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_calendar),
+                        contentDescription = "Weekly Report",
+                        tint = sk.cyan,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Column {
+                        Text("Weekly Report", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                        Text("Standpoint & Digest ↗", color = sk.subText, fontSize = 10.sp)
+                    }
+                }
+            }
+
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onOpenHrReport() },
+                shape = RoundedCornerShape(Radii.chip),
+                color = sk.amber.copy(alpha = 0.16f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, sk.amber.copy(alpha = 0.45f)),
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_certificate),
+                        contentDescription = "HR Monthly Report",
+                        tint = sk.amber,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Column {
+                        Text("HR Monthly Report", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                        Text("TI Score & Review ↗", color = sk.subText, fontSize = 10.sp)
+                    }
+                }
+            }
         }
 
         // ── 2 · What is on fire? ────────────────────────────────────────────

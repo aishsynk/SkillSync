@@ -105,7 +105,9 @@ internal fun TeamTab(
     onAssign: (String, List<Pair<String, String>>, Int, String) -> Unit = { _, _, _, _ -> },
     onClearMark: () -> Unit = {},
     markState: com.example.skillsync.ui.batch.MarkState = com.example.skillsync.ui.batch.MarkState.Idle,
-    email: String = ""
+    email: String = "",
+    onOpenWeeklyReport: () -> Unit = {},
+    onOpenHrReport: () -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
     // Full-width single column: the People tab is where the manager reads
@@ -256,6 +258,50 @@ internal fun TeamTab(
                     ExecutiveMiniMetric(label = "ON BENCH", value = "$benchTrainers", tint = sk.warn)
                     ExecutiveMiniMetric(label = "AVG UTIL", value = avgUtil?.let { "$it%" } ?: "—", tint = sk.sky)
                     ExecutiveMiniMetric(label = "CERT GAPS", value = "$totalGaps", tint = if (totalGaps > 0) sk.crit else sk.good)
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                // ── Reports & Governance Fast Access ───────────────────────
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onOpenWeeklyReport() },
+                        shape = RoundedCornerShape(10.dp),
+                        color = sk.brand.copy(alpha = 0.16f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, sk.brand.copy(alpha = 0.45f)),
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(painterResource(R.drawable.ic_calendar), "Weekly Report", tint = sk.cyan, modifier = Modifier.size(16.dp))
+                            Text("Weekly Standpoint ↗", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = sk.bodyText)
+                        }
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onOpenHrReport() },
+                        shape = RoundedCornerShape(10.dp),
+                        color = sk.amber.copy(alpha = 0.14f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, sk.amber.copy(alpha = 0.40f)),
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Icon(painterResource(R.drawable.ic_certificate), "HR Monthly Report", tint = sk.amber, modifier = Modifier.size(16.dp))
+                            Text("HR Monthly & TI ↗", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = sk.bodyText)
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(10.dp))

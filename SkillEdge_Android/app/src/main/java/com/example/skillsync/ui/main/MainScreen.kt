@@ -421,9 +421,11 @@ fun MainScreen(
                                 },
                                 onClearMark = allocationViewModel::clearMark,
                                 markState = skillMarkState,
-                                email = email
+                                email = email,
+                                onOpenWeeklyReport = onOpenWeeklyReport,
+                                onOpenHrReport = onOpenHrReport,
                             )
-                            HomeTab.DELIVERY -> DeliveryOperationsWorkspace(d, onTrainerClick)
+                            HomeTab.DELIVERY -> DeliveryOperationsWorkspace(d, onOpenWeeklyReport = onOpenWeeklyReport, onTrainer = onTrainerClick)
                             HomeTab.SEARCH -> UniversalCommandSearch(
                                 dashboard = d,
                                 capability = capability,
