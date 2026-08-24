@@ -86,6 +86,7 @@ fun ManagerCommandCentre(
     onOpenWeeklyReport: () -> Unit = {},
     onOpenHrReport: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
+    onOpenDelivery: () -> Unit = {},
     /**
      * Real calendar availability per trainer email. Named explicitly because
      * `readiness` in this function is already the team capability score.
@@ -276,12 +277,12 @@ fun ManagerCommandCentre(
         // ── 5 · What is coming? ─────────────────────────────────────────────
         DemandGlance(demand, active.size, upcoming.size, onOpenDemand)
 
-        // ── Delivery Pulse ──────────────────────────────────────────────────
-        SectionHeading("Delivery Pulse", "Team calendar")
-        TeamCalendarScreen(
-            batches = batches,
-            readiness = calendarReadiness,
-            onTrainerClick = onTrainerClick,
+        // ── Delivery Pulse Glance ───────────────────────────────────────────
+        DeliveryPulseGlance(
+            activeCount = active.size,
+            upcomingCount = upcoming.size,
+            onLeaveCount = onLeave,
+            onOpenDelivery = onOpenDelivery,
         )
 
         // ── 5b · Who is carrying the work ───────────────────────────────────
@@ -1219,6 +1220,178 @@ private fun ActionPreview(a: Map<String, Any>) {
                 style = MaterialTheme.typography.bodySmall,
                 color = sk.subText, maxLines = 1,
             )
+        }
+    }
+}
+
+@Composable
+private fun DeliveryPulseGlance(
+    activeCount: Int,
+    upcomingCount: Int,
+    onLeaveCount: Int,
+    onOpenDelivery: () -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpenDelivery() },
+        shape = RoundedCornerShape(16.dp),
+        color = sk.cardBg,
+        border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+    ) {
+        Column(
+            Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(
+                        Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(sk.sky.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_calendar),
+                            contentDescription = null,
+                            tint = sk.sky,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                    Column {
+                        Text(
+                            "Delivery Schedule",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = sk.bodyText,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "Deliveries, Mocks, Webinars & Leaves",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.subText,
+                        )
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = sk.sky.copy(alpha = 0.12f),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            "Full Calendar",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.sky,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Icon(
+                            painterResource(R.drawable.ic_chevron),
+                            contentDescription = null,
+                            tint = sk.sky,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
+                }
+            }
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = sk.surface2.copy(alpha = 0.6f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.glassBorder),
+                ) {
+                    Column(
+                        Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Box(Modifier.size(6.dp).clip(CircleShape).background(sk.good))
+                            Text(
+                                "DELIVERING",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = sk.good,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        Text(
+                            "$activeCount live",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = sk.bodyText,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = sk.surface2.copy(alpha = 0.6f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.glassBorder),
+                ) {
+                    Column(
+                        Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            "UPCOMING",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.sky,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "$upcomingCount batches",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = sk.bodyText,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = sk.surface2.copy(alpha = 0.6f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.glassBorder),
+                ) {
+                    Column(
+                        Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            "LEAVES",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.warn,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "$onLeaveCount on PTO",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = sk.bodyText,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+            }
         }
     }
 }

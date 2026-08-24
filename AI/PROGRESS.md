@@ -1,4 +1,28 @@
 
+## 2026-08-24T17:35:00+05:30 - Information Architecture Realignment Across Screens (v3.42.0 / Build 125)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Kotlin/Compose, Gradle, Git)
+- **Files Modified**:
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/ManagerCommandCentre.kt` (decluttered Today home tab by replacing the heavy full-screen month calendar with a sleek, high-hierarchy `DeliveryPulseGlance` card and 1-tap shortcut to the full calendar on the Work tab)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/Version2Workspaces.kt` (elevated the Work tab `DeliveryOperationsWorkspace` as the premier dedicated home for the full interactive multi-day spanning calendar with all trainer leaves & batch engagements)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/MainScreen.kt` (wired `onOpenDelivery` navigation callback to smoothly switch from Today's delivery glance directly to the Work tab)
+  - `SkillEdge_Android/app/build.gradle.kts` (bumped `versionCode = 125` and `versionName = "3.42.0"`)
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Clean View Realignment & Information Architecture**:
+     - Resolved the layout clutter where the full-height interactive calendar was needlessly duplicated on the Today home screen.
+     - **Tab 1 ("Today" / Executive Cockpit)**: Kept concise and scannable with Header Greeting, Pulse KPI Tiles, Capacity Balance, Demand Glance, Delivery Pulse Glance card (showing Live delivering count, Upcoming scheduled count, and Team on PTO with a direct "Full Calendar 🗓️ $\rightarrow$" CTA), Top Performers, Certification coverage, and Report shortcuts.
+     - **Tab 2 ("People" / Team Roster)**: Dedicated hub for Trainer cards and deep drill-down **Trainer 360** (90-day trajectory fatigue radar, Gold-Star appreciations & commendations, contact actions, skills).
+     - **Tab 3 ("Plan" / Allocation Desk)**: Dedicated hub for pipeline demand batches, Fast-Track Zero-Exam filters, Client-Requested filters, and Global Staffing Exchange.
+     - **Tab 4 ("Work" / Delivery Operations)**: The dedicated powerhouse for the **Full Executive Delivery Calendar** (`TeamCalendarScreen` with Month/Week/Day/Timeline views, category pills, multi-day spanning bars, and trainer leave badges).
+     - **Tab 5 ("Search" / Universal Command)**: Universal instant search across courses, instructors, demand batches, and actions.
+  2. **Deterministic Build & Verification**:
+     - Android unit tests: **147 / 147 passing (100% green)** (`:app:testDebugUnitTest`).
+     - Signed APKs: Both `app-debug.apk` and `app-release.apk` compiled and signed with `keystore/skillsync-release.jks`.
+- **Current Project State**: Production release build v3.42.0 (Build 125) verified, compiled, and ready for deployment.
+- **Handover for Next Session**: Clean information architecture is live across all 5 bottom tabs and inner drill-down views.
+
 ## 2026-08-24T16:37:00+05:30 - Refined Allocated-Only Team Calendar & Comprehensive Feature Map (v3.41.0 / Build 124)
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)

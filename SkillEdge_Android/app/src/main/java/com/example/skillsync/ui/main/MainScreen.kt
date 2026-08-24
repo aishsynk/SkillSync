@@ -458,7 +458,12 @@ fun MainScreen(
                                 onOpenWeeklyReport = onOpenWeeklyReport,
                                 onOpenHrReport = onOpenHrReport,
                             )
-                            HomeTab.DELIVERY -> DeliveryOperationsWorkspace(d, onOpenWeeklyReport = onOpenWeeklyReport, onTrainer = onTrainerClick)
+                            HomeTab.DELIVERY -> DeliveryOperationsWorkspace(
+                                dashboard = d,
+                                readiness = teamReadiness,
+                                onOpenWeeklyReport = onOpenWeeklyReport,
+                                onTrainer = onTrainerClick,
+                            )
                             HomeTab.SEARCH -> UniversalCommandSearch(
                                 dashboard = d,
                                 capability = capability,
@@ -523,6 +528,7 @@ fun MainScreen(
                                         onOpenWeeklyReport = onOpenWeeklyReport,
                                         onOpenHrReport = onOpenHrReport,
                                         onOpenCopilot = onOpenCopilot,
+                                        onOpenDelivery = { onTabChange(HomeTab.DELIVERY) },
                                         calendarReadiness = teamReadiness,
                                         fromCache = s.fromCache,
                                         cachedAt = s.cachedAt,
@@ -736,6 +742,7 @@ internal fun DashboardTab(
     onOpenWeeklyReport: () -> Unit = {},
     onOpenHrReport: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
+    onOpenDelivery: () -> Unit = {},
     calendarReadiness: Map<String, Map<String, Any>> = emptyMap(),
     /** Disk-write time of the payload, so the hero can state a real "as of". */
     fromCache: Boolean = false,
@@ -816,6 +823,7 @@ internal fun DashboardTab(
                     onOpenWeeklyReport = onOpenWeeklyReport,
                     onOpenHrReport = onOpenHrReport,
                     onOpenCopilot = onOpenCopilot,
+                    onOpenDelivery = onOpenDelivery,
                     calendarReadiness = calendarReadiness,
                 )
             }

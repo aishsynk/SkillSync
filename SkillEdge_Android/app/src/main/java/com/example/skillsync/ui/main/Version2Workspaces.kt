@@ -322,6 +322,7 @@ internal fun UniversalCommandSearch(
 @Composable
 internal fun DeliveryOperationsWorkspace(
     dashboard: Map<String, Any>,
+    readiness: Map<String, Map<String, Any>> = emptyMap(),
     onOpenWeeklyReport: () -> Unit = {},
     onTrainer: (String, String) -> Unit = { _, _ -> },
 ) {
@@ -460,6 +461,7 @@ internal fun DeliveryOperationsWorkspace(
         item {
             TeamCalendarScreen(
                 batches = assignments,
+                readiness = readiness,
                 modifier = Modifier.fillMaxWidth(),
                 onTrainerClick = onTrainer,
             )
