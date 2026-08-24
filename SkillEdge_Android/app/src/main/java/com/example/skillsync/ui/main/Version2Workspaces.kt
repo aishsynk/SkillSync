@@ -460,7 +460,6 @@ internal fun DeliveryOperationsWorkspace(
         item {
             TeamCalendarScreen(
                 batches = assignments,
-                demand = dashboard.rows("unallocated_demand_df"),
                 modifier = Modifier.fillMaxWidth(),
                 onTrainerClick = onTrainer,
             )

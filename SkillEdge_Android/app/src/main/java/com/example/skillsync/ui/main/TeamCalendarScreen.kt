@@ -111,7 +111,6 @@ private fun parseFlexibleDate(raw: String): LocalDate? {
 @Composable
 fun TeamCalendarScreen(
     batches: List<Map<*, *>> = emptyList(),
-    demand: List<Map<*, *>> = emptyList(),
     readiness: Map<String, Map<String, Any>> = emptyMap(),
     modifier: Modifier = Modifier,
     onTrainerClick: (String, String) -> Unit = { _, _ -> },
@@ -123,11 +122,11 @@ fun TeamCalendarScreen(
     var selectedCategoryFilter by remember { mutableStateOf<EventCategory?>(null) }
     var inspectedEvent by remember { mutableStateOf<CalendarEventItem?>(null) }
 
-    // Parse all raw batches, demand, and leaves into structured CalendarEventItems
-    val allEvents = remember(batches, demand, readiness) {
+    // Parse all allocated batches and trainer leaves into structured CalendarEventItems
+    val allEvents = remember(batches, readiness) {
         val list = mutableListOf<CalendarEventItem>()
 
-        // 1. Ingest assigned batches
+        // 1. Ingest confirmed team delivery batches
         batches.forEach { b ->
             val course = b.str("course_name").ifBlank { b.str("Course").ifBlank { b.str("demand_id").ifBlank { "Delivery" } } }
             val startRaw = b.str("start_at").ifBlank { b.str("start_date").ifBlank { b.str("StartDate").ifBlank { b.str("StarDate") } } }
@@ -174,45 +173,7 @@ fun TeamCalendarScreen(
             }
         }
 
-        // 2. Ingest unallocated / pipeline demand batches
-        demand.forEach { d ->
-            val course = d.str("course_name").ifBlank { d.str("Course").ifBlank { d.str("demand_id") } }
-            val startRaw = d.str("start_date").ifBlank { d.str("start_at") }
-            val endRaw = d.str("end_date").ifBlank { d.str("end_at") }
-            val start = parseFlexibleDate(startRaw)
-            if (start != null) {
-                val endParsed = parseFlexibleDate(endRaw) ?: start
-                val actualEnd = if (endParsed.isBefore(start)) start else endParsed
-                val mode = d.str("delivery_mode")
-
-                val courseLower = course.lowercase()
-                val cat = when {
-                    courseLower.contains("mock") -> EventCategory.MOCK
-                    courseLower.contains("webinar") -> EventCategory.WEBINAR
-                    else -> EventCategory.DELIVERY
-                }
-
-                list.add(
-                    CalendarEventItem(
-                        id = d.str("demand_id").ifBlank { "demand_${course}_${start}" },
-                        title = course,
-                        category = cat,
-                        startDate = start,
-                        endDate = actualEnd,
-                        timeSlot = d.str("session_time").ifBlank { "09:00 - 17:00 (Client Demand)" },
-                        trainerName = d.str("allocation_for").ifBlank { "Unallocated Demand" },
-                        trainerEmail = "",
-                        customer = d.str("customer"),
-                        location = d.str("location"),
-                        deliveryMode = mode,
-                        pax = d.intOrNull("participants"),
-                        rawBatch = d,
-                    )
-                )
-            }
-        }
-
-        // 3. Ingest trainer leaves from readiness
+        // 2. Ingest trainer leaves from readiness
         readiness.forEach { (_, r) ->
             val trainerName = r.str("trainer_name").ifBlank { "Trainer" }
             val trainerEmail = r.str("trainer_email")

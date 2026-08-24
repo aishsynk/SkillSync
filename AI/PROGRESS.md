@@ -1,4 +1,37 @@
 
+## 2026-08-24T16:37:00+05:30 - Refined Allocated-Only Team Calendar & Comprehensive Feature Map (v3.41.0 / Build 124)
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Kotlin/Compose, Gradle, Python/pytest, Git)
+- **Files Modified**:
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/TeamCalendarScreen.kt` (removed unallocated demand ingestion so the calendar strictly displays confirmed team delivery batches, mock runs, webinars, approved trainer PTO leaves, and upskilling sprints)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/ManagerCommandCentre.kt` (updated `TeamCalendarScreen` call signature)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/Version2Workspaces.kt` (updated `TeamCalendarScreen` call signature in `DeliveryOperationsWorkspace`)
+  - `SkillEdge_Android/app/build.gradle.kts` (bumped `versionCode = 124` and `versionName = "3.41.0"`)
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Calendar Focus on Allocated/Confirmed Engagements Only**:
+     - Removed `unallocated_demand_df` ingestion from `TeamCalendarScreen` as requested.
+     - The calendar is strictly reserved for confirmed trainer commitments: 📦 Assigned Deliveries, 🎯 Mock Runs, 🎤 Webinars, 🌴 Approved Leaves, and 🚀 IDP Upskilling.
+  2. **Comprehensive Navigation & Feature Map**:
+     - Documented precise UI locations for all 10+ recent features across Sprint A, Sprint B, Sprint C, and Sprint D:
+       1. **Executive Multi-Day Spanning Calendar** (`Today` tab -> `Delivery Pulse` & `Work` tab -> `Delivery Operations`)
+       2. **Courseware & Curriculum Materials Hub** (Inside `Batch Detail` -> `📚 Courseware & Curriculum`)
+       3. **Class Participant Roster & Email Actions** (Inside `Batch Detail` -> `👥 Enrolled Participants`)
+       4. **Fast-Track Zero-Exam Batch Lens** (Inside `Allocation Desk` -> `⚡ Fast-track` chip)
+       5. **Client-Requested Instructor Lens** (Inside `Allocation Desk` -> `⭐ Client requested` chip)
+       6. **90-Day Workload Trajectory & Fatigue Radar** (Inside `Trainer 360` profile -> `Workload & Fatigue Trajectory (90 Days)`)
+       7. **Gold-Star Appreciations & Commendations Hub** (Inside `Trainer 360` profile -> `⭐ Appreciations & Commendations`)
+       8. **Global Staffing Exchange** (Inside `Allocation Desk` -> `🌐 Global Staffing Exchange`)
+       9. **Weekly Executive Operations Briefing** (`Today` tab -> `Weekly Report` / speaker button)
+       10. **Manager Actions & Approvals Inbox** (`Today` tab -> `Manager Actions` / Notification bell)
+       11. **Universal In-Place Update APK Signing** (Deterministic release signing across all builds)
+  3. **Verification**:
+     - Android unit tests: **147 / 147 passing (100% green)** (`:app:testDebugUnitTest`).
+     - Generated APKs: Both `app-debug.apk` and `app-release.apk` compiled and signed with deterministic keystore (`c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`).
+- **Current Project State**: Production release build v3.41.0 (Build 124) verified, compiled, and ready for deployment.
+- **Handover for Next Session**: Calendar displays allocated engagements only and all 10+ features are documented and tested.
+
 ## 2026-08-24T16:08:00+05:30 - Operational Calendar Multi-Source Data Ingestion & Fallback Schedule Live (v3.40.0 / Build 123)
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)

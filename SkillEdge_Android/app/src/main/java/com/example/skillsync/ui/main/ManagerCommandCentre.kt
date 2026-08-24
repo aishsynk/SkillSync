@@ -280,7 +280,6 @@ fun ManagerCommandCentre(
         SectionHeading("Delivery Pulse", "Team calendar")
         TeamCalendarScreen(
             batches = batches,
-            demand = demand,
             readiness = calendarReadiness,
             onTrainerClick = onTrainerClick,
         )
