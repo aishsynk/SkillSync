@@ -3508,3 +3508,52 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
      fallback (`domain_taxonomy_available` -> true). Both probed live and viable.
   2. Physical-device upgrade validation of build 132.
   3. Plan file: `C:\Users\Aishw\.claude\plans\curried-chasing-trinket.md`.
+
+## 2026-08-30T23:30:00+05:30 - v3.47.0/133: data-integrity pass + full-project roadmap
+
+- **Model Used**: Claude Sonnet 5
+- **Tool/Agent Used**: Claude Code
+- **Files Modified**: `render.yaml`, `backend.py`, `SkillEdge_Android/app/build.gradle.kts` (133/3.47.0),
+  `releases/RELEASE_NOTES_v3.47.0.md` (new), `AI/PROGRESS.md`, `AI/DECISIONS.md`, `AI/CONTEXT.md`
+- **Work Completed (v3.47.0)**:
+  1. Render persistent disk `/var/data` + `SKILLEDGE_STATE_DIR=/var/data` in render.yaml — stops the
+     action inbox / session-revocation denylist / notification seen-state being wiped every redeploy.
+  2. Removed `_build_fallback_manager_intelligence` (fabricated 8-trainer roster) + the demo roster in
+     `team_capability`. No-reportee accounts return an honest empty state (`no_reportees: true`).
+  3. Trainer Index: new `_trainer_index_for` helper passes real zeros for the 13 RMS-unmeasured criteria
+     (were Qubits-derived guesses) and adds `confidence: "partial"` + `measured_criteria` +
+     `estimated_criteria` to the payload. Applied at all 3 call sites.
+  - Backend 169 pytest pass.
+- **Current Status**: v3.47.0 implemented locally, not yet committed. Android APK unchanged from 132.
+- **Known Issues or Blockers**:
+  - Render `render.yaml` disk only applies if the service is a Blueprint; if manual, the operator must add
+    the disk + env var in the dashboard (noted in the release notes).
+  - Trainer Index tiers will drop for some trainers (correct — reflects real measurement coverage).
+
+### FULL-PROJECT REVIEW — remaining roadmap (2026-08-30)
+
+RMS API coverage: 34/37 wired. Only genuinely-usable unused data is technology/domain taxonomy
+(`courseTechnology` 114 + `courseDomain` 205). `courseList` 164 marginal. 72/90/93/215 not viable.
+
+Ranked backlog (this session shipped items 1-3 as v3.47.0):
+- **[SHIPPED v3.47.0] 1** Render persistent disk.
+- **[SHIPPED v3.47.0] 2** Kill fabricated fallback roster.
+- **[SHIPPED v3.47.0] 3** Trainer Index honesty (partial-confidence).
+- **4 (M)** Wire `courseTechnology` (114) + `courseDomain` (205) into `_capability_portfolio` so grouping
+  is real technology/domain, not the vendor-group fallback (`domain_taxonomy_available` -> true).
+- **5 (M)** Surface built-but-hidden endpoints in the app: `/api/v2/trainer/growth-benchmark`,
+  `/api/v2/trainer/evaluation`, `/api/v2/upskilling/demand-opportunities`,
+  `/api/v2/operations/batch-pax`, `/api/v2/team/calendar` (currently no UI calls these — dead surface).
+- **6 (M)** Expand `NotificationEngine` beyond allocation/feedback_due/demand: negative-feedback-received,
+  cert-expiring, recording-compliance-breach, batch-starts-in-48h-unstaffed, bench>N-days,
+  util>90%, manager-action-overdue (SLA aging on the action inbox).
+- **7 (M)** Team-level Copilot questions (`/api/agent/ask` is per-trainer, 9 fixed keys only) — "who's
+  free next week for X", "biggest coverage risk", "which upskills unlock the most open demand".
+- **8 (S, later)** Move warm/response caches off per-process memory (Redis or the new disk) to lift the
+  `--workers 1` ceiling if load grows.
+
+- **Next Recommended Actions**:
+  1. Commit + push v3.47.0; CI; verify Render deploy + add the disk in the dashboard if not a Blueprint;
+     probe dashboard (`no_reportees`) + trainer_index (`confidence`).
+  2. Then item 4 (taxonomy), item 5 (surface hidden endpoints), item 6 (notifications).
+  3. Plan file: `C:\Users\Aishw\.claude\plans\curried-chasing-trinket.md`.

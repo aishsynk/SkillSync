@@ -2612,338 +2612,9 @@ def validate_session():
 
 
 
-def _build_fallback_manager_intelligence(email, today, demand_df):
-    """
-    Enterprise instructor fallback dataset for managers without reportees in RMS.
-    Ensures complete end-to-end functionality across all tabs and features.
-    """
-    mon_this = today - timedelta(days=today.weekday())
-    wed_this = mon_this + timedelta(days=2)
-    thu_this = mon_this + timedelta(days=3)
-    fri_this = mon_this + timedelta(days=4)
-    mon_next = mon_this + timedelta(days=7)
-    wed_next = mon_next + timedelta(days=2)
-    fri_next = mon_next + timedelta(days=4)
-
-    trainers_meta = [
-        {
-            "name": "Subhashish Bhattacharjee",
-            "email": "subhashish.bhattacharjee@koenig-solutions.com",
-            "emp_id": "EMP01001",
-            "trainer_id": "1001",
-            "designation": "Senior Technical Lead (Cloud & Azure)",
-            "direct": True,
-            "plus": True,
-            "util": 88,
-            "util_3m": 85,
-            "status": "teaching_now",
-            "status_label": "Delivering",
-            "course": "DP-203: Data Engineering on Microsoft Azure",
-            "vendor": "Microsoft",
-            "loc": "Online Virtual Class (ILO)",
-            "start": mon_this.isoformat(),
-            "end": thu_this.isoformat(),
-            "time": "09:00 - 17:00",
-            "pax": 18,
-            "certs": ["MCT", "DP-203", "AZ-305"],
-        },
-        {
-            "name": "Sachin Khanna",
-            "email": "sachin.khanna@koenig-solutions.com",
-            "emp_id": "EMP01002",
-            "trainer_id": "1002",
-            "designation": "Principal AI Architect",
-            "direct": True,
-            "plus": True,
-            "util": 94,
-            "util_3m": 92,
-            "status": "teaching_now",
-            "status_label": "Delivering",
-            "course": "Generative AI Architecture Masterclass",
-            "vendor": "Public Tech Series",
-            "loc": "Teams Live Webinar",
-            "start": fri_this.isoformat(),
-            "end": fri_this.isoformat(),
-            "time": "14:00 - 17:00",
-            "pax": 85,
-            "certs": ["AWS-SAA", "AI-102", "MCT"],
-        },
-        {
-            "name": "Neha Sharma",
-            "email": "neha.sharma@koenig-solutions.com",
-            "emp_id": "EMP01003",
-            "trainer_id": "1003",
-            "designation": "Enterprise Security Specialist",
-            "direct": True,
-            "plus": False,
-            "util": 72,
-            "util_3m": 75,
-            "status": "scheduled_today",
-            "status_label": "Scheduled",
-            "course": "SC-100: Microsoft Cybersecurity Architect",
-            "vendor": "Microsoft",
-            "loc": "Online Virtual Class (ILO)",
-            "start": mon_next.isoformat(),
-            "end": wed_next.isoformat(),
-            "time": "09:00 - 17:00",
-            "pax": 16,
-            "certs": ["SC-100", "AZ-500", "MCT"],
-        },
-        {
-            "name": "Rohit Agarwal",
-            "email": "rohit.agarwal@koenig-solutions.com",
-            "emp_id": "EMP01004",
-            "trainer_id": "1004",
-            "designation": "Lead DevOps & Kubernetes Trainer",
-            "direct": False,
-            "plus": True,
-            "util": 85,
-            "util_3m": 82,
-            "status": "teaching_now",
-            "status_label": "Delivering",
-            "course": "CKA: Certified Kubernetes Administrator",
-            "vendor": "Linux Foundation",
-            "loc": "Koenig Delhi Campus (ILT)",
-            "start": mon_this.isoformat(),
-            "end": fri_this.isoformat(),
-            "time": "10:00 - 18:00",
-            "pax": 12,
-            "certs": ["CKA", "CKAD", "CKS"],
-        },
-        {
-            "name": "Amit Kumar",
-            "email": "amit.kumar@koenig-solutions.com",
-            "emp_id": "EMP01005",
-            "trainer_id": "1005",
-            "designation": "Data & Analytics Specialist",
-            "direct": True,
-            "plus": False,
-            "util": 65,
-            "util_3m": 60,
-            "status": "free",
-            "status_label": "Available",
-            "course": "",
-            "vendor": "",
-            "loc": "",
-            "start": "",
-            "end": "",
-            "time": "",
-            "pax": 0,
-            "certs": ["PL-300", "DP-900"],
-        },
-        {
-            "name": "Vikas Sharma",
-            "email": "vikas.sharma@koenig-solutions.com",
-            "emp_id": "EMP01006",
-            "trainer_id": "1006",
-            "designation": "Senior Microsoft Certified Trainer",
-            "direct": False,
-            "plus": False,
-            "util": 78,
-            "util_3m": 76,
-            "status": "teaching_now",
-            "status_label": "Delivering",
-            "course": "AZ-104: Microsoft Azure Administrator",
-            "vendor": "Microsoft",
-            "loc": "Online Virtual Class (ILO)",
-            "start": mon_this.isoformat(),
-            "end": wed_this.isoformat(),
-            "time": "09:00 - 17:00",
-            "pax": 14,
-            "certs": ["MCT", "AZ-104", "MS-900"],
-        },
-        {
-            "name": "Priyanshu Sharma",
-            "email": "priyanshu.sharma@koenig-solutions.com",
-            "emp_id": "EMP01007",
-            "trainer_id": "1007",
-            "designation": "AWS & Multi-Cloud Solutions Specialist",
-            "direct": True,
-            "plus": True,
-            "util": 82,
-            "util_3m": 80,
-            "status": "scheduled_today",
-            "status_label": "Scheduled",
-            "course": "AWS Certified Solutions Architect Associate",
-            "vendor": "Amazon Web Services",
-            "loc": "Online Virtual Class (ILO)",
-            "start": mon_next.isoformat(),
-            "end": fri_next.isoformat(),
-            "time": "09:00 - 17:00",
-            "pax": 22,
-            "certs": ["AWS-SAA", "AWS-SAP", "MCT"],
-        },
-        {
-            "name": "Aishwar Singh",
-            "email": "aishwar.singh@koenig-solutions.com",
-            "emp_id": "EMP01008",
-            "trainer_id": "1008",
-            "designation": "Enterprise Solutions Architect",
-            "direct": True,
-            "plus": True,
-            "util": 90,
-            "util_3m": 88,
-            "status": "scheduled_today",
-            "status_label": "Scheduled",
-            "course": "AZ-305: Designing Microsoft Azure Solutions",
-            "vendor": "Microsoft",
-            "loc": "Online Virtual Class (ILO)",
-            "start": mon_next.isoformat(),
-            "end": wed_next.isoformat(),
-            "time": "10:00 - 18:00",
-            "pax": 15,
-            "certs": ["AZ-305", "AZ-104", "MCT"],
-        }
-    ]
-
-    trainer_ops = []
-    trainer_states = []
-    all_batches = []
-    delivery_rows = []
-    actions = []
-
-    for t in trainers_meta:
-        cur_batch = {}
-        nxt_batch = {}
-        if t["course"] and t["start"] and t["end"]:
-            b_item = {
-                "course_name": t["course"],
-                "delivery_mode": t["loc"],
-                "location": t["loc"],
-                "vendor": t["vendor"],
-                "assignment_id": f"assign_{t['emp_id']}_01",
-                "participants": t["pax"],
-                "start_at": t["start"],
-                "end_at": t["end"],
-                "start_time": t["time"].split(" - ")[0] if " - " in t["time"] else "09:00",
-                "end_time": t["time"].split(" - ")[1] if " - " in t["time"] else "17:00",
-                "trainer_name": t["name"],
-                "trainer_email": t["email"],
-                "engagement_state": "current" if t["status"] == "teaching_now" else "upcoming",
-            }
-            all_batches.append(b_item)
-            if t["status"] == "teaching_now":
-                cur_batch = b_item
-            else:
-                nxt_batch = b_item
-
-        op_row = {
-            "trainer_name": t["name"],
-            "official_email": t["email"],
-            "emp_id": t["emp_id"],
-            "trainer_id": t["trainer_id"],
-            "designation": t["designation"],
-            "direct_or_indirect": "direct" if t["direct"] else "indirect",
-            "trainer_plus": t["plus"],
-            "current_utilization": t["util"],
-            "utilization_current": t["util"],
-            "utilization_avg_3m": t["util_3m"],
-            "utilization_series": [
-                {"month": "Apr 2026", "utilization": t["util"] - 6},
-                {"month": "May 2026", "utilization": t["util"] - 3},
-                {"month": "Jun 2026", "utilization": t["util"] + 2},
-                {"month": "Jul 2026", "utilization": t["util"] - 1},
-                {"month": "Aug 2026", "utilization": t["util"]},
-            ],
-            "utilization_available": True,
-            "utilization_status": "Stretched" if t["util"] >= 85 else ("Balanced" if t["util"] >= 60 else "Available"),
-            "availability_status": "Available" if t["status"] == "free" else "Committed",
-            "availability_verified": True,
-            "next_available_date": (wed_this if t["status"] == "teaching_now" else mon_this).isoformat(),
-            "availability_reason": f"Active in {t['course']}" if t["course"] else "No active batch conflicts",
-            "capacity_bucket": "Stretched" if t["util"] >= 85 else ("Balanced" if t["util"] >= 60 else "Available"),
-            "readiness_bucket": "Optimal" if t["util"] >= 75 else "Balanced",
-            "overall_readiness_score": t["util"],
-            "feedback_risk": "Low",
-            "negative_count": 0,
-            "vendor_cert_count": len(t.get("certs", [])),
-            "recommended_action": "Monitor performance" if t["status"] == "teaching_now" else "Allocate upcoming batch",
-            "assignment_count": 1 if t["course"] else 0,
-            "assignment_reference_count": 1 if t["course"] else 0,
-            "assignment_source": "enterprise_schedule",
-            "upcoming_count": 1 if t["status"] != "free" else 0,
-        }
-        trainer_ops.append(op_row)
-
-        st_row = {
-            "trainer_email": t["email"],
-            "trainer_key": t["email"],
-            "current_status": t["status"],
-            "status_label": t["status_label"],
-            "confidence": 95,
-            "current_batch": cur_batch,
-            "next_batch": nxt_batch,
-            "reason": f"Active in {t['course']}" if t["course"] else "Available for new allocations",
-            "data_complete": True,
-            "availability": {
-                "status": "clear" if t["status"] == "free" else "committed",
-                "verified": True,
-                "available": t["status"] == "free",
-                "reason": "Enterprise verified",
-                "conflicts": [],
-                "suggested_available_date": (wed_this if t["status"] == "teaching_now" else mon_this).isoformat(),
-                "assignments_verified": True,
-                "off_dates_verified": True,
-            },
-            "assignment_source": "enterprise_schedule",
-        }
-        trainer_states.append(st_row)
-
-        delivery_rows.append({
-            "trainer_name": t["name"],
-            "trainer_email": t["email"],
-            "current_batch": cur_batch,
-            "next_batch": nxt_batch,
-            "active_batch": cur_batch or nxt_batch,
-            "status": t["status"],
-            "status_label": t["status_label"],
-            "availability_status": "Committed" if t["status"] != "free" else "Available",
-            "available_date": (wed_this if t["status"] == "teaching_now" else mon_this).isoformat(),
-            "readiness_score": t["util"],
-        })
-
-    # Additional Mock and Leave events in all_batches
-    all_batches.append({
-        "course_name": "DP-203: Azure Data Engineering (Mock Run)",
-        "delivery_mode": "ILT",
-        "location": "Koenig Delhi Campus",
-        "vendor": "Internal Readiness Gate",
-        "assignment_id": "mock_dp203_01",
-        "participants": 4,
-        "start_at": (mon_next + timedelta(days=1)).isoformat(),
-        "end_at": (mon_next + timedelta(days=3)).isoformat(),
-        "start_time": "10:00",
-        "end_time": "16:00",
-        "trainer_name": "Subhashish Bhattacharjee",
-        "trainer_email": "subhashish.bhattacharjee@koenig-solutions.com",
-        "engagement_state": "upcoming",
-    })
-
-    kpis = {
-        "active_trainers": 5,
-        "unallocated_trainers": 1,
-        "bench_trainers": 1,
-        "optimal_trainers": 5,
-        "stretched_trainers": 2,
-        "total_team_members": 8,
-        "active_batches": 4,
-        "upcoming_batches": 4,
-        "training_days_delivered": 48,
-        "avg_team_utilization": 82,
-        "cert_coverage_pct": 88,
-        "deployable_pct": 92,
-        "utilization_trend": "+4.5%",
-        "utilization_history": [74, 76, 79, 80, 82],
-        "open_demand": len(demand_df),
-        "domestic_batches": max(0, len(demand_df) - 3),
-        "international_batches": min(3, len(demand_df)),
-        "unread_notifications": 1,
-        "high_risk_trainers": 0,
-        "unknown_status": 0,
-    }
-
-    return trainer_ops, trainer_states, all_batches, delivery_rows, kpis
-
+# _build_fallback_manager_intelligence was removed 2026-08-30: it fabricated an
+# 8-trainer roster for accounts with no RMS reportees, violating the "no invented
+# data" rule. Such accounts now get an honest empty state.
 
 @app.route('/api/data/unified-manager-intelligence', methods=['GET'])
 @app.route('/data/unified-manager-intelligence', methods=['GET'])
@@ -3111,8 +2782,10 @@ def unified_intelligence():
 
     delivery_rows = [_delivery_row(o, st) for o, st in zip(trainer_ops, trainer_states)]
 
-    if not trainer_ops:
-        trainer_ops, trainer_states, all_batches, delivery_rows, fallback_kpis = _build_fallback_manager_intelligence(email, today, demand_df)
+    # No synthetic team. If RMS maps no reportees to this account the dashboard
+    # renders an honest empty state (see `no_reportees` in the response) rather
+    # than a fabricated 8-trainer roster.
+    no_reportees = not trainer_ops
 
     # ── KPI summary ──────────────────────────────────────────────────────
     # Only trainers RMS actually returned a reading for. A missing utilisation
@@ -3352,6 +3025,7 @@ def unified_intelligence():
         "cache":     {"age": 0, "ttl": _CACHE_TTL.get("reportees", 1800), "source": cache_source},
         "timestamp": datetime.utcnow().isoformat(),
         "loading": False,
+        "no_reportees": no_reportees,
     }
     _warm_store(f"dashboard::{email}", _resp)
     return jsonify(_resp), 200
@@ -3669,16 +3343,7 @@ def team_capability():
     reps = _rms("reportees", {"email": email}) or []
     rows = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)]
     if not rows:
-        rows = [
-            {"TrainerName": "Subhashish Bhattacharjee", "OffEmail": "subhashish.bhattacharjee@koenig-solutions.com", "EmpId": "EMP01001", "TrainerId": "1001", "Designation": "Senior Technical Lead (Cloud & Azure)", "TrainerPlus": "Yes", "IsdirectReportee": "Yes"},
-            {"TrainerName": "Sachin Khanna", "OffEmail": "sachin.khanna@koenig-solutions.com", "EmpId": "EMP01002", "TrainerId": "1002", "Designation": "Principal AI Architect", "TrainerPlus": "Yes", "IsdirectReportee": "Yes"},
-            {"TrainerName": "Neha Sharma", "OffEmail": "neha.sharma@koenig-solutions.com", "EmpId": "EMP01003", "TrainerId": "1003", "Designation": "Enterprise Security Specialist", "TrainerPlus": "No", "IsdirectReportee": "Yes"},
-            {"TrainerName": "Rohit Agarwal", "OffEmail": "rohit.agarwal@koenig-solutions.com", "EmpId": "EMP01004", "TrainerId": "1004", "Designation": "Lead DevOps & Kubernetes Trainer", "TrainerPlus": "Yes", "IsdirectReportee": "No"},
-            {"TrainerName": "Amit Kumar", "OffEmail": "amit.kumar@koenig-solutions.com", "EmpId": "EMP01005", "TrainerId": "1005", "Designation": "Data & Analytics Specialist", "TrainerPlus": "No", "IsdirectReportee": "Yes"},
-            {"TrainerName": "Vikas Sharma", "OffEmail": "vikas.sharma@koenig-solutions.com", "EmpId": "EMP01006", "TrainerId": "1006", "Designation": "Senior Microsoft Certified Trainer", "TrainerPlus": "No", "IsdirectReportee": "No"},
-            {"TrainerName": "Priyanshu Sharma", "OffEmail": "priyanshu.sharma@koenig-solutions.com", "EmpId": "EMP01007", "TrainerId": "1007", "Designation": "AWS & Multi-Cloud Solutions Specialist", "TrainerPlus": "Yes", "IsdirectReportee": "Yes"},
-            {"TrainerName": "Aishwar Singh", "OffEmail": "aishwar.singh@koenig-solutions.com", "EmpId": "EMP01008", "TrainerId": "1008", "Designation": "Enterprise Solutions Architect", "TrainerPlus": "Yes", "IsdirectReportee": "Yes"},
-        ]
+        rows = []  # no synthetic team; empty roster renders an honest empty state
 
     with ThreadPoolExecutor(max_workers=6) as pool:
         # One catalogue fetch for the whole team, not one per trainer.
@@ -7244,6 +6909,61 @@ def _generate_manager_evaluation(
     }
 
 
+# Trainer Index criteria that RMS cannot feed today. The score still computes
+# (with neutral defaults) but the caller must not present the tier as if every
+# axis were measured. s_no -> why it is unmeasured.
+_TI_UNMEASURED = {
+    2:  "Beast AI delivery count not exposed by RMS",
+    4:  "TBTs / mocks / internal trainings not exposed by RMS",
+    7:  "Roaming hours (L12M) not exposed by RMS",
+    8:  "Night ILO hours (L12M) not exposed by RMS",
+    11: "Trainers developed not exposed by RMS",
+    12: "Sales / customer-orientation feedback not exposed by RMS",
+    13: "Solution-selling count not exposed by RMS",
+    14: "Skill-takeover count not exposed by RMS",
+    16: "Centre-improvement reports not exposed by RMS",
+    17: "Tech-call conversions not exposed by RMS",
+    18: "Koenig tenure not exposed by RMS",
+    19: "Prior experience not exposed by RMS",
+    20: "Overseas visa commitment not exposed by RMS",
+}
+
+
+def _trainer_index_for(email, name, month_util, util_3m, month_assignments,
+                       neg_total, hr_pos, hr_neg, cert_intel, vendor_certs_list):
+    """
+    Trainer Index from RMS-backed criteria only. Everything RMS does not expose
+    is passed as a real zero (not a Qubits-derived guess) and listed in
+    `estimated_criteria` so a consumer can show the tier as partial.
+    """
+    ti = _calculate_trainer_index(
+        email=email, name=name, month_util=month_util, util_3m=util_3m,
+        quarterly_utils=None, non_sc_hours_pct=0.0,
+        beast_ai_deliveries=0, beast_ai_saas_deliveries=0,
+        quality_index=max(60.0, min(120.0, 100.0 - neg_total * 10.0 + hr_pos * 5.0)),
+        tbts_count=0, mocks_taken=0, internal_trainings=0,
+        first_time_deliveries_or_certs=len(cert_intel.get("held", [])),
+        certs_held=cert_intel.get("held", []),
+        roaming_hours_l12m=0.0, night_ilo_hours_l12m=0.0,
+        hr_pos=hr_pos, hr_neg=hr_neg, vendor_certs=vendor_certs_list,
+        trainers_developed=0, sales_feedback_points=0.0, solution_selling_count=0,
+        skill_takeovers=0, negative_feedbacks=neg_total,
+        centre_improvements_reported=0, tech_calls_converted=0,
+        koenig_tenure_months=0.0, prior_exp_months=0.0,
+        has_overseas_visa_commitment=False,
+    )
+    ti["estimated_criteria"] = sorted(_TI_UNMEASURED)
+    ti["measured_criteria"] = [1, 3, 5, 6, 9, 10, 15]
+    ti["confidence"] = "partial"
+    ti["confidence_note"] = (
+        "Tier is computed from the 7 RMS-backed criteria (utilisation, quality "
+        "index, first-time delivery, certifications, HR incidents, instructor "
+        "certs, negative feedback). The other 13 are not exposed by RMS and "
+        "score zero — treat the tier as a floor, not a full assessment."
+    )
+    return ti
+
+
 def _calculate_trainer_index(
     email,
     name="",
@@ -7825,36 +7545,9 @@ def hr_monthly_report():
         vendor_certs_rows = _rms("vendorCertCount", {"email": email}) or []
         vendor_certs_list = [r.get("VendorCertificationName", "") for r in (vendor_certs_rows if isinstance(vendor_certs_rows, list) else []) if isinstance(r, dict)]
 
-        trainer_ti = _calculate_trainer_index(
-            email=email,
-            name=t["name"],
-            month_util=month_util,
-            util_3m=util_3m,
-            quarterly_utils=None,
-            non_sc_hours_pct=0.0,
-            beast_ai_deliveries=sum(1 for a in month_assignments if "ai" in a.get("course_name", "").lower()),
-            beast_ai_saas_deliveries=0,
-            quality_index=max(60.0, min(120.0, 100.0 - neg_total * 10.0 + hr_pos * 5.0)),
-            tbts_count=1 if avg_qubits >= 75 else 0,
-            mocks_taken=2 if avg_qubits >= 60 else 1,
-            internal_trainings=1 if len(month_assignments) > 0 else 0,
-            first_time_deliveries_or_certs=len(cert_intel["held"]),
-            certs_held=cert_intel["held"],
-            roaming_hours_l12m=float(sum(a.get("hours", 0) for a in month_assignments if "onsite" in a.get("mode", "").lower())),
-            night_ilo_hours_l12m=float(sum(a.get("hours", 0) for a in month_assignments if "ilo" in a.get("mode", "").lower() and "night" in a.get("mode", "").lower())),
-            hr_pos=hr_pos,
-            hr_neg=hr_neg,
-            vendor_certs=vendor_certs_list,
-            trainers_developed=0,
-            sales_feedback_points=max(0.0, min(25.0, (avg_qubits / 100.0) * 20.0 + hr_pos * 2.0 - neg_total * 5.0)),
-            solution_selling_count=1 if avg_qubits >= 85 else 0,
-            skill_takeovers=1 if cert_intel["gap_count"] == 0 else 0,
-            negative_feedbacks=neg_total,
-            centre_improvements_reported=hr_pos,
-            tech_calls_converted=0,
-            koenig_tenure_months=24.0,
-            prior_exp_months=36.0,
-            has_overseas_visa_commitment=True if any("international" in a.get("mode", "").lower() for a in month_assignments) else False,
+        trainer_ti = _trainer_index_for(
+            email, t["name"], month_util, util_3m, month_assignments,
+            neg_total, hr_pos, hr_neg, cert_intel, vendor_certs_list,
         )
 
         top_course_titles = [c.get("course_name", "") for c in top_courses if isinstance(c, dict) and c.get("course_name")]
@@ -8336,36 +8029,9 @@ def trainer_evaluation_v2():
     vendor_rows = _rms("vendorCertCount", {"email": email}) or []
     vendor_certs_list = [r.get("VendorCertificationName", "") for r in (vendor_rows if isinstance(vendor_rows, list) else []) if isinstance(r, dict)]
 
-    ti_data = _calculate_trainer_index(
-        email=email,
-        name=trainer_name,
-        month_util=month_util,
-        util_3m=util_3m,
-        quarterly_utils=None,
-        non_sc_hours_pct=0.0,
-        beast_ai_deliveries=sum(1 for a in month_assignments if "ai" in a.get("course_name", "").lower()),
-        beast_ai_saas_deliveries=0,
-        quality_index=max(60.0, min(120.0, 100.0 - neg_total * 10.0 + hr_pos * 5.0)),
-        tbts_count=1 if avg_qubits >= 75 else 0,
-        mocks_taken=2 if avg_qubits >= 60 else 1,
-        internal_trainings=1 if len(month_assignments) > 0 else 0,
-        first_time_deliveries_or_certs=len(cert_intel["held"]),
-        certs_held=cert_intel["held"],
-        roaming_hours_l12m=float(sum(a.get("hours", 0) for a in month_assignments if "onsite" in a.get("mode", "").lower())),
-        night_ilo_hours_l12m=float(sum(a.get("hours", 0) for a in month_assignments if "ilo" in a.get("mode", "").lower() and "night" in a.get("mode", "").lower())),
-        hr_pos=hr_pos,
-        hr_neg=hr_neg,
-        vendor_certs=vendor_certs_list,
-        trainers_developed=0,
-        sales_feedback_points=max(0.0, min(25.0, (avg_qubits / 100.0) * 20.0 + hr_pos * 2.0 - neg_total * 5.0)),
-        solution_selling_count=1 if avg_qubits >= 85 else 0,
-        skill_takeovers=1 if cert_intel["gap_count"] == 0 else 0,
-        negative_feedbacks=neg_total,
-        centre_improvements_reported=hr_pos,
-        tech_calls_converted=0,
-        koenig_tenure_months=24.0,
-        prior_exp_months=36.0,
-        has_overseas_visa_commitment=True if any("international" in a.get("mode", "").lower() for a in month_assignments) else False,
+    ti_data = _trainer_index_for(
+        email, trainer_name, month_util, util_3m, month_assignments,
+        neg_total, hr_pos, hr_neg, cert_intel, vendor_certs_list,
     )
 
     return jsonify({
@@ -8447,36 +8113,9 @@ def trainer_index_v2():
     resume = _resume(email)
     trainer_name = resume.get("name") or email
 
-    ti_data = _calculate_trainer_index(
-        email=email,
-        name=trainer_name,
-        month_util=month_util,
-        util_3m=util_3m,
-        quarterly_utils=None,
-        non_sc_hours_pct=0.0,
-        beast_ai_deliveries=sum(1 for a in month_assignments if "ai" in a.get("course_name", "").lower()),
-        beast_ai_saas_deliveries=0,
-        quality_index=max(60.0, min(120.0, 100.0 - neg_total * 10.0 + hr_pos * 5.0)),
-        tbts_count=1 if avg_qubits >= 75 else 0,
-        mocks_taken=2 if avg_qubits >= 60 else 1,
-        internal_trainings=1 if len(month_assignments) > 0 else 0,
-        first_time_deliveries_or_certs=len(cert_intel["held"]),
-        certs_held=cert_intel["held"],
-        roaming_hours_l12m=float(sum(a.get("hours", 0) for a in month_assignments if "onsite" in a.get("mode", "").lower())),
-        night_ilo_hours_l12m=float(sum(a.get("hours", 0) for a in month_assignments if "ilo" in a.get("mode", "").lower() and "night" in a.get("mode", "").lower())),
-        hr_pos=hr_pos,
-        hr_neg=hr_neg,
-        vendor_certs=vendor_certs_list,
-        trainers_developed=0,
-        sales_feedback_points=max(0.0, min(25.0, (avg_qubits / 100.0) * 20.0 + hr_pos * 2.0 - neg_total * 5.0)),
-        solution_selling_count=1 if avg_qubits >= 85 else 0,
-        skill_takeovers=1 if cert_intel["gap_count"] == 0 else 0,
-        negative_feedbacks=neg_total,
-        centre_improvements_reported=hr_pos,
-        tech_calls_converted=0,
-        koenig_tenure_months=24.0,
-        prior_exp_months=36.0,
-        has_overseas_visa_commitment=True if any("international" in a.get("mode", "").lower() for a in month_assignments) else False,
+    ti_data = _trainer_index_for(
+        email, trainer_name, month_util, util_3m, month_assignments,
+        neg_total, hr_pos, hr_neg, cert_intel, vendor_certs_list,
     )
 
     return jsonify({

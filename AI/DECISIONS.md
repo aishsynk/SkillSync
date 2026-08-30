@@ -282,3 +282,11 @@ Important decisions and their rationale. Add new entries at the top (newest firs
 ## 2026-08-30 - Render runs gunicorn with 1 worker / 8 threads / 120s timeout
 - **Decision:** Start command `gunicorn backend:app --workers 1 --threads 8 --worker-class gthread --timeout 120` (render.yaml + Procfile), replacing the bare `gunicorn backend:app`.
 - **Rationale:** The bare command uses gunicorn's 30s default timeout, which killed the worker mid-request for any cold build over 30s (trainer-360 ~43s, capability ~22s) and took the `_serve_or_warm` background thread down with it — the source of the persistent trainer-360 502. One worker is required for the in-process warm/response caches (`_warm_payload_cache`, `_allocation_payload_cache`) to be shared rather than duplicated per worker; the service is I/O-bound on RMS calls, so 8 threads provide concurrency without the memory cost of extra workers on the free plan.
+
+## 2026-08-30 - No fabricated fallback team; Trainer Index declares partial confidence
+- **Decision:** Delete `_build_fallback_manager_intelligence` and the demo roster in `team_capability`; a no-reportee account returns `no_reportees: true` + empty arrays. The Trainer Index passes real zeros for the 13 criteria RMS does not expose (previously Qubits-derived guesses) and returns `confidence: "partial"` with `measured_criteria` / `estimated_criteria`.
+- **Rationale:** Both violated the 2026-08-08 "no invented data, ever" decision — a fake 8-trainer team in production for `aishwar_v@…`, and a flagship performance tier computed mostly from a scoring veneer over utilisation + Qubits. An honest empty state and an explicitly-partial tier are correct; a plausible fake is not.
+
+## 2026-08-30 - Server state lives on a Render persistent disk
+- **Decision:** `render.yaml` declares a 1 GB disk at `/var/data` and sets `SKILLEDGE_STATE_DIR=/var/data`.
+- **Rationale:** The action inbox, the session-revocation denylist and notification seen-state were on Render's ephemeral filesystem and lost on every redeploy — silently breaking the v3.45.1 logout fix and discarding managers' triaged actions. Single-worker gunicorn already assumes one host; a disk makes that state durable.

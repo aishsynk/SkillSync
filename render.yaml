@@ -10,9 +10,18 @@ services:
     # (gunicorn default is 30s) lets a cold trainer-360 / capability build finish
     # instead of the worker being killed mid-request and returning 502.
     startCommand: gunicorn backend:app --workers 1 --threads 8 --worker-class gthread --timeout 120
+    # Persistent disk so the action inbox, session-revocation denylist and
+    # notification seen-state survive redeploys (Render's default filesystem is
+    # ephemeral and was wiping all three on every deploy).
+    disk:
+      name: skilledge-state
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: SKILLEDGE_ENV
         value: production
+      - key: SKILLEDGE_STATE_DIR
+        value: /var/data
       - key: PYTHONUNBUFFERED
         value: "true"
     # ── RMS credential env vars (configure as Render secrets via dashboard) ─
