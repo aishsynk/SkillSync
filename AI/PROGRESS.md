@@ -3472,3 +3472,39 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   1. Push; watch CI + Render; probe `/api/data/trainer-360` until 200 with real learner_rating.
   2. If still 502: set the Start Command in the Render dashboard manually, then redeploy.
   3. Then the taxonomy release (courseTechnology/courseDomain).
+
+## 2026-08-30T22:45:00+05:30 - Session handover: v3.46.2/132 shipped and production-validated
+
+- **Model Used**: Claude Sonnet 5
+- **Tool/Agent Used**: Claude Code
+- **Latest release**: https://github.com/aishsynk/SkillSync/releases/tag/v3.46.2.132
+  (deployed commits `1d2863e` -> `409f69a` -> `d5fa65e`; CI runs 33321041781, 33321833165, 33323440583 all success)
+- **APK**: `SkillEdge-v3.46.2.132.apk`, package `com.example.skillsync`, versionCode 132, versionName 3.46.2,
+  signer SHA-256 `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808` (UNCHANGED since build 128 —
+  installs in place over 129/130/131, user data intact).
+- **Shipped this session (v3.46.0 -> v3.46.2)**:
+  1. Backend partial-first + background warm (`_serve_or_warm`) for dashboard, capability, hr-monthly,
+     weekly, team-calendar AND trainer-360. Fixes the perpetual loading spinner.
+  2. Android offline-first HR/Weekly report screens (LocalCache-first + loading poll) + Trainer 360 poll.
+  3. Always-on `MonitoringService` (dataSync foreground service + persistent notification) + BootReceiver +
+     battery-optimisation prompt; WorkManager kept as the 15-min backstop.
+  4. Evidence-only report messages: wired RMS key 244 (`trainerFeedback`), removed all templated
+     behavioural boilerplate from HR-monthly `structured_feedback` / weekly `standpoint_note` / Trainer 360.
+  5. Render start command hardened: `gunicorn ... --workers 1 --threads 8 --worker-class gthread
+     --timeout 120` (was bare `gunicorn backend:app`; 30s default was killing cold builds -> 502).
+- **Production validation (2026-08-30, live probe)**: dashboard 4.0s/0.8s, capability 3.6s/0.3s,
+  hr/weekly/calendar 0.8s/0.3s, trainer-360 6.9s/0.3s (was HTTP 502), allocation 3.0s/0.4s, actions 0.5s,
+  healthz 200. trainer-360 returns real `learner_rating` 4.7 (17 responses) + dated learner quotes.
+  No 502s, no blank/hardcoded/placeholder data observed.
+- **Current Status**: No known build, runtime, deployment, integration, API, or user-facing issue in scope.
+- **Known Issues or Blockers**:
+  - Device upgrade test (install 132 over an older build on a physical phone, force-stop persistence,
+    reboot restart) not run — no ADB device available.
+  - `_serve_or_warm` / warm caches are per-process and depend on `--workers 1`; do not raise worker count
+    without moving the cache to shared storage.
+- **Next Recommended Actions**:
+  1. Taxonomy release: wire `courseTechnology` (RMS 114) + `courseDomain` (RMS 205) into
+     `_capability_portfolio` so course grouping is real technology/domain instead of the vendor-group
+     fallback (`domain_taxonomy_available` -> true). Both probed live and viable.
+  2. Physical-device upgrade validation of build 132.
+  3. Plan file: `C:\Users\Aishw\.claude\plans\curried-chasing-trinket.md`.
