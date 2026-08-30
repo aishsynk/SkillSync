@@ -3557,3 +3557,26 @@ Ranked backlog (this session shipped items 1-3 as v3.47.0):
      probe dashboard (`no_reportees`) + trainer_index (`confidence`).
   2. Then item 4 (taxonomy), item 5 (surface hidden endpoints), item 6 (notifications).
   3. Plan file: `C:\Users\Aishw\.claude\plans\curried-chasing-trinket.md`.
+
+## 2026-08-30T23:55:00+05:30 - v3.47.0/133 shipped and production-validated
+
+- **Model/Tool**: Claude Sonnet 5 / Claude Code
+- **Release**: commit `43334bc`, CI run 33324937545 success, `v3.47.0.133`.
+  APK `SkillEdge-v3.47.0.133.apk` signer SHA-256 `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`
+  (unchanged), package `com.example.skillsync`, versionCode 133 — installs in place over 132.
+- **Production validation (live probe)**:
+  - Finding 2: `unified-manager-intelligence` for a no-reportee account returns `no_reportees: true`,
+    `trainers: 0` — no fabricated roster.
+  - Finding 3: `trainer-index` returns `confidence: "partial"`, `measured_criteria: [1,3,5,6,9,10,15]`;
+    a previously-inflated trainer now scores 28.4 total — correctly reflecting the 7 measurable axes.
+  - All 9 core endpoints still 200 (no regression).
+- **OPERATOR ACTION REQUIRED for Finding 1**: the `render.yaml` disk block only auto-applies if the Render
+  service is a Blueprint. If it is a manually-created service (the `-fpcl` URL suffix suggests so), the
+  persistent disk must be added in the Render dashboard: Settings -> Disks -> Add Disk, name
+  `skilledge-state`, mount `/var/data`, 1 GB; and set env var `SKILLEDGE_STATE_DIR=/var/data`.
+  Until then, action-inbox / logout-denylist / notification state still reset on redeploy.
+- **Current Status**: Data-integrity release complete. Review artifact:
+  https://claude.ai/code/artifact/ca868032-e50f-4ee6-a497-b42a6143d65c
+- **Next Recommended Actions** (roadmap, unchanged): 4) taxonomy `courseTechnology`+`courseDomain`;
+  5) surface the 5 hidden endpoints in the app; 6) NotificationEngine expansion; 7) team-level Copilot;
+  plus confirm the Render disk (operator).
