@@ -4,7 +4,12 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn backend:app
+    # 1 worker keeps the in-process warm/response caches coherent (see
+    # _warm_payload_cache / _allocation_payload_cache in backend.py); the app is
+    # I/O-bound on RMS calls so 8 threads give real concurrency. --timeout 120
+    # (gunicorn default is 30s) lets a cold trainer-360 / capability build finish
+    # instead of the worker being killed mid-request and returning 502.
+    startCommand: gunicorn backend:app --workers 1 --threads 8 --worker-class gthread --timeout 120
     envVars:
       - key: SKILLEDGE_ENV
         value: production

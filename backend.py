@@ -676,9 +676,11 @@ _warm_payload_cache: dict = {}     # cache_key -> (built_at_epoch, payload_dict)
 _warm_building: set = set()        # build_path strings currently rebuilding
 _warm_lock = threading.Lock()
 _WARM_TTL = 150                    # seconds before an on-access rebuild is triggered
-_WARM_FIRST_WAIT = 45             # a cold call waits up to this for the first build
-                                  # (< the mobile client's 60s read timeout) so the
-                                  # very first request still returns real data
+_WARM_FIRST_WAIT = 22             # a cold call waits up to this for the first build,
+                                  # then returns a `loading` skeleton and lets the
+                                  # client poll. Kept well under the gunicorn
+                                  # --timeout (see render.yaml) and the client's
+                                  # 60s read timeout.
 
 
 def _warm_run(view_func, build_path, auth_header):

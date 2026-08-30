@@ -278,3 +278,7 @@ Important decisions and their rationale. Add new entries at the top (newest firs
 
 - **Decision:** Keep durable HMAC-signed 30-day sessions, but check a process-safe SQLite denylist before accepting either an in-memory or reconstructed token. Logout stores only the bearer token's SHA-256 digest until its natural expiry.
 - **Rationale:** Removing a signed token from process memory does not revoke it; signature verification immediately reconstructs it. A shared hashed denylist makes logout effective across workers and process restarts without persisting raw bearer tokens or credentials. Durability across full host replacement still requires `SKILLEDGE_STATE_DIR` on persistent storage.
+
+## 2026-08-30 - Render runs gunicorn with 1 worker / 8 threads / 120s timeout
+- **Decision:** Start command `gunicorn backend:app --workers 1 --threads 8 --worker-class gthread --timeout 120` (render.yaml + Procfile), replacing the bare `gunicorn backend:app`.
+- **Rationale:** The bare command uses gunicorn's 30s default timeout, which killed the worker mid-request for any cold build over 30s (trainer-360 ~43s, capability ~22s) and took the `_serve_or_warm` background thread down with it — the source of the persistent trainer-360 502. One worker is required for the in-process warm/response caches (`_warm_payload_cache`, `_allocation_payload_cache`) to be shared rather than duplicated per worker; the service is I/O-bound on RMS calls, so 8 threads provide concurrency without the memory cost of extra workers on the free plan.

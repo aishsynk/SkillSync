@@ -3441,3 +3441,34 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
   1. Land the trainer-360 hotfix (bump to build 131 / v3.46.1), push, confirm CI + Render, re-probe
      trainer-360 in production until it returns 200 with real `learner_rating` / quotes.
   2. Then the taxonomy release (courseTechnology/courseDomain).
+
+## 2026-08-30T22:20:00+05:30 - v3.46.2/132: Render gunicorn timeout fix (trainer-360 502 root cause)
+
+- **Model Used**: Claude Sonnet 5
+- **Tool/Agent Used**: Claude Code (Render production probe, gunicorn config)
+- **Files Modified**: `render.yaml`, `Procfile` (new), `backend.py` (_WARM_FIRST_WAIT 45->22),
+  `SkillEdge_Android/app/build.gradle.kts` (132/3.46.2), `releases/RELEASE_NOTES_v3.46.2.md` (new),
+  `AI/PROGRESS.md`, `AI/DECISIONS.md`
+- **Work Completed**:
+  - Root-caused the persistent `/api/data/trainer-360` HTTP 502 (~31s, 20+ consecutive over 20 min after
+    v3.46.1 deployed): Render start command `gunicorn backend:app` has **no --timeout**, so gunicorn's 30s
+    default killed the worker mid-request — the cold trainer-360 build is ~43s (verified locally) and the
+    `_serve_or_warm` first-build wait was 45s. The background warm thread died with the worker, so retries
+    never populated the cache.
+  - Fix: `gunicorn backend:app --workers 1 --threads 8 --worker-class gthread --timeout 120` in both
+    `render.yaml` and a new `Procfile`. 1 worker keeps the in-process warm caches coherent; 8 threads give
+    concurrency for this I/O-bound service; 120s timeout covers cold builds.
+  - `_WARM_FIRST_WAIT` 45 -> 22s so cold calls return a skeleton sooner and rely on the client poll.
+  - Bumped to 132 / 3.46.2 (APK content identical to 131) to record the production deployment.
+  - Backend 169 tests pass.
+- **Current Status**: Committed pending. After push: CI (Android, unchanged APK) + Render redeploy with the
+  new start command. Must then re-probe trainer-360 in production for a 200.
+- **Known Issues or Blockers**:
+  - If the Render service was created manually (not a Blueprint), `render.yaml` is ignored and the Start
+    Command must be set in the Render dashboard to the gunicorn line above. The `-fpcl` suffix on the URL
+    hints it may be manual — VERIFY after this deploy; if trainer-360 still 502s, that is why.
+  - Device upgrade checks still pending an ADB phone.
+- **Next Recommended Actions**:
+  1. Push; watch CI + Render; probe `/api/data/trainer-360` until 200 with real learner_rating.
+  2. If still 502: set the Start Command in the Render dashboard manually, then redeploy.
+  3. Then the taxonomy release (courseTechnology/courseDomain).
