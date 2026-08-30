@@ -3269,3 +3269,22 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Current Status**: The identical backend and Android package are ready for GitHub/Render production publication.
 - **Known Issues or Blockers**: Physical upgrade validation remains unavailable without ADB. Persistent revocation across a full host replacement requires Render persistent storage for `SKILLEDGE_STATE_DIR`; immediate logout and worker/process restart behavior are covered.
 - **Next Recommended Actions**: Commit and push, require CI success, verify the published build-129 APK, wait for Render to serve the commit, then validate logout rejection and core manager journeys in production.
+## 2026-08-30T13:20:00+05:30 - v3.45.1 signed-session revocation released and production-validated
+
+- **Model Used**: GPT-5.6
+- **Tool/Agent Used**: Codex (GitHub Actions/Release, Render production API validation, AAPT, APK Signer)
+- **Files Modified**: `AI/PROGRESS.md`, `AI/DECISIONS.md`
+- **Work Completed**: Published feature commit `130d2c589ebdbc43dfdcf5aed2c9893c728c9057`; GitHub Actions run `33298347268` passed and released `v3.45.1.129`. Published APK `SkillEdge-v3.45.1.129.apk` has SHA-256 `73A0DE0C12E6088E2DED585DADF2102D57B4C91660FF1C5E8CB52C0287F2477A`, package `com.example.skillsync`, version 3.45.1/build 129, and unchanged signer SHA-256 `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`. Render production passed health, login, authenticated session, Dashboard (8 trainers, 2 demands), ready Plan (2 batches), Actions (1), Capability, logout, and post-logout denial with HTTP 401.
+- **Current Status**: v3.45.1/build 129 is the latest published production release and the discovered logout vulnerability is resolved in production.
+- **Known Issues or Blockers**: Physical install-over/build interaction testing is not executable because ADB is unavailable. The SQLite revocation denylist survives worker/process restarts that retain the filesystem; full host replacement durability requires `SKILLEDGE_STATE_DIR` on Render persistent storage, already tracked as a platform dependency.
+- **Next Recommended Actions**: On an ADB-connected phone, install build 129 over build 128, confirm retained app data, then exercise login/logout and notification deep links. Separately provision persistent Render state before claiming revocations/actions survive full host replacement.
+
+## 2026-08-30T13:21:00+05:30 - Final session handover
+
+- **Model Used**: GPT-5.6
+- **Tool/Agent Used**: Codex
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Reconciled the stale v3.45.0 handover, completed release verification, discovered and fixed production session revocation, published v3.45.1/build 129, and recorded all test, artifact, signer, deployment, and production evidence.
+- **Current Status**: No known code, CI, API, deployment, or release issue remains in this session's scope. Latest release: `https://github.com/aishsynk/SkillSync/releases/tag/v3.45.1.129`.
+- **Known Issues or Blockers**: Device-only upgrade/UI validation awaits an ADB-connected Android phone; persistent platform storage remains required for state across full Render host replacement.
+- **Next Recommended Actions**: Continue only with physical-device validation or persistent Render state provisioning; do not repeat the completed v3.45.1 implementation.

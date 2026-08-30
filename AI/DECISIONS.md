@@ -257,3 +257,7 @@ Important decisions and their rationale. Add new entries at the top (newest firs
 
 - **Decision:** Implement `POST /api/agent/ask` in `backend.py` with deterministic rule-based evaluation over cached manager and Trainer 360 intelligence, and restore the Copilot FAB on `Trainer360Screen.kt`.
 - **Rationale:** The route was previously a 404 gap preventing the on-device Copilot sheet from functioning. Implementing the deterministic backend handler satisfies the delivery copilot contract without requiring external LLM keys or extra network latency.
+## 2026-08-30 — Signed sessions require a hashed server-side revocation denylist
+
+- **Decision:** Keep durable HMAC-signed 30-day sessions, but check a process-safe SQLite denylist before accepting either an in-memory or reconstructed token. Logout stores only the bearer token's SHA-256 digest until its natural expiry.
+- **Rationale:** Removing a signed token from process memory does not revoke it; signature verification immediately reconstructs it. A shared hashed denylist makes logout effective across workers and process restarts without persisting raw bearer tokens or credentials. Durability across full host replacement still requires `SKILLEDGE_STATE_DIR` on persistent storage.
