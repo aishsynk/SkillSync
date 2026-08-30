@@ -3251,3 +3251,21 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Artifact Published**: SkillEdge-v3.23.0.106.apk
 - **CI/CD Job Status**: Completed successfully in 4m49s (Run ID 31970038926).
 - **Current Status**: Production deployment verified and live. APK is available for direct in-place upgrade.
+## 2026-08-30T12:35:00+05:30 - Production logout revocation defect fixed locally (v3.45.1 / Build 129)
+
+- **Model Used**: GPT-5.6
+- **Tool/Agent Used**: Codex (production API validation, Python/Flask, SQLite, Kotlin/Gradle)
+- **Files Modified**: `action_store.py`, `backend.py`, `tests/test_auth_session.py`, `SkillEdge_Android/app/build.gradle.kts`, `releases/RELEASE_NOTES_v3.45.1.md`, `AI/PROGRESS.md`
+- **Work Completed**: Verified v3.45.0/build 128 was already published by successful CI despite the stale handover. Published APK identity/signature passed and production Dashboard, Plan, Actions and Capability returned live data. Found that `/api/auth/logout` returned success but its HMAC token reconstructed itself on the next request. Added a process-safe SQLite revocation store containing only token hashes, checked before all session acceptance, and added restart/cross-instance regression coverage. Assigned patch v3.45.1/build 129 for the security correction and upgrade-safe release.
+- **Current Status**: Fix is implemented locally; full backend and Android validation are pending.
+- **Known Issues or Blockers**: No ADB executable/device is available for physical install-over testing. Revocation durability across full Render redeploys depends on `SKILLEDGE_STATE_DIR` being backed by persistent storage; within a running deployment it is shared across workers and restarts that retain the filesystem.
+- **Next Recommended Actions**: Run all tests and release gates, publish the identical validated package, verify Render deployment, then prove the same token receives HTTP 401 after production logout.
+## 2026-08-30T12:55:00+05:30 - v3.45.1 security release gate passed locally
+
+- **Model Used**: GPT-5.6
+- **Tool/Agent Used**: Codex (pytest, Gradle, Android lint, AAPT, APK Signer)
+- **Files Modified**: `action_store.py`, `backend.py`, `tests/test_auth_session.py`, `SkillEdge_Android/app/build.gradle.kts`, `releases/RELEASE_NOTES_v3.45.1.md`, `AI/PROGRESS.md`
+- **Work Completed**: Full backend suite passes with 162 tests and 17 subtests. Android passes 149/149 unit/render tests, release lint, and signed release assembly. APK identity is `com.example.skillsync` v3.45.1/build 129 with unchanged signer SHA-256 `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`; local APK SHA-256 is `B3EA0FECC5E928D8247D298C175D0F5D92532923EAA5C3A87916B2D4B6D27A87`.
+- **Current Status**: The identical backend and Android package are ready for GitHub/Render production publication.
+- **Known Issues or Blockers**: Physical upgrade validation remains unavailable without ADB. Persistent revocation across a full host replacement requires Render persistent storage for `SKILLEDGE_STATE_DIR`; immediate logout and worker/process restart behavior are covered.
+- **Next Recommended Actions**: Commit and push, require CI success, verify the published build-129 APK, wait for Render to serve the commit, then validate logout rejection and core manager journeys in production.

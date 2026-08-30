@@ -193,3 +193,63 @@ class ActionStore:
         return {"engine": "sqlite", "transactional": True, "audit_log": True,
                 "durable_across_deploys": durable,
                 "durability": "persistent_volume" if durable else "local_ephemeral"}
+
+
+class SessionRevocationStore:
+    """Process-safe denylist for signed sessions.
+
+    Signed tokens can be reconstructed after an app worker restart, so removing
+    one from an in-memory dictionary is not a logout. Store only a SHA-256
+    digest of the bearer token and its natural expiry; no credential or raw
+    session token is persisted.
+    """
+
+    def __init__(self, path: str):
+        self.path = os.path.abspath(path)
+        self._lock = threading.RLock()
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        with self._lock, self._db() as db:
+            db.execute("""
+                CREATE TABLE IF NOT EXISTS revoked_sessions (
+                    token_hash TEXT PRIMARY KEY,
+                    expires_at INTEGER NOT NULL,
+                    revoked_at TEXT NOT NULL
+                )
+            """)
+
+    @contextmanager
+    def _db(self):
+        connection = sqlite3.connect(self.path, timeout=15)
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _digest(token: str) -> str:
+        import hashlib
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    def revoke(self, token: str, expires_at: int):
+        if not token:
+            return
+        with self._lock, self._db() as db:
+            db.execute("DELETE FROM revoked_sessions WHERE expires_at < strftime('%s','now')")
+            db.execute(
+                "INSERT OR REPLACE INTO revoked_sessions(token_hash,expires_at,revoked_at) VALUES(?,?,?)",
+                (self._digest(token), int(expires_at), _now()),
+            )
+
+    def is_revoked(self, token: str) -> bool:
+        if not token:
+            return False
+        with self._lock, self._db() as db:
+            row = db.execute(
+                "SELECT 1 FROM revoked_sessions WHERE token_hash=? AND expires_at>=strftime('%s','now')",
+                (self._digest(token),),
+            ).fetchone()
+            return row is not None

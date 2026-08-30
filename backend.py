@@ -102,7 +102,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from action_store import ActionStore
+from action_store import ActionStore, SessionRevocationStore
 
 app = Flask(__name__)
 CORS(app)
@@ -443,6 +443,12 @@ _validate_credentials()
 _token_cache: dict = {}
 _sessions: dict = {}
 
+_SESSION_TTL_SECONDS = 30 * 86400
+_SESSION_STATE_DIR = os.getenv("SKILLEDGE_STATE_DIR", ".")
+_session_revocations = SessionRevocationStore(
+    os.path.join(_SESSION_STATE_DIR, "skilledge_session_revocations.sqlite3")
+)
+
 _manager_seen_batches: dict = {}
 _manager_notifications: dict = {}
 _notifications_lock = threading.Lock()
@@ -466,6 +472,9 @@ def _verify_session_token(token: str):
     """Cryptographically verify a session token, reviving it across Render process restarts."""
     if not token:
         return None
+    if _session_revocations.is_revoked(token):
+        _sessions.pop(token, None)
+        return None
     # Fast path: in-memory cache
     if token in _sessions:
         return _sessions[token]
@@ -487,7 +496,7 @@ def _verify_session_token(token: str):
         email, role, ts_str = payload.split(":", 2)
         ts = int(ts_str)
         # Token valid for 30 days
-        if time.time() - ts > 30 * 86400:
+        if time.time() - ts > _SESSION_TTL_SECONDS:
             return None
         session_data = {"email": email.strip().lower(), "role": role.strip(), "created_at": ts}
         _sessions[token] = session_data
@@ -2479,8 +2488,10 @@ def login():
 
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
-    token, _ = _request_session()
+    token, session = _request_session()
     if token:
+        created_at = int((session or {}).get("created_at") or time.time())
+        _session_revocations.revoke(token, created_at + _SESSION_TTL_SECONDS)
         _sessions.pop(token, None)
     return jsonify({"success": True}), 200
 
