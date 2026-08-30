@@ -68,7 +68,7 @@ fun WeeklyReportScreen(
 
     LaunchedEffect(managerEmail) {
         if (managerEmail.isNotBlank()) {
-            vm.init(managerEmail)
+            vm.init(managerEmail, context)
         }
     }
 

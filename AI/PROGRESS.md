@@ -3288,3 +3288,131 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
 - **Current Status**: No known code, CI, API, deployment, or release issue remains in this session's scope. Latest release: `https://github.com/aishsynk/SkillSync/releases/tag/v3.45.1.129`.
 - **Known Issues or Blockers**: Device-only upgrade/UI validation awaits an ADB-connected Android phone; persistent platform storage remains required for state across full Render host replacement.
 - **Next Recommended Actions**: Continue only with physical-device validation or persistent Render state provisioning; do not repeat the completed v3.45.1 implementation.
+
+## 2026-08-30T15:10:00+05:30 - Release 1: backend partial-first + background-warm for heavy endpoints
+
+- **Model Used**: Claude Sonnet 5
+- **Tool/Agent Used**: Claude Code (Python/Flask, pytest, live RMS probe)
+- **Files Modified**: `backend.py`, `tests/test_warm_endpoints.py`, `AI/CONTEXT.md`, `AI/DECISIONS.md`, `AI/PROGRESS.md`
+- **Work Completed**:
+  - Root-caused "many pages always loading": `unified-manager-intelligence`, `capability/portfolio`,
+    `hr/monthly-report`, `report/weekly`, `team/calendar` each ran a synchronous per-trainer RMS
+    fan-out (N×2–5 calls @ 2–5s) that exceeded the client's 60s read timeout on a cold cache.
+  - Added generic `_serve_or_warm` / `_warm_run` / `_warm_store` / `_warm_purge` helpers in
+    `backend.py` (near the cache helpers), mirroring the existing `allocation-desk` warm pattern.
+  - Wired all five endpoints: internal `?_build=1` path assembles the full payload and calls
+    `_warm_store`; the public path serves the retained payload instantly with `refresh_in_progress`
+    + `cache_age_seconds`, rebuilds in a daemon thread when older than `_WARM_TTL` (150s) or on
+    `?refresh=1` (`_warm_purge`), and on a cold cache waits up to `_WARM_FIRST_WAIT` (45s) before
+    returning a `loading:true` skeleton. Fast-payload helpers are exception-safe.
+  - Tests: full suite `165 passed` (was 162) incl. new `tests/test_warm_endpoints.py`
+    (cold→real payload, warm→flagged instant, `refresh` purge, failed rebuild keeps prior payload).
+  - Live RMS probe (test_client against production RMS): dashboard first call 2.7s / repeat 0.0s;
+    capability 22.5s / 0.0s; hr 0.5s / 0.0s; weekly 2.0s / 0.0s; calendar 0.5s / 0.0s — all
+    `loading=False` with real data on first call, instant thereafter.
+- **Current Status**: Release 1 implemented and locally validated. No Android/APK change in R1
+  (backend auto-deploys on push to `main`). Not yet committed/pushed.
+- **Known Issues or Blockers**:
+  - Worst-case first capability load is ~22s (bounded, < 60s timeout); Release 2's client-side
+    cache will render the previous snapshot during that window.
+  - `_warm_payload_cache` is per-process in-memory; multiple Render workers warm independently
+    (acceptable — same as the existing `_allocation_payload_cache`).
+- **Next Recommended Actions**:
+  1. Commit R1, push to `main`, require CI green, confirm Render serves the commit, re-probe the
+     five endpoints on `https://skilledge-backend-fpcl.onrender.com` for first/repeat latency.
+  2. Release 2 (client): offline-first `LocalCache` for `HrMonthlyReportViewModel`,
+     `WeeklyReportViewModel`, Team Calendar + capability/Courses/Team tabs (reuse the
+     `ManagerRepository.cachedMap` + `AllocationViewModel` poll-on-`loading` pattern); add a
+     `dataSync` foreground `MonitoringService` + persistent notification + `BootReceiver` +
+     battery-optimisation exemption; keep WorkManager 15-min periodic as backstop, drop the
+     45–60s self-chain. Bump `versionCode`/`versionName`, add `releases/RELEASE_NOTES_*.md`.
+  3. Plan file: `C:\Users\Aishw\.claude\plans\curried-chasing-trinket.md`.
+
+## 2026-08-30T16:30:00+05:30 - Release 2: client offline-first reports + always-on monitoring service (v3.46.0 / build 130)
+
+- **Model Used**: Claude Sonnet 5
+- **Tool/Agent Used**: Claude Code (Kotlin/Compose, Gradle, Android lint)
+- **Files Modified**:
+  - `SkillEdge_Android/app/src/main/AndroidManifest.xml` (FGS + boot + battery perms, `MonitoringService`, `BootReceiver`)
+  - `.../data/DataRepository.kt` (`hrMonthlyReport`, `weeklyReport` cached methods)
+  - `.../ui/report/HrMonthlyReportViewModel.kt`, `HrMonthlyReportScreen.kt` (offline-first + loading poll; `init` now takes context)
+  - `.../ui/report/WeeklyReportViewModel.kt`, `WeeklyReportScreen.kt` (same)
+  - `.../util/MonitoringService.kt` (new — dataSync foreground service)
+  - `.../util/MonitoringPass.kt` (new — shared detection body)
+  - `.../util/BootReceiver.kt` (new), `.../util/BatteryOptimization.kt` (new)
+  - `.../util/SkillSyncNotificationWorker.kt` (now delegates to `MonitoringPass`)
+  - `.../data/sync/SyncScheduler.kt` (removed ~60s `enqueueRapidChain`)
+  - `.../ui/main/MainScreen.kt` (start service + battery prompt on entry, stop on logout)
+  - `SkillEdge_Android/app/build.gradle.kts` (versionCode 130 / versionName 3.46.0)
+  - `releases/RELEASE_NOTES_v3.46.0.md` (new), `AI/CONTEXT.md`, `AI/DECISIONS.md`, `AI/PROGRESS.md`
+- **Work Completed**:
+  - HR Monthly + Weekly report screens: render last per-period `LocalCache` snapshot instantly,
+    background-refresh, poll (≤12×3s) while backend reports `loading`, keep last on failure, work offline.
+  - Only these two client screens were actually stuck; `getCalendar` is defined but unused, and
+    the Team Calendar composable already runs on cached dashboard batches.
+  - `MonitoringService`: `dataSync` foreground service, `IMPORTANCE_MIN` persistent notification
+    ("SkillEdge is monitoring delivery activity"), 90s `MonitoringPass` loop, self-stops on logout.
+  - `BootReceiver` restarts `SyncScheduler` + service on boot / package-replace; `BatteryOptimization`
+    one-time exemption dialog. WorkManager kept as 15-min backstop via shared `MonitoringPass`;
+    aggressive 60s self-chain removed.
+  - `:app:compileReleaseKotlin` succeeds.
+- **Current Status**: Code complete for R1 + R2. `:app:testDebugUnitTest :app:lintRelease :app:assembleRelease`
+  running locally (result pending at handover). Nothing committed/pushed yet.
+- **Known Issues or Blockers**:
+  - No ADB device: cannot verify install-over-130, force-stop persistence, or reboot restart on a phone.
+  - Android 15 caps `dataSync` foreground runtime to ~6h/day; the 15-min WorkManager backstop covers the gap.
+  - New client VM tests for the offline-first poll not yet added (existing 149 unaffected — no test touches the changed files).
+- **Next Recommended Actions**:
+  1. Confirm the local Android gate result; add VM unit tests for the cache-first + loading-poll path if time allows.
+  2. Commit R1 + R2 together (or R1 first if a staged deploy is preferred), push to `main`, require CI green,
+     verify Render serves the backend commit and re-probe the 5 endpoints, then verify the published
+     build-130 APK identity/signature is unchanged from 129.
+  3. On an ADB phone: install 130 over 129, force-stop, confirm the persistent notification + that a demand
+     change fires an alert within ~2 min, reboot and confirm the service returns.
+  4. Plan file: `C:\Users\Aishw\.claude\plans\curried-chasing-trinket.md`.
+
+## 2026-08-30T18:00:00+05:30 - Phase 3: genuine feedback messages + RMS API audit (folds into v3.46.0)
+
+- **Model Used**: Claude Sonnet 5
+- **Tool/Agent Used**: Claude Code (Python/Flask, live RMS probes, pytest)
+- **Files Modified**: `backend.py`, `tests/test_v2_evaluations.py` (rewritten), `tests/test_trainer_feedback.py` (new),
+  `SkillEdge_Android/.../HrMonthlyReportViewModel.kt` + `WeeklyReportViewModel.kt` (`!!` cleanup),
+  `releases/RELEASE_NOTES_v3.46.0.md`, `AI/CONTEXT.md`, `AI/DECISIONS.md`, `AI/PROGRESS.md`
+- **Work Completed**:
+  - **RMS API audit** (`trainer_portal_api_details/`, 37 files). Probed the 7 registered-but-unused keys live:
+    - Usable, NOT wired yet: `courseTechnology` (114, 21,312 rows), `courseDomain` (205), `courseList` (164)
+      → deferred to the taxonomy release for the capability portfolio.
+    - Not viable: `examCourseLinked` (215, link-check), `trainerAvailability` (90, empty),
+      `uniqueCertsCount` (72, empty — matches known note), `upcomingAssignments` (93, HTTP 500).
+  - **Wired `trainerFeedback` (RMS 244)** via new `_trainer_feedback_detail(email, days, until)` — real
+    learner ratings (1–5) + dated free-text excerpts. Endpoint ignores its `TrainerEmail` filter, so rows
+    are filtered by email in-helper. Text sentiment taken from the trainer's overall average; quotes are
+    stripped of RMS speaker-label prefixes / multi-learner concatenation and must carry a content signal word.
+  - **Fixed Trainer 360** showing *other* trainers' feedback (unfiltered endpoint) + added
+    `learner_rating` / `learner_quotes` to its payload.
+  - **Rewrote `_generate_manager_evaluation`** (HR monthly `structured_feedback` + trainer-evaluation) and the
+    weekly `standpoint_note` to be **evidence-only** — real rating/trend, dated learner excerpts, named cert
+    gaps, utilisation, HR counts. Removed all templated behavioural prose ("articulation remains the primary
+    growth area", "hesitation and slight panic", `mock_summary` = "Composure: Improving"). No-evidence
+    dimensions now say so. New trajectory value "Learner Feedback Focus" for sub-3.7 avg rating.
+  - Weekly per-reportee payload gains `learner_rating` / `learner_rating_count` / `learner_feedback`.
+  - Tests: full backend suite **169 passed** (`tests/test_v2_evaluations.py` rewritten to assert the
+    evidence-only contract + absence of the old boilerplate; new `tests/test_trainer_feedback.py`).
+  - Live-probed real trainers (krishna.dwivedi 4.7/5, akshat.parashar 3.8/5) — messages now cite genuine
+    ratings and learner quotes.
+- **Current Status**: Backend Phase 3 complete + validated locally. Android compile/test re-run in progress.
+  Client `StructuredFeedback` parser unchanged (same keys) — no client feature change needed; trajectory
+  filter strings kept compatible ("High Performer", "Needs Coaching", "Bench Upskilling").
+- **Known Issues or Blockers**:
+  - Some RMS `TextAnswer` rows are low-quality (labels, concatenations); `_clean_quote` is best-effort.
+  - `aishwar_v@koenig-solutions.com` has 0 reportees in RMS — use a manager with a real roster to see
+    populated reports end-to-end.
+- **Next Recommended Actions**:
+  1. Confirm the Android compile/test result.
+  2. Commit R1 + R2 + Phase 3 together as v3.46.0 / build 130; push; require CI green; verify Render serves
+     the commit; re-probe the 5 warm endpoints + one HR/weekly report for a real-roster manager; verify the
+     published build-130 APK signer is unchanged from 129.
+  3. Taxonomy release: wire `courseTechnology` (114) + `courseDomain` (205) into `_capability_portfolio`
+     so course grouping is real technology/domain instead of the vendor-group fallback
+     (`domain_taxonomy_available` → true).
+  4. Plan file: `C:\Users\Aishw\.claude\plans\curried-chasing-trinket.md`.

@@ -1,8 +1,12 @@
 package com.example.skillsync.ui.report
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.skillsync.data.ManagerRepository
 import com.example.skillsync.data.api.RetrofitClient
+import com.example.skillsync.data.cache.LocalCache
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -74,18 +78,28 @@ data class WeeklyBatchInfo(
     val endAt: String = "",
 )
 
-class WeeklyReportViewModel : ViewModel() {
+class WeeklyReportViewModel(
+    private val repository: ManagerRepository = ManagerRepository(),
+) : ViewModel() {
 
     private val _state = MutableStateFlow<WeeklyReportState>(WeeklyReportState.Loading)
     val state: StateFlow<WeeklyReportState> = _state
 
     private var targetDate: LocalDate = LocalDate.now()
     private var managerEmail: String = ""
+    private var appContext: Context? = null
 
     private val _displayWeek = MutableStateFlow(formatWeekDisplay(targetDate))
     val displayWeek: StateFlow<String> = _displayWeek
 
-    fun init(email: String) {
+    private fun weekKey(): String =
+        targetDate.minusDays((targetDate.dayOfWeek.value - 1).toLong())
+            .format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+    private fun cacheKey() = "weekly_report_${managerEmail}_${weekKey()}"
+
+    fun init(email: String, context: Context) {
+        appContext = context.applicationContext
         if (managerEmail == email && _state.value is WeeklyReportState.Success) return
         managerEmail = email
         targetDate = LocalDate.now()
@@ -124,14 +138,42 @@ class WeeklyReportViewModel : ViewModel() {
 
     private fun load() {
         val email = managerEmail.ifBlank { return }
-        _state.value = WeeklyReportState.Loading
+        val week = weekKey()
+
+        val cached = LocalCache.loadMap(cacheKey())
+        _state.value = if (cached != null && cached["loading"] != true) {
+            WeeklyReportState.Success(parse(cached))
+        } else {
+            WeeklyReportState.Loading
+        }
+
         viewModelScope.launch {
+            val ctx = appContext
+            if (ctx != null && !RetrofitClient.isNetworkAvailable(ctx)) {
+                if (_state.value !is WeeklyReportState.Success) {
+                    _state.value = WeeklyReportState.Error("Offline — no saved report for this week yet")
+                }
+                return@launch
+            }
             try {
-                val isoDate = targetDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                val raw = RetrofitClient.instance.getWeeklyReport(manager = email, week = isoDate)
-                _state.value = WeeklyReportState.Success(parse(raw))
+                var result = repository.weeklyReport(email, week, fresh = false)
+                var data = result.data
+                repeat(12) {
+                    if (data != null && data["loading"] != true) return@repeat
+                    delay(3_000)
+                    result = repository.weeklyReport(email, week, fresh = false)
+                    data = result.data ?: data
+                }
+                val ready = data
+                when {
+                    ready != null && ready["loading"] != true -> _state.value = WeeklyReportState.Success(parse(ready))
+                    _state.value is WeeklyReportState.Success -> { /* keep last snapshot */ }
+                    else -> _state.value = WeeklyReportState.Error("Report is still preparing from RMS. Pull to refresh shortly.")
+                }
             } catch (e: Exception) {
-                _state.value = WeeklyReportState.Error(e.message ?: "Failed to load weekly report")
+                if (_state.value !is WeeklyReportState.Success) {
+                    _state.value = WeeklyReportState.Error(e.message ?: "Failed to load weekly report")
+                }
             }
         }
     }

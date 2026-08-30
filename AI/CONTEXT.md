@@ -44,6 +44,73 @@ to `main`. `SKILLEDGE_ENV=production` requires the `SKILLEDGE_RMS_*_USER` /
 `_PASS` env vars; plaintext fallbacks in `_APIS` remain as migration defaults
 until those are set as Render secrets.
 
+## Heavy endpoints: partial-first + background warm (effective 2026-08-30)
+
+`unified-manager-intelligence` (dashboard), `capability/portfolio`, `hr/monthly-report`,
+`report/weekly` and `team/calendar` each fan out many per-trainer RMS calls and cannot
+answer inside the client's 60s read timeout on a cold cache — which is why screens sat on
+a spinner. All five now use `_serve_or_warm(cache_key, view_func, build_path, fast_payload)`
+(near the cache helpers in `backend.py`), mirroring the older `allocation-desk` pattern:
+
+- The retained last-complete payload is served immediately with `refresh_in_progress` +
+  `cache_age_seconds`; a rebuild runs in a daemon thread via an internal `?_build=1`
+  request when the payload is older than `_WARM_TTL` (150s) or `?refresh=1` is passed.
+- A cold call (nothing retained) waits up to `_WARM_FIRST_WAIT` (45s) for the first build,
+  then falls back to a cheap skeleton payload carrying `loading: true`.
+- The `?_build=1` path of each endpoint ends by calling `_warm_store(cache_key, payload)`.
+- `?refresh=1` calls `_warm_purge(needle)`. A failed background rebuild never overwrites
+  the retained payload. `loading: true` bodies must never overwrite the client's local
+  snapshot (already enforced in `ManagerRepository.cachedMap`).
+
+## Report messages are evidence-only (effective v3.46.0)
+
+`_generate_manager_evaluation` (HR monthly `structured_feedback` + trainer-evaluation),
+the weekly `standpoint_note`, and the Trainer 360 feedback block state **only what the
+data supports**: real learner rating/trend (`_trainer_feedback_detail`, RMS key 244),
+short dated learner excerpts attributed to "learner feedback", named cert gaps,
+utilisation and HR-incident counts. No generic behavioural boilerplate — a dimension with
+no evidence says "No … flagged from evidence this cycle." Do not reintroduce
+template sentences that apply to every trainer.
+
+`_trainer_feedback_detail(email, days=, until=)` — RMS key 244 (`trainerFeedback`,
+verified live 2026-08-30): fields `AssignmentId/SCID/FeedBackDate/TrainerName/
+TrainerEmail/Question/MCQAnswer(1-5)/TextAnswer`. **The endpoint ignores its
+`TrainerEmail` filter and returns the whole recent set — always filter by email.** Text
+rows usually carry no MCQ, so a quote's sentiment comes from the trainer's overall
+average, not from the words. Quotes are cleaned of RMS speaker-label prefixes/concatenation
+and require a session/trainer/content signal word.
+
+## RMS APIs still unused after the 2026-08-30 audit
+Probed live: `examCourseLinked` (215) is a link-check not a query; `trainerAvailability`
+(90) returns empty for every course/date; `uniqueCertsCount` (72) returns empty (known);
+`upcomingAssignments` (93) 500s and overlaps `prevUpcoming`. **Usable, not yet wired:**
+`courseTechnology` (114, 21k course→technology rows), `courseDomain` (205, course→domain by
+TechName), `courseList` (164). Planned for the capability-portfolio taxonomy (next release).
+
+## Client offline-first + always-on monitoring (effective v3.46.0 / build 130)
+
+- **Offline-first screens:** `HrMonthlyReportViewModel` and `WeeklyReportViewModel` read
+  the last snapshot for the selected period from `LocalCache` and render it immediately,
+  then refresh in the background and poll (≤12×3s) while the payload reports `loading`.
+  They keep the last snapshot visible on a failed refresh and work offline. Cache keys:
+  `hr_report_<email>_<YYYY-MM>`, `weekly_report_<email>_<mondayISO>` (via new
+  `ManagerRepository.hrMonthlyReport` / `weeklyReport`). Dashboard, Demand, Trainer 360
+  and the capability tabs were already offline-first.
+- **`MonitoringService`** (`util/`, `foregroundServiceType=dataSync`): a foreground
+  service that runs `MonitoringPass.run()` every 90s while a manager is signed in, so
+  delivery alerts keep firing after the app is closed / during Doze. Shows a permanent
+  `IMPORTANCE_MIN` notification on the `skilledge_monitoring` channel. Started from
+  `MainScreen` (guaranteed foreground) and `BootReceiver`; stopped on logout and when
+  `MonitoringPass` reports not-logged-in.
+- **`MonitoringPass`** is the single shared body for both `MonitoringService` and the
+  `SkillSyncNotificationWorker` WorkManager backstop (15-min periodic). The aggressive
+  ~60s `enqueueRapidChain` self-chain was removed — the service owns real-time now.
+- **`BootReceiver`** restarts `SyncScheduler` + `MonitoringService` on `BOOT_COMPLETED` /
+  `MY_PACKAGE_REPLACED` when logged in. **`BatteryOptimization.requestOnce()`** shows the
+  OS exemption dialog once.
+- New manifest permissions: `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC`,
+  `RECEIVE_BOOT_COMPLETED`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`.
+
 **Android** — `SkillEdge_Android/`, Gradle, Kotlin + Compose.
 
 ```bash

@@ -83,6 +83,9 @@ fun MainScreen(
     }
 
     LaunchedEffect(email, tab) {
+        // Keep background delivery monitoring alive whenever a manager is in the app.
+        com.example.skillsync.util.MonitoringService.start(context)
+        com.example.skillsync.util.BatteryOptimization.requestOnce(context)
         viewModel.loadData(email, context)
         if (tab == HomeTab.DEMAND || tab == HomeTab.SEARCH) allocationViewModel.load(email, context)
         // Dashboard needs it too: the "who is actually free" block reads it.
@@ -811,6 +814,7 @@ internal fun DashboardTab(
 
     var showProfileMenu by remember { mutableStateOf(false) }
     val sessionScope = rememberCoroutineScope()
+    val logoutContext = androidx.compose.ui.platform.LocalContext.current
 
     if (showProfileMenu) {
         ProfileMenuBottomSheet(
@@ -821,6 +825,7 @@ internal fun DashboardTab(
                 sessionScope.launch {
                     runCatching { com.example.skillsync.data.api.RetrofitClient.instance.logout() }
                     com.example.skillsync.data.SessionManager.clearSession()
+                    com.example.skillsync.util.MonitoringService.stop(logoutContext)
                     onLogout()
                 }
             },

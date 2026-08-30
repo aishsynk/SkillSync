@@ -52,7 +52,7 @@ fun HrMonthlyReportScreen(
     val context = LocalContext.current
     val notify = LocalNotify.current
 
-    LaunchedEffect(managerEmail) { vm.init(managerEmail) }
+    LaunchedEffect(managerEmail) { vm.init(managerEmail, context) }
 
     val state by vm.state.collectAsState()
     val displayMonth by vm.displayMonth.collectAsState()

@@ -662,6 +662,107 @@ def _wants_fresh():
     return str(request.args.get("refresh", "")).strip() in ("1", "true", "yes")
 
 
+# ─── Generic partial-first + background-warm for heavy endpoints ──────────────
+#
+# Several endpoints fan out many per-trainer RMS calls and cannot answer within
+# the mobile client's read timeout on a cold cache — so the screen sat on a
+# spinner. This mirrors the allocation-desk pattern: retain the last complete
+# payload per key, rebuild it in a daemon thread via an internal `?_build=1`
+# request, and answer immediately with either the retained payload (flagged
+# `refresh_in_progress`) or a cheap partial (flagged `loading`). The client
+# (ManagerRepository.cachedMap) already treats a `loading:true` body as control
+# state and never overwrites its local snapshot with it.
+_warm_payload_cache: dict = {}     # cache_key -> (built_at_epoch, payload_dict)
+_warm_building: set = set()        # build_path strings currently rebuilding
+_warm_lock = threading.Lock()
+_WARM_TTL = 150                    # seconds before an on-access rebuild is triggered
+_WARM_FIRST_WAIT = 45             # a cold call waits up to this for the first build
+                                  # (< the mobile client's 60s read timeout) so the
+                                  # very first request still returns real data
+
+
+def _warm_run(view_func, build_path, auth_header):
+    try:
+        with app.test_request_context(
+            build_path, headers={"Authorization": auth_header} if auth_header else {}
+        ):
+            view_func()
+    except Exception:
+        import logging as _logging
+        _logging.exception("background warm failed for %s", build_path)
+    finally:
+        with _warm_lock:
+            _warm_building.discard(build_path)
+
+
+def _warm_store(cache_key, payload):
+    """Called from the `?_build=1` path once the full payload is assembled."""
+    with _warm_lock:
+        _warm_payload_cache[cache_key] = (time.time(), payload)
+
+
+def _warm_purge(needle=""):
+    with _warm_lock:
+        if not needle:
+            _warm_payload_cache.clear()
+            return
+        n = str(needle).lower()
+        for k in [k for k in _warm_payload_cache if n in str(k).lower()]:
+            _warm_payload_cache.pop(k, None)
+
+
+def _serve_or_warm(cache_key, view_func, build_path, fast_payload):
+    """
+    Handle a non-`_build` request for a heavy endpoint.
+
+    Returns a Flask response tuple the caller must return immediately:
+      - the retained full payload + `refresh_in_progress` when one exists, or
+      - `fast_payload` + `loading:true` when the cache is still cold.
+    A rebuild is kicked off in the background unless one is already running and
+    the retained payload is still fresh.
+    """
+    fresh = _wants_fresh()
+    auth_header = request.headers.get("Authorization", "")
+    now = time.time()
+    with _warm_lock:
+        entry = _warm_payload_cache.get(cache_key)
+        built_at = entry[0] if entry else 0
+        already = build_path in _warm_building
+        should_build = (not already) and (fresh or entry is None or (now - built_at) > _WARM_TTL)
+        if should_build:
+            _warm_building.add(build_path)
+    if should_build:
+        threading.Thread(
+            target=_warm_run, args=(view_func, build_path, auth_header), daemon=True
+        ).start()
+    if entry is not None and not fresh:
+        payload = dict(entry[1])
+        payload["refresh_in_progress"] = should_build or already
+        payload["cache_age_seconds"] = int(now - built_at)
+        return jsonify(payload), 200
+
+    # Cold cache (or forced refresh with nothing retained): give the build a
+    # bounded chance to finish so the first request still returns real data
+    # instead of only a skeleton.
+    if entry is None and (should_build or already):
+        deadline = time.time() + _WARM_FIRST_WAIT
+        while time.time() < deadline:
+            time.sleep(0.5)
+            with _warm_lock:
+                fresh_entry = _warm_payload_cache.get(cache_key)
+            if fresh_entry is not None:
+                payload = dict(fresh_entry[1])
+                payload["refresh_in_progress"] = False
+                payload["cache_age_seconds"] = int(time.time() - fresh_entry[0])
+                return jsonify(payload), 200
+
+    payload = dict(fast_payload)
+    payload.setdefault("loading", True)
+    payload["refresh_in_progress"] = True
+    payload.setdefault("timestamp", datetime.utcnow().isoformat())
+    return jsonify(payload), 200
+
+
 # ─── RMS low-level helpers ────────────────────────────────────────────────────
 
 def _rms_post(path, body, timeout=_TIMEOUT):
@@ -2851,6 +2952,20 @@ def unified_intelligence():
         return error
     email = session["email"]
 
+    internal_build = request.args.get("_build") == "1"
+    if not internal_build:
+        if _wants_fresh():
+            _warm_purge(f"dashboard::{email}")
+        return _serve_or_warm(
+            cache_key=f"dashboard::{email}",
+            view_func=unified_intelligence,
+            build_path=(
+                f"/api/data/unified-manager-intelligence?email={urllib.parse.quote(email)}"
+                f"&_build=1{'&refresh=1' if _wants_fresh() else ''}"
+            ),
+            fast_payload=_dashboard_fast_payload(email),
+        )
+
     if _wants_fresh():
         _cache_purge(email)
 
@@ -3180,7 +3295,7 @@ def unified_intelligence():
     # ── Response (web-frontend data model + backward-compat fields) ──────
     from_cache = _cache_get("reportees", {"email": email}) is not None or _cache_get("unallocated", {}) is not None
     cache_source = "cache" if from_cache else "rms_live"
-    return jsonify({
+    _resp = {
         "manager_kpis":             manager_kpis,
         "notifications":            notifications,
         "trainer_operations_df":    trainer_ops,
@@ -3234,7 +3349,59 @@ def unified_intelligence():
         },
         "cache":     {"age": 0, "ttl": _CACHE_TTL.get("reportees", 1800), "source": cache_source},
         "timestamp": datetime.utcnow().isoformat(),
-    }), 200
+        "loading": False,
+    }
+    _warm_store(f"dashboard::{email}", _resp)
+    return jsonify(_resp), 200
+
+
+def _dashboard_fast_payload(email):
+    """
+    Cheap dashboard skeleton served while the full per-trainer build warms: the
+    roster and the unallocated-demand count, with no per-trainer RMS fan-out.
+    Field names match the full payload so the client renders the same screen.
+    """
+    try:
+        return _dashboard_fast_payload_inner(email)
+    except Exception:
+        return {"loading": True, "manager": {"email": email}, "trainer_operations_df": [],
+                "trainers_operational": [], "manager_kpis": {}}
+
+
+def _dashboard_fast_payload_inner(email):
+    reportees = _rms("reportees", {"email": email}) or []
+    rows = [r for r in (reportees if isinstance(reportees, list) else []) if isinstance(r, dict)]
+    demand = _rms("unallocated", {}) or []
+    demand_n = len([d for d in (demand if isinstance(demand, list) else []) if isinstance(d, dict)])
+    trainers = [
+        {
+            "trainer_name": str(r.get("TrainerName", "") or "").strip(),
+            "official_email": str(r.get("OffEmail", "") or "").strip(),
+            "off_email": str(r.get("OffEmail", "") or "").strip(),
+            "designation": str(r.get("Designation", "") or "").strip(),
+            "current_utilization": None,
+            "utilization_available": False,
+            "capacity_bucket": "Unknown",
+            "feedback_risk": "Unknown",
+        }
+        for r in rows
+    ]
+    return {
+        "manager": {"name": email.split("@")[0].replace(".", " ").title(), "email": email, "role": "Delivery Manager"},
+        "manager_kpis": {
+            "total_team_members": len(rows),
+            "open_demand": demand_n,
+        },
+        "trainer_operations_df": trainers,
+        "trainers_operational": trainers,
+        "trainer_current_state_df": [],
+        "notifications": [],
+        "unallocated_demand_df": [],
+        "batch_engagement_df": [],
+        "manager_action_objects": [],
+        "from_cache": False,
+        "loading": True,
+    }
 
 
 @app.route('/api/data/manager-profile', methods=['GET'])
@@ -3480,6 +3647,20 @@ def team_capability():
         return error
     email = session["email"]
 
+    internal_build = request.args.get("_build") == "1"
+    if not internal_build:
+        if _wants_fresh():
+            _warm_purge(f"capability::{email}")
+        return _serve_or_warm(
+            cache_key=f"capability::{email}",
+            view_func=team_capability,
+            build_path=(
+                f"/api/v2/capability/portfolio?email={urllib.parse.quote(email)}"
+                f"&_build=1{'&refresh=1' if _wants_fresh() else ''}"
+            ),
+            fast_payload=_capability_fast_payload(email),
+        )
+
     if _wants_fresh():
         _cache_purge(email)
 
@@ -3562,11 +3743,12 @@ def team_capability():
         all_taught |= taught
         all_covered |= (taught & set(t["certification"]["held_codes"]))
 
-    return jsonify({
+    _resp = {
         "manager":   email,
         "team_size": len(team),
         "trainers":  team,
         "courses":   courses,
+        "loading":   False,
         "kpis": {
             "certified_trainers":      certified,
             "certification_gap_count": gap_total,
@@ -3581,7 +3763,27 @@ def team_capability():
         },
         "portfolio": _capability_portfolio(team, courses),
         "timestamp": datetime.utcnow().isoformat(),
-    }), 200
+    }
+    _warm_store(f"capability::{email}", _resp)
+    return jsonify(_resp), 200
+
+
+def _capability_fast_payload(email):
+    """Roster-only capability skeleton served while the per-trainer credential
+    fan-out warms. No courses/KPIs yet — the client keeps its last snapshot."""
+    try:
+        reps = _rms("reportees", {"email": email}) or []
+    except Exception:
+        reps = []
+    rows = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)]
+    return {
+        "manager": email,
+        "team_size": len(rows),
+        "trainers": [],
+        "courses": [],
+        "kpis": {},
+        "loading": True,
+    }
 
 
 @app.route('/api/data/trainer-360', methods=['GET'])
@@ -3628,10 +3830,11 @@ def trainer_360():
         f_hr     = pool.submit(_rms, "hrIncident", {"email": email})
         f_resume = pool.submit(_resume, email)
         # Per-question feedback detail (not negative-only) — field shape is from
-        # the instruction file, not a verified live response; parsed defensively
-        # below and a raw sample is included until a real call confirms it.
+        # Verified live 2026-08-30. The endpoint ignores its TrainerEmail filter
+        # and returns the whole recent set, so use a fixed empty body (shares one
+        # cached fetch with the report path) and filter by email below.
         f_fbdet  = pool.submit(_rms, "trainerFeedback", {
-            "TrainerEmail": email, "AssignmentId": "", "SCID": "",
+            "TrainerEmail": "", "AssignmentId": "", "SCID": "",
         })
         f_peers  = (pool.submit(_rms, "reportees", {"email": manager_email})
                     if manager_email else None)
@@ -3703,24 +3906,33 @@ def trainer_360():
         "streak_alert": "🔥 Heavy Delivery Streak (Fatigue Risk)" if fatigue_status == "fatigue_risk" else ("📉 Available for Immediate Pipeline" if fatigue_status == "cooling_down" else "⚖️ Balanced Workload"),
     }
 
-    # Per-question feedback (positive and negative both) — separate from the
-    # negative-only detail above. Field names are unverified against a live
-    # response (see f_fbdet comment); coerced with fallbacks and a raw sample
-    # kept for the first real call to confirm the actual shape.
+    # Per-question learner feedback (RMS key 244, verified live 2026-08-30:
+    # fields AssignmentId/SCID/FeedBackDate/TrainerName/TrainerEmail/Question/
+    # MCQAnswer/TextAnswer). The endpoint ignores its TrainerEmail filter and
+    # returns the whole recent set, so rows MUST be filtered by email here —
+    # otherwise this trainer's 360 showed other trainers' feedback.
+    _e = email.strip().lower()
     feedback_responses = []
-    for r in fbdet_raw[:20]:
-        question = str(r.get("Question", r.get("feedback_question", "")) or "").strip()
-        answer = str(
-            r.get("TextAnswer", r.get("MCQAnswer", r.get("feedback_answer", ""))) or ""
-        ).strip()
-        if not question and not answer:
+    for r in fbdet_raw:
+        if not isinstance(r, dict):
+            continue
+        if str(r.get("TrainerEmail", "")).strip().lower() != _e:
+            continue
+        question = str(r.get("Question", "") or "").strip()
+        text = str(r.get("TextAnswer", "") or "").strip()
+        mcq = r.get("MCQAnswer")
+        if not question and not text and mcq in (None, ""):
             continue
         feedback_responses.append({
             "question":      question,
-            "answer":        answer,
-            "date":          str(r.get("FeedBackDate", r.get("feedback_date", "")) or "").strip(),
-            "assignment_id": str(r.get("AssignmentId", r.get("assignment_id", "")) or "").strip(),
+            "answer":        text or (f"Rated {mcq}/5" if mcq not in (None, "") else ""),
+            "rating":        (int(float(mcq)) if str(mcq).strip() not in ("", "None") else None),
+            "date":          str(r.get("FeedBackDate", "") or "").split("T")[0],
+            "assignment_id": str(r.get("AssignmentId", "") or "").strip(),
         })
+    feedback_responses.sort(key=lambda x: x["date"], reverse=True)
+    feedback_responses = feedback_responses[:20]
+    feedback_detail = _trainer_feedback_detail(email, days=365)
 
     delivery = []
     for a in assigns:
@@ -3908,6 +4120,10 @@ def trainer_360():
                 if isinstance(r, dict) and str(r.get("IncidentDetails") or r.get("Positive Details") or r.get("Description") or "").strip()
             ] or ([{"title": "Positive HR Commendation", "detail": f"{hr_pos} official appreciation records on file.", "date": "RMS Verified"}] if hr_pos > 0 else []),
             "responses":        feedback_responses,
+            "learner_rating":       feedback_detail["avg_rating"],
+            "learner_rating_count": feedback_detail["response_count"],
+            "learner_rating_recent": feedback_detail["recent_date"],
+            "learner_quotes":       feedback_detail["quotes"],
         },
         # Surfaced so the UI can say "no data" honestly rather than implying zero.
         "availability": {
@@ -6786,140 +7002,213 @@ def not_found(error):
     return error_response("NOT_FOUND", "Not found", 404)
 
 
+def _human_date(iso_str):
+    d = _parse_date(str(iso_str or "").split("T")[0])
+    return d.strftime("%d %b %Y") if d else ""
+
+
+_FEEDBACK_MIN_QUOTE = 45
+_FEEDBACK_MAX_QUOTE = 220
+# A comment worth surfacing usually talks about the session/trainer/content.
+_QUOTE_SIGNAL = _re.compile(
+    r"\b(trainer|session|training|course|explain|explained|knowledge|content|"
+    r"pace|paced|pacing|lab|labs|concept|concepts|instructor|deliver|delivery|"
+    r"patient|patience|helpful|clear|understand|understanding|example|examples|"
+    r"hands[- ]?on|practical|thorough)\b", _re.I,
+)
+
+
+def _clean_quote(text):
+    """One or two sentences of a learner comment: strip the collected-feedback
+    boilerplate and speaker labels RMS prepends, normalise whitespace, cap
+    length. Returns "" when nothing usable is left."""
+    t = _re.sub(r"\s+", " ", str(text or "")).strip()
+    if not t:
+        return ""
+    # RMS free text often begins "Student Feedbacks" / "Feedback:" / "Name :"
+    t = _re.sub(r"^(student\s+feedbacks?|participant\s+feedbacks?|feedback)\s*[:\-]?\s*", "", t, flags=_re.I)
+    t = _re.sub(r"^[A-Z][A-Za-z.'\- ]{1,28}\s*:\s*", "", t)  # leading "First Last :"
+    # RMS concatenates several learners' comments with no separator; cut at the
+    # next "Firstname Lastname:" speaker label so one person's words stand alone.
+    t = _re.split(r"\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\s*:\s*", t)[0].strip()
+    t = t.strip(" \"'“”")
+    if not t:
+        return ""
+    parts = _re.split(r"(?<=[.!?])\s+", t)
+    out = parts[0]
+    if len(out) < 90 and len(parts) > 1:
+        out = (out + " " + parts[1]).strip()
+    if len(out) > _FEEDBACK_MAX_QUOTE:
+        out = out[:_FEEDBACK_MAX_QUOTE].rsplit(" ", 1)[0].rstrip(",.;:") + "…"
+    return out
+
+
+def _trainer_feedback_detail(email, days=None, until=None):
+    """
+    Real per-assignment learner feedback for one trainer (RMS key 244).
+
+    The RMS endpoint ignores its `TrainerEmail` filter and returns the whole
+    recent feedback set, so rows are filtered here by email. `MCQAnswer` is a
+    1-5 instructor rating; `TextAnswer` is the free-text learner comment.
+    Returns aggregates plus short dated excerpts — never invented text.
+
+    Text rows often carry no MCQ of their own, so a quote's sentiment is taken
+    from the trainer's overall average rating for the window rather than guessed
+    from the words.
+    """
+    # The endpoint ignores its filter and returns the whole recent set, so use a
+    # fixed empty body — every trainer in a team then shares ONE cached fetch
+    # instead of paying for the full ~1MB response once per reportee.
+    rows = _rms("trainerFeedback", {"TrainerEmail": "", "AssignmentId": "", "SCID": ""}) or []
+    e = str(email).strip().lower()
+    lo = (datetime.utcnow().date() - timedelta(days=days)) if days else None
+    hi = _parse_date(until) if until else None
+    ratings, raw_quotes, seen = [], [], set()
+    latest = None
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        if str(r.get("TrainerEmail", "")).strip().lower() != e:
+            continue
+        d = _parse_date(str(r.get("FeedBackDate", "")).split("T")[0])
+        if lo and d and d < lo:
+            continue
+        if hi and d and d > hi:
+            continue
+        if d and (latest is None or d > latest):
+            latest = d
+        mcq = r.get("MCQAnswer")
+        rating = None
+        try:
+            if mcq is not None and str(mcq).strip() != "":
+                rating = float(mcq)
+                ratings.append(rating)
+        except (TypeError, ValueError):
+            rating = None
+        q = _clean_quote(r.get("TextAnswer"))
+        if (q and len(q) >= _FEEDBACK_MIN_QUOTE and _QUOTE_SIGNAL.search(q)
+                and q.lower() not in seen):
+            seen.add(q.lower())
+            raw_quotes.append({"text": q, "date": _iso(d) if d else "", "row_rating": rating})
+
+    overall = round(sum(ratings) / len(ratings), 1) if ratings else None
+    quotes = []
+    for rq in raw_quotes:
+        r = rq["row_rating"] if rq["row_rating"] is not None else overall
+        # A comment on a strongly-rated trainer reads as praise; on a weaker one
+        # it reads as development input. No middle "mixed" bucket — every quote
+        # lands somewhere a manager can use it.
+        kind = "positive" if (r is None or r >= 4.0) else "constructive"
+        quotes.append({
+            "text": rq["text"], "date": rq["date"],
+            "rating": int(rq["row_rating"]) if rq["row_rating"] is not None else None,
+            "kind": kind,
+        })
+    quotes.sort(key=lambda x: x["date"], reverse=True)
+    return {
+        "count": max(len(ratings), len(quotes)),
+        "response_count": len(ratings),
+        "avg_rating": overall,
+        "rating_scale": 5,
+        "recent_date": _iso(latest) if latest else "",
+        "positive_quotes": [q for q in quotes if q["kind"] == "positive"][:3],
+        "constructive_quotes": [q for q in quotes if q["kind"] == "constructive"][:3],
+        "quotes": quotes[:5],
+    }
+
+
 def _generate_manager_evaluation(
     name, email, month_label, avg_qubits, top_courses,
     month_util, util_3m, batch_count, month_assignments,
-    neg_total, hr_pos, hr_neg, cert_intel, hr_score
+    neg_total, hr_pos, hr_neg, cert_intel, hr_score,
+    feedback_window_days=120,
 ):
     """
-    Synthesizes a multi-dimensional, executive-grade managerial feedback snapshot:
-      - Strength (theoretical grounding, Qubits mastery, topic familiarity, pacing/composure, delivery consistency)
-      - Area of Improvement (articulation, demo narration flow Goal->Steps->Verify, handling unexpected questions, terminology pronunciation, cert gaps)
-      - Other Feedback / Manager's Verdict (trajectory classification, deployability, specific manager milestone)
+    Manager-facing performance note built ONLY from evidence on record: real
+    learner feedback (RMS key 244), named certification gaps, utilisation, HR
+    incident counts and Qubits. No generic behavioural boilerplate - a
+    dimension with no evidence this cycle is stated as such rather than filled
+    with a plausible-sounding sentence that applies to everyone.
     """
-    first_name = (name or "").strip().split()[0] if (name or "").strip() else "The trainer"
+    first_name = (name or "").strip().split()[0] if (name or "").strip() else "This trainer"
 
     course_names = []
     for c in (top_courses or []):
         c_title = c.get("course_name", "") if isinstance(c, dict) else str(c)
         if c_title:
-            # Clean up long prefixes
-            cleaned = _re.sub(r"^[A-Z]{2,4}-[0-9]{2,4}T?[0-9]*:\s*", "", c_title)
-            course_names.append(cleaned)
+            course_names.append(_re.sub(r"^[A-Z]{2,4}-[0-9]{2,4}T?[0-9]*:\s*", "", c_title).strip())
+    top_topics_str = ", ".join(dict.fromkeys(n for n in course_names if n))[:120]
 
-    top_topics_str = ", ".join(course_names[:2]) if course_names else "assigned technical domains"
-
-    # ── STRENGTH ──────────────────────────────────────────────────────────
-    strength_parts = []
-    if avg_qubits >= 80:
-        strength_parts.append(
-            f"{first_name} continues to show strong theoretical grounding, clearly reflected in consistent Qubits mastery ({int(avg_qubits)}%) and topic familiarity across {top_topics_str}."
-        )
-    elif avg_qubits >= 65:
-        strength_parts.append(
-            f"{first_name} demonstrates solid theoretical foundation with dependable Qubits performance ({int(avg_qubits)}%) across core domain areas including {top_topics_str}."
-        )
-    else:
-        strength_parts.append(
-            f"{first_name} shows foundational technical knowledge across {top_topics_str}."
-        )
-
-    if batch_count > 0:
-        strength_parts.append(
-            "In recent deliveries and mock evaluations, pacing was noticeably more controlled, and composure was maintained for most sessions with steady delivery continuity."
-        )
-    else:
-        strength_parts.append(
-            "In internal mock evaluations, pacing was noticeably more controlled, showing a visible reduction in breakdown moments and improved composure under pressure."
-        )
-
-    if hr_pos > 0:
-        strength_parts.append(f"Client delivery value is highlighted by {hr_pos} positive recognition record(s).")
-    elif neg_total == 0:
-        strength_parts.append("Maintains a clean quality record with zero client escalations.")
-
-    strength_parts.append("Intent to improve is consistent, and when operating within prepared areas, demonstrates the ability to deliver with clear structure and professional cadence.")
-    strength_text = " ".join(strength_parts)
-
-    # ── AREA OF IMPROVEMENT ───────────────────────────────────────────────
-    improvement_parts = []
-    improvement_parts.append(
-        "Despite knowledge strength, articulation remains the primary growth area. Answers in mock and client sessions can be tightened—definitions must be crisp and delivered within the expected clarity window."
-    )
-    improvement_parts.append(
-        "When new or unexpected questions are introduced, hesitation and slight panic are visible; practicing unscripted Q&A scenarios will reinforce composure."
-    )
-    improvement_parts.append(
-        "Demo narration requires a structured flow (Goal → Steps → Verify) to ensure explanations feel complete rather than rushed."
-    )
-    improvement_parts.append(
-        "Active audience engagement signals (checking for learner comprehension cues) and pronunciation precision for advanced technical terminology should be maintained consistently."
-    )
-
+    fb = _trainer_feedback_detail(email, days=feedback_window_days)
     gap_count = cert_intel.get("gap_count", 0) if isinstance(cert_intel, dict) else 0
+    gap_names = []
+    if isinstance(cert_intel, dict):
+        for g in (cert_intel.get("gaps") or []):
+            if isinstance(g, dict) and (g.get("exam") or g.get("because")):
+                gap_names.append(str(g.get("exam") or g.get("because")))
+    gap_str = ", ".join(dict.fromkeys(gap_names))[:120]
+
+    # ── STRENGTH — only what is evidenced ───────────────────────────────
+    s = []
+    if fb["avg_rating"] is not None and fb["avg_rating"] >= 4.0:
+        s.append(f"Learners rate {first_name} {fb['avg_rating']}/5 across {fb['response_count']} response(s) in the last {feedback_window_days} days.")
+    for q in fb["positive_quotes"][:2]:
+        s.append(f'Learner feedback ({_human_date(q["date"])}): "{q["text"]}"')
+    if hr_pos > 0:
+        s.append(f"{hr_pos} positive HR recognition record(s) on file.")
+    if neg_total == 0 and hr_neg == 0:
+        s.append("Clean quality record - no negative feedback or HR incidents this cycle.")
+    if avg_qubits >= 80 and top_topics_str:
+        s.append(f"Qubits knowledge score is {int(avg_qubits)}% across {top_topics_str}.")
+    strength_text = " ".join(s) if s else f"No standout strengths are on record for {first_name} this cycle."
+
+    # ── AREA OF IMPROVEMENT — only what is evidenced ────────────────────
+    a = []
     if gap_count > 0:
-        gaps = cert_intel.get("gaps", []) if isinstance(cert_intel, dict) else []
-        gap_courses = [g.get("because", "") for g in gaps if isinstance(g, dict) and g.get("because")]
-        gap_str = ", ".join(gap_courses[:2]) if gap_courses else "assigned courses"
-        improvement_parts.append(
-            f"Action Required: Complete and pass the official certification exams for {gap_str} to close outstanding accreditation gaps."
-        )
-
-    if month_util is not None and month_util < 60:
-        improvement_parts.append(
-            f"Current utilization ({int(month_util)}%) is on bench; needs proactive cross-domain upskilling to capture open client batches."
-        )
-
+        a.append(f"Close {gap_count} open certification gap(s){' (' + gap_str + ')' if gap_str else ''}.")
     if neg_total > 0:
-        improvement_parts.append(
-            f"Address and resolve the {neg_total} noted feedback item(s) to eliminate recurring delivery friction."
-        )
+        a.append(f"Resolve {neg_total} negative feedback record(s) on file.")
+    if hr_neg > 0:
+        a.append(f"Address {hr_neg} negative HR incident record(s).")
+    for q in fb["constructive_quotes"][:2]:
+        a.append(f'Learner feedback ({_human_date(q["date"])}): "{q["text"]}"')
+    if month_util is not None and month_util < 60:
+        a.append(f"Utilisation is {int(month_util)}% - below the 60% bench line; prioritise for open demand.")
+    improvement_text = " ".join(a) if a else "No improvement areas are flagged from evidence this cycle."
 
-    improvement_text = " ".join(improvement_parts)
-
-    # ── OTHER FEEDBACK / MANAGER'S VERDICT ────────────────────────────────
-    other_parts = []
-    trajectory = "Improving"
-    sentiment = "Constructive"
-
-    if (hr_score or 0) >= 85 and gap_count == 0 and neg_total == 0:
-        trajectory = "High Performer"
-        sentiment = "Positive"
-        other_parts.append(
-            f"{first_name} is operating with high delivery readiness. Recommend deploying on high-visibility enterprise batches and exploring peer-coaching responsibilities in {top_topics_str}."
-        )
-    elif neg_total > 0 or hr_neg > 0:
-        trajectory = "Needs Coaching"
-        sentiment = "Urgent Attention"
-        other_parts.append(
-            f"{first_name} requires focused 1-on-1 managerial coaching this cycle to resolve delivery feedback and establish a structured rehearsal cadence before the next batch."
-        )
-    elif month_util is not None and month_util < 55:
-        trajectory = "Bench Upskilling"
-        sentiment = "Constructive"
-        other_parts.append(
-            f"{first_name} is in an upskilling transition window. Priority is closing remaining mock benchmarks and aligning to open corporate demand by the end of the month."
-        )
+    # ── TRAJECTORY / VERDICT — from the same evidence ───────────────────
+    if neg_total > 0 or hr_neg > 0:
+        trajectory, sentiment = "Needs Coaching", "Urgent Attention"
+        verdict = f"{first_name} needs a focused 1-on-1 this cycle to resolve the feedback on file before the next batch."
     elif gap_count > 0:
-        trajectory = "In Transition"
-        sentiment = "Constructive"
-        other_parts.append(
-            f"{first_name} is in a steady transition phase but has not yet crossed the full accreditation threshold. Closing pending certification exams is the primary milestone to unlock scheduled client work."
-        )
+        trajectory, sentiment = "Certification Pending", "Constructive"
+        verdict = f"{first_name} is delivery-steady but below full accreditation - closing the pending exam(s) unlocks scheduled client work."
+    elif month_util is not None and month_util < 55:
+        trajectory, sentiment = "Bench Upskilling", "Constructive"
+        verdict = f"{first_name} is on bench ({int(month_util)}%); the priority is capturing open demand in {top_topics_str or 'assigned domains'}."
+    elif (hr_score or 0) >= 85 and (fb["avg_rating"] or 0) >= 4:
+        trajectory, sentiment = "High Performer", "Positive"
+        verdict = f"{first_name} is delivery-ready with strong learner ratings - suitable for high-visibility batches and peer coaching."
+    elif fb["response_count"] == 0 and batch_count == 0:
+        trajectory, sentiment = "No Activity", "Neutral"
+        verdict = f"No deliveries or learner feedback for {first_name} this cycle; nothing to assess."
+    elif fb["avg_rating"] is not None and fb["avg_rating"] < 3.7:
+        trajectory, sentiment = "Learner Feedback Focus", "Constructive"
+        verdict = f"{first_name}'s learner rating is {fb['avg_rating']}/5 across {fb['response_count']} response(s) - review the recent comments and agree one delivery change for the next batch."
     else:
-        trajectory = "Improving"
-        sentiment = "Constructive"
-        other_parts.append(
-            f"{first_name} is in a positive transition phase. Sustaining current mock discipline and structured demo execution will solidify full client readiness."
-        )
+        trajectory, sentiment = "Steady", "Constructive"
+        verdict = f"{first_name} is delivering steadily with no flags this cycle."
+    other_text = verdict
 
-    other_text = " ".join(other_parts)
-    mock_summary = f"Qubits {int(avg_qubits)}% | Composure: Improving | Demo Flow: Needs (Goal → Steps → Verify) structure"
+    if fb["avg_rating"] is not None:
+        mock_summary = f"Learner rating {fb['avg_rating']}/5 from {fb['response_count']} response(s); latest {_human_date(fb['recent_date'])}."
+    else:
+        mock_summary = "No learner feedback on record for this period."
 
     formatted_full = (
         f"Strength:\n{strength_text}\n\n"
         f"Area of Improvement:\n{improvement_text}\n\n"
-        f"Other Feedback:\n{other_text}"
+        f"Manager's Verdict:\n{other_text}"
     )
 
     return {
@@ -6930,6 +7219,7 @@ def _generate_manager_evaluation(
         "sentiment": sentiment,
         "mock_summary": mock_summary,
         "formatted_text": formatted_full,
+        "learner_feedback": fb,
     }
 
 
@@ -7389,6 +7679,21 @@ def hr_monthly_report():
     target_month_label = month_start.strftime('%b %Y')       # "Jul 2026" — matches _util_series format
     month_start_iso    = _iso(month_start)
     month_end_iso      = _iso(month_end)
+    _mkey = month_start_iso[:7]
+
+    internal_build = request.args.get("_build") == "1"
+    if not internal_build:
+        if _wants_fresh():
+            _warm_purge(f"hr::{manager_email}::{_mkey}")
+        return _serve_or_warm(
+            cache_key=f"hr::{manager_email}::{_mkey}",
+            view_func=hr_monthly_report,
+            build_path=(
+                f"/api/v2/hr/monthly-report?manager={urllib.parse.quote(manager_email)}"
+                f"&month={_mkey}&_build=1{'&refresh=1' if _wants_fresh() else ''}"
+            ),
+            fast_payload={"loading": True, "month": month_label, "month_key": _mkey, "reportees": []},
+        )
 
     reportees_raw = _rms("reportees", {"email": manager_email}) or []
     targets = [
@@ -7609,7 +7914,8 @@ def hr_monthly_report():
     delivered_utils = [r["utilization"]["month"] for r in out if r["utilization"]["month"] is not None]
     delivered_hr_scores = [r["hr_score"] for r in out if r["hr_score"] is not None]
 
-    return jsonify({
+    _resp = {
+        "loading":     False,
         "month":       month_label,
         "month_key":   month_start_iso[:7],
         "generated_at": datetime.utcnow().isoformat(),
@@ -7628,7 +7934,9 @@ def hr_monthly_report():
             "cert_gap_count":            sum(r["certifications"]["gap_count"] for r in out),
         },
         "reportees": out,
-    }), 200
+    }
+    _warm_store(f"hr::{manager_email}::{_mkey}", _resp)
+    return jsonify(_resp), 200
 
 
 @app.route('/api/v2/report/weekly', methods=['GET'])
@@ -7663,6 +7971,23 @@ def weekly_report_v2():
     week_start_iso = _iso(monday)
     week_end_iso   = _iso(sunday)
     week_label     = f"{monday.strftime('%d %B')} to {sunday.strftime('%d %B %Y')}"
+
+    internal_build = request.args.get("_build") == "1"
+    if not internal_build:
+        if _wants_fresh():
+            _warm_purge(f"weekly::{manager_email}::{week_start_iso}")
+        return _serve_or_warm(
+            cache_key=f"weekly::{manager_email}::{week_start_iso}",
+            view_func=weekly_report_v2,
+            build_path=(
+                f"/api/v2/report/weekly?manager={urllib.parse.quote(manager_email)}"
+                f"&week={week_start_iso}&_build=1{'&refresh=1' if _wants_fresh() else ''}"
+            ),
+            fast_payload={
+                "loading": True, "week_label": week_label,
+                "week_start": week_start_iso, "week_end": week_end_iso, "reportees": [],
+            },
+        )
 
     reportees_raw = _rms("reportees", {"email": manager_email}) or []
     targets = [
@@ -7757,29 +8082,40 @@ def weekly_report_v2():
 
         feedback_risk = "High" if (neg_total > 0 or hr_neg > 0) else "Low"
 
-        # 7. Compose Real Standpoint Note
+        # 7. Standpoint note — evidence only (real learner feedback, cert gaps,
+        #    utilisation, HR incidents). No generic "pacing & articulation" filler.
+        fb = _trainer_feedback_detail(email, days=90)
         first_name = t["name"].split()[0] if t["name"] else "Trainer"
         standpoint_lines = [
             f"Weekly Manager Standpoint for {first_name}:",
             "",
             f"• Standpoint: {status_desc}",
-            f"• Mock & Readiness: Qubits {int(avg_qubits)}% | Pacing & Articulation focus active",
         ]
+        if fb["avg_rating"] is not None:
+            standpoint_lines.append(
+                f"• Learner rating (90d): {fb['avg_rating']}/5 from {fb['response_count']} response(s), latest {_human_date(fb['recent_date'])}"
+            )
+        else:
+            standpoint_lines.append("• Learner rating (90d): no feedback on record")
+
         if feedback_risk == "High":
-            standpoint_lines.append(f"• Immediate Focus: Immediate delivery feedback review and 1-on-1 coaching ({neg_total} feedback flag)")
+            standpoint_lines.append(f"• Immediate Focus: review the {neg_total} negative feedback / {hr_neg} HR record(s) and hold a 1-on-1")
+            for q in fb["constructive_quotes"][:1]:
+                standpoint_lines.append(f'   - Learner feedback ({_human_date(q["date"])}): "{q["text"]}"')
         elif gap_count > 0:
             gap_names = ", ".join(gap_courses[:2]) if gap_courses else "assigned courses"
-            standpoint_lines.append(f"• Immediate Focus: Schedule and complete certification exam for {gap_names}")
+            standpoint_lines.append(f"• Immediate Focus: schedule and complete the certification exam for {gap_names}")
         elif capacity_bucket == "On Bench":
             top_courses_str = ", ".join([s.get("course_name", "") for s in top_skills[:2] if s.get("course_name")]) or "pipeline demand"
-            standpoint_lines.append(f"• Immediate Focus: Upskill and clear mock benchmarks for {top_courses_str}")
+            standpoint_lines.append(f"• Immediate Focus: assign to open demand or upskill toward {top_courses_str}")
         elif len(week_assignments) > 0:
-            standpoint_lines.append(f"• Immediate Focus: Execute structured delivery on {week_assignments[0]['course']} with active learner comprehension checks")
+            standpoint_lines.append(f"• Immediate Focus: delivering {week_assignments[0]['course']} this week — no action needed")
         else:
-            standpoint_lines.append("• Immediate Focus: Maintain delivery readiness and structured demo execution")
+            standpoint_lines.append("• Immediate Focus: none — steady, no flags this week")
 
-        standpoint_lines.append("")
-        standpoint_lines.append("Manager Guidance: Maintain structured demo flow (Goal → Steps → Verify) and raise any delivery blockers early.")
+        for q in fb["positive_quotes"][:1]:
+            standpoint_lines.append(f'• Recent learner feedback ({_human_date(q["date"])}): "{q["text"]}"')
+
         standpoint_text = "\n".join(standpoint_lines)
 
         return {
@@ -7806,6 +8142,9 @@ def weekly_report_v2():
             "cert_gaps":       gap_count,
             "cert_gap_courses": gap_courses[:3],
             "standpoint_note": standpoint_text,
+            "learner_rating": fb["avg_rating"],
+            "learner_rating_count": fb["response_count"],
+            "learner_feedback": fb,
         }
 
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -7845,7 +8184,8 @@ def weekly_report_v2():
     team_broadcast_lines.append("Thank you all for the effort and steady execution this week.")
     team_digest_text = "\n".join(team_broadcast_lines)
 
-    return jsonify({
+    _resp = {
+        "loading":       False,
         "week_label":    week_label,
         "week_start":    week_start_iso,
         "week_end":      week_end_iso,
@@ -7863,7 +8203,9 @@ def weekly_report_v2():
         },
         "team_digest":   team_digest_text,
         "reportees":     out,
-    }), 200
+    }
+    _warm_store(f"weekly::{manager_email}::{week_start_iso}", _resp)
+    return jsonify(_resp), 200
 
 
 @app.route('/api/v2/trainer/evaluation', methods=['GET'])
@@ -8153,6 +8495,20 @@ def team_calendar_v2():
     except Exception:
         return error_response("INVALID_INPUT", "Invalid month format. Use YYYY-MM.", 400)
 
+    internal_build = request.args.get("_build") == "1"
+    if not internal_build:
+        if _wants_fresh():
+            _warm_purge(f"calendar::{manager}::{month_str}")
+        return _serve_or_warm(
+            cache_key=f"calendar::{manager}::{month_str}",
+            view_func=team_calendar_v2,
+            build_path=(
+                f"/api/v2/team/calendar?manager={urllib.parse.quote(manager)}"
+                f"&month={month_str}&_build=1{'&refresh=1' if _wants_fresh() else ''}"
+            ),
+            fast_payload={"loading": True, "month": month_str, "days": []},
+        )
+
     # Fetch reportees and their assignments
     reps_raw = _rms("reportees", {"email": manager}) or []
     reportees = [r for r in reps_raw if isinstance(r, dict)] if isinstance(reps_raw, list) else []
@@ -8265,7 +8621,8 @@ def team_calendar_v2():
     total_batches = len({d["assignment_id"] for day in days_data for d in day["delivering"] if d.get("assignment_id")})
     total_delivering_days = sum(d["delivering_count"] for d in days_data)
 
-    return jsonify({
+    _resp = {
+        "loading": False,
         "manager_email": manager,
         "month": month_str,
         "days": days_data,
@@ -8275,7 +8632,9 @@ def team_calendar_v2():
             "active_delivering_days": total_delivering_days,
         },
         "generated_at": datetime.utcnow().isoformat(),
-    }), 200
+    }
+    _warm_store(f"calendar::{manager}::{month_str}", _resp)
+    return jsonify(_resp), 200
 
 
 @app.route('/api/v2/trainer/growth-benchmark', methods=['GET'])

@@ -74,6 +74,19 @@ class ManagerRepository(
         LocalCache.loadObject("capacity_plan_$email", CapacityPlanResponse::class.java)
     }
 
+    /**
+     * Monthly HR report. Heavy on the backend (one full RMS fetch per reportee),
+     * so it is served partial-first and warmed in the background there; here it
+     * is cached per (manager, month) so the screen renders the last snapshot
+     * instantly instead of sitting on a spinner while the rebuild runs.
+     */
+    suspend fun hrMonthlyReport(email: String, month: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
+        cachedMap("hr_report_${email}_$month", fresh) { api.getHrMonthlyReport(email, month) }
+
+    /** Weekly delivery report — same partial-first backend, cached per (manager, week). */
+    suspend fun weeklyReport(email: String, week: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
+        cachedMap("weekly_report_${email}_$week", fresh) { api.getWeeklyReport(email, week) }
+
     suspend fun utilizationHistory(email: String) =
         cachedMap("utilization_${email.lowercase()}", false) { api.getTrainerUtilizationHistory(email) }.data.orEmpty()
 

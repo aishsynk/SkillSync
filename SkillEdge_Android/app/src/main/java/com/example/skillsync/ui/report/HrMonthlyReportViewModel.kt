@@ -1,8 +1,12 @@
 package com.example.skillsync.ui.report
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.skillsync.data.ManagerRepository
 import com.example.skillsync.data.api.RetrofitClient
+import com.example.skillsync.data.cache.LocalCache
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -91,11 +95,14 @@ data class ReporteeSnapshot(
 )
 
 
-class HrMonthlyReportViewModel : ViewModel() {
+class HrMonthlyReportViewModel(
+    private val repository: ManagerRepository = ManagerRepository(),
+) : ViewModel() {
 
     private val fmt = DateTimeFormatter.ofPattern("yyyy-MM")
     private var currentMonth = YearMonth.now()
     private var managerEmail = ""
+    private var appContext: Context? = null
 
     private val _state = MutableStateFlow<HrReportState>(HrReportState.Loading)
     val state: StateFlow<HrReportState> = _state
@@ -103,10 +110,14 @@ class HrMonthlyReportViewModel : ViewModel() {
     private val _displayMonth = MutableStateFlow(currentMonth.format(fmt))
     val displayMonth: StateFlow<String> = _displayMonth
 
-    fun init(email: String) {
+    fun init(email: String, context: Context) {
+        appContext = context.applicationContext
+        if (managerEmail == email && _state.value is HrReportState.Success) return
         managerEmail = email
         load()
     }
+
+    private fun cacheKey() = "hr_report_${managerEmail}_${currentMonth.format(fmt)}"
 
     fun previousMonth() {
         currentMonth = currentMonth.minusMonths(1)
@@ -126,16 +137,45 @@ class HrMonthlyReportViewModel : ViewModel() {
     fun canGoNext() = !currentMonth.plusMonths(1).isAfter(YearMonth.now())
 
     private fun load() {
-        _state.value = HrReportState.Loading
+        val month = currentMonth.format(fmt)
+
+        // 1. Render the last snapshot for this month instantly, if we have one.
+        val cached = LocalCache.loadMap(cacheKey())
+        _state.value = if (cached != null && cached["loading"] != true) {
+            HrReportState.Success(parse(cached))
+        } else {
+            HrReportState.Loading
+        }
+
         viewModelScope.launch {
+            val ctx = appContext
+            if (ctx != null && !RetrofitClient.isNetworkAvailable(ctx)) {
+                if (_state.value !is HrReportState.Success) {
+                    _state.value = HrReportState.Error("Offline — no saved report for $month yet")
+                }
+                return@launch
+            }
             try {
-                val raw = RetrofitClient.instance.getHrMonthlyReport(
-                    manager = managerEmail,
-                    month = currentMonth.format(fmt),
-                )
-                _state.value = HrReportState.Success(parse(raw))
+                // 2. Fetch; the backend answers partial-first and warms in the
+                //    background, so poll briefly while it reports loading.
+                var result = repository.hrMonthlyReport(managerEmail, month, fresh = false)
+                var data = result.data
+                repeat(12) {
+                    if (data != null && data["loading"] != true) return@repeat
+                    delay(3_000)
+                    result = repository.hrMonthlyReport(managerEmail, month, fresh = false)
+                    data = result.data ?: data
+                }
+                val ready = data
+                when {
+                    ready != null && ready["loading"] != true -> _state.value = HrReportState.Success(parse(ready))
+                    _state.value is HrReportState.Success -> { /* keep last snapshot visible */ }
+                    else -> _state.value = HrReportState.Error("Report is still preparing from RMS. Pull to refresh shortly.")
+                }
             } catch (e: Exception) {
-                _state.value = HrReportState.Error(e.message ?: "Failed to load HR report")
+                if (_state.value !is HrReportState.Success) {
+                    _state.value = HrReportState.Error(e.message ?: "Failed to load HR report")
+                }
             }
         }
     }
