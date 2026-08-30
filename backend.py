@@ -3804,6 +3804,22 @@ def trainer_360():
     if not email:
         return error_response("EMAIL_REQUIRED", "email query param required", 400)
 
+    internal_build = request.args.get("_build") == "1"
+    if not internal_build:
+        ck = f"trainer360::{email}::{manager_email}"
+        if _wants_fresh():
+            _warm_purge(ck)
+        mq = f"&manager={urllib.parse.quote(manager_email)}" if manager_email else ""
+        return _serve_or_warm(
+            cache_key=ck,
+            view_func=trainer_360,
+            build_path=(
+                f"/api/data/trainer-360?email={urllib.parse.quote(email)}{mq}"
+                f"&_build=1{'&refresh=1' if _wants_fresh() else ''}"
+            ),
+            fast_payload={"loading": True, "identity": {"email": email}},
+        )
+
     if _wants_fresh():
         _cache_purge(email)
 
@@ -4026,7 +4042,8 @@ def trainer_360():
                              has_signal=bool(neg_rows or hr_rows or util_ok))
     readiness_score = _readiness_score(skills, util_now, risk_score)
 
-    return jsonify({
+    _t360_resp = {
+        "loading": False,
         "identity": {
             "name":        (resume.get("name") or
                             _re.sub(r"\s+", " ", str(u_row.get("TrainerName", "") or "")).strip()),
@@ -4132,7 +4149,9 @@ def trainer_360():
             **availability,
         },
         "timestamp": datetime.utcnow().isoformat(),
-    }), 200
+    }
+    _warm_store(f"trainer360::{email}::{manager_email}", _t360_resp)
+    return jsonify(_t360_resp), 200
 
 
 def _demand_rows():

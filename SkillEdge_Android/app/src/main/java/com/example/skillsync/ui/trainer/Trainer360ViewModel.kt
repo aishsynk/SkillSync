@@ -131,10 +131,18 @@ viewModelScope.launch {
             return
         }
 
-        // 3. Fetch from API in background
+        // 3. Fetch from API in background. The backend answers partial-first and
+        //    warms the full profile, so poll briefly while it reports loading.
         try {
-            val result = repository.trainer360(trainerEmail, managerEmail, fresh)
-            val data = result.data ?: throw IllegalStateException(result.error ?: "Failed to load trainer profile")
+            var result = repository.trainer360(trainerEmail, managerEmail, fresh)
+            var data = result.data ?: throw IllegalStateException(result.error ?: "Failed to load trainer profile")
+            repeat(8) {
+                if (data["loading"] != true) return@repeat
+                kotlinx.coroutines.delay(3_000)
+                result = repository.trainer360(trainerEmail, managerEmail, false)
+                data = result.data ?: data
+            }
+            if (data["loading"] == true && _state.value is Trainer360State.Success) return
             _state.value = Trainer360State.Success(
                 data,
                 fromCache = result.source == com.example.skillsync.data.DataSource.CACHE,

@@ -3416,3 +3416,28 @@ This also exposed and fixed a latent bug: `coverage_pct` used `len(taught)` as i
      so course grouping is real technology/domain instead of the vendor-group fallback
      (`domain_taxonomy_available` → true).
   4. Plan file: `C:\Users\Aishw\.claude\plans\curried-chasing-trinket.md`.
+
+## 2026-08-30T21:40:00+05:30 - v3.46.0/130 published; trainer-360 warm fix (hotfix in progress)
+
+- **Model Used**: Claude Sonnet 5
+- **Tool/Agent Used**: Claude Code (git, GitHub Actions, Render production probe, apksigner/aapt)
+- **Published**: commit `1d2863e`, CI run `33321041781` success, release `v3.46.0.130`.
+  APK `SkillEdge-v3.46.0.130.apk` signer SHA-256 `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`
+  (UNCHANGED from 129 — installs in place), package `com.example.skillsync`, versionCode 130.
+- **Production validation (Render, new backend live)**: the 5 warm endpoints all pass —
+  dashboard 2.6s→0.8s, capability 10.4s→0.3s, hr/weekly/calendar <1s→0.3s, all with
+  `cache_age_seconds`/`refresh_in_progress` markers (proves new code).
+- **Regression found & fixed locally**: `/api/data/trainer-360` returned HTTP 502 in production —
+  it was already heavy and the new per-trainer `_trainer_feedback_detail` call tipped it over
+  Render's 60s proxy limit. Fix: wrapped `trainer_360` in `_serve_or_warm`
+  (`trainer360::{email}::{manager}` key) + added a `loading` poll to `Trainer360ViewModel`.
+  Backend 169 tests still pass.
+- **Current Status**: trainer-360 hotfix implemented locally; Android gate re-running. Not yet committed.
+- **Known Issues or Blockers**:
+  - trainer-360 hotfix must be committed + pushed (backend auto-deploys; Android APK also rebuilds
+    since a .kt file changed → this will be build 131 unless folded before tagging).
+  - Device checks still pending an ADB phone.
+- **Next Recommended Actions**:
+  1. Land the trainer-360 hotfix (bump to build 131 / v3.46.1), push, confirm CI + Render, re-probe
+     trainer-360 in production until it returns 200 with real `learner_rating` / quotes.
+  2. Then the taxonomy release (courseTechnology/courseDomain).
