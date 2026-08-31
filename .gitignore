@@ -53,3 +53,4 @@ SkillEdge_Local/runtime/
 # Manager action lifecycle store (runtime state, not source)
 action_state.json
 action_state.json.tmp
+.claude/worktrees/
