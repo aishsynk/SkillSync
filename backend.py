@@ -103,6 +103,7 @@ import time
 import urllib.parse
 import urllib.request
 from action_store import ActionStore, SessionRevocationStore
+from dev_plan_store import DevPlanStore
 
 app = Flask(__name__)
 CORS(app)
@@ -6935,6 +6936,225 @@ def get_action_audit(action_id):
                     "persistence": _action_repository.status()}), 200
 
 
+# ─── Development plans (enhancement #6) ───────────────────────────────────────
+#
+# A lightweight, persisted per-trainer development plan the manager owns. Plan
+# items are preparation and coaching goals — NOT allocations (Koenig's algorithm
+# owns allocation) and NOT generated prose (no LLM). Stored rows are
+# manager-authored; `suggested` items are deterministic, computed live from RMS
+# signals and carry no persistence until the manager adopts one via POST.
+#
+# Persistence mirrors the action inbox: a small SQLite file under
+# SKILLEDGE_STATE_DIR, one module-level DevPlanStore instance, one lock, and the
+# same "a read-only filesystem must not break the request" tolerance.
+
+_DEVPLAN_DB = os.path.join(
+    os.getenv("SKILLEDGE_STATE_DIR", "."), "skilledge_devplans.sqlite3")
+_devplan_repository = DevPlanStore(_DEVPLAN_DB)
+_devplan_lock = threading.Lock()
+
+_DEVPLAN_KINDS = ("certification", "coaching", "portfolio", "other")
+_DEVPLAN_STATUSES = ("open", "in_progress", "done", "dropped")
+
+
+def _devplan_reportee_emails(manager_email):
+    """Lowercased OffEmail set for the manager's own reportees."""
+    reps = _rms("reportees", {"email": manager_email}) or []
+    out = set()
+    for r in (reps if isinstance(reps, list) else []):
+        if isinstance(r, dict):
+            e = str(r.get("OffEmail", r.get("Email", "")) or "").strip().lower()
+            if e:
+                out.add(e)
+    return out
+
+
+def _devplan_suggested(manager_email, trainer_email):
+    """
+    Deterministic, un-stored development suggestions for one trainer:
+
+      * one `certification` item per course the trainer teaches without a
+        certificate on record that is tied to currently open demand;
+      * one `coaching` item when the learner feedback average is below 4.0;
+      * one `portfolio` item when the trainer is on fewer than three courses.
+
+    Each has the same shape as a stored item, `id` prefixed `sug_`, and is
+    never persisted until the manager adopts it.
+    """
+    suggestions = []
+
+    def _mk(kind, title, note):
+        raw = "|".join([trainer_email, kind, title])
+        return {
+            "id": "sug_" + hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12],
+            "manager_email": manager_email,
+            "trainer_email": trainer_email,
+            "title": title,
+            "kind": kind,
+            "status": "open",
+            "target_date": "",
+            "note": note,
+            "created_at": "",
+            "updated_at": "",
+        }
+
+    try:
+        skills = _skills(trainer_email) or []
+    except Exception:
+        skills = []
+    try:
+        demand = _demand_rows() or []
+    except Exception:
+        demand = []
+    try:
+        policy = _exam_policy() or {}
+    except Exception:
+        policy = {}
+
+    demand_norm = {}
+    for d in demand:
+        key = _norm_course(d.get("course_name", ""))
+        if key:
+            demand_norm[key] = demand_norm.get(key, 0) + 1
+
+    seen_courses = set()
+    for s in skills:
+        if s.get("approved"):
+            continue
+        course = s.get("course") or s.get("course_name") or ""
+        norm = _norm_course(course)
+        if not norm or norm in seen_courses:
+            continue
+        open_batches = demand_norm.get(norm, 0)
+        if not open_batches:
+            continue
+        pol = policy.get(norm)
+        if pol is not None and not pol.get("required", True):
+            continue
+        seen_courses.add(norm)
+        suggestions.append(_mk(
+            "certification",
+            "Certify for %s" % course,
+            "%d open batch%s for this course; taught without a certificate on record."
+            % (open_batches, "" if open_batches == 1 else "es"),
+        ))
+        if len(seen_courses) >= 3:
+            break
+
+    try:
+        fb = _trainer_feedback_detail(trainer_email) or {}
+    except Exception:
+        fb = {}
+    avg = fb.get("avg_rating")
+    if isinstance(avg, (int, float)) and avg < 4.0:
+        suggestions.append(_mk(
+            "coaching",
+            "Coaching on learner feedback",
+            "Learner rating average is %.1f of 5 - agree a coaching focus." % avg,
+        ))
+
+    if len(skills) < 3:
+        suggestions.append(_mk(
+            "portfolio",
+            "Broaden delivery portfolio",
+            "On record for %d course%s - identify an adjacent course to add."
+            % (len(skills), "" if len(skills) == 1 else "s"),
+        ))
+
+    return suggestions
+
+
+@app.route('/api/v2/devplan', methods=['GET'])
+def get_dev_plan():
+    """Stored development-plan items for (manager, trainer) plus live suggestions."""
+    manager = str(request.args.get("manager", "")).strip().lower()
+    session, error = _v2_manager_session(manager)
+    if error:
+        return error
+    manager_email = (session or {}).get("email") or manager
+
+    trainer = str(request.args.get("trainer", "")).strip().lower()
+    if not trainer:
+        return error_response("INVALID_INPUT", "trainer query param required", 400)
+    if trainer not in _devplan_reportee_emails(manager_email):
+        return error_response("MANAGER_SCOPE_MISMATCH",
+                              "That trainer is not one of your reportees", 403)
+
+    with _devplan_lock:
+        items = _devplan_repository.list_items(manager_email, trainer)
+    return jsonify({
+        "trainer": trainer,
+        "items": items,
+        "suggested": _devplan_suggested(manager_email, trainer),
+    }), 200
+
+
+@app.route('/api/v2/devplan/item', methods=['POST'])
+def create_dev_plan_item():
+    """Create a manager-authored plan item for one reportee."""
+    body = request.get_json(silent=True) or {}
+    manager = str(body.get("manager", "")).strip().lower()
+    session, error = _v2_manager_session(manager)
+    if error:
+        return error
+    manager_email = (session or {}).get("email") or manager
+
+    trainer = str(body.get("trainer", "")).strip().lower()
+    title = str(body.get("title", "")).strip()
+    kind = str(body.get("kind", "")).strip().lower()
+    if not trainer:
+        return error_response("INVALID_INPUT", "trainer is required", 400)
+    if not title:
+        return error_response("INVALID_INPUT", "title is required", 400)
+    if kind not in _DEVPLAN_KINDS:
+        return error_response("INVALID_INPUT",
+                              "kind must be one of %s" % (_DEVPLAN_KINDS,), 400)
+    if trainer not in _devplan_reportee_emails(manager_email):
+        return error_response("MANAGER_SCOPE_MISMATCH",
+                              "That trainer is not one of your reportees", 403)
+
+    with _devplan_lock:
+        item = _devplan_repository.create(
+            manager_email, trainer, title, kind,
+            target_date=str(body.get("target_date", "")).strip(),
+            note=str(body.get("note", "")).strip(),
+        )
+    return jsonify(item), 201
+
+
+@app.route('/api/v2/devplan/item', methods=['PATCH'])
+def update_dev_plan_item():
+    """Update status / note / target date of one of the manager's own items."""
+    body = request.get_json(silent=True) or {}
+    manager = str(body.get("manager", "")).strip().lower()
+    session, error = _v2_manager_session(manager)
+    if error:
+        return error
+    manager_email = (session or {}).get("email") or manager
+
+    item_id = str(body.get("id", "")).strip()
+    if not item_id:
+        return error_response("INVALID_INPUT", "id is required", 400)
+
+    status = body.get("status")
+    if status is not None:
+        status = str(status).strip().lower()
+        if status not in _DEVPLAN_STATUSES:
+            return error_response("INVALID_INPUT",
+                                  "status must be one of %s" % (_DEVPLAN_STATUSES,), 400)
+
+    with _devplan_lock:
+        if _devplan_repository.get(manager_email, item_id) is None:
+            return error_response("NOT_FOUND", "No plan item with that id", 404)
+        updated = _devplan_repository.update(
+            manager_email, item_id,
+            status=status,
+            note=body.get("note"),
+            target_date=body.get("target_date"),
+        )
+    return jsonify(updated), 200
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -10088,6 +10308,719 @@ def capacity_runway_v2():
     _warm_store("runway::%s" % manager, resp)
     return jsonify(resp), 200
 
+
+# ─── New-trainer ramp tracking (v2) ─────────────────────────────────────────
+#
+# For every reportee who joined in the last 12 months, a deterministic ramp
+# record: how far into onboarding they are, whether they have stalled, and one
+# concrete next step keyed off open demand. Insight only — never an allocation.
+
+_RAMP_WINDOW_MONTHS = 12
+_RAMP_STALL_UTIL = 30
+
+
+def _tenure_months(doj, today):
+    return max(0, (today.year - doj.year) * 12 + (today.month - doj.month)
+               - (1 if today.day < doj.day else 0))
+
+
+def _ramp_build(manager):
+    """New-trainer ramp fan-out. Runs inside `_warm_run`."""
+    today = datetime.utcnow().date()
+
+    reps = _rms("reportees", {"email": manager}) or []
+    team = []
+    for r in (reps if isinstance(reps, list) else []):
+        if not isinstance(r, dict):
+            continue
+        e = str(r.get("OffEmail", r.get("Email", "")) or "").strip().lower()
+        if not e:
+            continue
+        team.append((e, _re.sub(r"\s+", " ", str(r.get("TrainerName", "") or "")).strip() or e))
+
+    demand = _demand_rows() or []
+    open_courses = [str(d.get("course_name", "") or "").strip()
+                    for d in demand if isinstance(d, dict) and d.get("course_name")]
+
+    def _one(pair):
+        email, name = pair
+        u_row = _util_row(email) or {}
+        doj = _parse_date(u_row.get("DOJ", ""))
+        if not doj or doj > today:
+            return None
+        tenure_months = _tenure_months(doj, today)
+        if tenure_months >= _RAMP_WINDOW_MONTHS:
+            return None
+
+        try:
+            series = _util_series(u_row)
+            skills = _skills(email) or []
+            assigns = _rms("prevUpcoming", {
+                "Startdate": _iso(doj), "Enddate": _iso(today), "Email": email,
+            }) or []
+        except Exception:
+            series, skills, assigns = [], [], []
+
+        skill_names = [s.get("course_name", "") for s in skills if s.get("course_name")]
+        skill_keys = set()
+        for cn in skill_names:
+            n, code = _runway_course_keys(cn)
+            if n:
+                skill_keys.add(n)
+            if code:
+                skill_keys.add(code)
+
+        starts = []
+        for a in (assigns if isinstance(assigns, list) else []):
+            if not isinstance(a, dict):
+                continue
+            ast = _parse_date(a.get("StarDate", a.get("StartDate", "")))
+            if ast and doj <= ast <= today:
+                starts.append(ast)
+        starts.sort()
+        batches_delivered = len(starts)
+        first_batch = starts[0] if starts else None
+        days_to_first = (first_batch - doj).days if first_batch else None
+
+        util = _current_util(series)
+
+        fb = _trainer_feedback_detail(email, days=max(1, (today - doj).days))
+        avg_rating = fb.get("avg_rating")
+        rating_sample = fb.get("response_count", 0)
+
+        stalled = (tenure_months > 3 and batches_delivered == 0
+                   and util is not None and util < _RAMP_STALL_UTIL)
+        if batches_delivered > 3 or tenure_months > 9:
+            stage = "established"
+        elif batches_delivered == 0:
+            stage = "onboarding"
+        else:
+            stage = "first-deliveries"
+
+        top_skill = skill_names[0] if skill_names else ""
+        covered = ""
+        for c in open_courses:
+            if _runway_teaches(skill_keys, c):
+                covered = c
+                break
+        best_course, best_sc = "", 0.0
+        for c in open_courses:
+            sc = _runway_match_score(skill_names, c)
+            if sc > best_sc:
+                best_sc, best_course = sc, c
+
+        plural = "" if batches_delivered == 1 else "es"
+        if stalled:
+            next_step = ("Cleared to deliver %s — no batch in %d months; check RMS "
+                         "availability is open." % (top_skill or "a marked course", tenure_months))
+        elif stage == "onboarding":
+            if covered:
+                next_step = ("Cleared for %s, which has open demand — confirm availability "
+                             "is open in RMS." % covered)
+            elif best_course:
+                next_step = ("Not yet cleared for any course with open demand — prioritise "
+                             "%s marking." % best_course)
+            else:
+                next_step = "No open demand matches current skills yet — broaden capability marking."
+        elif stage == "first-deliveries":
+            tgt = covered or best_course
+            if tgt:
+                next_step = ("%d batch%s delivered — build breadth on %s next."
+                             % (batches_delivered, plural, tgt))
+            else:
+                next_step = ("%d batch%s delivered — keep assigning to build delivery history."
+                             % (batches_delivered, plural))
+        else:
+            next_step = "Ramped — treat as a full member of the delivery rotation."
+
+        return {
+            "name": name,
+            "email": email,
+            "doj": _iso(doj),
+            "tenure_months": tenure_months,
+            "courses_certified": len(skills),
+            "batches_delivered": batches_delivered,
+            "first_batch_date": _iso(first_batch) if first_batch else None,
+            "days_to_first_batch": days_to_first,
+            "current_utilization": util,
+            "avg_learner_rating": avg_rating,
+            "rating_sample": rating_sample,
+            "ramp_stage": stage,
+            "stalled": stalled,
+            "next_step": next_step,
+        }
+
+    records = []
+    if team:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for rec in pool.map(_one, team):
+                if rec:
+                    records.append(rec)
+    records.sort(key=lambda r: r["doj"], reverse=True)
+    records.sort(key=lambda r: 0 if r["stalled"] else 1)
+
+    d2f = [r["days_to_first_batch"] for r in records if r["days_to_first_batch"] is not None]
+    summary = {
+        "new_count": len(records),
+        "stalled_count": sum(1 for r in records if r["stalled"]),
+        "avg_days_to_first_batch": round(sum(d2f) / len(d2f)) if d2f else None,
+    }
+    if not records:
+        summary["note"] = "No trainers joined in the last %d months." % _RAMP_WINDOW_MONTHS
+
+    return {
+        "manager": manager,
+        "generated_at": datetime.utcnow().isoformat(),
+        "window_months": _RAMP_WINDOW_MONTHS,
+        "trainers": records,
+        "summary": summary,
+        "loading": False,
+    }
+
+
+@app.route('/api/v2/ramp', methods=['GET'])
+def ramp_v2():
+    """"New trainer ramp" — onboarding progress for reportees who joined <12mo ago."""
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    manager = (_sess or {}).get("email") or manager
+
+    if request.args.get("_build") != "1":
+        ck = "ramp::%s" % manager
+        if _wants_fresh():
+            _warm_purge(ck)
+        return _serve_or_warm(
+            cache_key=ck,
+            view_func=ramp_v2,
+            build_path=(
+                "/api/v2/ramp?manager=%s&_build=1%s"
+                % (urllib.parse.quote(manager), "&refresh=1" if _wants_fresh() else "")
+            ),
+            fast_payload={
+                "manager": manager, "window_months": _RAMP_WINDOW_MONTHS,
+                "trainers": [], "summary": {}, "loading": True,
+            },
+        )
+
+    resp = _ramp_build(manager)
+    _warm_store("ramp::%s" % manager, resp)
+    return jsonify(resp), 200
+
+
+# ─── Accounts / customer view ────────────────────────────────────────────────
+#
+# The manager's team seen through the customers they deliver for. Every past
+# assignment (trailing window) and every open demand row is grouped by account
+# name so a manager can see which customers the team is committed to, which are
+# under-covered, and whether delivery is dangerously concentrated on one account.
+# Insight only — managers cannot allocate.
+
+_ACCOUNTS_PAST_DAYS = 90
+_ACCOUNTS_FORWARD_DAYS = 60
+
+
+def _account_key(name):
+    """Normalised grouping key + display name. Blank groups as 'Unspecified'."""
+    disp = _re.sub(r"\s+", " ", str(name or "").strip())
+    if not disp:
+        return "unspecified", "Unspecified"
+    return disp.casefold(), disp
+
+
+def _accounts_build(manager):
+    """Account book fan-out. Runs inside `_warm_run` via the `?_build=1` path."""
+    today = datetime.utcnow().date()
+    past_start = today - timedelta(days=_ACCOUNTS_PAST_DAYS)
+    forward_end = today + timedelta(days=_ACCOUNTS_FORWARD_DAYS)
+
+    reps = _rms("reportees", {"email": manager}) or []
+    team = []
+    for r in (reps if isinstance(reps, list) else []):
+        if not isinstance(r, dict):
+            continue
+        e = str(r.get("OffEmail", r.get("Email", "")) or "").strip().lower()
+        if not e:
+            continue
+        team.append((e, _re.sub(r"\s+", " ", str(r.get("TrainerName", "") or "")).strip() or e))
+    team_emails = {e for e, _ in team}
+
+    def _assignments(pair):
+        email, name = pair
+        try:
+            rows = _rms("prevUpcoming", {
+                "Startdate": _iso(past_start),
+                "Enddate": _iso(forward_end),
+                "Email": email,
+            }) or []
+        except Exception:
+            rows = []
+        out = []
+        for a in (rows if isinstance(rows, list) else []):
+            if not isinstance(a, dict):
+                continue
+            st = _parse_date(a.get("StarDate", a.get("StartDate", "")))
+            en = _parse_date(a.get("EndDate", "")) or st
+            if not st:
+                continue
+            out.append({
+                "trainer_email": email,
+                "trainer_name": name,
+                "account": str(a.get("Vendor", a.get("Customer", a.get("client", ""))) or "").strip(),
+                "course": str(a.get("Course", a.get("CourseName", "")) or "").strip(),
+                "start": st,
+                "end": en,
+                "participants": int(a.get("NoOfParticipants", 0) or 0),
+                "assignment_id": str(a.get("AssignmentId", a.get("AssignmentID", "")) or "").strip(),
+            })
+        return out
+
+    if team:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            per_trainer = list(pool.map(_assignments, team))
+    else:
+        per_trainer = []
+    assignments = [a for rows in per_trainer for a in rows]
+
+    # ── open demand in the forward window ────────────────────────────────────
+    demand = _demand_rows() or []
+    demand_rows = []
+    for d in (demand if isinstance(demand, list) else []):
+        if not isinstance(d, dict):
+            continue
+        st = _parse_date(d.get("start_date", ""))
+        en = _parse_date(d.get("end_date", "")) or st
+        if not st or en < today or st > forward_end:
+            continue
+        demand_rows.append({
+            "account": str(d.get("customer", "") or "").strip(),
+            "course": str(d.get("course_name", "") or "").strip(),
+            "start": st,
+            "participants": int(d.get("participants", 0) or 0),
+        })
+
+    # ── learner rating per account (join feedback MCQ via AssignmentId) ──────
+    aid_to_key = {}
+    for a in assignments:
+        if a["assignment_id"] and a["end"] and past_start <= a["end"] <= today:
+            aid_to_key.setdefault(a["assignment_id"], _account_key(a["account"])[0])
+    account_ratings = {}
+    if aid_to_key:
+        try:
+            fb = _rms("trainerFeedback", {"TrainerEmail": "", "AssignmentId": "", "SCID": ""}) or []
+        except Exception:
+            fb = []
+        for row in (fb if isinstance(fb, list) else []):
+            if not isinstance(row, dict):
+                continue
+            if str(row.get("TrainerEmail", "")).strip().lower() not in team_emails:
+                continue
+            key = aid_to_key.get(str(row.get("AssignmentId", "")).strip())
+            if not key:
+                continue
+            mcq = row.get("MCQAnswer")
+            try:
+                if mcq is None or str(mcq).strip() == "":
+                    continue
+                account_ratings.setdefault(key, []).append(float(mcq))
+            except (TypeError, ValueError):
+                continue
+
+    # ── group ───────────────────────────────────────────────────────────────
+    accounts = {}
+
+    def _slot(name):
+        key, disp = _account_key(name)
+        return accounts.setdefault(key, {
+            "key": key, "name": disp,
+            "batches_delivered": 0, "participants_delivered": 0,
+            "batches_upcoming": 0, "open_demand_batches": 0,
+            "_trainers": set(), "_courses": set(),
+            "_last_delivery": None, "_next_start": None,
+        })
+
+    for a in assignments:
+        slot = _slot(a["account"])
+        if a["course"]:
+            slot["_courses"].add(a["course"])
+        delivered = a["end"] and past_start <= a["end"] <= today
+        upcoming = a["start"] and today < a["start"] <= forward_end
+        if delivered:
+            slot["batches_delivered"] += 1
+            slot["participants_delivered"] += a["participants"]
+            slot["_trainers"].add(a["trainer_name"])
+            if slot["_last_delivery"] is None or a["end"] > slot["_last_delivery"]:
+                slot["_last_delivery"] = a["end"]
+        if upcoming:
+            slot["batches_upcoming"] += 1
+            if slot["_next_start"] is None or a["start"] < slot["_next_start"]:
+                slot["_next_start"] = a["start"]
+
+    for d in demand_rows:
+        slot = _slot(d["account"])
+        slot["open_demand_batches"] += 1
+        if d["course"]:
+            slot["_courses"].add(d["course"])
+        if slot["_next_start"] is None or d["start"] < slot["_next_start"]:
+            slot["_next_start"] = d["start"]
+
+    total_delivered = sum(s["batches_delivered"] for s in accounts.values())
+
+    out_accounts = []
+    for s in accounts.values():
+        rec = {
+            "name": s["name"],
+            "batches_delivered": s["batches_delivered"],
+            "participants_delivered": s["participants_delivered"],
+            "batches_upcoming": s["batches_upcoming"],
+            "open_demand_batches": s["open_demand_batches"],
+            "trainers": sorted(s["_trainers"]),
+            "courses": sorted(s["_courses"]),
+            "last_delivery_date": _iso(s["_last_delivery"]) if s["_last_delivery"] else "",
+            "next_start_date": _iso(s["_next_start"]) if s["_next_start"] else "",
+        }
+        ratings = account_ratings.get(s["key"])
+        if ratings:
+            rec["avg_learner_rating"] = round(sum(ratings) / len(ratings), 2)
+        out_accounts.append(rec)
+
+    out_accounts.sort(key=lambda r: (-r["open_demand_batches"], -r["batches_delivered"], r["name"]))
+
+    concentration = None
+    top_account = ""
+    top_account_share = 0.0
+    if total_delivered:
+        lead = max(out_accounts, key=lambda r: r["batches_delivered"])
+        if lead["batches_delivered"] > 0:
+            share = round(100.0 * lead["batches_delivered"] / total_delivered, 1)
+            top_account = lead["name"]
+            top_account_share = share
+            concentration = {
+                "account": lead["name"],
+                "batches_delivered": lead["batches_delivered"],
+                "team_batches_delivered": total_delivered,
+                "share_pct": share,
+            }
+
+    unspecified = accounts.get("unspecified")
+    unspecified_batches = 0
+    if unspecified:
+        unspecified_batches = (unspecified["batches_delivered"]
+                               + unspecified["batches_upcoming"]
+                               + unspecified["open_demand_batches"])
+
+    return {
+        "manager": manager,
+        "generated_at": datetime.utcnow().isoformat(),
+        "window": {"past_days": _ACCOUNTS_PAST_DAYS, "forward_days": _ACCOUNTS_FORWARD_DAYS},
+        "accounts": out_accounts,
+        "concentration": concentration,
+        "summary": {
+            "account_count": len(out_accounts),
+            "top_account": top_account,
+            "top_account_share": top_account_share,
+            "unspecified_batches": unspecified_batches,
+        },
+        "loading": False,
+    }
+
+
+@app.route('/api/v2/accounts', methods=['GET'])
+def accounts_v2():
+    """"Accounts" — the manager's team seen through the customers they deliver for."""
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    manager = (_sess or {}).get("email") or manager
+
+    if request.args.get("_build") != "1":
+        ck = "accounts::%s" % manager
+        if _wants_fresh():
+            _warm_purge(ck)
+        return _serve_or_warm(
+            cache_key=ck,
+            view_func=accounts_v2,
+            build_path=(
+                "/api/v2/accounts?manager=%s&_build=1%s"
+                % (urllib.parse.quote(manager), "&refresh=1" if _wants_fresh() else "")
+            ),
+            fast_payload={
+                "manager": manager,
+                "window": {"past_days": _ACCOUNTS_PAST_DAYS, "forward_days": _ACCOUNTS_FORWARD_DAYS},
+                "accounts": [], "concentration": None, "summary": {}, "loading": True,
+            },
+        )
+
+    resp = _accounts_build(manager)
+    _warm_store("accounts::%s" % manager, resp)
+    return jsonify(resp), 200
+
+# ─── Manager benchmarking (v2) ──────────────────────────────────────────────
+#
+# "How does my team compare?" — honestly. There is no multi-manager API, so
+# there is no real peer-manager average and none is fabricated. Instead:
+#
+#   * average learner rating and feedback-incident rate are compared against
+#     the COMPANY-WIDE learner-feedback population (RMS key 244 returns the
+#     whole trailing feedback set for every trainer, not just this roster);
+#   * utilisation, bench rate and certification coverage are compared against
+#     documented Koenig delivery thresholds already used across this codebase
+#     (the 60% utilisation "bench line", the 40% under-utilisation line in
+#     `_derive_actions`, and full coverage of open demand as the target).
+#
+# The response always carries `baseline_source` stating exactly this.
+
+_BENCH_UTIL_BASELINE   = 60.0     # documented "bench line" (util >= 60 is on-target)
+_BENCH_UNDERUTIL_LINE  = 40.0     # `_derive_actions`: util < 40 == on the bench
+_BENCH_BENCHRATE_BASE  = 20.0     # planning norm: up to ~1 in 5 between assignments
+_BENCH_RATING_FALLBACK = 4.3      # the "strong" learner-rating constant used elsewhere
+_BENCH_COVERAGE_BASE   = 100.0    # target is to cover every open-demand course
+_BENCH_TOL             = 0.05     # within 5% of baseline == "on_par"
+
+_BENCHMARK_SOURCE = (
+    "No multi-manager API exists, so no peer-manager average is computed or "
+    "estimated. Average learner rating and feedback-incident rate are compared "
+    "against the company-wide learner-feedback population (RMS key 244 - every "
+    "trainer in the trailing feedback set, not only this manager's reportees). "
+    "Utilisation, bench rate and certification coverage are compared against "
+    "documented Koenig delivery thresholds used across this codebase: the 60% "
+    "utilisation bench line, the 40% under-utilisation line, a planning norm of "
+    "~20% of a team between assignments, and full coverage of open demand."
+)
+
+
+def _benchmark_company_feedback():
+    """Company-wide baseline from the key-244 dump: (mean_rating, incident_rate).
+
+    `incident_rate` is low-rating (MCQAnswer <= 3) rows per distinct trainer
+    seen in the dump. Returns (None, None) when the dump is unreachable/empty.
+    """
+    rows = _rms("trainerFeedback", {"TrainerEmail": "", "AssignmentId": "", "SCID": ""}) or []
+    ratings, incidents, trainers = [], 0, set()
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        te = str(r.get("TrainerEmail", "") or "").strip().lower()
+        if te:
+            trainers.add(te)
+        mcq = r.get("MCQAnswer")
+        try:
+            if mcq is not None and str(mcq).strip() != "":
+                val = float(mcq)
+                ratings.append(val)
+                if val <= 3.0:
+                    incidents += 1
+        except (TypeError, ValueError):
+            pass
+    mean_rating = round(sum(ratings) / len(ratings), 2) if ratings else None
+    incident_rate = round(incidents / len(trainers), 2) if trainers else None
+    return mean_rating, incident_rate
+
+
+def _benchmark_verdict(team_value, baseline_value, direction):
+    """Deterministic verdict + signed gap. Within `_BENCH_TOL` of baseline is
+    `on_par`; otherwise `ahead`/`behind` by `direction`."""
+    if team_value is None or not baseline_value:
+        return "unknown", None
+    gap = round(team_value - baseline_value, 2)
+    rel = (team_value - baseline_value) / baseline_value
+    if abs(rel) <= _BENCH_TOL:
+        return "on_par", gap
+    better = rel > 0 if direction == "higher_better" else rel < 0
+    return ("ahead" if better else "behind"), gap
+
+
+def _benchmark_score(metric):
+    """Signed relative advantage of the team (positive == better than baseline).
+    Used only to pick the weakest metric for the headline."""
+    tv, bv = metric.get("team_value"), metric.get("baseline_value")
+    if tv is None or not bv:
+        return None
+    rel = (tv - bv) / bv
+    return rel if metric["direction"] == "higher_better" else -rel
+
+
+def _benchmark_build(manager):
+    """Team-vs-baseline fan-out. Runs inside `_warm_run`."""
+    reps = _rms("reportees", {"email": manager}) or []
+    team = []
+    for r in (reps if isinstance(reps, list) else []):
+        if not isinstance(r, dict):
+            continue
+        e = str(r.get("OffEmail", r.get("Email", "")) or "").strip().lower()
+        if e:
+            team.append(e)
+    team = sorted(set(team))
+
+    demand = _demand_rows() or []
+    demand_courses = sorted({
+        str(d.get("course_name", "") or "").strip()
+        for d in demand if isinstance(d, dict) and str(d.get("course_name", "") or "").strip()
+    })
+
+    def _one(email):
+        try:
+            util = _current_util(_util_series(_util_row(email)))
+        except Exception:
+            util = None
+        try:
+            skills = _skills(email) or []
+        except Exception:
+            skills = []
+        skill_keys = set()
+        for s in skills:
+            n, code = _runway_course_keys(s.get("course_name", ""))
+            if n:
+                skill_keys.add(n)
+            if code:
+                skill_keys.add(code)
+        try:
+            rating = (_trainer_feedback_detail(email) or {}).get("avg_rating")
+        except Exception:
+            rating = None
+        return {"email": email, "util": util, "skill_keys": skill_keys, "rating": rating}
+
+    if team:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            members = list(pool.map(_one, team))
+    else:
+        members = []
+
+    # ── team-side metric values ──────────────────────────────────────────────
+    utils = [m["util"] for m in members if m["util"] is not None]
+    team_util = round(sum(utils) / len(utils), 1) if utils else None
+    team_bench_rate = (
+        round(100.0 * sum(1 for u in utils if u < _BENCH_UNDERUTIL_LINE) / len(utils), 1)
+        if utils else None
+    )
+    ratings = [m["rating"] for m in members if m["rating"] is not None]
+    team_rating = round(sum(ratings) / len(ratings), 2) if ratings else None
+
+    if demand_courses:
+        covered = sum(
+            1 for c in demand_courses
+            if any(_runway_teaches(m["skill_keys"], c) for m in members)
+        )
+        team_coverage = round(100.0 * covered / len(demand_courses), 1)
+    else:
+        team_coverage = 100.0
+
+    # team feedback-incident rate from the same key-244 dump, filtered to roster
+    fb_rows = _rms("trainerFeedback", {"TrainerEmail": "", "AssignmentId": "", "SCID": ""}) or []
+    team_set = set(team)
+    team_incidents = 0
+    for r in fb_rows:
+        if not isinstance(r, dict):
+            continue
+        if str(r.get("TrainerEmail", "") or "").strip().lower() not in team_set:
+            continue
+        mcq = r.get("MCQAnswer")
+        try:
+            if mcq is not None and str(mcq).strip() != "" and float(mcq) <= 3.0:
+                team_incidents += 1
+        except (TypeError, ValueError):
+            pass
+    team_incident_rate = round(team_incidents / len(team), 2) if team else None
+
+    base_rating, base_incident_rate = _benchmark_company_feedback()
+    if base_rating is None:
+        base_rating = _BENCH_RATING_FALLBACK
+    if base_incident_rate is None:
+        base_incident_rate = 0.0
+
+    specs = [
+        ("team_utilization", "Team utilisation", team_util,
+         round(_BENCH_UTIL_BASELINE, 1), "%", "higher_better"),
+        ("bench_rate", "Bench rate (under 40% utilised)", team_bench_rate,
+         round(_BENCH_BENCHRATE_BASE, 1), "%", "lower_better"),
+        ("avg_learner_rating", "Average learner rating", team_rating,
+         base_rating, "/5", "higher_better"),
+        ("cert_coverage", "Open-demand certification coverage", team_coverage,
+         round(_BENCH_COVERAGE_BASE, 1), "%", "higher_better"),
+        ("feedback_incident_rate", "Feedback incidents per trainer", team_incident_rate,
+         base_incident_rate, "per trainer", "lower_better"),
+    ]
+
+    metrics = []
+    for key, label, tv, bv, unit, direction in specs:
+        verdict, gap = _benchmark_verdict(tv, bv, direction)
+        metrics.append({
+            "key": key, "label": label,
+            "team_value": tv, "baseline_value": bv,
+            "unit": unit, "direction": direction,
+            "verdict": verdict, "gap": gap,
+        })
+
+    ahead_count = sum(1 for m in metrics if m["verdict"] == "ahead")
+    behind_count = sum(1 for m in metrics if m["verdict"] == "behind")
+
+    # ── headline: name the weakest comparable metric ─────────────────────────
+    scored = [(m, _benchmark_score(m)) for m in metrics]
+    scored = [(m, s) for (m, s) in scored if s is not None]
+    if not scored:
+        headline = "Baseline not available - not enough team data to compare yet."
+    else:
+        weakest, wscore = min(scored, key=lambda p: p[1])
+        tv, bv, unit = weakest["team_value"], weakest["baseline_value"], weakest["unit"]
+        u = "" if unit == "/5" else unit
+        if weakest["verdict"] == "behind":
+            side = "below" if weakest["direction"] == "higher_better" else "above"
+            headline = (
+                "Weakest area is %s: the team is at %s%s versus a %s%s baseline, "
+                "%s%s %s the line."
+                % (weakest["label"], tv, u, bv, u, abs(weakest["gap"]), u, side)
+            )
+        else:
+            headline = (
+                "The team is at or above every baseline; the tightest margin is "
+                "%s (%s%s versus %s%s)." % (weakest["label"], tv, u, bv, u)
+            )
+
+    return {
+        "manager": manager,
+        "generated_at": datetime.utcnow().isoformat(),
+        "baseline_source": _BENCHMARK_SOURCE,
+        "metrics": metrics,
+        "summary": {
+            "ahead_count": ahead_count,
+            "behind_count": behind_count,
+            "headline": headline,
+        },
+        "loading": False,
+    }
+
+
+@app.route('/api/v2/benchmark', methods=['GET'])
+def benchmark_v2():
+    """"How your team compares" — team health vs an honest, documented baseline."""
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    manager = (_sess or {}).get("email") or manager
+
+    if request.args.get("_build") != "1":
+        ck = "benchmark::%s" % manager
+        if _wants_fresh():
+            _warm_purge(ck)
+        return _serve_or_warm(
+            cache_key=ck,
+            view_func=benchmark_v2,
+            build_path=(
+                "/api/v2/benchmark?manager=%s&_build=1%s"
+                % (urllib.parse.quote(manager), "&refresh=1" if _wants_fresh() else "")
+            ),
+            fast_payload={
+                "manager": manager, "baseline_source": _BENCHMARK_SOURCE,
+                "metrics": [], "summary": {}, "loading": True,
+            },
+        )
+
+    resp = _benchmark_build(manager)
+    _warm_store("benchmark::%s" % manager, resp)
+    return jsonify(resp), 200
 
 @app.route('/api/v2/report/weekly', methods=['GET'])
 def weekly_report_v2():

@@ -96,6 +96,21 @@ class ManagerRepository(
     suspend fun capacityRunway(email: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
         cachedMap("runway_$email", fresh) { api.getCapacityRunway(email) }
 
+    /** "New trainer ramp" — onboarding tracking for reportees who joined <12mo ago.
+     *  Partial-first on the backend, cached per manager. */
+    suspend fun rampReport(email: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
+        cachedMap("ramp_$email", fresh) { api.getRamp(email) }
+
+    /** "Accounts" — the team's customer book. Partial-first on the backend,
+     *  cached per manager so the screen renders the last snapshot first. */
+    suspend fun accountsReport(email: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
+        cachedMap("accounts_$email", fresh) { api.getAccounts(email) }
+
+    /** "How your team compares" — team health vs a documented baseline. Partial-first
+     *  on the backend, cached per manager so the screen renders the last snapshot first. */
+    suspend fun benchmarkReport(email: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
+        cachedMap("benchmark_$email", fresh) { api.getBenchmark(email) }
+
     suspend fun utilizationHistory(email: String) =
         cachedMap("utilization_${email.lowercase()}", false) { api.getTrainerUtilizationHistory(email) }.data.orEmpty()
 
@@ -112,6 +127,57 @@ class ManagerRepository(
      */
     suspend fun courseIntelligence(courseName: String): RepositoryResult<Map<String, Any>> =
         cachedMap("course_intelligence_${courseName.lowercase()}", false) { api.getCourseIntelligence(courseName) }
+
+    /**
+     * Development plan for one reportee. Cache key `devplan_<manager>_<trainer>`;
+     * offline-first like every other read here. `suggested` items are recomputed
+     * server-side on every call and are never persisted until adopted.
+     */
+    suspend fun devPlan(manager: String, trainer: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
+        cachedMap("devplan_${manager}_$trainer", fresh) { api.getDevPlan(manager, trainer) }
+
+    /** Adopt a suggestion / add a manual goal, then refresh the cached plan. */
+    suspend fun addDevPlanItem(
+        manager: String,
+        trainer: String,
+        title: String,
+        kind: String,
+        targetDate: String = "",
+        note: String = "",
+    ): RepositoryResult<Map<String, Any>> {
+        val body = mutableMapOf(
+            "manager" to manager, "trainer" to trainer, "title" to title, "kind" to kind,
+        )
+        if (targetDate.isNotBlank()) body["target_date"] = targetDate
+        if (note.isNotBlank()) body["note"] = note
+        return try {
+            api.createDevPlanItem(body)
+            devPlan(manager, trainer, fresh = true)
+        } catch (e: Exception) {
+            RepositoryResult(null, DataSource.LIVE, error = e.localizedMessage ?: "Could not add goal")
+        }
+    }
+
+    /** Change a plan item's status / note / target date, then refresh the cached plan. */
+    suspend fun updateDevPlanItem(
+        manager: String,
+        trainer: String,
+        id: String,
+        status: String = "",
+        note: String = "",
+        targetDate: String = "",
+    ): RepositoryResult<Map<String, Any>> {
+        val body = mutableMapOf("manager" to manager, "id" to id)
+        if (status.isNotBlank()) body["status"] = status
+        if (note.isNotBlank()) body["note"] = note
+        if (targetDate.isNotBlank()) body["target_date"] = targetDate
+        return try {
+            api.updateDevPlanItem(body)
+            devPlan(manager, trainer, fresh = true)
+        } catch (e: Exception) {
+            RepositoryResult(null, DataSource.LIVE, error = e.localizedMessage ?: "Could not update goal")
+        }
+    }
 
     /** Production skill writes share the repository boundary with all reads. */
     suspend fun markSkill(request: MarkSkillRequest): retrofit2.Response<MarkSkillResponse> =

@@ -2,6 +2,7 @@ package com.example.skillsync.data.api
 
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PATCH
 import retrofit2.http.Path
 import retrofit2.http.Body
 import retrofit2.http.Query
@@ -272,12 +273,21 @@ interface SkillEdgeApi {
     @GET("api/v2/planning/runway")
     suspend fun getCapacityRunway(@Query("manager") manager: String): Map<String, Any>
 
+    /** "How your team compares" — team health vs an honest, documented baseline
+     *  (no fabricated peer-manager average). */
+    @GET("api/v2/benchmark")
+    suspend fun getBenchmark(@Query("manager") m: String): Map<String, Any>
+
     /** Proactive digest: kind = "morning" (day-start brief) or "weekly" (Fri wrap). */
     @GET("api/v2/digest")
     suspend fun getDigest(
         @Query("manager") manager: String,
         @Query("kind") kind: String,
     ): Map<String, Any>
+
+    /** "New trainer ramp" — onboarding progress for reportees who joined <12mo ago. */
+    @GET("api/v2/ramp")
+    suspend fun getRamp(@Query("manager") manager: String): Map<String, Any>
 
     /** V2 Weekly Delivery & Operations Intelligence Snapshot */
     @GET("api/v2/report/weekly")
@@ -306,6 +316,32 @@ interface SkillEdgeApi {
         @Query("email") email: String,
         @Query("month") month: String? = null,
     ): Map<String, Any>
+
+    /** "Accounts" — the manager's team seen through the customers they deliver
+     *  for: batches delivered / upcoming / open demand per account, plus a
+     *  single-account concentration signal. */
+    @GET("api/v2/accounts")
+    suspend fun getAccounts(@Query("manager") m: String): Map<String, Any>
+
+    /**
+     * Development plan for one reportee: stored manager-authored goals plus
+     * deterministic `suggested` items (cert gaps tied to demand, a coaching
+     * item on weak feedback, a portfolio item when the trainer teaches < 3
+     * courses). Plan items are prep/coaching goals, never allocations.
+     */
+    @GET("api/v2/devplan")
+    suspend fun getDevPlan(
+        @Query("manager") manager: String,
+        @Query("trainer") trainer: String,
+    ): Map<String, Any>
+
+    /** Create a plan item. Body: manager, trainer, title, kind, target_date?, note?. */
+    @POST("api/v2/devplan/item")
+    suspend fun createDevPlanItem(@Body body: Map<String, String>): Map<String, Any>
+
+    /** Update a plan item. Body: manager, id, status?, note?, target_date?. */
+    @PATCH("api/v2/devplan/item")
+    suspend fun updateDevPlanItem(@Body body: Map<String, String>): Map<String, Any>
 }
 
 data class StructuredFeedbackDto(

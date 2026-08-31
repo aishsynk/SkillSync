@@ -99,7 +99,7 @@ fun MainNavigation() {
     }
 
     // Hardware/gesture back returns from a pushed detail screen to the shell.
-    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot || current is HrReport || current is Priorities || current is CapacityRunway) {
+    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot || current is HrReport || current is Priorities || current is CapacityRunway || current is Ramp || current is Accounts || current is Benchmark) {
         current = when (val c = current) {
             is Trainer360 -> Main(c.email, HomeTab.TEAM)
             is BatchDetail -> Main(c.email, HomeTab.DEMAND)
@@ -108,6 +108,9 @@ fun MainNavigation() {
             is HrReport -> Main(c.email, HomeTab.TEAM)
             is Priorities -> Main(c.email, HomeTab.DASHBOARD)
             is CapacityRunway -> Priorities(c.email)
+            is Ramp -> Priorities(c.email)
+            is Accounts -> Main(c.email, HomeTab.DASHBOARD)
+            is Benchmark -> Main(c.email, HomeTab.TEAM)
             else -> c
         }
     }
@@ -185,6 +188,7 @@ fun MainNavigation() {
                 onOpenWeeklyReport = { current = WeeklyReport(screen.email) },
                 onOpenHrReport = { current = HrReport(screen.email) },
                 onOpenPriorities = { current = Priorities(screen.email) },
+                onOpenAccounts = { current = Accounts(screen.email) },
                 onOpenCopilot = { current = Copilot(screen.email) },
                 onLogout = { current = Login },
                 modifier = Modifier,
@@ -237,6 +241,12 @@ fun MainNavigation() {
             is HrReport -> com.example.skillsync.ui.report.HrMonthlyReportScreen(
                 managerEmail = screen.email,
                 onTrainerClick = { email, name -> current = Trainer360(screen.email, email, name) },
+                onOpenBenchmark = { current = Benchmark(screen.email) },
+                onBack = { current = Main(screen.email, HomeTab.TEAM) },
+            )
+
+            is Benchmark -> com.example.skillsync.ui.report.BenchmarkScreen(
+                managerEmail = screen.email,
                 onBack = { current = Main(screen.email, HomeTab.TEAM) },
             )
 
@@ -246,6 +256,7 @@ fun MainNavigation() {
                 onOpenTrainer = { email, name -> current = Trainer360(screen.email, email, name) },
                 onOpenActions = { current = Main(screen.email, HomeTab.ACTIONS) },
                 onOpenRunway = { current = CapacityRunway(screen.email) },
+                onOpenRamp = { current = Ramp(screen.email) },
                 onBack = { current = Main(screen.email, HomeTab.DASHBOARD) },
             )
 
@@ -253,6 +264,18 @@ fun MainNavigation() {
                 managerEmail = screen.email,
                 onOpenTrainer = { email, name -> current = Trainer360(screen.email, email, name) },
                 onBack = { current = Priorities(screen.email) },
+            )
+
+            is Ramp -> com.example.skillsync.ui.report.RampScreen(
+                managerEmail = screen.email,
+                onOpenTrainer = { email, name -> current = Trainer360(screen.email, email, name) },
+                onBack = { current = Priorities(screen.email) },
+            )
+
+            is Accounts -> com.example.skillsync.ui.report.AccountsScreen(
+                managerEmail = screen.email,
+                onOpenTrainer = { email, name -> current = Trainer360(screen.email, email, name) },
+                onBack = { current = Main(screen.email, HomeTab.DASHBOARD) },
             )
 
             is Trainer360 -> Trainer360Screen(

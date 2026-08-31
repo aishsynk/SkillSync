@@ -87,6 +87,7 @@ fun ManagerCommandCentre(
     onOpenWeeklyReport: () -> Unit = {},
     onOpenHrReport: () -> Unit = {},
     onOpenPriorities: () -> Unit = {},
+    onOpenAccounts: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
     onOpenDelivery: () -> Unit = {},
     onBatchClick: (String) -> Unit = {},
@@ -386,6 +387,46 @@ fun ManagerCommandCentre(
                         }
                     }
                 }
+            }
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onOpenAccounts() },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0x288B5CF6),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66A78BFA)),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0x33A78BFA)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_inbox),
+                                contentDescription = "Accounts",
+                                tint = Color(0xFFA78BFA),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Column {
+                            Text("Accounts", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text("Customer delivery book ↗", color = Color(0xFFA78BFA), fontSize = 10.sp)
+                        }
+                    }
+                }
+                Spacer(Modifier.weight(1f))
             }
         }
 

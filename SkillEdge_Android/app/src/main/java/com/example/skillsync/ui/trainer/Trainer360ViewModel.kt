@@ -43,6 +43,9 @@ class Trainer360ViewModel(
 /** Real open manager Actions for this trainer; never generated in the UI. */
     val actions = MutableStateFlow<List<ActionRow>>(emptyList())
 
+    /** Development plan for this trainer: { items: [...], suggested: [...] }. */
+    val devPlan = MutableStateFlow<Map<String, Any>?>(null)
+
     fun load(trainerEmail: String, managerEmail: String = "", context: android.content.Context) {
         if (loadedFor == trainerEmail && _state.value is Trainer360State.Success) return
         loadedFor = trainerEmail
@@ -52,6 +55,36 @@ class Trainer360ViewModel(
         }
         fetchUtilHistory(trainerEmail)
         fetchActions(managerEmail, trainerEmail)
+        fetchDevPlan(managerEmail, trainerEmail, fresh = false)
+    }
+
+    private fun fetchDevPlan(managerEmail: String, trainerEmail: String, fresh: Boolean) {
+        if (managerEmail.isBlank() || trainerEmail.isBlank()) return
+        viewModelScope.launch {
+            val result = repository.devPlan(managerEmail, trainerEmail, fresh)
+            result.data?.let { devPlan.value = it }
+        }
+    }
+
+    /** Adopt a suggestion or add a manual goal, then refresh the plan in place. */
+    fun addDevPlanItem(
+        managerEmail: String, trainerEmail: String,
+        title: String, kind: String, targetDate: String = "", note: String = "",
+    ) {
+        if (managerEmail.isBlank() || trainerEmail.isBlank() || title.isBlank()) return
+        viewModelScope.launch {
+            val result = repository.addDevPlanItem(managerEmail, trainerEmail, title, kind, targetDate, note)
+            result.data?.let { devPlan.value = it }
+        }
+    }
+
+    /** Cycle one plan item's status (open -> in_progress -> done -> open). */
+    fun cycleDevPlanStatus(managerEmail: String, trainerEmail: String, id: String, nextStatus: String) {
+        if (managerEmail.isBlank() || trainerEmail.isBlank() || id.isBlank()) return
+        viewModelScope.launch {
+            val result = repository.updateDevPlanItem(managerEmail, trainerEmail, id, status = nextStatus)
+            result.data?.let { devPlan.value = it }
+        }
     }
 
     /** Pull-to-refresh and screen-resume; keeps the profile on screen while re-reading. */
@@ -61,6 +94,7 @@ class Trainer360ViewModel(
             fetch(trainerEmail, managerEmail, context, fresh = true)
             fetchUtilHistory(trainerEmail)
             fetchActions(managerEmail, trainerEmail)
+            fetchDevPlan(managerEmail, trainerEmail, fresh = true)
             _refreshing.value = false
         }
     }

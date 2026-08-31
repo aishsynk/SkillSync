@@ -1,4 +1,18 @@
 
+## 2026-08-31T04:00:00+05:30 - Manager-view wave 4: ramp tracking + accounts view + benchmarking + development plans (v3.55.0 / Build 142)
+
+- **Model Used**: Claude Sonnet 5 (Claude Code) — four parallel worktree subagents, merged to main
+- **New endpoints**: `GET /api/v2/ramp`, `GET /api/v2/accounts`, `GET /api/v2/benchmark`, `GET/POST/PATCH /api/v2/devplan`
+- **New files**: `dev_plan_store.py` (SQLite `DevPlanStore`, same pattern as `ActionStore`), `tests/test_ramp.py` / `test_accounts.py` / `test_benchmark.py` / `test_devplan.py` (+28), Android `ui/report/RampViewModel.kt`+`RampScreen.kt`, `AccountsViewModel.kt`+`AccountsScreen.kt`, `BenchmarkViewModel.kt`+`BenchmarkScreen.kt`, `ui/trainer/DevPlanSection.kt`
+- **Work Completed**:
+  1. **Ramp tracking** — reportees with DOJ < 12 months: tenure, batches delivered, days-to-first-batch, learner rating, `ramp_stage` (onboarding/first-deliveries/established) + `stalled` flag (tenure>3mo AND 0 batches AND util<30), deterministic `next_step` naming a demand-linked course. Screen off "This Week" header. `courses_added_since_join` omitted — skill rows carry no acquisition date.
+  2. **Accounts view** — every past assignment (trailing 90d) + open demand (forward 60d) grouped by normalised customer name; per account: delivered/upcoming/open counts, trainers, courses, dates; `concentration` = top account's share of team delivery. 5th command-deck tile. `avg_learner_rating` per account joined via AssignmentId where the two RMS endpoints align, omitted otherwise.
+  3. **Benchmarking** — team util / bench rate / learner rating / cert coverage / feedback-incident rate vs baseline. `baseline_source` string shown on screen: the two feedback metrics use the real company-wide RMS-244 population (endpoint returns the whole recent cross-trainer set); util/bench/coverage compare against documented Koenig thresholds already hard-wired in the codebase. **No fabricated peer-manager average.** Off the HR monthly report.
+  4. **Development plans** — `DevPlanStore` SQLite (`skilledge_devplans.sqlite3` under `SKILLEDGE_STATE_DIR`, per-manager, read-only-fs tolerant). Manager-authored goals (certification/coaching/portfolio/other) + status cycle (open/in_progress/done/dropped); `suggested` items computed live from cert gaps tied to demand / weak feedback / thin portfolio, adopted one-tap. Rendered as a section inside Trainer 360. Manager-scope enforced (trainer must be a reportee).
+  5. **Fix carried from wave 3**: `_fuzzy_match` in `v2_upskilling_demand_opportunities`.
+- **Validation**: backend pytest 254 pass; Android testDebugUnitTest + lintRelease + assembleRelease green; APK signer `c6868b14…41808` unchanged.
+- **14-item enhancement list: COMPLETE.**
+
 ## 2026-08-31T02:00:00+05:30 - Manager-view wave 3: Capacity Runway + Team Copilot + digests/delivery alerts (v3.54.0 / Build 141)
 
 - **Model Used**: Claude Sonnet 5 (Claude Code) — three parallel worktree subagents, merged to main

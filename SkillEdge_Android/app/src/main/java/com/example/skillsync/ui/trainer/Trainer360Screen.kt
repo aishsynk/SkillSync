@@ -62,6 +62,7 @@ fun Trainer360Screen(
     val syllabus by viewModel.syllabus.collectAsState()
     val actions by viewModel.actions.collectAsState()
     val readiness by viewModel.readiness.collectAsState()
+    val devPlan by viewModel.devPlan.collectAsState()
     val online by com.example.skillsync.data.sync.SyncScheduler.online.collectAsState()
     StatusBarIcons(lightIcons = true)
 
@@ -189,6 +190,22 @@ fun Trainer360Screen(
                             actions = actions.map { it.asMap() },
                             readiness = readiness,
                             onCourseTap = { viewModel.fetchSyllabus(it) },
+                            devPlan = devPlan,
+                            onAddGoal = { title, kind, target, note ->
+                                viewModel.addDevPlanItem(managerEmail, trainerEmail, title, kind, target, note)
+                            },
+                            onAdoptSuggestion = { s2 ->
+                                viewModel.addDevPlanItem(
+                                    managerEmail, trainerEmail,
+                                    s2["title"]?.toString().orEmpty(),
+                                    s2["kind"]?.toString().orEmpty().ifBlank { "other" },
+                                    s2["target_date"]?.toString().orEmpty(),
+                                    s2["note"]?.toString().orEmpty(),
+                                )
+                            },
+                            onCycleGoalStatus = { id, next ->
+                                viewModel.cycleDevPlanStatus(managerEmail, trainerEmail, id, next)
+                            },
                         )
                     }
                 }
@@ -208,6 +225,10 @@ internal fun Trainer360Content(
     actions: List<Map<String, Any>> = emptyList(),
     readiness: Map<String, Any>? = null,
     onCourseTap: (String) -> Unit = {},
+    devPlan: Map<String, Any>? = null,
+    onAddGoal: (title: String, kind: String, targetDate: String, note: String) -> Unit = { _, _, _, _ -> },
+    onAdoptSuggestion: (Map<*, *>) -> Unit = {},
+    onCycleGoalStatus: (id: String, nextStatus: String) -> Unit = { _, _ -> },
 ) {
     val sk = MaterialTheme.skill
     val identity = data.obj("identity")
@@ -296,7 +317,17 @@ internal fun Trainer360Content(
                     item { Appear(5) { FeedbackSection(feedback) } }
                 }
                 3 -> {
-                    item { Appear(0) { GrowthBenchmarkSection(identity, util, cap, certs) } }
+                    item {
+                        Appear(0) {
+                            DevPlanSection(
+                                devPlan = devPlan,
+                                onAddGoal = onAddGoal,
+                                onAdoptSuggestion = onAdoptSuggestion,
+                                onCycleStatus = onCycleGoalStatus,
+                            )
+                        }
+                    }
+                    item { Appear(1) { GrowthBenchmarkSection(identity, util, cap, certs) } }
                 }
                 else -> {
                     item { Appear(0) { ManagerActionsSection(actions) } }

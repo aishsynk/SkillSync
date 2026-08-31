@@ -42,6 +42,7 @@ fun PrioritiesScreen(
     onOpenTrainer: (email: String, name: String) -> Unit,
     onOpenActions: () -> Unit,
     onOpenRunway: () -> Unit = {},
+    onOpenRamp: () -> Unit = {},
     onBack: () -> Unit,
     vm: PrioritiesViewModel = viewModel(),
 ) {
@@ -73,6 +74,9 @@ fun PrioritiesScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onOpenRamp) {
+                        Icon(painterResource(R.drawable.ic_people), "New trainer ramp", tint = Color.White)
+                    }
                     IconButton(onClick = onOpenRunway) {
                         Icon(painterResource(R.drawable.ic_trend), "Capacity Runway", tint = Color.White)
                     }

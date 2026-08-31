@@ -28,6 +28,13 @@ import kotlinx.serialization.Serializable
 
 /** "Capacity Runway" — forward 8-week demand vs team capacity, plus upskilling. */
 @Serializable data class CapacityRunway(val email: String) : NavKey
+@Serializable data class Ramp(val email: String) : NavKey
+
+/** "Accounts" — the team's customer delivery book and concentration signal. */
+@Serializable data class Accounts(val email: String) : NavKey
+
+/** "How your team compares" — team health vs an honest, documented baseline. */
+@Serializable data class Benchmark(val email: String) : NavKey
 
 object HomeTab {
     const val DASHBOARD = "today"

@@ -47,6 +47,7 @@ import com.example.skillsync.ui.components.LocalNotify
 fun HrMonthlyReportScreen(
     managerEmail: String,
     onTrainerClick: (email: String, name: String) -> Unit = { _, _ -> },
+    onOpenBenchmark: () -> Unit = {},
     onBack: () -> Unit,
     vm: HrMonthlyReportViewModel = viewModel(),
 ) {
@@ -81,6 +82,9 @@ fun HrMonthlyReportScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onOpenBenchmark) {
+                        Icon(painterResource(R.drawable.ic_trend), "How your team compares", tint = Color.White)
+                    }
                     if (state is HrReportState.Success) {
                         val reportData = (state as HrReportState.Success).data
                         IconButton(onClick = {
