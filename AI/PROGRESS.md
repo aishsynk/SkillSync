@@ -3766,3 +3766,21 @@ Wave D - Widen the lens:
 - **Next Recommended Actions**: confirm v3.50.0 in production, then start Wave A (A1/A2 highest lift).
   Earlier infra roadmap (taxonomy 114/205, 5 hidden endpoints, NotificationEngine expansion) folds into
   B3 / D2 / D5 above. Confirm Render `skilledge-state` disk (operator).
+
+## 2026-08-31T11:30:00+05:30 - v3.50.0/136 deployed and verified; 3 enhancement agents running
+
+- **Model/Tool**: Claude Sonnet 5 / Claude Code
+- **v3.50.0 VERIFIED**: commit `a424c6d`; CI run success; release `v3.50.0.136`; APK signer
+  `c6868b14...1808` unchanged, package `com.example.skillsync`, versionCode 136 (installs over 135).
+  Production: `/api/v2/report/weekly` `team_digest` and `/api/v2/message/compose` both return the
+  composed house-style prose (200). Composer + endpoint working; a 0-reportee test account gives a thin
+  message, which is correct.
+- **In progress**: 3 parallel worktree agents implementing manager-view enhancements (backend only,
+  each adds tests, keeps `pytest tests/` green):
+  1. Opportunity-cost KPI -> `manager_kpis.opportunity_cost` + top-level on `unified-manager-intelligence`.
+  2. `GET /api/v2/manager/priorities` - ranked "Your Week" worklist (unstaffed demand, 1:1s, overload,
+     cert gaps, overdue actions) via `_serve_or_warm`.
+  3. Feedback trend + themes on `_trainer_feedback_detail` -> surfaced in `/api/data/trainer-360`.
+  When they report: merge diffs onto main, run full suite once, add minimal client surface, ship v3.51.0.
+- **Next**: integrate the 3 enhancements as v3.51.0; then Wave A1 (eligibility-gap closer), B3 (cert
+  calendar). Confirm Render `skilledge-state` disk (operator).
