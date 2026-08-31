@@ -3807,3 +3807,45 @@ Wave D - Widen the lens:
     real-roster manager after deploy.
 - **Next Recommended Actions**: commit + push v3.51.0; CI; Render; verify. Then v3.52.0 = "This Week"
   screen consuming `/api/v2/manager/priorities` + Wave A1 eligibility-gap closer + B3 cert calendar.
+
+## 2026-08-31T13:15:00+05:30 - v3.51.0/137 deployed and verified — session handover
+
+- **Model/Tool**: Claude Sonnet 5 / Claude Code
+- **Release**: commit `aee328c`; CI run success; release `v3.51.0.137`.
+  APK `SkillEdge-v3.51.0.137.apk` signer SHA-256 `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`
+  (unchanged), package `com.example.skillsync`, versionCode 137 — installs over 136.
+- **Production validation (live probe)**:
+  - `unified-manager-intelligence` -> `opportunity_cost` block present (`open_batches_total: 4`,
+    `coverable: 0` for the 0-reportee test account — correct).
+  - `GET /api/v2/manager/priorities` -> 200, ranked items, `counts` by kind.
+  - `/api/data/trainer-360` `feedback` -> `feedback_trend_direction: "improving"`, 5 `feedback_themes`
+    (clarity/communication, engagement, knowledge, pace, depth) for krishna.dwivedi.
+- **Session summary (this session, v3.46.0 -> v3.51.0)**:
+  - v3.46.x: partial-first warm endpoints (fixed perpetual loading), offline-first HR/Weekly screens,
+    dataSync foreground MonitoringService, evidence-only feedback messages (RMS 244), gunicorn
+    --timeout 120 fix for the trainer-360 502.
+  - v3.47.0: data integrity - Render persistent disk, removed the fabricated fallback team, Trainer
+    Index declares partial confidence.
+  - v3.50.0: all manager-to-team messages composed as house-style prose (`_compose_manager_message`),
+    `/api/v2/message/compose` + `[My Message]` overlay, opportunity-cost signal in the text.
+  - v3.51.0: manager-view wave 1 (opportunity KPI, priorities endpoint, feedback trend/themes).
+- **Current Status**: No known build, CI, deployment, API or upgrade issue. Working tree clean after
+  the commits above.
+- **Known Issues / Blockers**:
+  - "This Week" priorities SCREEN not built (endpoint live + tested) - planned v3.52.0.
+  - Render `skilledge-state` persistent disk: applies only if the service is a Blueprint; if manual,
+    the operator must add it in the dashboard (Settings -> Disks, name skilledge-state, mount
+    /var/data, 1 GB) + set SKILLEDGE_STATE_DIR=/var/data. Until then action-inbox / logout-denylist /
+    notification state reset on redeploy.
+  - Device install-over test on a physical phone still not run (no ADB).
+- **Next Recommended Actions**:
+  1. v3.52.0: "This Week" screen consuming `/api/v2/manager/priorities` (Today tab section or new
+     screen); the API + tests already exist.
+  2. Wave A1: eligibility-gap closer (per open batch, what blocks each of my trainers - skill level,
+     cert, mock, availability - and let the manager fix mark-skill / availability / book-exam; the
+     `allocation/candidates` endpoint already computes the gating with a `blocked` list).
+  3. Wave B3: certification expiry calendar + demand-led "which cert unlocks the most open demand"
+     (needs `courseTechnology` 114 / `courseDomain` 205 - probed viable, not yet wired).
+  4. Confirm the Render disk (operator). Physical-device upgrade validation.
+- **Review artifact** (RMS coverage, data-integrity findings, manager-view roadmap):
+  https://claude.ai/code/artifact/ca868032-e50f-4ee6-a497-b42a6143d65c
