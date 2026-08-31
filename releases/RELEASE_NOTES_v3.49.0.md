@@ -1,7 +1,7 @@
 # SkillEdge Production Release v3.49.0 (Build 135)
 
 - **Release Date**: 2026-08-31
-- **Git Commit**: `TBD` (pushed as `feat: demand detail share now generic + TOC link, manager-view everywhere (v3.49.0, Build 135)`)
+- **Git Commit**: `c0c4bf4` (pushed as `feat: demand detail share now generic + TOC link, manager-view everywhere (v3.49.0, Build 135)`)
 - **Version Code**: `135`
 - **Version Name**: `3.49.0`
 - **APK**: `SkillEdge-v3.49.0.135.apk` (package `com.example.skillsync`, signer SHA-256 `c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`, installs directly over `v3.48.0.134` without uninstall; user data intact)
@@ -42,16 +42,18 @@ Patch `3.48.0 → 3.49.0` (and `versionCode 134 → 135`) because this is a user
 
 | Version | Build | Commit | What shipped |
 |---|---|---|---|
-| v3.49.0 | 135 | `TBD` | Demand share TOC + manager-view everywhere |
+| v3.49.0 | 135 | `c0c4bf4` | Demand share TOC + manager-view everywhere |
 | v3.48.0 | 134 | `7100c58` | Genuine weekly/monthly + Teams/Viber rewrite engine |
 | v3.47.0 | 133 | `43334bc` | Data-integrity pass — persistent state, no fake team, honest Trainer Index |
 | v3.46.2 | 132 | `d5fa65e` | `gunicorn --timeout 120 / gthread` to end trainer-360 502 |
 | v3.46.1 | 131 | `409f69a` | Warm `/api/data/trainer-360` to stop 502 on cold Render |
 | v3.46.0 | 130 | `1d2863e` | Partial-first endpoints, offline-first reports, always-on monitoring, genuine feedback |
 
-## Validation (local, pre-push)
+## Validation (local + CI/CD, post-push)
 
-- Android ` :app:compileDebugKotlin` `BUILD SUCCESSFUL` (33s), `:app:testDebugUnitTest` **153 tests passing** (BatchShare TOC path covered via integration, no new failures), `pytest tests/ -q` **169 passed** (unchanged).
+- Android `:app:compileDebugKotlin` `BUILD SUCCESSFUL` (33s), `:app:testDebugUnitTest` **153 tests passing** (BatchShare TOC path covered via integration, no new failures), `pytest tests/ -q` **169 passed** (unchanged).
+- CI/CD (`main` push trigger): `SkillEdge-v3.49.0.135.apk` built and published to GitHub Release `v3.49.0.135` (`c0c4bf4`), signed with `keystore/skillsync-release.jks` (`c6868b14...1808`), installs over `v3.48.0.134`.
+- Render auto-deployed on push to `main` — `GET /healthz` returns `ok` (`version 6.1.0`); no backend change required (TOC already served from `unallocated` `toc_url`/`course_url` and `v2/course/curriculum` `contentUrl`).
 - Demand share probe (manual): `Batch(courseName="AZ-104 Azure Infrastructure", startDate="12 Sep 2026", endDate="16 Sep 2026", sessionTime="09:00 - 17:00", tocUrl="https://koenig-solutions.com/toc/AZ-104.pdf")` → `composeMessage` contains `The course outline is at https://koenig-solutions.com/toc/AZ-104.pdf` (verbatim, hyphens preserved), `*mark your skill in RMS at level 4 or below*`, `Hello Team,` + `Thank you.` 3 blocks, no `•`/`—`, `≤1000` chars, URL tapable in HTML clipboard.
 - Existing weekly/monthly probes still green: `standpoint_note` bullet-free, course codes survive, Hinglish `sir kal ka batch hai` → `Hello _Abhinav_,` house-style.
 
