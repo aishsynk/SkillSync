@@ -1,4 +1,36 @@
 
+## 2026-08-31T00:00:00+05:30 - Manager message taxonomy: four cadences + group-safety house rule (v3.53.0 / Build 140)
+
+- **Model Used**: Claude Sonnet 5 (Claude Code)
+- **Files Modified**: `backend.py`, `tests/test_manager_messages.py`,
+  `SkillEdge_Android/.../ui/report/{WeeklyReportViewModel,HrMonthlyReportViewModel,WeeklyReportScreen,HrMonthlyReportScreen}.kt`,
+  `SkillEdge_Android/app/build.gradle.kts` (140 / 3.53.0),
+  `releases/RELEASE_NOTES_v3.53.0.md`
+- **Work Completed**:
+  1. `_compose_manager_message` rewritten for four cadences — weekly / weekend /
+     monthly / monthend (`_MSG_CADENCE` dict). Weekend + month-end look backward
+     (delivered count, learner feedback, recognition, thanks); weekly + monthly
+     look forward (delivery load, open demand, cert gaps, the one ask).
+  2. **House rule**: a team broadcast never singles out an individual negatively.
+     Bench / feedback flags / cert gaps are aggregate counts only
+     ("2 of us are free", "1 feedback point is being handled individually").
+     A name appears in a group message only for recognition (`top_performers` =
+     delivering + rating >= 4.3 + no flags). `risk_names` removed from the digest.
+  3. `weekly_report_v2` / `hr_monthly_report` emit `team_digest_{weekly,weekend,
+     monthly,monthend}` and per-reportee `message_{...}`; `/api/v2/message/compose`
+     picks the prebuilt message for the requested cadence.
+  4. Android: segmented cadence toggle on both report screens; the composed
+     message promoted from a grey footnote to a titled card with
+     "Copy for Teams" / "Copy for Viber"; rewrite studio moved behind expand.
+  5. Fixes: delivering trainer no longer flagged "on the bench" from a low
+     utilisation reading; `_skills()` `course_name` key alias (was silently
+     breaking every opportunity match); manager email resolved + propagated
+     through every v2 route with empty-session tolerance; "1 batch" pluralization;
+     many-cert-gaps line asks to prioritise demand-linked gaps.
+- **Validation**: backend pytest 208 pass (+5 group-safety/cadence tests);
+  Android compileReleaseKotlin + unit tests green; verified against
+  `aishwar_c@koenig-solutions.com`.
+
 ## 2026-08-24T19:00:00+05:30 - Executive UI & Visual Polish Transformation (v3.45.0 / Build 128)
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
