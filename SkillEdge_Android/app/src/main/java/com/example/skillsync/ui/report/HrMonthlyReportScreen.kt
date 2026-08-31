@@ -62,6 +62,8 @@ fun HrMonthlyReportScreen(
 
     var selectedFilter by rememberSaveable { mutableStateOf("All") }
     var inspectingReportee by remember { mutableStateOf<ReporteeSnapshot?>(null) }
+    // Screen-level message cadence: false = "This month", true = "Month end".
+    var monthendSelected by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         containerColor = sk.pageBg,
@@ -173,6 +175,19 @@ fun HrMonthlyReportScreen(
                     ) {
                         item { TeamSummaryCard(data.teamSummary, sk) }
 
+                        item {
+                            HrTeamMessageCard(
+                                message = if (monthendSelected) data.teamDigestMonthend else data.teamDigestMonthly,
+                                monthendSelected = monthendSelected,
+                                onCadenceChange = { monthendSelected = it },
+                                onCopy = { text ->
+                                    copyToClipboard(context, text)
+                                    notify.success("Copied team message")
+                                },
+                                sk = sk,
+                            )
+                        }
+
                         // Trajectory & Tier Filter Chips
                         item {
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -214,6 +229,8 @@ fun HrMonthlyReportScreen(
                             ReporteeSnapshotCard(
                                 rep = rep,
                                 sk = sk,
+                                monthendSelected = monthendSelected,
+                                onCadenceChange = { monthendSelected = it },
                                 managerEmail = managerEmail,
                                 onTrainerClick = { onTrainerClick(rep.email, rep.name) },
                                 onInspectCriteria = { inspectingReportee = rep },
@@ -316,6 +333,52 @@ private fun TeamSummaryCard(ts: TeamSummaryData, sk: SkillColors) {
 }
 
 @Composable
+private fun HrTeamMessageCard(
+    message: String,
+    monthendSelected: Boolean,
+    onCadenceChange: (Boolean) -> Unit,
+    onCopy: (String) -> Unit,
+    sk: SkillColors,
+) {
+    SkillCard(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Message to the team", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = sk.bodyText)
+                CadenceSegmentToggle(
+                    weekendSelected = monthendSelected,
+                    onChange = onCadenceChange,
+                    primaryLabel = "This month",
+                    endLabel = "Month end",
+                    sk = sk,
+                )
+            }
+            androidx.compose.foundation.text.selection.SelectionContainer {
+                Text(
+                    message.ifBlank { "No message from RMS for this period yet." },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = sk.bodyText,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(sk.surface1, RoundedCornerShape(8.dp))
+                        .padding(10.dp),
+                )
+            }
+            FilledTonalButton(
+                onClick = { onCopy(message) },
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(containerColor = sk.brand.copy(alpha = 0.85f), contentColor = Color.White),
+            ) {
+                Text("Copy for Teams", style = MaterialTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+@Composable
 private fun SummaryMetric(
     label: String,
     value: String,
@@ -339,6 +402,8 @@ private fun SummaryMetric(
 private fun ReporteeSnapshotCard(
     rep: ReporteeSnapshot,
     sk: SkillColors,
+    monthendSelected: Boolean = false,
+    onCadenceChange: (Boolean) -> Unit = {},
     managerEmail: String = "",
     onTrainerClick: () -> Unit,
     onInspectCriteria: () -> Unit,
@@ -438,6 +503,53 @@ private fun ReporteeSnapshotCard(
                 }
                 if (rep.certsMissing > 0) {
                     MiniChip("${rep.certsMissing} cert gap${if (rep.certsMissing > 1) "s" else ""}", sk.warn)
+                }
+            }
+
+            // ── Headline message block (always visible) ──
+            run {
+                val variant = (if (monthendSelected) rep.messageMonthend else rep.messageMonthly)
+                    .ifBlank { rep.structuredFeedback.formattedText.ifBlank { buildReporteeText(rep, "") } }
+                val shown = rewritten.ifBlank { variant }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(sk.surface1, RoundedCornerShape(8.dp))
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "Message for ${rep.name.substringBefore(" ").ifBlank { "reportee" }}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = sk.bodyText,
+                        )
+                        CadenceSegmentToggle(
+                            weekendSelected = monthendSelected,
+                            onChange = onCadenceChange,
+                            primaryLabel = "This month",
+                            endLabel = "Month end",
+                            sk = sk,
+                        )
+                    }
+                    androidx.compose.foundation.text.selection.SelectionContainer {
+                        Text(shown, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
+                    }
+                    FilledTonalButton(
+                        onClick = {
+                            copyToClipboard(context, shown)
+                            notify.success("Copied ${rep.name.substringBefore(" ")}'s message")
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = sk.brand.copy(alpha = 0.85f), contentColor = Color.White),
+                    ) {
+                        Text("Copy for Viber", style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             }
 
@@ -587,7 +699,7 @@ private fun ReporteeSnapshotCard(
                                         try {
                                             val resp = com.example.skillsync.data.api.RetrofitClient.instance.composeMessage(
                                                 manager = managerEmail,
-                                                cadence = "monthly",
+                                                cadence = if (monthendSelected) "monthend" else "monthly",
                                                 target = rep.email,
                                                 myMessage = myMessage,
                                             )

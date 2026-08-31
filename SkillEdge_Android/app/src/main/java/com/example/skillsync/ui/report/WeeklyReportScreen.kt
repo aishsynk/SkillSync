@@ -78,6 +78,8 @@ fun WeeklyReportScreen(
     val canNext by remember { derivedStateOf { vm.canGoNext() } }
 
     var style by rememberSaveable { mutableStateOf(MessageStyle.TEAMS) }
+    // Screen-level message cadence: false = "This week" (Monday plan), true = "Weekend" (Friday wrap-up).
+    var weekendSelected by rememberSaveable { mutableStateOf(false) }
     var teamUserMessage by rememberSaveable { mutableStateOf("") }
     var teamMyMessage by rememberSaveable { mutableStateOf("") }
     var teamRewritten by rememberSaveable { mutableStateOf("") }
@@ -208,6 +210,24 @@ fun WeeklyReportScreen(
                                 WeeklyTeamOverviewCard(repData.teamSummary, sk)
                             }
 
+                            // 1b. Headline message block — the point of this screen.
+                            item {
+                                TeamMessageCard(
+                                    title = "Message to the team",
+                                    message = if (weekendSelected) repData.teamDigestWeekend else repData.teamDigest,
+                                    weekendSelected = weekendSelected,
+                                    onCadenceChange = { weekendSelected = it },
+                                    primaryLabel = "This week",
+                                    endLabel = "Weekend",
+                                    copyLabel = "Copy for Teams",
+                                    onCopy = { text ->
+                                        copyToClipboard(context, "Team Digest", text)
+                                        notify.success("Copied team message")
+                                    },
+                                    sk = sk,
+                                )
+                            }
+
                             // 2. Quick Action Bar (Copy / Share / Format Switcher)
                             item {
                                 SkillCard(modifier = Modifier.fillMaxWidth()) {
@@ -295,14 +315,14 @@ fun WeeklyReportScreen(
                                                         try {
                                                             val resp = com.example.skillsync.data.api.RetrofitClient.instance.composeMessage(
                                                                 manager = managerEmail,
-                                                                cadence = "weekly",
+                                                                cadence = if (weekendSelected) "weekend" else "weekly",
                                                                 target = "",
                                                                 myMessage = teamMyMessage,
                                                             )
                                                             teamRewritten = resp.message
                                                             notify.success("Message composed")
                                                         } catch (_: Exception) {
-                                                            teamRewritten = repData.teamDigest.ifBlank {
+                                                            teamRewritten = (if (weekendSelected) repData.teamDigestWeekend else repData.teamDigest).ifBlank {
                                                                 MessageRewriter.compose(
                                                                     userMessage = "", myMessage = teamMyMessage,
                                                                     style = style, isTeam = true,
@@ -326,7 +346,8 @@ fun WeeklyReportScreen(
                                             FilledTonalButton(
                                                 onClick = {
                                                     val source = teamRewritten.ifBlank {
-                                                        if (teamUserMessage.isBlank() && teamMyMessage.isBlank()) repData.teamDigest
+                                                        if (teamUserMessage.isBlank() && teamMyMessage.isBlank())
+                                                            (if (weekendSelected) repData.teamDigestWeekend else repData.teamDigest)
                                                         else MessageRewriter.compose(teamUserMessage, teamMyMessage, style, isTeam = true)
                                                     }
                                                     copyToClipboard(context, "Team Digest", source)
@@ -403,6 +424,8 @@ fun WeeklyReportScreen(
                                 WeeklyReporteeLiveCard(
                                     rep = rep,
                                     style = style,
+                                    weekendSelected = weekendSelected,
+                                    onCadenceChange = { weekendSelected = it },
                                     managerEmail = managerEmail,
                                     onTrainerClick = onTrainerClick,
                                     context = context,
@@ -527,6 +550,8 @@ private fun WeeklyMetric(
 private fun WeeklyReporteeLiveCard(
     rep: WeeklyReporteeData,
     style: MessageStyle,
+    weekendSelected: Boolean,
+    onCadenceChange: (Boolean) -> Unit,
     managerEmail: String,
     onTrainerClick: (email: String, name: String) -> Unit,
     context: Context,
@@ -534,7 +559,6 @@ private fun WeeklyReporteeLiveCard(
     sk: SkillColors,
 ) {
     var expanded by rememberSaveable(rep.email) { mutableStateOf(false) }
-    var showStandpoint by rememberSaveable(rep.email) { mutableStateOf(true) }
     var userMessage by rememberSaveable(rep.email) { mutableStateOf("") }
     var myMessage by rememberSaveable(rep.email) { mutableStateOf("") }
     var rewritten by rememberSaveable(rep.email) { mutableStateOf("") }
@@ -561,18 +585,14 @@ private fun WeeklyReporteeLiveCard(
         )
     }
 
-    // Base evidence-only messages (offline, deterministic)
-    val baseWeeklyMsg = remember(signal, style) {
-        composeReporteeMessage(signal, style)
+    // The selected cadence variant is the headline. When the backend has not
+    // supplied one, fall back to the evidence-only note that is always genuine.
+    val variantMessage = remember(rep, weekendSelected, signal, style) {
+        val v = if (weekendSelected) rep.messageWeekend else rep.messageWeekly
+        v.ifBlank { rep.standpointNote.ifBlank { composeManagerStandpointNote(signal, style) } }
     }
-    val baseStandpoint = remember(signal, style, rep.standpointNote) {
-        rep.standpointNote.ifBlank { composeManagerStandpointNote(signal, style) }
-    }
-
-    // The rewritten text takes precedence when present; otherwise fall back to
-    // the evidence-only base message / standpoint that is always genuine.
-    val activeBase = if (showStandpoint) baseStandpoint else baseWeeklyMsg
-    val activeText = rewritten.ifBlank { activeBase }
+    // The rewritten text takes precedence when present; otherwise the variant.
+    val activeText = rewritten.ifBlank { variantMessage }
 
     val severity = when {
         rep.feedbackRisk.equals("High", true) -> Severity.Critical
@@ -643,50 +663,60 @@ private fun WeeklyReporteeLiveCard(
                 }
             }
 
-            // Expanded view
-            if (expanded) {
+            // ── Headline message block (always visible) ──
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(sk.surface1, RoundedCornerShape(Radii.chip))
+                    .padding(Space.md),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Surface(
-                        onClick = { showStandpoint = true },
-                        shape = RoundedCornerShape(Radii.chip),
-                        color = if (showStandpoint) sk.cyan.copy(alpha = 0.85f) else sk.surface1,
-                    ) {
-                        Text(
-                            "Manager Standpoint",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (showStandpoint) Color.Black else sk.subText,
-                            modifier = Modifier.padding(horizontal = Space.md, vertical = 6.dp),
-                        )
-                    }
-                    Surface(
-                        onClick = { showStandpoint = false },
-                        shape = RoundedCornerShape(Radii.chip),
-                        color = if (!showStandpoint) sk.brand.copy(alpha = 0.85f) else sk.surface1,
-                    ) {
-                        Text(
-                            "Weekly Message",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (!showStandpoint) sk.frost else sk.subText,
-                            modifier = Modifier.padding(horizontal = Space.md, vertical = 6.dp),
-                        )
-                    }
+                    Text(
+                        "Message for ${rep.name.substringBefore(" ").ifBlank { "reportee" }}",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = sk.bodyText,
+                    )
+                    CadenceSegmentToggle(
+                        weekendSelected = weekendSelected,
+                        onChange = onCadenceChange,
+                        primaryLabel = "This week",
+                        endLabel = "Weekend",
+                        sk = sk,
+                    )
                 }
-
                 SelectionContainer {
                     Text(
                         activeText,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = sk.bodyText,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(sk.surface1, RoundedCornerShape(Radii.chip))
-                            .padding(Space.md),
                     )
                 }
+                FilledTonalButton(
+                    onClick = {
+                        copyToClipboard(context, rep.name, activeText)
+                        notify.success("Copied ${rep.name.substringBefore(" ")}'s message")
+                    },
+                    shape = RoundedCornerShape(Radii.chip),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = sk.brand.copy(alpha = 0.85f),
+                        contentColor = Color.White,
+                    ),
+                ) {
+                    Text(
+                        if (style == MessageStyle.TEAMS) "Copy for Teams" else "Copy for Viber",
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            }
 
+            // Expanded view
+            if (expanded) {
                 // ── Rewrite studio: [User Message] + [My Message] → house-style Teams message ──
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
@@ -729,7 +759,7 @@ private fun WeeklyReporteeLiveCard(
                                     try {
                                         val resp = com.example.skillsync.data.api.RetrofitClient.instance.composeMessage(
                                             manager = managerEmail,
-                                            cadence = "weekly",
+                                            cadence = if (weekendSelected) "weekend" else "weekly",
                                             target = rep.email,
                                             myMessage = myMessage,
                                         )
@@ -798,6 +828,82 @@ private fun WeeklyReporteeLiveCard(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(Radii.chip),
                 ) { Text("Send", style = MaterialTheme.typography.labelMedium, color = sk.sky) }
+            }
+        }
+    }
+}
+
+/** Small two-segment toggle used near every message block. */
+@Composable
+internal fun CadenceSegmentToggle(
+    weekendSelected: Boolean,
+    onChange: (Boolean) -> Unit,
+    primaryLabel: String,
+    endLabel: String,
+    sk: SkillColors,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        listOf(false to primaryLabel, true to endLabel).forEach { (isEnd, label) ->
+            val selected = weekendSelected == isEnd
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (selected) sk.frost else sk.subText,
+                modifier = Modifier
+                    .background(
+                        if (selected) sk.brand.copy(alpha = 0.85f) else sk.glass,
+                        RoundedCornerShape(Radii.chip),
+                    )
+                    .pressable { onChange(isEnd) }
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
+    }
+}
+
+/** Prominent, titled team-message headline card with cadence toggle and copy button. */
+@Composable
+private fun TeamMessageCard(
+    title: String,
+    message: String,
+    weekendSelected: Boolean,
+    onCadenceChange: (Boolean) -> Unit,
+    primaryLabel: String,
+    endLabel: String,
+    copyLabel: String,
+    onCopy: (String) -> Unit,
+    sk: SkillColors,
+) {
+    SkillCard(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = sk.bodyText)
+                CadenceSegmentToggle(weekendSelected, onCadenceChange, primaryLabel, endLabel, sk)
+            }
+            SelectionContainer {
+                Text(
+                    message.ifBlank { "No message from RMS for this period yet." },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = sk.bodyText,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(sk.surface1, RoundedCornerShape(Radii.chip))
+                        .padding(Space.md),
+                )
+            }
+            FilledTonalButton(
+                onClick = { onCopy(message) },
+                shape = RoundedCornerShape(Radii.chip),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = sk.brand.copy(alpha = 0.85f),
+                    contentColor = Color.White,
+                ),
+            ) {
+                Text(copyLabel, style = MaterialTheme.typography.labelMedium)
             }
         }
     }

@@ -25,7 +25,10 @@ data class WeeklyReportData(
     val weekStart: String,
     val weekEnd: String,
     val teamSummary: WeeklyTeamSummary,
+    /** Monday, forward-looking plan. `teamDigest` == this. */
     val teamDigest: String,
+    /** Friday, wrap-up variant. Falls back to [teamDigest] when absent. */
+    val teamDigestWeekend: String,
     val reportees: List<WeeklyReporteeData>,
 )
 
@@ -65,6 +68,10 @@ data class WeeklyReporteeData(
     val certGaps: Int = 0,
     val certGapCourses: List<String> = emptyList(),
     val standpointNote: String = "",
+    /** Monday "this week" message for this reportee. Falls back to standpoint/message. */
+    val messageWeekly: String = "",
+    /** Friday "weekend" wrap-up message. Falls back to [messageWeekly]. */
+    val messageWeekend: String = "",
     val learnerRating: Double? = null,
     val learnerRatingCount: Int = 0,
     val learnerFeedback: Map<String, Any>? = null,
@@ -186,7 +193,10 @@ class WeeklyReportViewModel(
         val weekLabel = raw["week_label"]?.toString() ?: formatWeekDisplay(targetDate)
         val weekStart = raw["week_start"]?.toString() ?: ""
         val weekEnd = raw["week_end"]?.toString() ?: ""
-        val teamDigest = raw["team_digest"]?.toString() ?: ""
+        val teamDigest = raw["team_digest_weekly"]?.toString()
+            ?: raw["team_digest"]?.toString() ?: ""
+        val teamDigestWeekend = raw["team_digest_weekend"]?.toString()?.takeIf { it.isNotBlank() }
+            ?: teamDigest
 
         val tsMap = raw["team_summary"] as? Map<String, Any> ?: emptyMap()
         val teamSummary = WeeklyTeamSummary(
@@ -259,6 +269,13 @@ class WeeklyReportViewModel(
                 certGaps = (r["cert_gaps"] as? Number)?.toInt() ?: 0,
                 certGapCourses = certGapCourses,
                 standpointNote = r["standpoint_note"]?.toString() ?: "",
+                messageWeekly = (r["message_weekly"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: r["standpoint_note"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: r["message"]?.toString() ?: ""),
+                messageWeekend = (r["message_weekend"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: r["message_weekly"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: r["standpoint_note"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: r["message"]?.toString() ?: ""),
                 learnerRating = (r["learner_rating"] as? Number)?.toDouble(),
                 learnerRatingCount = (r["learner_rating_count"] as? Number)?.toInt() ?: 0,
                 learnerFeedback = r["learner_feedback"] as? Map<String, Any>,
@@ -271,6 +288,7 @@ class WeeklyReportViewModel(
             weekEnd = weekEnd,
             teamSummary = teamSummary,
             teamDigest = teamDigest,
+            teamDigestWeekend = teamDigestWeekend,
             reportees = reportees,
         )
     }

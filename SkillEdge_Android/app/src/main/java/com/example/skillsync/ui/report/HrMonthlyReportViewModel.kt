@@ -24,6 +24,10 @@ data class HrReportData(
     val monthKey: String,
     val generatedAt: String,
     val teamSummary: TeamSummaryData,
+    /** Monthly team digest. `team_digest` / `team_message` == this. */
+    val teamDigestMonthly: String,
+    /** Month-end wrap-up variant. Falls back to [teamDigestMonthly]. */
+    val teamDigestMonthend: String,
     val reportees: List<ReporteeSnapshot>,
 )
 
@@ -92,6 +96,10 @@ data class ReporteeSnapshot(
     val trajectory: String = "Improving",
     val structuredFeedback: StructuredFeedback = StructuredFeedback(),
     val trainerIndex: TrainerIndexSummary = TrainerIndexSummary(),
+    /** Monthly manager message for this reportee. Falls back to formatted feedback text. */
+    val messageMonthly: String = "",
+    /** Month-end wrap-up message. Falls back to [messageMonthly]. */
+    val messageMonthend: String = "",
 )
 
 
@@ -246,6 +254,14 @@ class HrMonthlyReportViewModel(
                     formattedText = sfRaw["formatted_text"]?.toString() ?: "",
                 )
 
+                val msgMonthly = (r["message_monthly"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: sfRaw["message_monthly"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: r["message"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: structuredFeedback.formattedText)
+                val msgMonthend = (r["message_monthend"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: sfRaw["message_monthend"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: msgMonthly)
+
                 val topCoursesList = ((r["top_courses"] as? List<*>) ?: (capMap?.get("top_courses") as? List<*>) ?: emptyList<Any>())
                     .mapNotNull {
                         when (it) {
@@ -315,13 +331,22 @@ class HrMonthlyReportViewModel(
                     trajectory = trajectoryVal,
                     structuredFeedback = structuredFeedback,
                     trainerIndex = trainerIndexSummary,
+                    messageMonthly = msgMonthly,
+                    messageMonthend = msgMonthend,
                 )
             }
+        val teamDigestMonthly = raw["team_digest_monthly"]?.toString()?.takeIf { it.isNotBlank() }
+            ?: raw["team_digest"]?.toString()?.takeIf { it.isNotBlank() }
+            ?: raw["team_message"]?.toString() ?: ""
+        val teamDigestMonthend = raw["team_digest_monthend"]?.toString()?.takeIf { it.isNotBlank() }
+            ?: teamDigestMonthly
         return HrReportData(
             month = raw["month"]?.toString() ?: "",
             monthKey = raw["month_key"]?.toString() ?: "",
             generatedAt = raw["generated_at"]?.toString() ?: "",
             teamSummary = teamSummary,
+            teamDigestMonthly = teamDigestMonthly,
+            teamDigestMonthend = teamDigestMonthend,
             reportees = reportees,
         )
     }
