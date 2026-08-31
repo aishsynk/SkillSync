@@ -3891,3 +3891,40 @@ Wave D - Widen the lens:
 - **Next**: commit + push v3.52.0; CI; Render; verify all 3 against `aishwar_c@`. Remaining roadmap:
   message-send UX polish, D-wave (accounts view, team Copilot, digests, delivery-quality alerts),
   Render `skilledge-state` disk (operator), physical-device upgrade test.
+
+## 2026-08-31T17:00:00+05:30 - v3.52.0/139 deployed and verified — session handover
+
+- **Model/Tool**: Claude Sonnet 5 / Claude Code (+ 3 parallel worktree subagents)
+- **Release**: commit `a07db02` (+ `f62f344` gitignore); CI success; `v3.52.0.139`.
+  APK signer `c6868b14...1808` unchanged; package `com.example.skillsync`; versionCode 139 (over 138).
+- **Production validation vs `aishwar_c@koenig-solutions.com`** (resolves to `aishwar.c@`, real 2-person team):
+  - Priorities 200: 3 unstaffed_demand (TOGAF high near deadline, PL-300 `medium` + `coverable:true`
+    with the bench annotation, AWS low). Coverable bump live.
+  - cert-intel 200: `demand_led` ranks PL-300 by open batches; expiry honestly "RMS does not expose
+    certification expiry dates".
+  - portfolio 200: `domain_taxonomy_available: true` (keys 114+205 wired).
+  - eligibility 200 for a resolvable batch; ready/blocked split works.
+- **This session end-to-end (v3.50.0 -> v3.52.0)**:
+  - v3.50.0: all manager-to-team messages composed as house-style prose + `/api/v2/message/compose` + `[My Message]`.
+  - v3.51.0: opportunity-cost KPI, `/api/v2/manager/priorities`, feedback trend/themes on Trainer 360.
+  - v3.51.1: **email resolver** - the real "app is empty" root cause (`aishwar_c@` had 0 RMS reportees;
+    `aishwar.c@` has the real team). This is why v3.48-3.51 looked absent.
+  - v3.52.0: "This Week" screen, eligibility-gap closer (Batch Detail sheet), cert intelligence
+    (technology/domain taxonomy + demand-led cert ranking), `_skills()` `course_name` alias bug fix.
+- **Current Status**: No known build/CI/deploy/upgrade issue. Working tree clean (bar gitignored
+  `.claude/worktrees` scratch dirs that won't delete on Windows - harmless).
+- **Known soft spots (follow-ups, not blockers)**:
+  1. Portfolio `by_domain` is mostly "Unclassified" - RMS keys 114/205 have thin/noisy domain coverage
+     (some obvious mismaps e.g. non-PRINCE courses under "PRINCE2"). Honest, but low value until the
+     RMS taxonomy improves or a curated mapping is layered on.
+  2. `/api/v2/eligibility/batch` returns an empty ready/blocked list (no message) when the batch's
+     course cannot be resolved in RMS `_free_schedule` (e.g. "TOGAF Enterprise Architecture"). Should
+     return a "course could not be matched in RMS" note like `allocation/candidates` does (422).
+- **Next Recommended Actions**:
+  1. Fix soft spot 2 (small): eligibility endpoint should return the unresolved-course note.
+  2. D-wave: accounts view, team-level Copilot, scheduled morning/weekly digests, delivery-quality
+     alerts (recordingDetails / assignmentPax).
+  3. Confirm Render `skilledge-state` persistent disk (operator - Settings -> Disks if not a Blueprint).
+  4. Physical-device upgrade test of build 139 over an older build (no ADB in this environment).
+- **TEST ACCOUNT**: `aishwar_c@koenig-solutions.com`. **Review + roadmap artifact**:
+  https://claude.ai/code/artifact/ca868032-e50f-4ee6-a497-b42a6143d65c
