@@ -90,6 +90,7 @@ fun MainNavigation() {
                 "demand_list" -> Main(email, HomeTab.DEMAND)
                 "trainer" -> if (target.id.isNotBlank()) Trainer360(email, target.id, target.label) else Main(email, HomeTab.TEAM)
                 "trainer_list" -> Main(email, HomeTab.TEAM)
+                "priorities" -> Priorities(email)
                 "actions" -> Main(email, HomeTab.ACTIONS)
                 else -> Main(email, HomeTab.DASHBOARD)
             }
@@ -98,7 +99,7 @@ fun MainNavigation() {
     }
 
     // Hardware/gesture back returns from a pushed detail screen to the shell.
-    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot || current is HrReport || current is Priorities) {
+    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot || current is HrReport || current is Priorities || current is CapacityRunway) {
         current = when (val c = current) {
             is Trainer360 -> Main(c.email, HomeTab.TEAM)
             is BatchDetail -> Main(c.email, HomeTab.DEMAND)
@@ -106,6 +107,7 @@ fun MainNavigation() {
             is Copilot -> Main(c.email, HomeTab.DASHBOARD)
             is HrReport -> Main(c.email, HomeTab.TEAM)
             is Priorities -> Main(c.email, HomeTab.DASHBOARD)
+            is CapacityRunway -> Priorities(c.email)
             else -> c
         }
     }
@@ -243,7 +245,14 @@ fun MainNavigation() {
                 onOpenDemand = { demandId -> current = BatchDetail(screen.email, demandId) },
                 onOpenTrainer = { email, name -> current = Trainer360(screen.email, email, name) },
                 onOpenActions = { current = Main(screen.email, HomeTab.ACTIONS) },
+                onOpenRunway = { current = CapacityRunway(screen.email) },
                 onBack = { current = Main(screen.email, HomeTab.DASHBOARD) },
+            )
+
+            is CapacityRunway -> com.example.skillsync.ui.report.CapacityRunwayScreen(
+                managerEmail = screen.email,
+                onOpenTrainer = { email, name -> current = Trainer360(screen.email, email, name) },
+                onBack = { current = Priorities(screen.email) },
             )
 
             is Trainer360 -> Trainer360Screen(

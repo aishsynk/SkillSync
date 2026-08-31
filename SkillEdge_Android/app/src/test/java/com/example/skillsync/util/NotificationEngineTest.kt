@@ -31,4 +31,26 @@ class NotificationEngineTest {
         assertEquals("trainer", event.targetType)
         assertEquals("n@example.com", event.targetId)
     }
+
+    @Test
+    fun deliveryAlertBecomesEventAndDedupesByKind() {
+        val data = mapOf<String, Any>(
+            "delivery_alerts" to listOf(
+                mapOf(
+                    "assignment_id" to "A-9", "kind" to "recording_gap",
+                    "course" to "AZ-104", "trainer_name" to "Alpha",
+                    "detail" to "No session recording submitted yet.", "severity" to "high",
+                )
+            )
+        )
+        val fresh = NotificationEngine.detect(data, emptySet(), emptySet(), emptySet(), emptySet()).single()
+        assertEquals(NotificationEngine.BUCKET_DELIVERY, fresh.bucket)
+        assertEquals("A-9:recording_gap", fresh.id)
+        assertEquals("A-9", fresh.targetId)
+
+        val seen = NotificationEngine.detect(
+            data, emptySet(), emptySet(), emptySet(), setOf("A-9:recording_gap")
+        )
+        assertEquals(0, seen.size)
+    }
 }

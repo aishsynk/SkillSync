@@ -30,12 +30,14 @@ object NotificationEngine {
     const val BUCKET_ALLOCATION = "allocation"
     const val BUCKET_FEEDBACK = "feedback_due"
     const val BUCKET_DEMAND = "demand"
+    const val BUCKET_DELIVERY = "delivery"
 
     fun detect(
         data: Map<String, Any>,
         seenAllocation: Set<String>,
         seenFeedback: Set<String>,
         seenDemand: Set<String>,
+        seenDelivery: Set<String> = emptySet(),
     ): List<NotifyEvent> {
         val events = mutableListOf<NotifyEvent>()
         val batches = data.rows("batch_engagement_df")
@@ -81,6 +83,32 @@ object NotificationEngine {
             )
         }
 
+        // Delivery-quality early warnings: recording gaps, roster drops, and
+        // batches about to start with nobody on them. Dedup key folds in the
+        // alert kind so a batch can raise more than one distinct warning.
+        data.rows("delivery_alerts").forEach { a ->
+            val aid = a.str("assignment_id")
+            if (aid.isBlank()) return@forEach
+            val kind = a.str("kind")
+            val key = "$aid:$kind"
+            if (key in seenDelivery) return@forEach
+            val course = a.str("course").ifBlank { "A batch" }
+            val trainer = a.str("trainer_name")
+            val who = if (trainer.isNotBlank()) "$trainer — " else ""
+            val title = when (kind) {
+                "recording_gap" -> "Recording Missing"
+                "pax_drop" -> "Roster Dropped"
+                "starts_soon_unstaffed" -> "Batch Starts Soon"
+                else -> "Delivery Alert"
+            }
+            events += NotifyEvent(
+                id = key, bucket = BUCKET_DELIVERY,
+                title = title,
+                message = "$who$course: ${a.str("detail")}",
+                targetType = "demand", targetId = aid,
+            )
+        }
+
         return events
     }
 
@@ -98,11 +126,13 @@ object NotificationEngine {
                     BUCKET_ALLOCATION -> "New Batches Assigned"
                     BUCKET_FEEDBACK -> "Feedback Required"
                     BUCKET_DEMAND -> "New Unallocated Batches"
+                    BUCKET_DELIVERY -> "Delivery Alerts"
                     else -> "SkillSync Update"
                 }
                 val targetType = when (bucket) {
                     BUCKET_DEMAND -> "demand_list"
                     BUCKET_ALLOCATION -> "trainer_list"
+                    BUCKET_DELIVERY -> "demand_list"
                     else -> "actions"
                 }
                 listOf(NotifyEvent(

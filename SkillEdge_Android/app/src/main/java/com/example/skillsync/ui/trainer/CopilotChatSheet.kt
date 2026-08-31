@@ -1,7 +1,6 @@
 package com.example.skillsync.ui.trainer
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -14,6 +13,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.text.HtmlCompat
@@ -22,14 +24,17 @@ import androidx.core.text.HtmlCompat
 @Composable
 fun CopilotChatSheet(
     managerEmail: String,
-    targetEmail: String,
+    targetEmail: String = "",
     viewModel: CopilotViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     onDismiss: () -> Unit
 ) {
     val messages by viewModel.messages.collectAsState()
-    
-    // Questions mapped from JS rules
-    val questions = listOf(
+
+    // Team context = the Copilot was opened without a specific trainer target.
+    val isTeam = targetEmail.isBlank()
+
+    // Per-trainer questions (mapped from JS rules).
+    val trainerQuestions = listOf(
         "can_assign_now" to "Can I assign now?",
         "can_deliver" to "What can deliver?",
         "weak_spot" to "Where weak?",
@@ -47,11 +52,23 @@ fun CopilotChatSheet(
         "missing_data" to "What data is missing?"
     )
 
+    // Team-level suggested questions -> team question_key.
+    val teamQuestions = listOf(
+        "free_for_course" to "Who is free next week for…",
+        "coverage_risk" to "Biggest coverage risk",
+        "top_upskills" to "Top 3 upskills",
+        "bench" to "Who is on the bench",
+        "overloaded" to "Who is stretched",
+        "feedback_watch" to "Who needs a 1:1"
+    )
+
+    var draft by remember { mutableStateOf("") }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = MaterialTheme.colorScheme.surface,
-        dragHandle = null // We will provide our own header
+        dragHandle = null
     ) {
         Column(
             modifier = Modifier
@@ -67,7 +84,7 @@ fun CopilotChatSheet(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "SkillEdge Copilot ✨",
+                    text = if (isTeam) "Team Copilot ✨" else "SkillEdge Copilot ✨",
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
                     color = MaterialTheme.colorScheme.primary
@@ -89,14 +106,17 @@ fun CopilotChatSheet(
                 if (messages.isEmpty()) {
                     item {
                         Text(
-                            text = "Ask me anything about this trainer's readiness, gaps, and allocation fit.",
+                            text = if (isTeam)
+                                "Ask about your team — who is free for a course, coverage risk, the bench, upskills, or who needs a 1:1."
+                            else
+                                "Ask me anything about this trainer's readiness, gaps, and allocation fit.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(vertical = 32.dp, horizontal = 16.dp),
                             fontSize = 14.sp
                         )
                     }
                 }
-                
+
                 items(messages) { msg ->
                     when (msg) {
                         is ChatMessage.User -> {
@@ -143,6 +163,47 @@ fun CopilotChatSheet(
                                 }
                             }
                         }
+                        is ChatMessage.Team -> {
+                            val r = msg.response
+                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp),
+                                    modifier = Modifier.widthIn(max = 320.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(text = r.answer, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        if (r.data.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            r.data.forEach { d ->
+                                                Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                                                    Text("• ", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    Text(
+                                                        text = if (d.note.isBlank()) d.name else "${d.name} — ${d.note}",
+                                                        fontSize = 13.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        if (!r.evidence.isNullOrBlank()) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(r.evidence, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                        }
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        val badgeColor = when (r.confidence) {
+                                            "high" -> Color(0xFF81C784)
+                                            "low" -> Color(0xFFE57373)
+                                            else -> Color(0xFFFFB74D)
+                                        }
+                                        Surface(color = badgeColor.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
+                                            Text("Confidence ${r.confidence ?: "?"}", fontSize = 10.sp, color = badgeColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         is ChatMessage.Agent -> {
                             val r = msg.response
                             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
@@ -153,7 +214,7 @@ fun CopilotChatSheet(
                                 ) {
                                     Column(modifier = Modifier.padding(12.dp)) {
                                         Text(text = r.answer, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        
+
                                         if (r.evidence != null) {
                                             Spacer(modifier = Modifier.height(8.dp))
                                             Surface(
@@ -169,7 +230,7 @@ fun CopilotChatSheet(
                                                 )
                                             }
                                         }
-                                        
+
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Row(
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -180,7 +241,7 @@ fun CopilotChatSheet(
                                                 r.confidence?.contains("%") == true && (r.confidence.replace("%","").toIntOrNull() ?: 0) >= 90 -> Color(0xFF81C784)
                                                 else -> Color(0xFFFFB74D)
                                             }
-                                            
+
                                             Surface(color = badgeColor.copy(alpha=0.2f), shape = RoundedCornerShape(4.dp)) {
                                                 Text("Confidence ${r.confidence}", fontSize = 10.sp, color = badgeColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                                             }
@@ -198,18 +259,61 @@ fun CopilotChatSheet(
                 }
             }
 
-            // Question Chips
+            // Suggestion chips
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(questions) { (key, label) ->
-                    SuggestionChip(
-                        onClick = { viewModel.askQuestion(managerEmail, targetEmail, key, label) },
-                        label = { Text(label) }
+                if (isTeam) {
+                    items(teamQuestions) { (key, label) ->
+                        SuggestionChip(
+                            onClick = { viewModel.askTeam(managerEmail, label, questionKey = key) },
+                            label = { Text(label) }
+                        )
+                    }
+                } else {
+                    items(trainerQuestions) { (key, label) ->
+                        SuggestionChip(
+                            onClick = { viewModel.askQuestion(managerEmail, targetEmail, key, label) },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+            }
+
+            // Free-text ask bar (team context only — the per-trainer sheet is chip-driven).
+            if (isTeam) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        placeholder = { Text("Ask about your team") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(onSend = {
+                            if (draft.isNotBlank()) {
+                                viewModel.askTeam(managerEmail, draft, freeText = draft)
+                                draft = ""
+                            }
+                        })
                     )
+                    Button(
+                        onClick = {
+                            if (draft.isNotBlank()) {
+                                viewModel.askTeam(managerEmail, draft, freeText = draft)
+                                draft = ""
+                            }
+                        }
+                    ) { Text("Ask") }
                 }
             }
         }

@@ -201,6 +201,13 @@ interface SkillEdgeApi {
         @Body request: AgentAskRequest
     ): AgentAskResponse
 
+    /** Ask the team-level Copilot — opened without a specific trainer target.
+     *  Body: { manager, question }  or  { manager, question_key }. */
+    @POST("api/v2/copilot/team")
+    suspend fun askCopilotTeam(
+        @Body body: Map<String, String>
+    ): Map<String, Any>
+
     @POST("api/v2/message/rewrite")
     suspend fun rewriteMessage(
         @Body request: RewriteRequest
@@ -259,6 +266,18 @@ interface SkillEdgeApi {
      *  needed, overloaded trainers, cert gaps, overdue actions. */
     @GET("api/v2/manager/priorities")
     suspend fun getManagerPriorities(@Query("manager") manager: String): Map<String, Any>
+
+    /** "Capacity Runway" — next 8 weeks of incoming demand vs the team's free
+     *  capacity per week, the gap, and a ranked upskilling list. */
+    @GET("api/v2/planning/runway")
+    suspend fun getCapacityRunway(@Query("manager") manager: String): Map<String, Any>
+
+    /** Proactive digest: kind = "morning" (day-start brief) or "weekly" (Fri wrap). */
+    @GET("api/v2/digest")
+    suspend fun getDigest(
+        @Query("manager") manager: String,
+        @Query("kind") kind: String,
+    ): Map<String, Any>
 
     /** V2 Weekly Delivery & Operations Intelligence Snapshot */
     @GET("api/v2/report/weekly")

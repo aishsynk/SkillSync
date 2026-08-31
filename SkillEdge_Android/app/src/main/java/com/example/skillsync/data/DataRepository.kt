@@ -91,6 +91,11 @@ class ManagerRepository(
     suspend fun priorities(email: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
         cachedMap("priorities_$email", fresh) { api.getManagerPriorities(email) }
 
+    /** "Capacity Runway" — forward 8-week demand vs capacity. Partial-first on the
+     *  backend, cached per manager so the screen renders the last snapshot first. */
+    suspend fun capacityRunway(email: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
+        cachedMap("runway_$email", fresh) { api.getCapacityRunway(email) }
+
     suspend fun utilizationHistory(email: String) =
         cachedMap("utilization_${email.lowercase()}", false) { api.getTrainerUtilizationHistory(email) }.data.orEmpty()
 

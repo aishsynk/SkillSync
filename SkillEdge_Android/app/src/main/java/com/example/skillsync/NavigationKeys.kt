@@ -26,6 +26,9 @@ import kotlinx.serialization.Serializable
 /** "This Week" — the ranked board of what needs the manager. */
 @Serializable data class Priorities(val email: String) : NavKey
 
+/** "Capacity Runway" — forward 8-week demand vs team capacity, plus upskilling. */
+@Serializable data class CapacityRunway(val email: String) : NavKey
+
 object HomeTab {
     const val DASHBOARD = "today"
     const val TEAM = "people"

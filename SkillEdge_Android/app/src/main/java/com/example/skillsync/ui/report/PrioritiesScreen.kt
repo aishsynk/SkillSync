@@ -41,6 +41,7 @@ fun PrioritiesScreen(
     onOpenDemand: (String) -> Unit,
     onOpenTrainer: (email: String, name: String) -> Unit,
     onOpenActions: () -> Unit,
+    onOpenRunway: () -> Unit = {},
     onBack: () -> Unit,
     vm: PrioritiesViewModel = viewModel(),
 ) {
@@ -69,6 +70,11 @@ fun PrioritiesScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_back), "Back", tint = Color.White)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onOpenRunway) {
+                        Icon(painterResource(R.drawable.ic_trend), "Capacity Runway", tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = sk.heroBg),

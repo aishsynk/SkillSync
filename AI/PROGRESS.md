@@ -1,4 +1,16 @@
 
+## 2026-08-31T02:00:00+05:30 - Manager-view wave 3: Capacity Runway + Team Copilot + digests/delivery alerts (v3.54.0 / Build 141)
+
+- **Model Used**: Claude Sonnet 5 (Claude Code) — three parallel worktree subagents, merged to main
+- **Files Modified**: `backend.py` (+~770 lines: `capacity_runway_v2` / `_capacity_runway_build`, `copilot_team_v2` / `_team_intent` / `_copilot_team_answer`, `manager_digest_v2` / `_digest_morning_build` / `_digest_weekly_build`, `_delivery_alerts_build` in `unified_intelligence`, `_fuzzy_match` fix in `v2_upskilling_demand_opportunities`), `tests/test_capacity_runway.py` + `test_copilot_team.py` + `test_delivery_alerts.py` + `test_manager_digest.py` (new, +18 tests), Android: `SkillEdgeApi.kt`, `DataRepository.kt`, `Navigation.kt`, `NavigationKeys.kt`, `CapacityRunwayViewModel.kt` + `CapacityRunwayScreen.kt` (new), `PrioritiesScreen.kt`, `CopilotViewModel.kt` + `CopilotChatSheet.kt`, `DigestStateStore.kt` (new), `MonitoringPass.kt`, `NotificationEngine.kt` + test, `build.gradle.kts` (141 / 3.54.0), `releases/RELEASE_NOTES_v3.54.0.md`
+- **Work Completed**:
+  1. **Capacity Runway** — `GET /api/v2/planning/runway`: 8-week horizon, per-week demand batches vs team free capacity (no overlapping booked assignment + current util < 85), `coverable` count, `gap`, `worst_week`, trainer-days available/demanded, ranked upskilling list (courses no one teaches, by batches unlocked, closest trainer by token overlap). Android screen off the "This Week" header trend icon; 8-column bar chart, amber/red gap tint, upskilling cards tap through to the nearest trainer's 360.
+  2. **Team Copilot** — `POST /api/v2/copilot/team`: free text or `question_key`; deterministic `_team_intent` routing to 7 answers (`free_for_course`, `coverage_risk`, `top_upskills`, `bench`, `overloaded`, `feedback_watch`, `team_summary`); returns `{answer, evidence, data, confidence, decisionVersion:"team-v1"}`. Android: the target-less Copilot sheet shows 6 team chips + a free-text bar and renders answer + data bullets + confidence.
+  3. **Proactive digests** — `GET /api/v2/digest?kind=morning|weekly`; `MonitoringPass.maybePostDigests()` posts a day-start brief (hour 7-9, once/day) and a Friday wrap (Fri 16-18, once/week), guarded by `DigestStateStore`. **Delivery-quality alerts** — `_delivery_alerts_build` adds `delivery_alerts` to the dashboard (recording gap, pax drop, starts-soon-unstaffed); new `BUCKET_DELIVERY` in `NotificationEngine` with kind-scoped dedup.
+  4. **Fix** — `v2_upskilling_demand_opportunities` called undefined `_team()` / `_fuzzy_match()` (guaranteed 500); now builds the roster from `reportees` inline and scores adjacency by Jaccard token overlap.
+- **Validation**: backend pytest 226 pass; Android testDebugUnitTest + lintRelease + assembleRelease green; APK signer `c6868b14…41808` unchanged.
+- **Still TODO from the 14-item list**: #6 development plans (needs persistence), #7 accounts view, #13 manager benchmarking, #14 new-trainer ramp.
+
 ## 2026-08-31T00:00:00+05:30 - Manager message taxonomy: four cadences + group-safety house rule (v3.53.0 / Build 140)
 
 - **Model Used**: Claude Sonnet 5 (Claude Code)

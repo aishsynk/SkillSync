@@ -2757,6 +2757,88 @@ def validate_session():
 # 8-trainer roster for accounts with no RMS reportees, violating the "no invented
 # data" rule. Such accounts now get an honest empty state.
 
+
+def _delivery_alerts_build(all_batches, demand_df, today):
+    """
+    Delivery-quality early warnings for the notification path.
+
+    Two per-batch probes on the current/upcoming batches (bounded to 10 to keep
+    the RMS fan-out sane):
+      - recording_gap: an in-flight batch with nothing in recordingDetails yet.
+      - pax_drop:      assignmentPax roster count below the demand's expected
+                       NoOfParticipants (carried on the batch row as `participants`).
+    Plus a roster-free scan of open demand for batches that start within 7 days
+    and still have no trainer (starts_soon_unstaffed).
+    """
+    alerts = []
+    active = [b for b in (all_batches or [])
+              if isinstance(b, dict)
+              and b.get("engagement_state") in ("current", "upcoming")
+              and str(b.get("assignment_id", "") or "")]
+    active = sorted(active, key=lambda b: b.get("start_at") or "")[:10]
+
+    def _probe(b):
+        aid = str(b.get("assignment_id", "") or "")
+        state = b.get("engagement_state")
+        found = []
+        if state == "current":
+            rec = _rms("recordingDetails", {"AssignmentId": aid})
+            rows = [r for r in (rec or []) if isinstance(r, dict)]
+            if rec is not None and not rows:
+                found.append(("recording_gap", "high",
+                              "No session recording submitted yet for %s."
+                              % (b.get("course_name") or "this batch")))
+        try:
+            expected = int(b.get("participants") or 0)
+        except (TypeError, ValueError):
+            expected = 0
+        if expected > 0:
+            pax = _rms("assignmentPax", {"AssignmentId": aid})
+            prows = [r for r in (pax or []) if isinstance(r, dict)]
+            if pax is not None and prows:
+                got = len(prows)
+                if got < expected:
+                    drop = expected - got
+                    sev = "high" if drop * 2 >= expected else "medium"
+                    found.append(("pax_drop", sev,
+                                  "Roster is %d of %d expected participants (%d dropped)."
+                                  % (got, expected, drop)))
+        return [(aid, b, k, s, d) for (k, s, d) in found]
+
+    if active:
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            for group in pool.map(_probe, active):
+                for aid, b, kind, sev, detail in group:
+                    alerts.append({
+                        "assignment_id": aid,
+                        "trainer_name":  b.get("trainer_name", ""),
+                        "course":        b.get("course_name", ""),
+                        "kind":          kind,
+                        "detail":        detail,
+                        "severity":      sev,
+                    })
+
+    for d in (demand_df or []):
+        if not isinstance(d, dict):
+            continue
+        sd = _parse_date(str(d.get("start_date", "") or ""))
+        if not sd:
+            continue
+        days_out = (sd - today).days
+        if 0 <= days_out <= 7:
+            did = str(d.get("demand_id", "") or "") or str(d.get("course_name", "") or "")
+            alerts.append({
+                "assignment_id": did,
+                "trainer_name":  "",
+                "course":        d.get("course_name", ""),
+                "kind":          "starts_soon_unstaffed",
+                "detail":        "Opens in %d day%s with no trainer assigned."
+                                 % (days_out, "" if days_out == 1 else "s"),
+                "severity":      "high" if days_out <= 3 else "medium",
+            })
+    return alerts
+
+
 @app.route('/api/data/unified-manager-intelligence', methods=['GET'])
 @app.route('/data/unified-manager-intelligence', methods=['GET'])
 def unified_intelligence():
@@ -3124,6 +3206,12 @@ def unified_intelligence():
     opportunity_cost = _team_opportunity_cost(_opp_team, _demand_rows() or [])
     manager_kpis["opportunity_cost"] = opportunity_cost
 
+    # ── Delivery-quality early warnings ─────────────────────────────────
+    try:
+        delivery_alerts = _delivery_alerts_build(all_batches, demand_df, today)
+    except Exception:
+        delivery_alerts = []
+
     # ── Response (web-frontend data model + backward-compat fields) ──────
     from_cache = _cache_get("reportees", {"email": email}) is not None or _cache_get("unallocated", {}) is not None
     cache_source = "cache" if from_cache else "rms_live"
@@ -3136,6 +3224,7 @@ def unified_intelligence():
         "delivery_intelligence_df": delivery_rows,
         "batch_engagement_df":      all_batches,
         "unallocated_demand_df":    demand_df,
+        "delivery_alerts":          delivery_alerts,
         "primary_opportunities":    primary_opps,
         "allocation_exceptions":    allocation_exceptions,
         "trainer_feedback_summary_df": feedback_sums,
@@ -7126,6 +7215,307 @@ def agent_ask():
     return jsonify(result), 200
 
 
+# ═══ Team-level Copilot (v2) ══════════════════════════════════════════════════
+#
+# `/api/agent/ask` above answers questions about one trainer. A delivery manager
+# also asks questions about the *team* — "who is free next week for AZ-104",
+# "biggest coverage risk this month". This endpoint recognises seven such
+# questions by keyword (no LLM) and answers each from the same RMS fact base:
+# reportees (82), trainerDetails (217/…) for capability, utilisation (55),
+# unallocated demand (190) and the feedback endpoints.
+
+_TEAM_INTENTS = (
+    "free_for_course", "coverage_risk", "top_upskills",
+    "bench", "overloaded", "feedback_watch", "team_summary",
+)
+
+_TEAM_COURSE_CODE_RE = _re.compile(r"[A-Za-z]{2,4}[- ]?\d{2,4}[A-Za-z]?")
+
+
+def _team_extract_course(question):
+    """A course code (AZ-104) or the noun phrase after 'for' / 'teach'."""
+    q = str(question or "")
+    m = _TEAM_COURSE_CODE_RE.search(q)
+    if m:
+        return _re.sub(r"\s+", "-", m.group(0).strip()).upper()
+    m = _re.search(r"(?:for|teach|deliver)\s+([A-Za-z0-9 :/&+.-]{3,40})", q, _re.I)
+    if m:
+        return m.group(1).strip().rstrip("?.").strip()
+    return ""
+
+
+def _team_intent(question, question_key=""):
+    """Deterministic keyword routing to one team key. No model call."""
+    if question_key in _TEAM_INTENTS:
+        return question_key
+    s = str(question or "").lower()
+    course = _team_extract_course(question)
+    if ("coverage" in s and "risk" in s) or "biggest risk" in s or "single point" in s \
+            or ("cover" in s and "risk" in s):
+        return "coverage_risk"
+    if "upskill" in s or "unlock" in s or "invest in" in s or ("skill" in s and "demand" in s):
+        return "top_upskills"
+    if "1:1" in s or "1-1" in s or "one on one" in s or "one-on-one" in s or "coaching" in s \
+            or "escalat" in s or ("feedback" in s and ("watch" in s or "who" in s or "negative" in s)):
+        return "feedback_watch"
+    if "stretch" in s or "overload" in s or "over-load" in s or "too busy" in s \
+            or "stressed" in s or "burn" in s or "at capacity" in s:
+        return "overloaded"
+    if "bench" in s or "idle" in s or "under-utilis" in s or "underutilis" in s \
+            or "under utilis" in s or "spare capacity" in s or "who is free" in s and not course:
+        return "bench"
+    if course and any(w in s for w in ("free", "available", "who can", "spare", "capacity", "take")):
+        return "free_for_course"
+    if course:
+        return "free_for_course"
+    return "team_summary"
+
+
+def _team_covers(skills, target_norm):
+    """True when a trainer's capability list matches the target course."""
+    if not target_norm:
+        return False
+    head = target_norm.split(" ")[0]
+    for sname in (skills or []):
+        n = _norm_course(sname)
+        if not n:
+            continue
+        if target_norm == n or target_norm in n or (len(target_norm) > 5 and n in target_norm):
+            return True
+        if len(head) >= 4 and head == n.split(" ")[0]:
+            return True
+    return False
+
+
+def _team_facts(manager_email):
+    """One row per reportee with the facts every team question needs.
+
+    Utilisation, capability and feedback all route through `_rms`, so tests can
+    drive the whole endpoint with a single `_rms` side-effect.
+    """
+    rows = _rms("reportees", {"email": manager_email}) or []
+    out = []
+    for r in (rows if isinstance(rows, list) else []):
+        if not isinstance(r, dict):
+            continue
+        em = str(r.get("OffEmail") or r.get("official_email") or "").strip().lower()
+        if not em:
+            continue
+        name = str(r.get("TrainerName") or r.get("trainer_name") or em.split("@")[0]).strip()
+        emp = str(r.get("EmpId") or r.get("EmpCode") or r.get("employee_id") or "").strip()
+        try:
+            util = _current_util(_util_series(_util_row(em)))
+        except Exception:
+            util = None
+        try:
+            skills = [str(s.get("course") or s.get("course_name") or "").strip()
+                      for s in (_skills(em) or [])]
+            skills = [s for s in skills if s]
+        except Exception:
+            skills = []
+        neg = 0
+        try:
+            nf = _rms("trainerNegFeedback", {"employee_id": emp}) if emp else []
+            neg = len([x for x in (nf if isinstance(nf, list) else []) if isinstance(x, dict)])
+        except Exception:
+            pass
+        hr = 0
+        try:
+            hi = _rms("hrIncident", {"email": em}) or []
+            hr = len([x for x in (hi if isinstance(hi, list) else []) if isinstance(x, dict)])
+        except Exception:
+            pass
+        out.append({"name": name, "email": em, "emp": emp, "util": util,
+                    "skills": skills, "neg": neg, "hr": hr})
+    return out
+
+
+def _team_demand_by_course(demand):
+    """{course_name: batch_count}, highest first is up to the caller."""
+    by_course = {}
+    for d in (demand or []):
+        if not isinstance(d, dict):
+            continue
+        c = str(d.get("course_name") or d.get("Coursename") or "").strip()
+        if not c:
+            continue
+        by_course[c] = by_course.get(c, 0) + 1
+    return by_course
+
+
+def _copilot_team_answer(intent, question, team, demand):
+    n_team = len(team)
+    by_course = _team_demand_by_course(demand)
+    base_ev = f"{n_team} reportee(s) checked; capability from trainerDetails, " \
+              f"utilisation from RMS key 55, demand from RMS key 190"
+
+    def _util_note(t):
+        return f"{t['util']}% utilised" if t["util"] is not None else "utilisation unknown"
+
+    if intent == "free_for_course":
+        course = _team_extract_course(question) or "that course"
+        tgt = _norm_course(course)
+        ready = [t for t in team if _team_covers(t["skills"], tgt)
+                 and (t["util"] is None or t["util"] < 85)]
+        ready.sort(key=lambda t: (t["util"] is None, t["util"] or 0))
+        data = [{"name": t["name"], "email": t["email"], "note": _util_note(t)} for t in ready]
+        if data:
+            names = ", ".join(d["name"] for d in data[:5])
+            answer = (f"{len(data)} trainer(s) on your team can teach {course} and are not "
+                      f"overloaded: {names}. Least-loaded first, so start at the top of that "
+                      f"list. Confirm their calendar in RMS before you commit the batch.")
+            conf = "high" if any(t["util"] is not None for t in ready) else "medium"
+        else:
+            answer = (f"No trainer on your team currently holds {course} with spare capacity. "
+                      f"Either upskill someone or raise a cross-team request for this demand.")
+            conf = "low"
+        evidence = base_ev
+    elif intent == "coverage_risk":
+        scored = []
+        for c, cnt in by_course.items():
+            cov = [t["name"] for t in team if _team_covers(t["skills"], _norm_course(c))]
+            scored.append((c, cnt, cov))
+        scored.sort(key=lambda x: (len(x[2]), -x[1]))
+        data = [{"course": c, "count": cnt,
+                 "note": f"{len(cov)} trainer(s) can cover"} for c, cnt, cov in scored[:5]]
+        if scored:
+            c, cnt, cov = scored[0]
+            uncoverable = [(cc, nn) for cc, nn, vv in scored if not vv]
+            unlock = max(uncoverable, key=lambda x: x[1]) if uncoverable else None
+            answer = (f"The biggest coverage risk is {c}: {cnt} open batch(es) with only "
+                      f"{len(cov)} trainer(s) able to deliver it.")
+            if unlock:
+                answer += (f" Building {unlock[0]} capability would unlock {unlock[1]} "
+                           f"batch(es) nobody on the team can currently take.")
+            conf = "high" if n_team else "low"
+        else:
+            answer = "No unallocated demand is open right now, so there is no coverage risk to flag."
+            conf = "medium"
+        evidence = base_ev
+    elif intent == "top_upskills":
+        uncovered = []
+        for c, cnt in by_course.items():
+            cov = [t for t in team if _team_covers(t["skills"], _norm_course(c))]
+            if not cov:
+                uncovered.append((c, cnt))
+        uncovered.sort(key=lambda x: -x[1])
+        data = [{"course": c, "count": cnt} for c, cnt in uncovered[:5]]
+        if data:
+            top = ", ".join(d["course"] for d in data[:3])
+            total = sum(d["count"] for d in data[:3])
+            answer = (f"Training your team on {top} would unlock the most demand — {total} open "
+                      f"batch(es) across those courses that nobody can currently cover. "
+                      f"Start with {data[0]['course']} ({data[0]['count']} batch(es)).")
+            conf = "high"
+        else:
+            answer = ("Your team already covers every open course in the demand board — no "
+                      "upskill is blocking revenue this cycle.")
+            conf = "medium"
+        evidence = base_ev
+    elif intent == "bench":
+        bench = sorted([t for t in team if t["util"] is not None and t["util"] < 40],
+                       key=lambda t: t["util"])
+        unknown = [t for t in team if t["util"] is None]
+        data = [{"name": t["name"], "email": t["email"], "note": _util_note(t)} for t in bench]
+        if bench:
+            answer = (f"{len(bench)} trainer(s) are on the bench (under 40% utilised): "
+                      f"{', '.join(t['name'] for t in bench)}. Match them against the open "
+                      f"demand board before it ages out.")
+            conf = "high"
+        else:
+            answer = "Nobody on your team is under 40% utilised right now — the bench is clear."
+            conf = "high" if not unknown else "medium"
+        if unknown:
+            answer += f" {len(unknown)} trainer(s) have no utilisation reading in RMS."
+        evidence = base_ev
+    elif intent == "overloaded":
+        over = sorted([t for t in team if t["util"] is not None and t["util"] >= 85],
+                      key=lambda t: -t["util"])
+        data = [{"name": t["name"], "email": t["email"], "note": _util_note(t)} for t in over]
+        if over:
+            answer = (f"{len(over)} trainer(s) are stretched at or above 85% utilisation: "
+                      f"{', '.join(t['name'] for t in over)}. Hold new assignments off them and "
+                      f"rebalance toward the bench where the skills line up.")
+            conf = "high"
+        else:
+            answer = "No trainer on your team is at or above 85% utilisation — load looks healthy."
+            conf = "high"
+        evidence = base_ev
+    elif intent == "feedback_watch":
+        watch = [t for t in team if t["neg"] > 0 or t["hr"] > 0]
+        data = [{"name": t["name"], "email": t["email"],
+                 "note": f"{t['neg']} negative feedback, {t['hr']} HR incident(s)"} for t in watch]
+        if watch:
+            answer = (f"{len(watch)} trainer(s) have something on file worth a 1:1 this cycle: "
+                      f"{', '.join(t['name'] for t in watch)}. Review the feedback detail in "
+                      f"Trainer 360 before the conversation.")
+            conf = "high"
+        else:
+            answer = "No trainer on your team has negative feedback or an HR incident this cycle."
+            conf = "high"
+        evidence = base_ev
+    else:  # team_summary
+        intent = "team_summary"
+        delivering = [t for t in team if t["util"] is not None and t["util"] >= 40]
+        bench = [t for t in team if t["util"] is not None and t["util"] < 40]
+        watch = [t for t in team if t["neg"] > 0 or t["hr"] > 0]
+        rated = [t["util"] for t in team if t["util"] is not None]
+        avg_util = round(sum(rated) / len(rated)) if rated else None
+        open_demand = sum(by_course.values())
+        data = [{"name": t["name"], "email": t["email"], "note": _util_note(t)} for t in team]
+        answer = (f"You have {n_team} reportee(s): {len(delivering)} actively delivering, "
+                  f"{len(bench)} on the bench"
+                  + (f", team averaging {avg_util}% utilisation" if avg_util is not None else "")
+                  + f". {open_demand} unallocated batch(es) are open on the demand board"
+                  + (f", and {len(watch)} trainer(s) need a feedback 1:1" if watch else "")
+                  + ".")
+        conf = "high" if n_team else "low"
+        evidence = base_ev
+
+    return {
+        "answer": answer,
+        "evidence": evidence,
+        "data": data,
+        "question_key": intent,
+        "confidence": conf,
+        "decisionVersion": "team-v1",
+        "error": None,
+    }
+
+
+@app.route('/api/v2/copilot/team', methods=['POST'])
+def copilot_team_v2():
+    """
+    Team-level delivery Copilot.
+    Body JSON: { manager, question }  (free text)  OR  { manager, question_key }
+    question_key in: free_for_course, coverage_risk, top_upskills, bench,
+                     overloaded, feedback_watch, team_summary
+    Returns: { answer, evidence, data, question_key, confidence, decisionVersion }
+    """
+    body = request.get_json(force=True, silent=True) or {}
+    manager = str(body.get("manager", "") or body.get("manager_email", "")).strip().lower()
+    session, error = _v2_manager_session(manager)
+    if error:
+        return error
+    manager_email = (session or {}).get("email") or manager
+
+    question = str(body.get("question", "") or "").strip()
+    question_key = str(body.get("question_key", "") or "").strip().lower()
+    if not question and not question_key:
+        return error_response("QUESTION_REQUIRED", "question or question_key is required", 400)
+    if question_key and question_key not in _TEAM_INTENTS:
+        return error_response(
+            "UNKNOWN_QUESTION",
+            f"question_key must be one of: {', '.join(_TEAM_INTENTS)}",
+            400,
+        )
+
+    intent = _team_intent(question, question_key)
+    team = _team_facts(manager_email)
+    demand = _demand_rows() or []
+    return jsonify(_copilot_team_answer(intent, question, team, demand)), 200
+
+
 @app.route('/api/v2/message/rewrite', methods=['POST'])
 def message_rewrite():
     """
@@ -9444,6 +9834,261 @@ def manager_priorities_v2():
     return jsonify(resp), 200
 
 
+# ─── Capacity Runway (v2) ────────────────────────────────────────────────────
+#
+# The manager's forward view: the next 8 weeks of incoming unallocated demand
+# set against the headcount the team actually has free each week, the resulting
+# gap, and a ranked "start these upskills now" list for the courses the team
+# cannot cover at all.
+
+_RUNWAY_HORIZON_WEEKS = 8
+_RUNWAY_FREE_UTIL = 85          # a trainer at/above this is not "free" for new work
+_RUNWAY_CODE_RE = _re.compile(r"[A-Z]{2,4}-[0-9]{2,4}")
+
+
+def _runway_course_keys(name):
+    """(normalised name, exam/course code or "") used to match demand to skills."""
+    n = _norm_course(name)
+    m = _RUNWAY_CODE_RE.search(str(name or "").upper())
+    return n, (m.group(0) if m else "")
+
+
+def _runway_teaches(skill_keys, demand_name):
+    """True when a trainer whose skill register produced `skill_keys` (a set of
+    normalised names + codes) already teaches `demand_name`."""
+    n, code = _runway_course_keys(demand_name)
+    if code and code in skill_keys:
+        return True
+    if n and n in skill_keys:
+        return True
+    return any(k and len(k) > 6 and (k in n or n in k) for k in skill_keys if "-" not in k)
+
+
+def _runway_match_score(skill_names, demand_name):
+    """Loose 0..1 token-overlap between a demand course and a trainer's closest
+    skill — used only to name the nearest-skilled trainer for an upskill."""
+    d_tokens = {t for t in _norm_course(demand_name).split() if len(t) > 2}
+    if not d_tokens:
+        return 0.0
+    best = 0.0
+    for s in skill_names:
+        s_tokens = {t for t in _norm_course(s).split() if len(t) > 2}
+        if not s_tokens:
+            continue
+        overlap = len(d_tokens & s_tokens) / len(d_tokens)
+        if overlap > best:
+            best = overlap
+    return best
+
+
+def _capacity_runway_build(manager):
+    """Forward capacity vs demand fan-out. Runs inside `_warm_run`."""
+    today = datetime.utcnow().date()
+    week0 = today - timedelta(days=today.weekday())        # Monday of the current week
+    weeks = []
+    for i in range(_RUNWAY_HORIZON_WEEKS):
+        ws = week0 + timedelta(days=7 * i)
+        weeks.append((ws, ws + timedelta(days=6)))
+    horizon_start, horizon_end = weeks[0][0], weeks[-1][1]
+
+    reps = _rms("reportees", {"email": manager}) or []
+    team = []
+    for r in (reps if isinstance(reps, list) else []):
+        if not isinstance(r, dict):
+            continue
+        e = str(r.get("OffEmail", r.get("Email", "")) or "").strip().lower()
+        if not e:
+            continue
+        team.append((e, _re.sub(r"\s+", " ", str(r.get("TrainerName", "") or "")).strip() or e))
+
+    # ── incoming demand, bucketed into the week its batch starts ────────────
+    demand = _demand_rows() or []
+    week_batches = [[] for _ in weeks]
+    horizon_batches = []
+    for d in demand:
+        if not isinstance(d, dict):
+            continue
+        name = str(d.get("course_name", "") or "").strip()
+        st = _parse_date(d.get("start_date", ""))
+        en = _parse_date(d.get("end_date", ""))
+        if not name or not st or not en:
+            continue
+        if en < horizon_start or st > horizon_end:
+            continue
+        idx = max(0, min(_RUNWAY_HORIZON_WEEKS - 1, (max(st, horizon_start) - week0).days // 7))
+        rec = {
+            "name": name,
+            "start": st,
+            "end": en,
+            "days": d.get("days") or ((en - st).days + 1),
+            "participants": int(d.get("participants", 0) or 0),
+        }
+        week_batches[idx].append(rec)
+        horizon_batches.append(rec)
+
+    # ── per-trainer horizon state ─────────────────────────────────────────
+    def _trainer_state(pair):
+        email, name = pair
+        try:
+            series = _util_series(_util_row(email))
+            skills = _skills(email) or []
+            assigns = _rms("prevUpcoming", {
+                "Startdate": _iso(horizon_start),
+                "Enddate": _iso(horizon_end),
+                "Email": email,
+            }) or []
+        except Exception:
+            series, skills, assigns = [], [], []
+        booked = []
+        for a in (assigns if isinstance(assigns, list) else []):
+            if not isinstance(a, dict):
+                continue
+            ast = _parse_date(a.get("StarDate", a.get("StartDate", "")))
+            aen = _parse_date(a.get("EndDate", "")) or ast
+            if ast:
+                booked.append((ast, aen))
+        skill_names = [s.get("course_name", "") for s in skills if s.get("course_name")]
+        skill_keys = set()
+        for cn in skill_names:
+            n, code = _runway_course_keys(cn)
+            if n:
+                skill_keys.add(n)
+            if code:
+                skill_keys.add(code)
+        return {
+            "email": email,
+            "name": name,
+            "util": _current_util(series),
+            "booked": booked,
+            "skill_names": skill_names,
+            "skill_keys": skill_keys,
+        }
+
+    if team:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            states = list(pool.map(_trainer_state, team))
+    else:
+        states = []
+
+    def _free_that_week(tstate, ws, we):
+        if any(bst <= we and ben >= ws for (bst, ben) in tstate["booked"]):
+            return False
+        u = tstate["util"]
+        return u is None or u < _RUNWAY_FREE_UTIL
+
+    week_rows = []
+    total_demand = total_coverable = 0
+    trainer_days_available = 0
+    for (ws, we), batches in zip(weeks, week_batches):
+        free = [t for t in states if _free_that_week(t, ws, we)]
+        coverable = 0
+        for b in batches:
+            if any(_runway_teaches(t["skill_keys"], b["name"]) for t in free):
+                coverable += 1
+        demand_n = len(batches)
+        total_demand += demand_n
+        total_coverable += coverable
+        trainer_days_available += len(free) * 5
+        week_rows.append({
+            "week_start": _iso(ws),
+            "week_end": _iso(we),
+            "demand_batches": demand_n,
+            "demand_participants": sum(b["participants"] for b in batches),
+            "team_available": len(free),
+            "coverable": coverable,
+            "gap": demand_n - coverable,
+        })
+
+    worst_week = ""
+    worst_gap = None
+    for row in week_rows:
+        if worst_gap is None or row["gap"] > worst_gap:
+            worst_gap = row["gap"]
+            worst_week = row["week_start"]
+
+    trainer_days_demanded = sum(int(b["days"] or 0) for b in horizon_batches)
+
+    # ── upskilling: courses in the horizon nobody on the team can teach ────
+    by_course = {}
+    for b in horizon_batches:
+        slot = by_course.setdefault(b["name"], {"batches": 0})
+        slot["batches"] += 1
+    upskilling = []
+    for course, slot in by_course.items():
+        if any(_runway_teaches(t["skill_keys"], course) for t in states):
+            continue                          # already coverable — not an upskill
+        best_t, best_score = None, 0.0
+        for t in states:
+            sc = _runway_match_score(t["skill_names"], course)
+            if sc > best_score:
+                best_score, best_t = sc, t
+        n_batches = slot["batches"]
+        batch_word = "batch" if n_batches == 1 else "batches"
+        if best_t and best_score >= 0.34:
+            first = best_t["name"].split()[0] if best_t["name"] else best_t["email"]
+            nearest_email, nearest_name = best_t["email"], best_t["name"]
+            why = "%d open %s, %s is one skill level short" % (n_batches, batch_word, first)
+        else:
+            nearest_email = nearest_name = ""
+            why = "%d open %s, no one on the team teaches this" % (n_batches, batch_word)
+        upskilling.append({
+            "course": course,
+            "exam_code": _exam_code(course),
+            "opens_batches": n_batches,
+            "nearest_trainer": nearest_email,
+            "nearest_trainer_name": nearest_name,
+            "why": why,
+        })
+    upskilling.sort(key=lambda u: (-u["opens_batches"], u["course"]))
+
+    return {
+        "manager": manager,
+        "horizon_weeks": _RUNWAY_HORIZON_WEEKS,
+        "weeks": week_rows,
+        "summary": {
+            "total_demand": total_demand,
+            "total_coverable": total_coverable,
+            "worst_week": worst_week,
+            "trainer_days_available": trainer_days_available,
+            "trainer_days_demanded": trainer_days_demanded,
+        },
+        "upskilling": upskilling,
+        "generated_at": datetime.utcnow().isoformat(),
+        "loading": False,
+    }
+
+
+@app.route('/api/v2/planning/runway', methods=['GET'])
+def capacity_runway_v2():
+    """"Capacity Runway" — next 8 weeks of demand vs the team's free capacity."""
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    manager = (_sess or {}).get("email") or manager
+
+    if request.args.get("_build") != "1":
+        ck = "runway::%s" % manager
+        if _wants_fresh():
+            _warm_purge(ck)
+        return _serve_or_warm(
+            cache_key=ck,
+            view_func=capacity_runway_v2,
+            build_path=(
+                "/api/v2/planning/runway?manager=%s&_build=1%s"
+                % (urllib.parse.quote(manager), "&refresh=1" if _wants_fresh() else "")
+            ),
+            fast_payload={
+                "manager": manager, "horizon_weeks": _RUNWAY_HORIZON_WEEKS,
+                "weeks": [], "summary": {}, "upskilling": [], "loading": True,
+            },
+        )
+
+    resp = _capacity_runway_build(manager)
+    _warm_store("runway::%s" % manager, resp)
+    return jsonify(resp), 200
+
+
 @app.route('/api/v2/report/weekly', methods=['GET'])
 def weekly_report_v2():
     """
@@ -9714,6 +10359,129 @@ def weekly_report_v2():
     }
     _warm_store(f"weekly::{manager_email}::{week_start_iso}", _resp)
     return jsonify(_resp), 200
+
+
+# ─── Proactive digests ───────────────────────────────────────────────────────
+#
+# One scheduled read the Android monitoring pass fires once per period:
+#   morning  — today's top priorities + what starts this week + capacity flags
+#   weekly   — Friday wrap: the team weekend digest message + counts
+# Both reuse work the dashboard/report paths already do (priorities fan-out,
+# warm weekly report) rather than re-deriving from RMS.
+
+def _digest_morning_build(manager):
+    pri = _priorities_build(manager)
+    items = pri.get("items", []) or []
+    top = items[:5]
+
+    today = datetime.utcnow().date()
+    monday = today - timedelta(days=today.weekday())
+    sunday = monday + timedelta(days=6)
+    unstaffed_this_week = 0
+    for it in items:
+        if it.get("kind") != "unstaffed_demand":
+            continue
+        d = _parse_date(str(it.get("due", "") or ""))
+        if d and monday <= d <= sunday:
+            unstaffed_this_week += 1
+
+    flagged = [it["title"] for it in items if it.get("kind") == "overload"]
+
+    bits = []
+    if top:
+        bits.append(top[0]["title"])
+    if unstaffed_this_week:
+        bits.append("%d batch%s start this week still unstaffed"
+                    % (unstaffed_this_week, "" if unstaffed_this_week == 1 else "es"))
+    if flagged:
+        bits.append(flagged[0])
+    headline = "; ".join(bits) or "Nothing urgent on the board today."
+
+    return {
+        "kind": "morning",
+        "generated_at": datetime.utcnow().isoformat(),
+        "headline": headline,
+        "items": top,
+        "unstaffed_this_week": unstaffed_this_week,
+        "flagged_trainers": flagged,
+        "loading": False,
+    }
+
+
+def _digest_weekly_build(manager):
+    today = datetime.utcnow().date()
+    monday = today - timedelta(days=today.weekday())
+    key = f"weekly::{manager}::{_iso(monday)}"
+    with _warm_lock:
+        entry = _warm_payload_cache.get(key)
+    report = entry[1] if entry else None
+    if report is None:
+        auth = request.headers.get("Authorization", "")
+        path = (f"/api/v2/report/weekly?manager={urllib.parse.quote(manager)}"
+                f"&week={_iso(monday)}&_build=1")
+        try:
+            with app.test_request_context(path, headers={"Authorization": auth} if auth else {}):
+                weekly_report_v2()
+        except Exception:
+            pass
+        with _warm_lock:
+            entry = _warm_payload_cache.get(key)
+        report = entry[1] if entry else None
+    report = report or {}
+
+    ts = report.get("team_summary", {}) or {}
+    message = report.get("team_digest_weekend") or report.get("team_digest") or ""
+    summary = {
+        "headcount":          ts.get("headcount", 0),
+        "delivering":         ts.get("delivering_count", 0),
+        "on_bench":           ts.get("bench_count", 0),
+        "at_risk":            ts.get("at_risk_count", 0),
+        "total_batches":      ts.get("total_batches", 0),
+        "total_participants": ts.get("total_participants", 0),
+        "unallocated_demand": ts.get("unallocated_demand", 0),
+        "cert_gaps":          ts.get("total_cert_gaps", 0),
+    }
+    return {
+        "kind": "weekly",
+        "generated_at": datetime.utcnow().isoformat(),
+        "message": message,
+        "summary": summary,
+        "week_label": report.get("week_label", ""),
+        "loading": False,
+    }
+
+
+@app.route('/api/v2/digest', methods=['GET'])
+def manager_digest_v2():
+    """Scheduled morning brief / end-of-week summary for the Android digest push."""
+    manager = request.args.get('manager', '').strip().lower()
+    kind = request.args.get('kind', 'morning').strip().lower()
+    if kind not in ("morning", "weekly"):
+        return error_response("INVALID_KIND", "kind must be morning or weekly", 400)
+    session, error = _v2_manager_session(manager)
+    if error:
+        return error
+    manager = (session or {}).get("email") or manager
+
+    ck = f"digest::{manager}::{kind}"
+    internal_build = request.args.get("_build") == "1"
+    if not internal_build:
+        if _wants_fresh():
+            _warm_purge(ck)
+        return _serve_or_warm(
+            cache_key=ck,
+            view_func=manager_digest_v2,
+            build_path=(
+                f"/api/v2/digest?manager={urllib.parse.quote(manager)}&kind={kind}"
+                f"&_build=1{'&refresh=1' if _wants_fresh() else ''}"
+            ),
+            fast_payload={"kind": kind, "loading": True,
+                          "items": [], "headline": "", "message": "", "summary": {}},
+        )
+
+    resp = _digest_morning_build(manager) if kind == "morning" else _digest_weekly_build(manager)
+    _warm_store(ck, resp)
+    return jsonify(resp), 200
 
 
 @app.route('/api/v2/trainer/evaluation', methods=['GET'])
@@ -10347,9 +11115,21 @@ def v2_upskilling_demand_opportunities():
     if error:
         return error
 
-    manager_email = (session or {}).get("email") or manager_email if session else manager
-    team = _team(manager_email)
+    manager_email = (session or {}).get("email") or manager
+    team = []
+    for r in (_rms("reportees", {"email": manager_email}) or []):
+        if isinstance(r, dict) and r.get("OffEmail"):
+            team.append((str(r.get("TrainerName") or "").strip(),
+                         str(r.get("OffEmail")).strip().lower()))
     demand = _demand_rows() or []
+
+    def _fuzzy_match(a, b):
+        if not a or not b:
+            return 0
+        ta, tb = set(a.split()), set(b.split())
+        if not ta or not tb:
+            return 0
+        return int(100 * len(ta & tb) / len(ta | tb))
 
     # Group unallocated demand by course
     course_demand = {}
