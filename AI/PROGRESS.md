@@ -3729,8 +3729,13 @@ The tool is a strong diagnostic but stops one step short of being the OS a manag
 from. Grouped by the manager decision it serves; waves ordered by day-one lift.
 
 Wave A - Act, don't just advise:
-- A1 Write allocation back through RMS (like mark-skill) or emit the pre-filled RMS request - one tap
-  from "recommended candidate" to "assigned".
+- A1 Eligibility-gap closer. Managers CANNOT allocate batches - Koenig's auto-allocation algorithm does
+  that and must not be touched. The manager's lever is preparation: make their trainer the top eligible
+  candidate before the algo runs. The app should show exactly what blocks each trainer from a batch
+  (skill mark below the required level, missing cert, uncleared mock, unconfirmed availability) and let
+  the manager fix the parts they ARE authorised for: mark-skill (exists), log availability, book
+  mock/exam. "This batch needs AZ-104 SL6+; Krishna is SL4 - mark it" / "Rohit is eligible but has not
+  confirmed availability for those dates."
 - A2 "Your Week" - a single ranked worklist (unstaffed batches by deadline, 1:1s needed, cert expiries,
   over-capacity trainers). Today's Actions inbox is RMS-flagged only.
 - A3 Action inbox SLAs - due dates, "open N days" escalation, overdue line in the weekly digest.
