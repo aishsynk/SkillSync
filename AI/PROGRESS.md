@@ -10,8 +10,9 @@
   3. **Benchmarking** — team util / bench rate / learner rating / cert coverage / feedback-incident rate vs baseline. `baseline_source` string shown on screen: the two feedback metrics use the real company-wide RMS-244 population (endpoint returns the whole recent cross-trainer set); util/bench/coverage compare against documented Koenig thresholds already hard-wired in the codebase. **No fabricated peer-manager average.** Off the HR monthly report.
   4. **Development plans** — `DevPlanStore` SQLite (`skilledge_devplans.sqlite3` under `SKILLEDGE_STATE_DIR`, per-manager, read-only-fs tolerant). Manager-authored goals (certification/coaching/portfolio/other) + status cycle (open/in_progress/done/dropped); `suggested` items computed live from cert gaps tied to demand / weak feedback / thin portfolio, adopted one-tap. Rendered as a section inside Trainer 360. Manager-scope enforced (trainer must be a reportee).
   5. **Fix carried from wave 3**: `_fuzzy_match` in `v2_upskilling_demand_opportunities`.
-- **Validation**: backend pytest 254 pass; Android testDebugUnitTest + lintRelease + assembleRelease green; APK signer `c6868b14…41808` unchanged.
+- **Validation**: backend pytest 254 pass; Android testDebugUnitTest + lintRelease + assembleRelease green; APK signer `c6868b14…41808` unchanged. CI `4de4696` success. **Production probed against `aishwar_c@`**: ramp (2 new trainers, 73d avg to first batch), accounts (17 batches top account), benchmark (`baseline_source` present, no fabricated peer avg), devplan (POST persists → GET reads back → PATCH status → non-reportee POST rejected `MANAGER_SCOPE_MISMATCH`).
 - **14-item enhancement list: COMPLETE.**
+- Left a `dropped` test row `dpi_25f85125c5a5766b` ("Shadow a PL-300 batch") on Niharika's plan during prod verification — no hard-delete endpoint by design; harmless, visible only in the dropped group.
 
 ## 2026-08-31T02:00:00+05:30 - Manager-view wave 3: Capacity Runway + Team Copilot + digests/delivery alerts (v3.54.0 / Build 141)
 
