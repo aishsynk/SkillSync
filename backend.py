@@ -2285,6 +2285,10 @@ def _build_trainer(r, today):
     is_plus = str(r.get("TrainerPlus", "")).strip().lower() == "yes"
 
     # ── Parallel sub-fetches (sequential within this worker) ────────────
+    # Capability rows (trainerDetails, 30-min TTL cache - shared with the
+    # Capability screen). Needed so the dashboard can compute how much open
+    # demand this trainer's skills could cover.
+    caps   = _skills(t_email) if t_email else []
     u_row  = _util_row(t_email) if t_email else {}
     series = _util_series(u_row)
     # Two different readings, kept apart on purpose: `util` is how busy this
@@ -2473,6 +2477,9 @@ def _build_trainer(r, today):
         "feedback_risk":          feedback_risk,
         "negative_count":         neg_count,
         "recommended_action":     recommended,
+        "skill_courses":          [c.get("course", "") for c in caps if c.get("course")],
+        "skill_vendors":          sorted({c.get("vendor", "") for c in caps if c.get("vendor")}),
+        "skill_course_count":     len(caps),
         "assignment_count":       len(assignments),
         "assignment_reference_count": assignment_reference_count,
         "assignment_source":      assignment_source,
@@ -2967,11 +2974,28 @@ def unified_intelligence():
         "unread_notifications": len([n for n in notifications if not n["read"]])
     }
 
+    # ── Opportunity cost ────────────────────────────────────────────────
+    # How much open, unallocated demand this team could cover but isn't.
+    # Built from data already in hand (per-trainer skill registers + the
+    # cached unallocated demand list) - no extra per-trainer RMS calls.
+    _opp_team = [
+        {
+            "email":    _t.get("official_email", ""),
+            "courses":  _t.get("skill_courses") or [],
+            "vendors":  _t.get("skill_vendors") or [],
+            "on_bench": _s.get("current_status") == "free",
+        }
+        for _t, _s in zip(trainer_ops, trainer_states)
+    ]
+    opportunity_cost = _team_opportunity_cost(_opp_team, _demand_rows() or [])
+    manager_kpis["opportunity_cost"] = opportunity_cost
+
     # ── Response (web-frontend data model + backward-compat fields) ──────
     from_cache = _cache_get("reportees", {"email": email}) is not None or _cache_get("unallocated", {}) is not None
     cache_source = "cache" if from_cache else "rms_live"
     _resp = {
         "manager_kpis":             manager_kpis,
+        "opportunity_cost":         opportunity_cost,
         "notifications":            notifications,
         "trainer_operations_df":    trainer_ops,
         "trainer_current_state_df": trainer_states,
@@ -3841,6 +3865,9 @@ def trainer_360():
             "learner_rating_count": feedback_detail["response_count"],
             "learner_rating_recent": feedback_detail["recent_date"],
             "learner_quotes":       feedback_detail["quotes"],
+            "feedback_trend":            feedback_detail["trend"],
+            "feedback_trend_direction":  feedback_detail["trend_direction"],
+            "feedback_themes":           feedback_detail["themes"],
         },
         "manager_evaluation": _manager_evaluation,
         # Surfaced so the UI can say "no data" honestly rather than implying zero.
@@ -7111,6 +7138,101 @@ def _open_opportunities_for(course_names, demand_rows, limit=4):
     return out[:limit]
 
 
+def _opp_batch_days(d):
+    """Duration of an unallocated batch in days. Falls back to 3 when RMS gives
+    no usable start/end pair (the working assumption for a standard batch)."""
+    if not isinstance(d, dict):
+        return 3
+    st = _parse_date(str(d.get("start_date") or d.get("StartDate") or d.get("StarDate") or ""))
+    en = _parse_date(str(d.get("end_date") or d.get("EndDate") or ""))
+    if st and en and en >= st:
+        return (en - st).days + 1
+    return 3
+
+
+def _team_opportunity_cost(team_trainers, demand_rows):
+    """Headline 'opportunity cost' block for the manager dashboard: how much open,
+    unallocated demand the team could cover but currently isn't.
+
+    `team_trainers`: list of {"email", "courses": [course_name, ...],
+    "vendors": [vendor, ...], "on_bench": bool} built from data already gathered
+    in the unified-intelligence build - no fresh per-trainer RMS calls.
+    `demand_rows`: `_demand_rows()` output (unallocated demand dicts).
+
+    A batch is "coverable" when at least one team trainer's skill register matches
+    its course (same course match logic as `_open_opportunities_for`).
+    Best-effort cause attribution: a non-coverable batch that still sits inside the
+    team's vendor / course-code space is counted as `skill_gap`; `availability`
+    and `certification` are left at 0 (a coverable batch whose matching trainer is
+    on bench is availability-fine, so it stays a plain coverable batch).
+    """
+    team_trainers = team_trainers or []
+    demand_rows = demand_rows or []
+
+    team_vendors = set()
+    team_codes = set()
+    _code_re = _re.compile(r"[A-Z]{2,4}-[0-9]{2,4}")
+    for t in team_trainers:
+        for v in (t.get("vendors") or []):
+            if v:
+                team_vendors.add(_norm(v))
+        for c in (t.get("courses") or []):
+            m = _code_re.search(str(c))
+            if m:
+                team_codes.add(m.group(0).upper().split("-")[0])
+
+    # Distinct open batches, keyed by normalised course name.
+    seen = {}
+    for d in demand_rows:
+        if not isinstance(d, dict):
+            continue
+        cn = str(d.get("course_name") or d.get("Coursename") or d.get("Course")
+                 or d.get("CourseName") or "").strip()
+        if not cn:
+            continue
+        k = _norm(cn)
+        if k and k not in seen:
+            seen[k] = d
+
+    open_total = len(seen)
+    coverable = 0
+    days_at_stake = 0
+    by_cause = {"skill_gap": 0, "availability": 0, "certification": 0}
+    top_courses = []
+
+    for d in seen.values():
+        cn = str(d.get("course_name") or d.get("Coursename") or d.get("Course")
+                 or d.get("CourseName") or "").strip()
+        matched = any(
+            _open_opportunities_for(t.get("courses") or [], [d], limit=1)
+            for t in team_trainers
+        )
+        if matched:
+            coverable += 1
+            days_at_stake += _opp_batch_days(d)
+            if len(top_courses) < 5:
+                clean = _re.sub(r"^[A-Z]{2,4}-[0-9]{2,4}T?[0-9]*:\s*", "", cn).strip()
+                top_courses.append(clean or cn)
+        else:
+            m = _code_re.search(cn)
+            code = m.group(0).upper().split("-")[0] if m else ""
+            n = _norm(cn)
+            in_team_space = (
+                (code and code in team_codes)
+                or any(v and v in n for v in team_vendors)
+            )
+            if in_team_space:
+                by_cause["skill_gap"] += 1
+
+    return {
+        "open_batches_coverable": coverable,
+        "open_batches_total":     open_total,
+        "trainer_days_at_stake":  days_at_stake,
+        "by_cause":               by_cause,
+        "top_courses":            top_courses,
+    }
+
+
 def _bold_first_action(body: str, style: str) -> str:
     """Bold exactly the first sentence that states an ask or decision."""
     cues = ("please ", "confirm ", "book ", "schedule ", "let us ", "let me ",
@@ -7490,6 +7612,109 @@ def _clean_quote(text):
     return out
 
 
+_FEEDBACK_THEMES = [
+    ("pace", r"\b(pace|paced|pacing|fast|slow|slowly|rushed|rush|hurry|hurried|time)\b"),
+    ("depth", r"\b(depth|detail|detailed|deep|deeper|shallow|basic|advanced|in-?depth)\b"),
+    ("labs/hands-on", r"\b(lab|labs|hands-?on|hands on|practical|practically|exercise|exercises|demo|demos|practice)\b"),
+    ("clarity/communication", r"\b(clear|clearly|clarity|explain|explained|explains|explanation|communicat\w*|understandable|articulate|confusing|confused)\b"),
+    ("knowledge", r"\b(knowledge|knowledgeable|expert|expertise|command|subject matter|thorough|thoroughly)\b"),
+    ("engagement", r"\b(engaging|engaged|interactive|patient|patience|responsive|questions|helpful|approachable)\b"),
+]
+_FEEDBACK_THEMES = [(name, _re.compile(pat, _re.I)) for name, pat in _FEEDBACK_THEMES]
+
+
+def _feedback_analytics(email, months=12):
+    """
+    Deterministic trend + theme analysis over one trainer's learner-feedback
+    rows (RMS key 244). Reuses the same fixed empty-body fetch as
+    `_trainer_feedback_detail` so it shares the cached response.
+
+    Returns {"trend": [...], "trend_direction": str, "themes": [...]}.
+    """
+    rows = _rms("trainerFeedback", {"TrainerEmail": "", "AssignmentId": "", "SCID": ""}) or []
+    e = str(email).strip().lower()
+    mine = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        if str(r.get("TrainerEmail", "")).strip().lower() != e:
+            continue
+        d = _parse_date(str(r.get("FeedBackDate", "")).split("T")[0])
+        rating = None
+        mcq = r.get("MCQAnswer")
+        try:
+            if mcq is not None and str(mcq).strip() != "":
+                rating = float(mcq)
+        except (TypeError, ValueError):
+            rating = None
+        mine.append({"date": d, "rating": rating, "text": str(r.get("TextAnswer") or "")})
+
+    ratings = [m["rating"] for m in mine if m["rating"] is not None]
+    overall = (sum(ratings) / len(ratings)) if ratings else None
+
+    # ── TREND — per calendar month, months with >=1 rating, chronological ──
+    buckets = {}
+    for m in mine:
+        if not m["date"] or m["rating"] is None:
+            continue
+        key = (m["date"].year, m["date"].month)
+        buckets.setdefault(key, []).append(m["rating"])
+    ordered = sorted(buckets)[-months:]
+    trend = []
+    for (y, mo) in ordered:
+        v = buckets[(y, mo)]
+        trend.append({
+            "month": date(y, mo, 1).strftime("%b %Y"),
+            "avg_rating": round(sum(v) / len(v), 2),
+            "count": len(v),
+        })
+
+    direction = "steady"
+    if len(trend) >= 4:
+        recent = trend[-3:]
+        prior = trend[-6:-3]
+        if prior:
+            r_mean = sum(t["avg_rating"] for t in recent) / len(recent)
+            p_mean = sum(t["avg_rating"] for t in prior) / len(prior)
+            if r_mean - p_mean >= 0.2:
+                direction = "improving"
+            elif p_mean - r_mean >= 0.2:
+                direction = "declining"
+
+    # ── THEMES — deterministic keyword clustering over TextAnswer ─────────
+    themes = []
+    for name, rx in _FEEDBACK_THEMES:
+        mentions = 0
+        pos = 0
+        samples = []
+        for m in mine:
+            q = _clean_quote(m["text"])
+            hay = m["text"]
+            if not rx.search(hay):
+                continue
+            mentions += 1
+            row_rating = m["rating"] if m["rating"] is not None else overall
+            if row_rating is None or row_rating >= 4.0:
+                pos += 1
+            # shortest cleaned sentence from a matching row containing a keyword
+            for sent in _re.split(r"(?<=[.!?])\s+", q):
+                s = sent.strip()
+                if s and rx.search(s):
+                    samples.append(s)
+        if not mentions:
+            continue
+        samples.sort(key=len)
+        themes.append({
+            "theme": name,
+            "mentions": mentions,
+            "sentiment": "positive" if pos * 2 >= mentions else "constructive",
+            "sample": samples[0] if samples else "",
+        })
+    themes.sort(key=lambda t: t["mentions"], reverse=True)
+
+    return {"trend": trend, "trend_direction": direction, "themes": themes[:5]}
+
+
 def _trainer_feedback_detail(email, days=None, until=None):
     """
     Real per-assignment learner feedback for one trainer (RMS key 244).
@@ -7561,6 +7786,7 @@ def _trainer_feedback_detail(email, days=None, until=None):
         "positive_quotes": [q for q in quotes if q["kind"] == "positive"][:3],
         "constructive_quotes": [q for q in quotes if q["kind"] == "constructive"][:3],
         "quotes": quotes[:5],
+        **_feedback_analytics(email),
     }
 
 
@@ -8458,6 +8684,208 @@ def hr_monthly_report():
     }
     _warm_store(f"hr::{manager_email}::{_mkey}", _resp)
     return jsonify(_resp), 200
+
+
+_PRIORITY_SEVERITY_WEIGHT = {"high": 100, "medium": 50, "low": 10}
+
+
+def _priority_num(v):
+    try:
+        return float(str(v).strip() or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _priorities_build(manager):
+    """The real per-manager worklist fan-out. Runs inside `_warm_run`."""
+    today = datetime.utcnow().date()
+
+    reps = _rms("reportees", {"email": manager}) or []
+    rows = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)]
+    team = []
+    for r in rows:
+        e = str(r.get("OffEmail", r.get("Email", "")) or "").strip().lower()
+        if not e:
+            continue
+        team.append((e, _re.sub(r"\s+", " ", str(r.get("TrainerName", "") or "")).strip() or e))
+
+    demand = _demand_rows() or []
+    exam_policy = _exam_policy()
+
+    items = []
+
+    # ── unstaffed_demand ────────────────────────────────────────────────────
+    for d in demand:
+        if not isinstance(d, dict):
+            continue
+        start_iso = str(d.get("start_date", "") or "")
+        start_d = _parse_date(start_iso)
+        days_out = (start_d - today).days if start_d else None
+        if days_out is not None and days_out <= 7:
+            sev = "high"
+        elif days_out is not None and days_out <= 21:
+            sev = "medium"
+        else:
+            sev = "low"
+        did = str(d.get("demand_id", "") or "") or (d.get("course_name", "") or "")
+        items.append({
+            "id": "unstaffed_demand:%s" % did,
+            "kind": "unstaffed_demand",
+            "title": "Unstaffed: %s" % (d.get("course_name", "") or "batch"),
+            "detail": "Open batch %s%s needs a trainer." % (
+                _human_date(start_iso) or "(no date)",
+                " - %s" % _human_date(d.get("end_date", "")) if d.get("end_date") else "",
+            ),
+            "severity": sev,
+            "due": start_iso if start_d else "",
+            "target_type": "demand",
+            "target_id": did,
+        })
+
+    # ── per-trainer signals ────────────────────────────────────────────────
+    def _trainer_signals(pair):
+        email, name = pair
+        out = []
+        try:
+            neg_rows = _rms("negFeedbackCount", {"email": email}) or []
+            hr_rows = _rms("hrIncident", {"email": email}) or []
+            u_row = _util_row(email)
+            skills = _skills(email)
+            certs = _certifications(email)
+        except Exception:
+            return out
+
+        neg_total = sum(_priority_num(r.get("Total"))
+                        for r in (neg_rows if isinstance(neg_rows, list) else []) if isinstance(r, dict))
+        hr_neg = sum(_priority_num(r.get("Negative Count"))
+                     for r in (hr_rows if isinstance(hr_rows, list) else []) if isinstance(r, dict))
+        if neg_total > 0 or hr_neg > 0:
+            out.append({
+                "id": "one_to_one:%s" % email,
+                "kind": "one_to_one",
+                "title": "1:1 with %s" % name,
+                "detail": "Quality signal this cycle: %d negative feedback, %d HR-negative." % (
+                    int(neg_total), int(hr_neg)),
+                "severity": "high",
+                "due": "",
+                "target_type": "trainer",
+                "target_id": email,
+            })
+
+        series = _util_series(u_row) if u_row else []
+        util = series[-1]["utilization"] if series else None
+        if util is not None and util >= 90:
+            out.append({
+                "id": "overload:%s" % email,
+                "kind": "overload",
+                "title": "%s is overloaded" % name,
+                "detail": "Utilisation at %.0f%%." % util,
+                "severity": "high" if util >= 100 else "medium",
+                "due": "",
+                "target_type": "trainer",
+                "target_id": email,
+            })
+
+        try:
+            cert_intel = _cert_intelligence(skills, [], certs.get("held", []), exam_policy=exam_policy)
+        except Exception:
+            cert_intel = {}
+        gap_courses = [str(g.get("because", "")).strip()
+                       for g in cert_intel.get("gaps", []) if isinstance(g, dict) and g.get("because")]
+        if gap_courses:
+            out.append({
+                "id": "cert_gap:%s" % email,
+                "kind": "cert_gap",
+                "title": "%s teaching without cert" % name,
+                "detail": "No matching certification for: %s" % ", ".join(gap_courses[:3]),
+                "severity": "medium",
+                "due": "",
+                "target_type": "trainer",
+                "target_id": email,
+            })
+        return out
+
+    if team:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for sub in pool.map(_trainer_signals, team):
+                items.extend(sub)
+
+    # ── action_overdue ────────────────────────────────────────────────────
+    try:
+        raised = _action_repository.list_raised(manager) or []
+    except Exception:
+        raised = []
+    for a in raised:
+        if not isinstance(a, dict):
+            continue
+        if str(a.get("lifecycle_state", "open")) != "open":
+            continue
+        created = _parse_date(str(a.get("created_at", "") or ""))
+        if not created:
+            continue
+        age = (today - created).days
+        if age < 7:
+            continue
+        sev = "high" if age >= 14 else "medium"
+        due_d = created + timedelta(days=7)
+        items.append({
+            "id": "action_overdue:%s" % (a.get("id", "") or ""),
+            "kind": "action_overdue",
+            "title": "Overdue action: %s" % (a.get("title", "") or "(untitled)"),
+            "detail": "Open %d days. %s" % (age, a.get("detail", "") or ""),
+            "severity": sev,
+            "due": _iso(due_d),
+            "target_type": "action",
+            "target_id": str(a.get("id", "") or ""),
+        })
+
+    # ── rank ──────────────────────────────────────────────────────────────
+    for it in items:
+        due_d = _parse_date(it["due"]) if it["due"] else None
+        days_until = (due_d - today).days if due_d else 0
+        it["rank_score"] = _PRIORITY_SEVERITY_WEIGHT.get(it["severity"], 10) - days_until
+    items.sort(key=lambda it: it["rank_score"], reverse=True)
+    items = items[:40]
+
+    counts = {}
+    for it in items:
+        counts[it["kind"]] = counts.get(it["kind"], 0) + 1
+
+    return {
+        "manager": manager,
+        "generated_at": datetime.utcnow().isoformat(),
+        "counts": counts,
+        "items": items,
+        "loading": False,
+    }
+
+
+@app.route('/api/v2/manager/priorities', methods=['GET'])
+def manager_priorities_v2():
+    """A single ranked worklist ("Your Week") a delivery manager acts from."""
+    manager = request.args.get('manager', '').strip().lower()
+    _, error = _v2_manager_session(manager)
+    if error:
+        return error
+
+    internal_build = request.args.get("_build") == "1"
+    if not internal_build:
+        ck = "priorities::%s" % manager
+        if _wants_fresh():
+            _warm_purge(ck)
+        return _serve_or_warm(
+            cache_key=ck,
+            view_func=manager_priorities_v2,
+            build_path=(
+                "/api/v2/manager/priorities?manager=%s&_build=1%s"
+                % (urllib.parse.quote(manager), "&refresh=1" if _wants_fresh() else "")
+            ),
+            fast_payload={"manager": manager, "counts": {}, "items": [], "loading": True},
+        )
+
+    resp = _priorities_build(manager)
+    _warm_store("priorities::%s" % manager, resp)
+    return jsonify(resp), 200
 
 
 @app.route('/api/v2/report/weekly', methods=['GET'])

@@ -62,6 +62,23 @@ a spinner. All five now use `_serve_or_warm(cache_key, view_func, build_path, fa
   the retained payload. `loading: true` bodies must never overwrite the client's local
   snapshot (already enforced in `ManagerRepository.cachedMap`).
 
+## Manager-view features (effective v3.51.0)
+
+- **Opportunity cost** - `_team_opportunity_cost(team_trainers, demand_rows)` -> `manager_kpis.opportunity_cost`
+  (+ top-level) on `unified-manager-intelligence`: `open_batches_coverable`/`open_batches_total`,
+  `trainer_days_at_stake`, `by_cause`, `top_courses`. `_build_trainer` now exposes `skill_courses`/
+  `skill_vendors` per trainer for the match. Dashboard shows it as the "Demand left on the table" KPI.
+- **`GET /api/v2/manager/priorities?manager=`** - `_priorities_build` -> ranked worklist (kinds:
+  `unstaffed_demand`, `one_to_one`, `overload`, `cert_gap`, `action_overdue`), each with
+  `severity`/`due`/`target_type`/`target_id`/`rank_score`. `_serve_or_warm` cache `priorities::<mgr>`.
+  UI ("This Week" screen) is pending - v3.52.0.
+- **Feedback analytics** - `_feedback_analytics(email, months=12)` (shares the key-244 cached fetch)
+  adds `trend` (monthly {month, avg_rating, count}), `trend_direction` (improving|declining|steady,
+  last 3 vs prior 3 months, +/-0.2), `themes` (up to 5 keyword clusters: pace / depth / labs-hands-on /
+  clarity-communication / knowledge / engagement, each {theme, mentions, sentiment, sample}).
+  Spread into `_trainer_feedback_detail`; surfaced on Trainer 360 `feedback` block as
+  `feedback_trend` / `feedback_trend_direction` / `feedback_themes`.
+
 ## Manager messages are composed prose (effective v3.50.0)
 
 Every manager-to-team message is produced by `_compose_manager_message(scope, cadence, facts,

@@ -33,6 +33,13 @@ fun Map<*, *>.int(key: String): Int = when (val v = this[key]) {
     else -> 0
 }
 
+fun Map<*, *>.dbl(key: String): Double? = when (val v = this[key]) {
+    null -> null
+    is Number -> v.toDouble()
+    is String -> v.toDoubleOrNull()
+    else -> null
+}
+
 fun Map<*, *>.bool(key: String): Boolean = when (val v = this[key]) {
     is Boolean -> v
     is String -> v.equals("true", ignoreCase = true) || v == "Yes"

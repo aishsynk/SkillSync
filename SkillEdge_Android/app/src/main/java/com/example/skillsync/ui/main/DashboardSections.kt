@@ -342,12 +342,33 @@ fun ManagerKpiGrid(
     val openActions = (n("open_actions") ?: 0) + (n("open_demand") ?: 0)
     val bench = n("bench_trainers") ?: 0
 
-    val items = listOf(
+    val opp = kpis?.obj("opportunity_cost")
+    val oppCoverable = opp?.int("open_batches_coverable") ?: 0
+    val oppTotal = opp?.int("open_batches_total") ?: 0
+    val oppDays = opp?.int("trainer_days_at_stake") ?: 0
+    val oppCourses = (opp?.get("top_courses") as? List<*>)?.mapNotNull { it?.toString() }.orEmpty()
+
+    val items = listOfNotNull(
         Kpi("Team strength", figure(n("total_team_members")), "direct reportees", sk.brand,
             Drill("Team strength", "Everyone reporting to you", namesOf(ops)),
             icon = R.drawable.ic_people,
             trend = if (bench > 0) "$bench on bench" else "fully engaged",
             trendDir = if (bench > 0) 0 else 1),
+
+        if (oppTotal > 0) Kpi(
+            "Demand left on the table",
+            "$oppCoverable / $oppTotal",
+            if (oppDays > 0) "batches you can cover · ~$oppDays trainer-days" else "open batches you can cover",
+            if (oppCoverable > 0) sk.amber else sk.subText,
+            Drill(
+                "Demand left on the table",
+                "Open batches your team already has the skills to teach but is not assigned to. $oppDays trainer-days of delivery capacity are idle for want of allocation.",
+                oppCourses.map { com.example.skillsync.ui.main.DrillRow(it, "open, coverable by your team") },
+            ),
+            icon = R.drawable.ic_award,
+            trend = if (oppCoverable > 0) "confirm availability" else "none coverable",
+            trendDir = if (oppCoverable > 0) 0 else 1,
+        ) else null,
 
         Kpi("Active trainers", figure(n("active_trainers")), "on a live batch", sk.aqua,
             Drill("Active trainers", "Currently engaged on a delivery",

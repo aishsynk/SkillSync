@@ -245,6 +245,11 @@ interface SkillEdgeApi {
         @Query("month") month: String,
     ): Map<String, Any>
 
+    /** "Your Week" — one ranked worklist: unstaffed batches by deadline, 1:1s
+     *  needed, overloaded trainers, cert gaps, overdue actions. */
+    @GET("api/v2/manager/priorities")
+    suspend fun getManagerPriorities(@Query("manager") manager: String): Map<String, Any>
+
     /** V2 Weekly Delivery & Operations Intelligence Snapshot */
     @GET("api/v2/report/weekly")
     suspend fun getWeeklyReport(

@@ -3784,3 +3784,26 @@ Wave D - Widen the lens:
   When they report: merge diffs onto main, run full suite once, add minimal client surface, ship v3.51.0.
 - **Next**: integrate the 3 enhancements as v3.51.0; then Wave A1 (eligibility-gap closer), B3 (cert
   calendar). Confirm Render `skilledge-state` disk (operator).
+
+## 2026-08-31T12:30:00+05:30 - v3.51.0/137: manager-view wave 1 (3 parallel agents merged)
+
+- **Model/Tool**: Claude Sonnet 5 / Claude Code (3 parallel worktree subagents)
+- **Files Modified**: `backend.py` (+`_team_opportunity_cost`, `_opp_batch_days`, `_feedback_analytics`,
+  `_FEEDBACK_THEMES`, `_priorities_build`, `GET /api/v2/manager/priorities`; wired into
+  `unified_intelligence` + `_build_trainer` + `_trainer_feedback_detail` + `trainer_360`),
+  `tests/test_opportunity_cost.py` + `test_manager_priorities.py` + `test_feedback_analytics.py` (new),
+  `SkillEdge_Android/.../DashboardSections.kt` (opportunity-cost KPI card),
+  `.../Trainer360Screen.kt` (feedback trend + themes block), `.../ui/components/Json.kt` (`.dbl()`),
+  `.../data/api/SkillEdgeApi.kt` (`getManagerPriorities`), `build.gradle.kts` (137/3.51.0),
+  `releases/RELEASE_NOTES_v3.51.0.md`, `AI/DECISIONS.md`, `AI/CONTEXT.md`, `AI/PROGRESS.md`
+- **Work Completed**: 3 parallel agents each built one enhancement in an isolated worktree (all 3
+  diffs applied to main with zero conflicts). Backend suite 187 pass (175 + 12). Live-probed all 3.
+  Kotlin compiles. Opportunity KPI + feedback trend/themes are wired to the UI; the priorities
+  endpoint ships with API method only - the "This Week" screen is v3.52.0.
+- **Current Status**: Implemented; Android release gate + backend suite running; not committed.
+- **Known Issues / Blockers**:
+  - "This Week" priorities screen not built yet (endpoint live + tested) - v3.52.0.
+  - `aishwar_v` (0 reportees) shows empty opportunity/priorities - correct; verify against a
+    real-roster manager after deploy.
+- **Next Recommended Actions**: commit + push v3.51.0; CI; Render; verify. Then v3.52.0 = "This Week"
+  screen consuming `/api/v2/manager/priorities` + Wave A1 eligibility-gap closer + B3 cert calendar.

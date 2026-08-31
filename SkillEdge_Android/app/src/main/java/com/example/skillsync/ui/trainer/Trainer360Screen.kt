@@ -1297,6 +1297,7 @@ private fun RiskIndicator(
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun FeedbackSection(feedback: Map<*, *>?) {
     val sk = MaterialTheme.skill
@@ -1411,6 +1412,65 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
 
         // Per-question responses — positive and negative both, unlike the
         // negative-only list above.
+        // Learner-feedback trend + themes (deterministic, from RMS key 244 history)
+        val trend = feedback?.list("feedback_trend").orEmpty()
+        val themes = feedback?.list("feedback_themes").orEmpty()
+        val direction = feedback?.str("feedback_trend_direction").orEmpty()
+        if (trend.isNotEmpty() || themes.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(color = sk.cardBorder)
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Label("Learner feedback trend")
+                if (direction.isNotBlank()) {
+                    Spacer(Modifier.width(8.dp))
+                    val dColor = when (direction) {
+                        "improving" -> sk.green; "declining" -> sk.red; else -> sk.subText
+                    }
+                    Text(
+                        direction.replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold, color = dColor,
+                        modifier = Modifier
+                            .background(dColor.copy(alpha = 0.12f), RoundedCornerShape(Radii.chip))
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                }
+            }
+            if (trend.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    trend.takeLast(6).joinToString("   ") {
+                        "${it.str("month")}: ${it.dbl("avg_rating") ?: 0.0}/5"
+                    },
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                )
+            }
+            if (themes.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("Learners keep mentioning", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                Spacer(Modifier.height(4.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    themes.take(5).forEach { t ->
+                        val positive = t.str("sentiment") == "positive"
+                        val c = if (positive) sk.green else sk.amber
+                        Text(
+                            "${t.str("theme")} (${t.int("mentions") ?: 0})",
+                            style = MaterialTheme.typography.labelSmall, color = c,
+                            modifier = Modifier
+                                .background(c.copy(alpha = 0.12f), RoundedCornerShape(Radii.chip))
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        )
+                    }
+                }
+                themes.firstOrNull { it.str("sample").isNotBlank() }?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text("“${it.str("sample")}”", style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText.copy(alpha = 0.85f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+
         val responses = feedback?.list("responses").orEmpty()
         var showAllFeedback by remember { mutableStateOf(false) }
 
