@@ -3580,3 +3580,40 @@ Ranked backlog (this session shipped items 1-3 as v3.47.0):
 - **Next Recommended Actions** (roadmap, unchanged): 4) taxonomy `courseTechnology`+`courseDomain`;
   5) surface the 5 hidden endpoints in the app; 6) NotificationEngine expansion; 7) team-level Copilot;
   plus confirm the Render disk (operator).
+
+## 2026-08-31T06:00:00+05:30 - Genuine weekly/monthly messages + Teams/Viber rewrite engine (v3.48.0 / Build 134)
+
+- **Model Used**: muse-spark-1.2-contributor-free
+- **Tool/Agent Used**: OpenCode
+- **Files Modified**:
+  - `backend.py` (added deterministic rewrite engine `_compose_rewritten` + `POST /api/v2/message/rewrite`; fixed weekly `standpoint_note` to bullet/hyphen/em-dash free evidence-only lines; added `manager_evaluation` to `GET /api/data/trainer-360` via `_generate_manager_evaluation` so Trainer 360 no longer fabricates generic coaching text)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/MessageRewriter.kt` (new — Kotlin mirror of the backend engine: Hinglish normalization, contraction expansion, course-code-preserving sanitise, intent/urgency/firmness detection, single-bold + time-underline + italic-name house style, 1000 char limit, offline fallback)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/WeeklyMessage.kt` (evidence-only: extended `ReporteeSignals` with learnerRating fields; rewrote `composeManagerStandpointNote` to remove bullet points, em-dashes, and generic boilerplate; now mirrors backend evidence-only standpoint)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt` (added `RewriteRequest`/`RewriteResponse` + `POST api/v2/message/rewrite`)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/WeeklyReportViewModel.kt` (added `learnerRating`/`learnerRatingCount`/`learnerFeedback` to `WeeklyReporteeData` and parsing)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/WeeklyReportScreen.kt` (team broadcast and per-reportee cards now expose two house-style inputs `[User Message: ...]` + `[My Message: ...]` with a Rewrite for Teams action that tries the backend rewrite first and falls back to `MessageRewriter.compose` offline; dual-field state, `rememberCoroutineScope`, and preview/copy/send wired; fallback content patched)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/HrMonthlyReportScreen.kt` (per-reportee expand now embeds the same dual-input rewrite studio with evidence context and preview; copy/share now prefer the rewritten text when present)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/trainer/Trainer360Screen.kt` (removed fabricated client-side strength/improvement/verdict strings; `ManagerEvaluationCard` now renders server-computed `manager_evaluation` evidence-only, with graceful fallback; threaded `managerEvaluation` from `Trainer360Content`)
+  - `SkillEdge_Android/app/build.gradle.kts` (bumped `versionCode = 134`, `versionName = "3.48.0"`)
+  - `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/WeeklyMessageTest.kt` (updated standpoint tests to bullet-free evidence-only expectations; added `rewriter_handlesHinglishUrgency`, `rewriter_requiresAtLeastOneInput`, `rewriter_isTeamGreeting`, `rewriter_preservesCourseCodesThroughSanitise`)
+  - `AI/DECISIONS.md`, `AI/CONTEXT.md`, `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Genuine messages (evidence-only compliance)**:
+     - Weekly `standpoint_note` and monthly `structured_feedback` now state only what RMS proves (utilisation, learner rating/quotes from RMS key 244, named cert gaps, HR/negative counts); generic filler removed from both backend and Android. A dimension with no evidence says so.
+     - Trainer 360 no longer invents coaching prose on device; the deep profile now ships `manager_evaluation` computed server-side from the same evidence set, so weekly and monthly views agree.
+  2. **Teams/Viber house-style rewrite contract**:
+     - Spec faithfully implemented: inputs are `[User Message: ...]` and/or `[My Message: ...]` (at least one required). When `user_message` is present it is the primary intent; when empty, `my_message` drives; when both, the writer acknowledges the user context and foregrounds the manager intent, rewriting on meaning not literal wording. Hinglish and informal phrasing are normalized, urgency/firmness/tone and assignment/time context are detected, and relationship is respected.
+     - Output is always: greeting on one line, body on new line, closing on new line, total 1000 chars with sentence-boundary trimming. Course codes like AZ-305 are held aside so the hyphen survives. Bold only for key action, underline only for time refs, italics only for names.
+     - Deterministic, testable, offline-capable Kotlin `MessageRewriter` and mirrored Python `_compose_rewritten` implement the same rules; the mobile rewrite first tries `POST /api/v2/message/rewrite` and falls back locally, so the studio works offline and the two sides never diverge.
+  3. **Build and test verification**:
+     - Android `:app:compileDebugKotlin` green; `:app:testDebugUnitTest` 153+ tests passing with 4 new rewriter tests.
+     - Backend `python -m pytest tests/ -q` 169 passed (no regression; new endpoint is additive).
+- **Current Project State**: Local development validated on v3.48.0 (Build 134). Ready for Validation/Testing to CI release. No new Azure resources; no secrets in plaintext.
+- **Known Issues / Blockers**:
+  - Weekly and monthly evidence is limited to what RMS exposes (7 of 20 Trainer Index axes are still partial); the rewrite cannot invent what is not there, which is correct per the evidence-only contract but means some standings still read no feedback on record.
+  - Render persistent disk for `skilledge-state` still requires operator confirmation if the service is a manually-created `-fpcl` instance (unchanged from v3.47.0).
+- **Next Recommended Actions**:
+  1. Push to `main` to let CI build and sign `SkillEdge-v3.48.0.134.apk` (same keystore `c6868b14...1808`, installs over 133 in place) and auto-deploy backend to Render; verify `/api/v2/message/rewrite` and `/api/data/trainer-360` `manager_evaluation` in the new deploy.
+  2. Manual operator check on a real device: team weekly broadcast rewrite, per-reportee weekly rewrite, and HR monthly per-reportee rewrite with Hinglish inputs produce the house-style output and copy/send correctly on Teams and Viber.
+  3. Continue roadmap items 4-7 from v3.47.0: taxonomy `courseTechnology`+`courseDomain`, surface 5 hidden endpoints, NotificationEngine expansion, team-level Copilot.
+

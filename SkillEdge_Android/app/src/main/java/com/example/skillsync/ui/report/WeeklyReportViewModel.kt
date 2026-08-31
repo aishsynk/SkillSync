@@ -65,6 +65,9 @@ data class WeeklyReporteeData(
     val certGaps: Int = 0,
     val certGapCourses: List<String> = emptyList(),
     val standpointNote: String = "",
+    val learnerRating: Double? = null,
+    val learnerRatingCount: Int = 0,
+    val learnerFeedback: Map<String, Any>? = null,
 )
 
 data class WeeklyBatchInfo(
@@ -240,7 +243,7 @@ class WeeklyReportViewModel(
                 trainerPlus = r["trainer_plus"] as? Boolean ?: false,
                 empId = r["emp_id"]?.toString() ?: "",
                 capacityBucket = r["capacity_bucket"]?.toString() ?: "Steady",
-                statusHeadline = r["status_headline"]?.toString() ?: "",
+                statusHeadline = r["status_headline"]?.toString() ?: "Steady",
                 currentUtilization = (r["current_utilization"] as? Number)?.toInt(),
                 utilization3m = (r["utilization_3m"] as? Number)?.toInt(),
                 avgQubits = (r["avg_qubits"] as? Number)?.toInt() ?: 0,
@@ -256,6 +259,9 @@ class WeeklyReportViewModel(
                 certGaps = (r["cert_gaps"] as? Number)?.toInt() ?: 0,
                 certGapCourses = certGapCourses,
                 standpointNote = r["standpoint_note"]?.toString() ?: "",
+                learnerRating = (r["learner_rating"] as? Number)?.toDouble(),
+                learnerRatingCount = (r["learner_rating_count"] as? Number)?.toInt() ?: 0,
+                learnerFeedback = r["learner_feedback"] as? Map<String, Any>,
             )
         }
 

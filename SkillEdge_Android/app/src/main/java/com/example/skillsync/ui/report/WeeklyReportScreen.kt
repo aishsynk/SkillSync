@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import com.example.skillsync.R
 import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.Figure
@@ -77,7 +78,11 @@ fun WeeklyReportScreen(
     val canNext by remember { derivedStateOf { vm.canGoNext() } }
 
     var style by rememberSaveable { mutableStateOf(MessageStyle.TEAMS) }
-    var note by rememberSaveable { mutableStateOf("") }
+    var teamUserMessage by rememberSaveable { mutableStateOf("") }
+    var teamMyMessage by rememberSaveable { mutableStateOf("") }
+    var teamRewritten by rememberSaveable { mutableStateOf("") }
+    var teamRewriting by remember { mutableStateOf(false) }
+    val teamScope = rememberCoroutineScope()
     var selectedFilter by rememberSaveable { mutableStateOf("All") }
 
     Box(Modifier.fillMaxSize()) {
@@ -152,8 +157,8 @@ fun WeeklyReportScreen(
                                 actions = actions,
                                 style = style,
                                 onStyleChange = { style = it },
-                                note = note,
-                                onNoteChange = { note = it },
+                                note = teamMyMessage,
+                                onNoteChange = { teamMyMessage = it },
                                 onTrainerClick = onTrainerClick,
                                 context = context,
                                 notify = notify,
@@ -237,12 +242,13 @@ fun WeeklyReportScreen(
                                         }
 
                                         OutlinedTextField(
-                                            value = note,
-                                            onValueChange = { note = it },
-                                            label = { Text("Manager Note (Optional)") },
-                                            placeholder = { Text("Add custom priorities for your team") },
+                                            value = teamUserMessage,
+                                            onValueChange = { teamUserMessage = it; teamRewritten = "" },
+                                            label = { Text("User Message [User Message: …]") },
+                                            placeholder = { Text("Paste their message — Hinglish or informal is fine") },
                                             shape = RoundedCornerShape(Radii.chip),
                                             modifier = Modifier.fillMaxWidth(),
+                                            minLines = 2,
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedBorderColor = sk.brand,
                                                 unfocusedBorderColor = sk.glassBorder,
@@ -251,12 +257,86 @@ fun WeeklyReportScreen(
                                                 cursorColor = sk.brand,
                                             ),
                                         )
-
+                                        OutlinedTextField(
+                                            value = teamMyMessage,
+                                            onValueChange = { teamMyMessage = it; teamRewritten = "" },
+                                            label = { Text("My Message [My Message: …]") },
+                                            placeholder = { Text("Your intent in your own words — at least one is required") },
+                                            shape = RoundedCornerShape(Radii.chip),
+                                            modifier = Modifier.fillMaxWidth(),
+                                            minLines = 2,
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = sk.brand,
+                                                unfocusedBorderColor = sk.glassBorder,
+                                                focusedTextColor = sk.bodyText,
+                                                unfocusedTextColor = sk.bodyText,
+                                                cursorColor = sk.brand,
+                                            ),
+                                        )
+                                        // Inline rewrite preview
+                                        if (teamRewritten.isNotBlank()) {
+                                            SelectionContainer {
+                                                Text(
+                                                    teamRewritten,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = sk.bodyText,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .background(sk.surface1, RoundedCornerShape(Radii.chip))
+                                                        .padding(10.dp),
+                                                )
+                                            }
+                                        }
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             FilledTonalButton(
                                                 onClick = {
-                                                    val fullBroadcast = if (note.isNotBlank()) "${formatManagerNote(note)}\n\n${repData.teamDigest}" else repData.teamDigest
-                                                    copyToClipboard(context, "Team Digest", fullBroadcast)
+                                                    if (teamUserMessage.isBlank() && teamMyMessage.isBlank()) {
+                                                        notify.error("Enter at least one message to rewrite")
+                                                        return@FilledTonalButton
+                                                    }
+                                                    teamRewriting = true
+                                                    teamScope.launch {
+                                                        try {
+                                                            val resp = com.example.skillsync.data.api.RetrofitClient.instance.rewriteMessage(
+                                                                com.example.skillsync.data.api.RewriteRequest(
+                                                                    manager_email = managerEmail,
+                                                                    user_message = teamUserMessage,
+                                                                    my_message = teamMyMessage,
+                                                                    is_team = true,
+                                                                    style = if (style == MessageStyle.TEAMS) "teams" else "plain",
+                                                                )
+                                                            )
+                                                            teamRewritten = resp.rewritten
+                                                            notify.success("Rewritten for ${if (style == MessageStyle.TEAMS) "Teams" else "Plain"}")
+                                                        } catch (_: Exception) {
+                                                            teamRewritten = MessageRewriter.compose(
+                                                                userMessage = teamUserMessage,
+                                                                myMessage = teamMyMessage,
+                                                                style = style,
+                                                                isTeam = true,
+                                                            )
+                                                            notify.success("Rewritten locally (offline)")
+                                                        } finally { teamRewriting = false }
+                                                    }
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                enabled = !teamRewriting,
+                                                shape = RoundedCornerShape(Radii.chip),
+                                                colors = ButtonDefaults.filledTonalButtonColors(
+                                                    containerColor = sk.brand.copy(alpha = 0.85f),
+                                                    contentColor = Color.White,
+                                                ),
+                                            ) {
+                                                if (teamRewriting) CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = Color.White)
+                                                else Text(if (teamRewritten.isBlank()) "Rewrite for Teams" else "Rewrite Again", style = MaterialTheme.typography.labelMedium)
+                                            }
+                                            FilledTonalButton(
+                                                onClick = {
+                                                    val source = teamRewritten.ifBlank {
+                                                        if (teamUserMessage.isBlank() && teamMyMessage.isBlank()) repData.teamDigest
+                                                        else MessageRewriter.compose(teamUserMessage, teamMyMessage, style, isTeam = true)
+                                                    }
+                                                    copyToClipboard(context, "Team Digest", source)
                                                     notify.success("Copied broadcast message")
                                                 },
                                                 modifier = Modifier.weight(1f),
@@ -268,7 +348,8 @@ fun WeeklyReportScreen(
                                             ) {
                                                 Text("Copy Broadcast", style = MaterialTheme.typography.labelMedium)
                                             }
-
+                                        }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             OutlinedButton(
                                                 onClick = {
                                                     exportWeeklyCsv(context, repData)
@@ -278,6 +359,11 @@ fun WeeklyReportScreen(
                                                 shape = RoundedCornerShape(Radii.chip),
                                             ) {
                                                 Text("Export CSV", style = MaterialTheme.typography.labelMedium, color = sk.sky)
+                                            }
+                                            if (teamUserMessage.isNotBlank() || teamMyMessage.isNotBlank()) {
+                                                TextButton(onClick = { teamUserMessage = ""; teamMyMessage = ""; teamRewritten = "" }, modifier = Modifier.weight(1f)) {
+                                                    Text("Clear", color = sk.subText)
+                                                }
                                             }
                                         }
                                     }
@@ -324,7 +410,7 @@ fun WeeklyReportScreen(
                                 WeeklyReporteeLiveCard(
                                     rep = rep,
                                     style = style,
-                                    managerNote = note,
+                                    managerEmail = managerEmail,
                                     onTrainerClick = onTrainerClick,
                                     context = context,
                                     notify = notify,
@@ -448,7 +534,7 @@ private fun WeeklyMetric(
 private fun WeeklyReporteeLiveCard(
     rep: WeeklyReporteeData,
     style: MessageStyle,
-    managerNote: String,
+    managerEmail: String,
     onTrainerClick: (email: String, name: String) -> Unit,
     context: Context,
     notify: NotifyState,
@@ -456,6 +542,11 @@ private fun WeeklyReporteeLiveCard(
 ) {
     var expanded by rememberSaveable(rep.email) { mutableStateOf(false) }
     var showStandpoint by rememberSaveable(rep.email) { mutableStateOf(true) }
+    var userMessage by rememberSaveable(rep.email) { mutableStateOf("") }
+    var myMessage by rememberSaveable(rep.email) { mutableStateOf("") }
+    var rewritten by rememberSaveable(rep.email) { mutableStateOf("") }
+    var rewriting by remember { mutableStateOf(false) }
+    val cardScope = rememberCoroutineScope()
 
     val signal = remember(rep) {
         ReporteeSignals(
@@ -469,14 +560,26 @@ private fun WeeklyReporteeLiveCard(
             currentCourse = rep.currentBatch?.course.orEmpty(),
             nextCourse = "",
             openActions = if (rep.feedbackRisk == "High") 1 else 0,
+            learnerRating = rep.learnerRating,
+            learnerRatingCount = rep.learnerRatingCount,
+            learnerRecentDate = rep.learnerFeedback?.let { (it["recent_date"] as? String) } ?: "",
+            hrNegativeCount = rep.hrNegativeCount,
+            negativeFeedbackCount = rep.negativeFeedbackCount,
         )
     }
 
-    val weeklyMsg = remember(signal, style, managerNote) {
-        composeReporteeMessage(signal, style, managerNote = managerNote)
+    // Base evidence-only messages (offline, deterministic)
+    val baseWeeklyMsg = remember(signal, style) {
+        composeReporteeMessage(signal, style)
+    }
+    val baseStandpoint = remember(signal, style, rep.standpointNote) {
+        rep.standpointNote.ifBlank { composeManagerStandpointNote(signal, style) }
     }
 
-    val activeText = if (showStandpoint) rep.standpointNote.ifBlank { composeManagerStandpointNote(signal, style) } else weeklyMsg
+    // The rewritten text takes precedence when present; otherwise fall back to
+    // the evidence-only base message / standpoint that is always genuine.
+    val activeBase = if (showStandpoint) baseStandpoint else baseWeeklyMsg
+    val activeText = rewritten.ifBlank { activeBase }
 
     val severity = when {
         rep.feedbackRisk.equals("High", true) -> Severity.Critical
@@ -590,6 +693,106 @@ private fun WeeklyReporteeLiveCard(
                             .padding(Space.md),
                     )
                 }
+
+                // ── Rewrite studio: [User Message] + [My Message] → house-style Teams message ──
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = userMessage,
+                        onValueChange = { userMessage = it; rewritten = "" },
+                        label = { Text("User Message [User Message: …]") },
+                        placeholder = { Text("Paste their Hinglish/informal message") },
+                        shape = RoundedCornerShape(Radii.chip),
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = sk.brand,
+                            unfocusedBorderColor = sk.glassBorder,
+                            focusedTextColor = sk.bodyText,
+                            unfocusedTextColor = sk.bodyText,
+                            cursorColor = sk.brand,
+                        ),
+                    )
+                    OutlinedTextField(
+                        value = myMessage,
+                        onValueChange = { myMessage = it; rewritten = "" },
+                        label = { Text("My Message [My Message: …]") },
+                        placeholder = { Text("Your intent — at least one required") },
+                        shape = RoundedCornerShape(Radii.chip),
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = sk.brand,
+                            unfocusedBorderColor = sk.glassBorder,
+                            focusedTextColor = sk.bodyText,
+                            unfocusedTextColor = sk.bodyText,
+                            cursorColor = sk.brand,
+                        ),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        FilledTonalButton(
+                            onClick = {
+                                if (userMessage.isBlank() && myMessage.isBlank()) {
+                                    notify.error("Enter at least one message to rewrite")
+                                    return@FilledTonalButton
+                                }
+                                rewriting = true
+                                cardScope.launch {
+                                    try {
+                                        val evidence = mapOf(
+                                            "cert_gap_courses" to rep.certGapCourses,
+                                            "learner_rating" to (rep.learnerRating ?: 0.0),
+                                            "learner_rating_count" to rep.learnerRatingCount,
+                                            "utilisation" to (rep.currentUtilization ?: 0),
+                                        )
+                                        val resp = com.example.skillsync.data.api.RetrofitClient.instance.rewriteMessage(
+                                            com.example.skillsync.data.api.RewriteRequest(
+                                                manager_email = managerEmail,
+                                                user_message = userMessage,
+                                                my_message = myMessage,
+                                                target_name = rep.name,
+                                                is_team = false,
+                                                style = if (style == MessageStyle.TEAMS) "teams" else "plain",
+                                                evidence_context = evidence,
+                                            )
+                                        )
+                                        rewritten = resp.rewritten
+                                        notify.success("Rewritten for ${if (style == MessageStyle.TEAMS) "Teams" else "Plain"}")
+                                    } catch (_: Exception) {
+                                        rewritten = MessageRewriter.compose(
+                                            userMessage = userMessage,
+                                            myMessage = myMessage,
+                                            style = style,
+                                            targetName = rep.name,
+                                            isTeam = false,
+                                            evidence = MessageRewriter.EvidenceContext(
+                                                certGapCourses = rep.certGapCourses,
+                                                learnerRating = rep.learnerRating,
+                                                learnerRatingCount = rep.learnerRatingCount,
+                                                utilisation = rep.currentUtilization,
+                                            ),
+                                        )
+                                        notify.success("Rewritten locally (offline)")
+                                    } finally { rewriting = false }
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled = !rewriting,
+                            shape = RoundedCornerShape(Radii.chip),
+                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = sk.brand.copy(alpha = 0.85f), contentColor = Color.White),
+                        ) {
+                            if (rewriting) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Color.White)
+                            else Text(if (rewritten.isBlank()) "Rewrite for Teams" else "Rewrite Again", style = MaterialTheme.typography.labelMedium)
+                        }
+                        if (userMessage.isNotBlank() || myMessage.isNotBlank()) {
+                            TextButton(onClick = { userMessage = ""; myMessage = ""; rewritten = "" }, modifier = Modifier.weight(1f)) {
+                                Text("Clear", color = sk.subText)
+                            }
+                        }
+                    }
+                    if (rewritten.isNotBlank()) {
+                        Text("Preview is genuine and on top of evidence — copy or send below.", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                    }
+                }
             }
 
             // Action Buttons
@@ -597,7 +800,7 @@ private fun WeeklyReporteeLiveCard(
                 FilledTonalButton(
                     onClick = {
                         copyToClipboard(context, rep.name, activeText)
-                        notify.success("Copied ${rep.name.substringBefore(" ")}'s standpoint")
+                        notify.success("Copied ${rep.name.substringBefore(" ")}'s message")
                     },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(Radii.chip),
@@ -605,7 +808,7 @@ private fun WeeklyReporteeLiveCard(
                         containerColor = sk.brand.copy(alpha = 0.20f),
                         contentColor = sk.ice,
                     ),
-                ) { Text("Copy Note", style = MaterialTheme.typography.labelMedium) }
+                ) { Text(if (rewritten.isBlank()) "Copy Note" else "Copy Rewritten", style = MaterialTheme.typography.labelMedium) }
 
                 OutlinedButton(
                     onClick = {

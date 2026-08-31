@@ -30,6 +30,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import com.example.skillsync.R
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.SkillCard
@@ -212,6 +214,7 @@ fun HrMonthlyReportScreen(
                             ReporteeSnapshotCard(
                                 rep = rep,
                                 sk = sk,
+                                managerEmail = managerEmail,
                                 onTrainerClick = { onTrainerClick(rep.email, rep.name) },
                                 onInspectCriteria = { inspectingReportee = rep },
                                 onCopy = {
@@ -336,11 +339,17 @@ private fun SummaryMetric(
 private fun ReporteeSnapshotCard(
     rep: ReporteeSnapshot,
     sk: SkillColors,
+    managerEmail: String = "",
     onTrainerClick: () -> Unit,
     onInspectCriteria: () -> Unit,
     onCopy: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var userMessage by remember(rep.email) { mutableStateOf("") }
+    var myMessage by remember(rep.email) { mutableStateOf("") }
+    var rewritten by remember(rep.email) { mutableStateOf("") }
+    var rewriting by remember { mutableStateOf(false) }
+    val hrCardScope = rememberCoroutineScope()
     val context = LocalContext.current
     val notify = LocalNotify.current
 
@@ -523,6 +532,113 @@ private fun ReporteeSnapshotCard(
                         DetailCell("Avg Qubits", if (rep.avgQubits > 0) "${rep.avgQubits.toInt()}%" else "—", sk, Modifier.weight(1f))
                     }
 
+                    // ── Rewrite studio: monthly evaluation → Teams house style ──
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Rewrite for Teams / Viber", style = MaterialTheme.typography.labelMedium, color = sk.labelText, fontWeight = FontWeight.Bold)
+                        androidx.compose.foundation.text.selection.SelectionContainer {
+                            val previewBase = if (rewritten.isNotBlank()) rewritten else rep.structuredFeedback.formattedText.ifBlank { buildReporteeText(rep, "") }
+                            Text(
+                                previewBase.take(900),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = sk.bodyText,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(sk.surface1, RoundedCornerShape(8.dp))
+                                    .padding(10.dp),
+                            )
+                        }
+                        androidx.compose.material3.OutlinedTextField(
+                            value = userMessage,
+                            onValueChange = { userMessage = it; rewritten = "" },
+                            label = { Text("User Message [User Message: …]") },
+                            placeholder = { Text("Paste their message — Hinglish is fine") },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 2,
+                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = sk.brand,
+                                unfocusedBorderColor = sk.cardBorder,
+                                focusedTextColor = sk.bodyText,
+                                unfocusedTextColor = sk.bodyText,
+                                cursorColor = sk.brand,
+                            ),
+                        )
+                        androidx.compose.material3.OutlinedTextField(
+                            value = myMessage,
+                            onValueChange = { myMessage = it; rewritten = "" },
+                            label = { Text("My Message [My Message: …]") },
+                            placeholder = { Text("Your intent — at least one required") },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 2,
+                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = sk.brand,
+                                unfocusedBorderColor = sk.cardBorder,
+                                focusedTextColor = sk.bodyText,
+                                unfocusedTextColor = sk.bodyText,
+                                cursorColor = sk.brand,
+                            ),
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            androidx.compose.material3.FilledTonalButton(
+                                onClick = {
+                                    if (userMessage.isBlank() && myMessage.isBlank()) {
+                                        notify.error("Enter at least one message to rewrite")
+                                        return@FilledTonalButton
+                                    }
+                                    rewriting = true
+                                    hrCardScope.launch {
+                                        try {
+                                            val ev = mapOf(
+                                                "cert_gap_courses" to rep.topCourses,
+                                                "learner_rating" to (rep.structuredFeedback.let { null } ?: 0.0),
+                                                "utilisation" to rep.utilisationPct.toInt(),
+                                            )
+                                            val resp = com.example.skillsync.data.api.RetrofitClient.instance.rewriteMessage(
+                                                com.example.skillsync.data.api.RewriteRequest(
+                                                    manager_email = managerEmail,
+                                                    user_message = userMessage,
+                                                    my_message = myMessage,
+                                                    target_name = rep.name,
+                                                    is_team = false,
+                                                    style = "teams",
+                                                    evidence_context = ev,
+                                                )
+                                            )
+                                            rewritten = resp.rewritten
+                                            notify.success("Rewritten for Teams")
+                                        } catch (_: Exception) {
+                                            rewritten = com.example.skillsync.ui.report.MessageRewriter.compose(
+                                                userMessage = userMessage,
+                                                myMessage = myMessage,
+                                                style = com.example.skillsync.ui.report.MessageStyle.TEAMS,
+                                                targetName = rep.name,
+                                                isTeam = false,
+                                                evidence = com.example.skillsync.ui.report.MessageRewriter.EvidenceContext(
+                                                    certGapCourses = rep.topCourses,
+                                                    utilisation = rep.utilisationPct.toInt(),
+                                                ),
+                                            )
+                                            notify.success("Rewritten locally (offline)")
+                                        } finally { rewriting = false }
+                                    }
+                                },
+                                enabled = !rewriting,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(containerColor = sk.brand.copy(alpha = 0.85f), contentColor = Color.White),
+                            ) {
+                                if (rewriting) androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Color.White)
+                                else Text(if (rewritten.isBlank()) "Rewrite for Teams" else "Rewrite Again", fontSize = 12.sp)
+                            }
+                            if (userMessage.isNotBlank() || myMessage.isNotBlank()) {
+                                androidx.compose.material3.TextButton(onClick = { userMessage = ""; myMessage = ""; rewritten = "" }, modifier = Modifier.weight(1f)) {
+                                    Text("Clear", color = sk.subText, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+
                     // Quick Action Buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -530,24 +646,23 @@ private fun ReporteeSnapshotCard(
                     ) {
                         OutlinedButton(
                             onClick = {
-                                val text = rep.structuredFeedback.formattedText.ifBlank {
-                                    buildReporteeText(rep, "")
-                                }
+                                val text = (rewritten.ifBlank { rep.structuredFeedback.formattedText.ifBlank { buildReporteeText(rep, "") } })
                                 copyToClipboard(context, text)
-                                notify.success("Copied 3-part feedback for ${rep.name.substringBefore(" ")}")
+                                notify.success("Copied feedback for ${rep.name.substringBefore(" ")}")
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(8.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, sk.brand),
                         ) {
-                            Text("Copy Feedback", fontSize = 12.sp, color = sk.ice)
+                            Text(if (rewritten.isBlank()) "Copy Feedback" else "Copy Rewritten", fontSize = 12.sp, color = sk.ice)
                         }
 
                         Button(
                             onClick = {
+                                val shareText = rewritten.ifBlank { rep.structuredFeedback.formattedText }
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, rep.structuredFeedback.formattedText)
+                                    putExtra(Intent.EXTRA_TEXT, shareText)
                                     putExtra(Intent.EXTRA_SUBJECT, "Manager Evaluation — ${rep.name}")
                                 }
                                 context.startActivity(Intent.createChooser(shareIntent, "Share Evaluation"))

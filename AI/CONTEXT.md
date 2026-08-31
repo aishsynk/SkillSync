@@ -261,6 +261,19 @@ through the catalogue in `backend.py::_CERT_CATALOG`.
 
 See `DEPLOYMENT.md` for deployment details; `docs/` holds architecture and status.
 
+
+## Message rewrite — Teams/Viber house style (effective v3.48.0)
+Inputs `[User Message: …]` and/or `[My Message: …]` (at least one) are rewritten into a short natural Teams/Viber message that sounds professional, direct and human. Hinglish (kal/parso/jaldi/thoda/bhejo/plz/sir etc.), informal phrasing, intent, authority, firmness, urgency, time sensitivity, assignment/delivery context and sender–receiver relationship are interpreted deterministically (no LLM required; the `POST /api/v2/message/rewrite` seam is preserved for a future model). Output is strictly house-style:
+
+- greeting on its own line (`Hello _First_,` italicised in Teams, or `Hello team,`), body on the next line, closing on its own line with light emphasis (`_Please confirm once done._` etc. chosen by tone: urgent/corrective/appreciative/advisory/professional), total ≤1000 chars with sentence-boundary trimming
+- simple professional English, complete sentences, full word forms only; no emojis, hyphens (except course codes like AZ-305 which are held aside), dashes, bullet points or decorative symbols
+- italics only for names when clarity requires, bold only for the single key action/expectation/decision, underline only for time references (≤2), never combined unless unavoidable
+
+Kotlin `ui/report/MessageRewriter.kt` mirrors Python `backend.py::_compose_rewritten`; the Android studio (`WeeklyReportScreen` team + per-reportee, `HrMonthlyReportScreen` per-reportee) first tries `POST /api/v2/message/rewrite` with `evidence_context` (cert gaps, learner rating, utilisation) as one supporting evidence sentence, then falls back to the local engine so offline works and the two sides never diverge.
+
+## Weekly/monthly messages are evidence-only (effective v3.48.0)
+`standpoint_note` (weekly) and `structured_feedback` (monthly `strength`/`area_of_improvement`/`other_feedback`/`trajectory`/`mock_summary`/`formatted_text`) state only what RMS proves: utilisation, learner rating/quotes (`_trainer_feedback_detail`, RMS key 244, filtered by email, quotes ≥45 chars with session/trainer/content signal word), named cert gaps (`_exam_policy`/213 + `_CERT_CATALOG`), HR/negative counts and Qubits. No generic behavioural boilerplate. A dimension with no evidence says so (`no feedback on record`, `no improvement areas are flagged from evidence this cycle`, `no standout strengths are on record`, `none. Steady, no flags this week`). Weekly `standpoint_note` is bullet/hyphen free to meet the house style. `GET /api/data/trainer-360` now ships `manager_evaluation` computed server-side from the same evidence set (`_generate_manager_evaluation`), so Trainer 360, weekly and monthly agree and the device no longer fabricates generic coaching prose (`pacing & articulation`, `hesitation`, `Goal → Steps → Verify` guidance).
+
 ## Analysis notes (2026-08-03)
 
 - **Request flow:** login builds+caches intelligence → `/data/unified-manager-intelligence` serves cache with freshness metadata (`cache_status`, `cache_age_minutes`, `last_refresh_*`) + per-request lifecycle overlays; `POST /rms/<api>` is a credentialed server-side relay.

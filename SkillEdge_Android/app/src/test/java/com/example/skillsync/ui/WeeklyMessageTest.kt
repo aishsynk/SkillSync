@@ -233,16 +233,22 @@ class WeeklyMessageTest {
             readiness = 82,
             certGaps = 1,
             certGapCourses = listOf("AZ-104"),
+            learnerRating = 4.2,
+            learnerRatingCount = 5,
+            learnerRecentDate = "10 Aug 2026",
         )
         val note = composeManagerStandpointNote(signals, MessageStyle.TEAMS)
         assertTrue(note.contains("Weekly Manager Standpoint for Abhinav"))
         assertTrue(note.contains("**Standpoint:**"))
         assertTrue(note.contains("High Workload (Stretched at 88% util)"))
-        assertTrue(note.contains("**Mock & Readiness:**"))
-        assertTrue(note.contains("Readiness Score 82%"))
+        // Evidence-only: learner rating replaces the old mock & readiness boilerplate
+        assertTrue(note.contains("**Learner rating 90 day:**"))
+        assertTrue(note.contains("4.2/5 from 5 responses"))
         assertTrue(note.contains("**Immediate Focus:**"))
-        assertTrue(note.contains("Schedule and complete certification exam for AZ-104"))
-        assertTrue(note.contains("Goal → Steps → Verify"))
+        assertTrue(note.contains("AZ-104") && note.contains("certification exam"))
+        assertFalse(note.contains("Mock & Readiness"))
+        assertFalse(note.contains("Goal → Steps → Verify"))
+        assertFalse(note.contains("•"))
     }
 
     @Test
@@ -253,10 +259,66 @@ class WeeklyMessageTest {
             capacityBucket = "On Bench",
             feedbackRisk = "High",
             targetGrowthCourses = listOf("DP-203"),
+            negativeFeedbackCount = 2,
+            hrNegativeCount = 1,
         )
         val note = composeManagerStandpointNote(signals, MessageStyle.PLAIN)
         assertTrue(note.contains("Weekly Manager Standpoint for Divya"))
-        assertTrue(note.contains("• Standpoint: Available / On Bench (20% util)"))
-        assertTrue(note.contains("Immediate delivery feedback review"))
+        assertTrue(note.contains("Standpoint: Available / On Bench (20% util)"))
+        assertTrue(note.contains("Learner rating 90 day:"))
+        assertTrue(note.contains("Immediate Focus: review the 2 negative feedback"))
+        assertFalse(note.contains("•"))
+    }
+
+    // ── MessageRewriter (Teams/Viber house style) ──────────────────────────
+
+    @Test
+    fun rewriter_handlesHinglishUrgency() {
+        val out = com.example.skillsync.ui.report.MessageRewriter.compose(
+            userMessage = "sir kal ka batch hai, thoda help chahiye, please jaldi bhejo material",
+            myMessage = "Please review and share the AZ-305 material by tomorrow",
+            style = MessageStyle.TEAMS,
+            targetName = "Abhinav Samant",
+        )
+        assertTrue(out.startsWith("Hello _Abhinav_,"))
+        assertTrue(out.contains("AZ-305"))
+        assertFalse(out.contains("•"))
+        assertFalse(out.contains("—"))
+        assertTrue(out.length <= 1000)
+        assertTrue(out.contains("_Please confirm") || out.contains("_Thank you") || out.contains("_Please let"))
+    }
+
+    @Test
+    fun rewriter_requiresAtLeastOneInput() {
+        try {
+            com.example.skillsync.ui.report.MessageRewriter.compose("", "", MessageStyle.PLAIN)
+            assertFalse("Should have thrown", true)
+        } catch (e: IllegalArgumentException) {
+            assertTrue(e.message!!.contains("At least one"))
+        }
+    }
+
+    @Test
+    fun rewriter_isTeamGreeting() {
+        val out = com.example.skillsync.ui.report.MessageRewriter.compose(
+            userMessage = "",
+            myMessage = "We have 3 open certification gaps. Please book your exams before Friday",
+            style = MessageStyle.PLAIN,
+            isTeam = true,
+        )
+        assertTrue(out.startsWith("Hello team,"))
+        assertTrue(out.contains("Please book"))
+    }
+
+    @Test
+    fun rewriter_preservesCourseCodesThroughSanitise() {
+        val out = com.example.skillsync.ui.report.MessageRewriter.compose(
+            userMessage = "need AZ-104 help",
+            myMessage = "Please prepare AZ-104 and share schedule by Friday",
+            style = MessageStyle.PLAIN,
+        )
+        assertTrue(out.contains("AZ-104"))
+        // only the course code hyphen survives; prose hyphens are removed
+        assertEquals(2, Regex("-").findAll(out).count())
     }
 }

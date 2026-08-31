@@ -3709,6 +3709,39 @@ def trainer_360():
                              has_signal=bool(neg_rows or hr_rows or util_ok))
     readiness_score = _readiness_score(skills, util_now, risk_score)
 
+    # Genuine managerial evaluation for Trainer 360 — evidence only, replaces client-side generic boilerplate
+    try:
+        _eval_month_label = today.strftime("%B %Y")
+        _eval_month_start = today.replace(day=1)
+        _eval_next_month = (_eval_month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        _eval_month_end = _eval_next_month - timedelta(days=1)
+        _eval_month_assigns = []
+        for a in assigns:
+            st = _parse_date(a.get("StarDate", ""))
+            en = _parse_date(a.get("EndDate", ""))
+            if st and en and st <= _eval_month_end and en >= _eval_month_start:
+                _eval_month_assigns.append({"course": str(a.get("Course", "")).strip()})
+        _eval_top_courses = sorted(skills, key=lambda s: -s.get("qubits_score", 0))[:5]
+        _eval_hr_score = max(0, min(100, 100 - neg_total*15 - hr_neg*20 + (10 if _eval_month_assigns else 0)))
+        _manager_evaluation = _generate_manager_evaluation(
+            name=resume.get("name") or str(u_row.get("TrainerName", "")).strip() or email,
+            email=email,
+            month_label=_eval_month_label,
+            avg_qubits=avg_qubits,
+            top_courses=_eval_top_courses,
+            month_util=util_now,
+            util_3m=util_3m,
+            batch_count=len(_eval_month_assigns),
+            month_assignments=_eval_month_assigns,
+            neg_total=neg_total,
+            hr_pos=hr_pos,
+            hr_neg=hr_neg,
+            cert_intel=cert_intel,
+            hr_score=_eval_hr_score,
+        )
+    except Exception:
+        _manager_evaluation = {"strength": "", "area_of_improvement": "", "other_feedback": "", "trajectory": "Steady", "sentiment": "Neutral", "mock_summary": "", "formatted_text": "", "learner_feedback": {}}
+
     _t360_resp = {
         "loading": False,
         "identity": {
@@ -3809,6 +3842,7 @@ def trainer_360():
             "learner_rating_recent": feedback_detail["recent_date"],
             "learner_quotes":       feedback_detail["quotes"],
         },
+        "manager_evaluation": _manager_evaluation,
         # Surfaced so the UI can say "no data" honestly rather than implying zero.
         "availability": {
             "off_dates": off,
@@ -6683,6 +6717,51 @@ def agent_ask():
     result = _agent_answer(question_key, trainer_row, t360)
     return jsonify(result), 200
 
+
+@app.route('/api/v2/message/rewrite', methods=['POST'])
+def message_rewrite():
+    """
+    Rewrites [User Message] and/or [My Message] into a Teams/Viber house-style
+    message. At least one of the two inputs must be present.
+    Body: { manager_email, user_message, my_message, target_name, is_team, style, evidence_context }
+    style: teams (default, emits **bold**, _italic_, __underline__) or plain.
+    Uses the deterministic rewrite engine above; no LLM call, but the seam is
+    preserved for an eventual model.
+    """
+    body = request.get_json(force=True, silent=True) or {}
+    manager_email = str(body.get("manager_email", "") or body.get("manager", "") or "").strip().lower()
+    # Auth gate — same as other v2 routes
+    _, error = _v2_manager_session(manager_email)
+    if error:
+        return error
+    user_message = str(body.get("user_message", "") or body.get("User Message", "") or "")
+    my_message = str(body.get("my_message", "") or body.get("My Message", "") or "")
+    target_name = str(body.get("target_name", "") or body.get("trainer_name", "") or "").strip()
+    is_team = bool(body.get("is_team", False))
+    style = str(body.get("style", "teams") or "teams").strip().lower()
+    if style not in ("teams", "plain"):
+        style = "teams"
+    evidence_context = body.get("evidence_context") if isinstance(body.get("evidence_context"), dict) else None
+    if not str(user_message or "").strip() and not str(my_message or "").strip():
+        return error_response("MISSING_INPUT", "At least one of user_message or my_message is required", 400)
+    try:
+        rewritten = _compose_rewritten(user_message, my_message, style=style,
+                                       target_name=target_name, is_team=is_team,
+                                       evidence_context=evidence_context)
+    except ValueError as e:
+        return error_response("REWRITE_ERROR", str(e), 400)
+    except Exception as e:
+        return error_response("REWRITE_ERROR", f"Rewrite failed: {e}", 500)
+    intent = _detect_intent(user_message, my_message)
+    return jsonify({
+        "rewritten": rewritten,
+        "style": style,
+        "length": len(rewritten),
+        "detected": intent,
+        "greeting": rewritten.split("\n")[0] if rewritten else "",
+    }), 200
+
+
 @app.errorhandler(404)
 def not_found(error):
     return error_response("NOT_FOUND", "Not found", 404)
@@ -6691,6 +6770,331 @@ def not_found(error):
 def _human_date(iso_str):
     d = _parse_date(str(iso_str or "").split("T")[0])
     return d.strftime("%d %b %Y") if d else ""
+
+
+# ── Message rewrite engine (Teams / Viber house style) ─────────────────────
+# Implements the manager rewriting contract:
+#   inputs  [User Message: …] and/or [My Message: …]  (at least one present)
+#   output  short Teams/Viber message: greeting on one line, body on new line,
+#           closing on new line, ≤1000 chars, no emojis/bullets/hyphens,
+#           italics only for names, bold only for the key action, underline
+#           only for time refs. Intent, urgency, firmness and Hinglish are
+#           interpreted deterministically (no LLM required; the agent seam is
+#           preserved for a future model call).
+_MESSAGE_LIMIT = 1000
+_COURSE_CODE_RE_RW = _re.compile(r"\b[A-Z]{2,4}-[0-9]{2,4}\b")
+
+_HINGLISH_MAP = {
+    "parso": "day after tomorrow",
+    "parsoon": "day after tomorrow",
+    "jaldi se": "at the earliest",
+    "jaldi": "at the earliest",
+    "thoda": "a little",
+    "zyada": "more",
+    "kar dijiye": "please do",
+    "kar do": "please do",
+    "kr dijiye": "please do",
+    "krdo": "please do",
+    "bhej do": "please share",
+    "bhejdo": "please share",
+    "bhejo": "please share",
+    "chahiye": "is required",
+    "ho jayega": "will be done",
+    "ho gaya": "is done",
+    "karna hai": "needs to be done",
+    "aap": "you",
+    "tum": "you",
+    "haan": "yes",
+    "nahi": "no",
+    "nahin": "no",
+    "kya": "what",
+    "kab": "when",
+    "kahan": "where",
+    "plz": "please",
+    "pls": "please",
+    "sir": "Sir",
+    "mam": "Ma'am",
+    "maam": "Ma'am",
+}
+
+_CONTRACTIONS_RW = {
+    "don't": "do not", "won't": "will not", "can't": "cannot",
+    "isn't": "is not", "aren't": "are not", "doesn't": "does not",
+    "didn't": "did not", "haven't": "have not", "hasn't": "has not",
+    "wouldn't": "would not", "shouldn't": "should not", "couldn't": "could not",
+    "it's": "it is", "we're": "we are", "you're": "you are",
+    "I'm": "I am", "we'll": "we will", "you'll": "you will",
+    "let's": "let us", "that's": "that is", "there's": "there is",
+}
+
+_URGENCY_HINTS = ("urgent", "asap", "immediate", "priority", "critical",
+                  "at the earliest", "as soon as possible", "eod", "deadline")
+_FIRM_HINTS = ("must", "should", "need to", "ensure", "make sure", "do not",
+               "strictly", "mandatory", "required", "final", "warning", "ensure")
+_APPRECIATIVE_HINTS = ("thank", "thanks", "shukriya", "appreciate", "well done", "great work", "good job")
+_CORRECTIVE_HINTS = ("feedback", "improvement", "concern", "flag", "issue", "risk", "coaching", "review", "gap")
+
+
+def _message_sanitise(raw: str) -> str:
+    s = str(raw or "")
+    codes = []
+    def _hold(m):
+        codes.append(m.group(0))
+        return f"\x01{len(codes)-1}\x01"
+    s = _COURSE_CODE_RE_RW.sub(_hold, s)
+    for short, long in _CONTRACTIONS_RW.items():
+        s = _re.compile(_re.escape(short), _re.I).sub(
+            lambda m: long.capitalize() if m.group(0)[0].isupper() else long, s)
+    s = _re.sub(r"[\u2010-\u2015]", " ", s)
+    s = s.replace("-", " ")
+    s = _re.sub(r"[•·▪●◦*]", "", s)
+    # strip pictographs / emojis via unicode category So
+    import unicodedata
+    s = "".join(ch for ch in s if unicodedata.category(ch) != "So")
+    s = _re.sub(r"[ \t]+", " ", s)
+    s = "\n".join(line.strip() for line in s.split("\n"))
+    s = _re.sub(r"\n{3,}", "\n\n", s)
+    for i, code in enumerate(codes):
+        s = s.replace(f"\x01{i}\x01", code)
+    return s.strip()
+
+
+def _normalize_hinglish(text: str) -> str:
+    s = str(text or "")
+    # longest keys first so "jaldi se" wins over "jaldi"
+    for k in sorted(_HINGLISH_MAP, key=lambda x: -len(x)):
+        s = _re.compile(r"\b" + _re.escape(k) + r"\b", _re.I).sub(_HINGLISH_MAP[k], s)
+    return s
+
+
+def _detect_hinglish(text: str) -> bool:
+    low = str(text or "").lower()
+    return any(_re.search(r"\b" + _re.escape(k) + r"\b", low) for k in _HINGLISH_MAP)
+
+
+def _extract_time_refs(text: str):
+    pats = [
+        r"\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b",
+        r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+        r"\bnext week\b", r"\bthis week\b", r"\btomorrow\b", r"\btoday\b",
+        r"\bday after tomorrow\b", r"\bby\s+(?:monday|tuesday|wednesday|thursday|friday|eod|tomorrow|today)\b",
+        r"\b\d{1,2}:\d{2}\s*(?:am|pm)?\b",
+    ]
+    found = []
+    for pat in pats:
+        for m in _re.finditer(pat, str(text or ""), _re.I):
+            v = m.group(0).strip()
+            if v and v.lower() not in [x.lower() for x in found]:
+                found.append(v)
+    return found
+
+
+def _professional_rephrase(text: str) -> str:
+    s = _normalize_hinglish(text or "")
+    s = _message_sanitise(s)
+    s = _re.sub(r"\s+", " ", s).strip()
+    if not s:
+        return ""
+    # remove informal fillers
+    s = _re.sub(r"\b(yaar|bhai|actually|kindly please|please kindly)\b", "please", s, flags=_re.I)
+    s = _re.sub(r"\bpls\b", "please", s, flags=_re.I)
+    s = _re.sub(r"\s+", " ", s).strip()
+    # sentence case
+    parts = _re.split(r"([.!?])\s*", s)
+    out = []
+    terminators = _re.findall(r"[.!?]", s)
+    idx = 0
+    for i in range(0, len(parts), 2):
+        seg = parts[i].strip() if i < len(parts) else ""
+        if not seg:
+            continue
+        seg = seg[0].upper() + seg[1:] if len(seg) > 1 else seg.upper()
+        term = terminators[idx] if idx < len(terminators) else ""
+        idx += 1
+        if seg and term:
+            out.append(seg + term)
+        elif seg:
+            out.append(seg + ".")
+    res = " ".join(out)
+    res = _re.sub(r"\s+([.,!?])", r"\1", res)
+    res = _re.sub(r"[ \t]+", " ", res).strip()
+    if res and res[-1] not in ".!?":
+        res += "."
+    return res
+
+
+def _detect_intent(user_message: str, my_message: str) -> dict:
+    raw_combined = f"{user_message or ''} {my_message or ''}"
+    norm_combined = _normalize_hinglish(raw_combined).lower()
+    urgency = "low"
+    if any(h in norm_combined for h in _URGENCY_HINTS) or "!" in raw_combined or "kal" in raw_combined.lower() or "parso" in raw_combined.lower():
+        urgency = "high"
+    elif any(w in norm_combined for w in ("soon", "friday", "monday", "wednesday", "week")):
+        urgency = "medium"
+    firmness = "neutral"
+    if any(h in norm_combined for h in _FIRM_HINTS):
+        firmness = "firm"
+    elif any(h in norm_combined for h in ("please", "kindly", "request", "could you", "would you")):
+        firmness = "soft"
+    tone = "professional"
+    if any(h in norm_combined for h in _APPRECIATIVE_HINTS):
+        tone = "appreciative"
+    elif any(h in norm_combined for h in _CORRECTIVE_HINTS) or "gap" in norm_combined:
+        tone = "corrective"
+    elif urgency == "high":
+        tone = "urgent"
+    elif "available" in norm_combined or "bench" in norm_combined:
+        tone = "advisory"
+    return {"urgency": urgency, "firmness": firmness, "tone": tone,
+            "hinglish": _detect_hinglish(raw_combined),
+            "time_refs": _extract_time_refs(norm_combined)}
+
+
+def _bold(text: str, style: str) -> str:
+    return f"**{text}**" if style == "teams" else text
+
+
+def _italic(text: str, style: str) -> str:
+    return f"_{text}_" if style == "teams" else text
+
+
+def _underline(text: str, style: str) -> str:
+    return f"__{text}__" if style == "teams" else text
+
+
+def _trim_message_to_limit(text: str, limit: int = _MESSAGE_LIMIT) -> str:
+    if len(text) <= limit:
+        return text
+    parts = text.split("\n\n")
+    if len(parts) < 3:
+        return text[:limit].rsplit(" ", 1)[0] + "."
+    greeting, closing = parts[0], parts[-1]
+    body = "\n\n".join(parts[1:-1])
+    overhead = len(greeting) + len(closing) + 4
+    room = limit - overhead
+    if room <= 0:
+        return text[:limit]
+    if len(body) > room:
+        sents = _re.split(r"(?<=[.!?])\s+", body)
+        kept = []
+        cur = 0
+        for s in sents:
+            if cur + len(s) + 1 > room:
+                break
+            kept.append(s)
+            cur += len(s) + 1
+        body = " ".join(kept).strip()
+        if body and body[-1] not in ".!?":
+            body += "."
+    return f"{greeting}\n\n{body}\n\n{closing}"
+
+
+def _compose_rewritten(user_message: str, my_message: str, style: str = "teams",
+                       target_name: str = "", is_team: bool = False,
+                       evidence_context: dict | None = None) -> str:
+    um = str(user_message or "").strip()
+    mm = str(my_message or "").strip()
+    if not um and not mm:
+        raise ValueError("At least one of user_message or my_message is required")
+    intent = _detect_intent(um, mm)
+    # greeting
+    if is_team:
+        greeting = "Hello team,"
+    else:
+        first = str(target_name or "").strip().split()[0] if str(target_name or "").strip() else ""
+        if not first and um:
+            # try to extract a name-like token from the user message context
+            first = ""
+        if first:
+            greeting = f"Hello {_italic(first, style)}," if style == "teams" else f"Hello {first},"
+        else:
+            greeting = "Hello there,"
+
+    # body construction
+    body_sentences = []
+    if um and mm:
+        # acknowledge user context briefly, then convey manager intent
+        topic = ""
+        # naive topic extraction: course code or assignment word
+        m = _COURSE_CODE_RE_RW.search(um + " " + mm)
+        if m:
+            topic = m.group(0)
+        elif _re.search(r"\b(batch|assignment|delivery|material|course)\b", um, _re.I):
+            topic = "your update"
+        ack = "Thank you for your update on " + (topic if topic else "your message") + "." if um else ""
+        if ack:
+            body_sentences.append(_professional_rephrase(ack))
+        core = _professional_rephrase(mm)
+        # if the manager draft is very short, enrich with a professional lead
+        if len(core.split()) < 4:
+            core = _professional_rephrase(mm + " Please let me know if you need support")
+        body_sentences.append(core)
+    elif mm:
+        body_sentences.append(_professional_rephrase(mm))
+    else:
+        body_sentences.append(_professional_rephrase(um))
+
+    # optional evidence sentence (one at most, evidence-only)
+    if isinstance(evidence_context, dict):
+        ev = ""
+        if evidence_context.get("cert_gap_courses"):
+            gaps = ", ".join(evidence_context["cert_gap_courses"][:2])
+            ev = f"On record you are delivering {gaps} without the matching certification."
+        elif evidence_context.get("learner_rating") is not None:
+            ev = f"Learners rate you {evidence_context['learner_rating']}/5 from {evidence_context.get('learner_rating_count', 0)} responses in the last 90 days."
+        elif evidence_context.get("utilisation") is not None and evidence_context.get("utilisation") < 55:
+            ev = f"Your utilisation is at {evidence_context['utilisation']} percent this week."
+        if ev:
+            body_sentences.append(_professional_rephrase(ev))
+
+    body = " ".join(s for s in body_sentences if s)
+
+    # house formatting: bold the single key action sentence, underline time refs
+    # bold: first sentence containing an actionable cue
+    action_cues = ("please", "book", "share", "confirm", "schedule", "ensure", "complete", "send", "prepare", "hold", "review", "let me know")
+    sents = _re.split(r"(?<=[.!?])\s+", body)
+    bolded = False
+    new_sents = []
+    for s in sents:
+        low = s.lower()
+        if not bolded and any(cue in low for cue in action_cues):
+            # extract the actionable clause for bold; bold the whole sentence
+            new_sents.append(_bold(s.strip(), style))
+            bolded = True
+        else:
+            new_sents.append(s)
+    body = " ".join(new_sents)
+    # underline time references (sparingly) — avoid nesting inside bold
+    for tr in intent["time_refs"][:2]:
+        # skip if this time ref sits inside an already bolded segment
+        bold_spans = [(m.start(), m.end()) for m in _re.finditer(r"\*\*.*?\*\*", body)]
+        def _inside_bold(pos):
+            return any(s <= pos < e for s, e in bold_spans)
+        m = _re.search(_re.escape(tr), body, _re.I)
+        if m and not _inside_bold(m.start()):
+            body = body[:m.start()] + _underline(m.group(0), style) + body[m.end():]
+
+    # closing with light emphasis
+    tone = intent["tone"]
+    if tone == "urgent":
+        closing_raw = "Please confirm once done."
+    elif tone == "corrective":
+        closing_raw = "Please let me know if you need support."
+    elif tone == "appreciative":
+        closing_raw = "Thank you for your continued effort."
+    elif tone == "advisory":
+        closing_raw = "Please let me know your plan."
+    else:
+        closing_raw = "Thank you for your attention to this."
+    closing = _italic(closing_raw, style) if style == "teams" else closing_raw
+
+    assembled = f"{greeting}\n\n{body}\n\n{closing}"
+    # final sanitise pass for the assembled message must not strip the markdown markers
+    # so re-apply only whitespace collapse
+    assembled = _re.sub(r"[ \t]+", " ", assembled)
+    assembled = "\n".join(line.rstrip() for line in assembled.split("\n"))
+    assembled = _re.sub(r"\n{3,}", "\n\n", assembled).strip()
+    return _trim_message_to_limit(assembled)
 
 
 _FEEDBACK_MIN_QUOTE = 45
@@ -7803,32 +8207,32 @@ def weekly_report_v2():
         standpoint_lines = [
             f"Weekly Manager Standpoint for {first_name}:",
             "",
-            f"• Standpoint: {status_desc}",
+            f"Standpoint: {status_desc}",
         ]
         if fb["avg_rating"] is not None:
             standpoint_lines.append(
-                f"• Learner rating (90d): {fb['avg_rating']}/5 from {fb['response_count']} response(s), latest {_human_date(fb['recent_date'])}"
+                f"Learner rating 90 day: {fb['avg_rating']}/5 from {fb['response_count']} responses, latest {_human_date(fb['recent_date'])}"
             )
         else:
-            standpoint_lines.append("• Learner rating (90d): no feedback on record")
+            standpoint_lines.append("Learner rating 90 day: no feedback on record")
 
         if feedback_risk == "High":
-            standpoint_lines.append(f"• Immediate Focus: review the {neg_total} negative feedback / {hr_neg} HR record(s) and hold a 1-on-1")
+            standpoint_lines.append(f"Immediate Focus: review the {neg_total} negative feedback and {hr_neg} HR records and hold a 1 on 1")
             for q in fb["constructive_quotes"][:1]:
-                standpoint_lines.append(f'   - Learner feedback ({_human_date(q["date"])}): "{q["text"]}"')
+                standpoint_lines.append(f'Learner feedback {_human_date(q["date"])}: "{q["text"]}"')
         elif gap_count > 0:
             gap_names = ", ".join(gap_courses[:2]) if gap_courses else "assigned courses"
-            standpoint_lines.append(f"• Immediate Focus: schedule and complete the certification exam for {gap_names}")
+            standpoint_lines.append(f"Immediate Focus: schedule and complete the certification exam for {gap_names}")
         elif capacity_bucket == "On Bench":
             top_courses_str = ", ".join([s.get("course_name", "") for s in top_skills[:2] if s.get("course_name")]) or "pipeline demand"
-            standpoint_lines.append(f"• Immediate Focus: assign to open demand or upskill toward {top_courses_str}")
+            standpoint_lines.append(f"Immediate Focus: assign to open demand or upskill toward {top_courses_str}")
         elif len(week_assignments) > 0:
-            standpoint_lines.append(f"• Immediate Focus: delivering {week_assignments[0]['course']} this week — no action needed")
+            standpoint_lines.append(f"Immediate Focus: delivering {week_assignments[0]['course']} this week. No action needed")
         else:
-            standpoint_lines.append("• Immediate Focus: none — steady, no flags this week")
+            standpoint_lines.append("Immediate Focus: none. Steady, no flags this week")
 
         for q in fb["positive_quotes"][:1]:
-            standpoint_lines.append(f'• Recent learner feedback ({_human_date(q["date"])}): "{q["text"]}"')
+            standpoint_lines.append(f'Recent learner feedback {_human_date(q["date"])}: "{q["text"]}"')
 
         standpoint_text = "\n".join(standpoint_lines)
 

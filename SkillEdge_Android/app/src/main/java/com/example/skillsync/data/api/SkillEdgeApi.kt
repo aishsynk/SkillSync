@@ -191,6 +191,11 @@ interface SkillEdgeApi {
         @Body request: AgentAskRequest
     ): AgentAskResponse
 
+    @POST("api/v2/message/rewrite")
+    suspend fun rewriteMessage(
+        @Body request: RewriteRequest
+    ): RewriteResponse
+
     // ── Manager action inbox ────────────────────────────────────────────────
 
     /** Derived + manager-raised actions with their lifecycle state. */
@@ -479,5 +484,24 @@ data class TrainerIndexResponseDto(
     val month: String = "",
     val trainer_index: TrainerIndexDto = TrainerIndexDto(),
     val timestamp: String = "",
+)
+
+data class RewriteRequest(
+    val manager_email: String,
+    val user_message: String = "",
+    val my_message: String = "",
+    val target_name: String = "",
+    val is_team: Boolean = false,
+    val style: String = "teams",
+    val evidence_context: Map<String, Any>? = null,
+)
+
+data class RewriteResponse(
+    val rewritten: String = "",
+    val style: String = "teams",
+    val length: Int = 0,
+    val detected: Map<String, Any>? = null,
+    val greeting: String = "",
+    val error: String? = null,
 )
 

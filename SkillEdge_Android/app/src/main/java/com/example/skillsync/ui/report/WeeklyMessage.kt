@@ -43,7 +43,7 @@ const val MESSAGE_LIMIT = 1000
  */
 enum class MessageStyle { PLAIN, TEAMS }
 
-/** One reportee's week, reduced to only what changes what you would say. */
+/** One reportee's week, reduced to only what changes what you would say. Evidence-only. */
 data class ReporteeSignals(
     val name: String,
     val utilisation: Int? = null,
@@ -60,6 +60,12 @@ data class ReporteeSignals(
     val domain: String = "",
     val targetGrowthCourses: List<String> = emptyList(),
     val peerBenchmarkNote: String = "",
+    /** Evidence-only learner signals (RMS key 244). Null = no feedback on record, not zero. */
+    val learnerRating: Double? = null,
+    val learnerRatingCount: Int = 0,
+    val learnerRecentDate: String = "",
+    val hrNegativeCount: Int = 0,
+    val negativeFeedbackCount: Int = 0,
 )
 
 /** The team's week. */
@@ -255,16 +261,19 @@ fun composeReporteeMessage(
 
 /**
  * Composes an explicit "Where You Stand" weekly managerial evaluation note.
- * Answers where they stand on Workload, Mock/Qubits readiness, and Immediate weekly priorities.
+ * Evidence-only: every line derives from real RMS signals (utilisation,
+ * learner rating, cert gaps, HR/negative feedback). No generic
+ * "pacing & articulation" boilerplate. Bullet-free to meet the Teams/Viber
+ * house style (no bullets, hyphens or decorative symbols).
  */
 fun composeManagerStandpointNote(
     signals: ReporteeSignals,
     style: MessageStyle = MessageStyle.TEAMS,
 ): String {
     val first = signals.name.trim().substringBefore(" ").ifBlank { "Trainer" }
-    val sb = StringBuilder()
-
-    sb.append("Weekly Manager Standpoint for $first:\n\n")
+    val lines = mutableListOf<String>()
+    lines += "Weekly Manager Standpoint for $first:"
+    lines += ""
 
     val statusText = when {
         signals.capacityBucket.equals("Stretched", true) -> "High Workload (Stretched at ${signals.utilisation ?: 85}% util)"
@@ -272,40 +281,38 @@ fun composeManagerStandpointNote(
         signals.currentCourse.isNotBlank() -> "Active Delivery on ${signals.currentCourse} (${signals.utilisation ?: 75}% util)"
         else -> "Steady (${signals.utilisation ?: 70}% util)"
     }
-    sb.append("• Standpoint: $statusText\n")
+    lines += "Standpoint: $statusText"
 
-    val readinessText = when {
-        signals.readiness != null && signals.readiness > 0 -> "Readiness Score ${signals.readiness}%"
-        else -> "Theoretical baseline active"
+    if (signals.learnerRating != null) {
+        val datePart = if (signals.learnerRecentDate.isNotBlank()) ", latest ${signals.learnerRecentDate}" else ""
+        lines += "Learner rating 90 day: ${signals.learnerRating}/5 from ${signals.learnerRatingCount} responses$datePart"
+    } else {
+        lines += "Learner rating 90 day: no feedback on record"
     }
-    sb.append("• Mock & Readiness: $readinessText | Pacing & Articulation focus active\n")
 
-    val priorityText = when {
-        signals.feedbackRisk.equals("High", true) -> "Immediate delivery feedback review and 1-on-1 alignment"
+    val focus = when {
+        signals.feedbackRisk.equals("High", true) ->
+            "Immediate Focus: review the ${signals.negativeFeedbackCount} negative feedback and ${signals.hrNegativeCount} HR records and hold a 1 on 1"
         signals.certGaps > 0 -> {
             val courses = signals.certGapCourses.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "assigned courses"
-            "Schedule and complete certification exam for $courses"
+            "Immediate Focus: schedule and complete the certification exam for $courses"
         }
         signals.capacityBucket.equals("On Bench", true) -> {
-            if (signals.targetGrowthCourses.isNotEmpty()) "Upskill and clear mock for ${signals.targetGrowthCourses.joinToString(", ")}"
-            else "Submit upskilling track for incoming corporate demand"
+            if (signals.targetGrowthCourses.isNotEmpty()) "Immediate Focus: assign to open demand or upskill toward ${signals.targetGrowthCourses.joinToString(", ")}"
+            else "Immediate Focus: assign to open demand or upskill toward pipeline demand"
         }
-        signals.nextCourse.isNotBlank() -> "Finalize session prep and lab verification for ${signals.nextCourse}"
-        else -> "Maintain delivery momentum and structured demo narration"
+        signals.nextCourse.isNotBlank() -> "Immediate Focus: final preparation for ${signals.nextCourse}"
+        signals.currentCourse.isNotBlank() -> "Immediate Focus: delivering ${signals.currentCourse} this week. No action needed"
+        else -> "Immediate Focus: none. Steady, no flags this week"
     }
-    sb.append("• Immediate Focus: $priorityText\n\n")
+    lines += focus
 
-    sb.append("Manager Guidance: Maintain structured demo flow (Goal → Steps → Verify) and raise any delivery blockers early.")
-
-    val raw = sb.toString()
+    val raw = lines.joinToString("\n")
     return if (style == MessageStyle.TEAMS) {
-        raw.replace("• Standpoint:", "**Standpoint:**")
-            .replace("• Mock & Readiness:", "**Mock & Readiness:**")
-            .replace("• Immediate Focus:", "**Immediate Focus:**")
-            .replace("Manager Guidance:", "_Manager Guidance:_")
-    } else {
-        raw
-    }
+        raw.replace("Standpoint:", "**Standpoint:**")
+            .replace("Learner rating 90 day:", "**Learner rating 90 day:**")
+            .replace("Immediate Focus:", "**Immediate Focus:**")
+    } else raw
 }
 
 // ── House style ─────────────────────────────────────────────────────────────

@@ -218,6 +218,7 @@ internal fun Trainer360Content(
     val delivery = data.obj("delivery")
     val feedback = data.obj("feedback")
     val avail    = data.obj("availability")
+    val managerEvaluation = data.obj("manager_evaluation")
     // Delivery readiness — the trainer-360 endpoint already returns these in [metrics]
     // as readiness_score, risk_score, readiness_bucket. Surface them in a dedicated section.
     val deliveryReadiness = data.obj("delivery_readiness") ?: metrics
@@ -287,7 +288,7 @@ internal fun Trainer360Content(
                     item { Appear(2) { PersonalDetails(identity) } }
                 }
                 2 -> {
-                    item { Appear(0) { ManagerEvaluationCard(identity, util, cap, certs, feedback) } }
+                    item { Appear(0) { ManagerEvaluationCard(identity, managerEvaluation, feedback) } }
                     item { Appear(1) { TrainerIndexCard(identity, util, cap, certs, feedback) } }
                     item { Appear(2) { DeliveryReadinessSection(deliveryReadiness, feedback) } }
                     item { Appear(3) { CapabilityMetrics(metrics) } }
@@ -1505,9 +1506,7 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
 @Composable
 private fun ManagerEvaluationCard(
     identity: Map<*, *>?,
-    util: Map<*, *>?,
-    cap: Map<*, *>?,
-    certs: Map<*, *>?,
+    managerEvaluation: Map<*, *>?,
     feedback: Map<*, *>?,
 ) {
     val sk = MaterialTheme.skill
@@ -1516,22 +1515,26 @@ private fun ManagerEvaluationCard(
 
     val name = identity?.str("name") ?: "Trainer"
     val first = name.substringBefore(" ").ifBlank { "Trainer" }
-    val utilPct = util?.intOrNull("current") ?: util?.intOrNull("month") ?: 0
-    val gapCount = certs?.intOrNull("gap_count") ?: certs?.list("gaps")?.size ?: 0
-    val negCount = feedback?.intOrNull("negative_count") ?: 0
-    val topCourses = cap?.list("courses")?.mapNotNull { it.str("course_name").ifBlank { null } }?.take(2) ?: emptyList()
-    val topCoursesStr = if (topCourses.isNotEmpty()) topCourses.joinToString(", ") else "assigned domain"
 
-    val strength = "$first demonstrates solid theoretical grounding with active topic familiarity in $topCoursesStr. In recent evaluations and mock sessions, pacing was noticeably more controlled with improved composure."
-    val improvement = "Despite strong knowledge, articulation and response sharpness remain the primary focus. Demo narration requires structured flow (Goal → Steps → Verify) and unscripted question composure under pressure." +
-        if (gapCount > 0) " Action: Complete pending certification exams to close $gapCount open accreditation gap(s)." else ""
-    val verdict = if (negCount == 0 && gapCount == 0) {
-        "$first is operating at high delivery readiness and is aligned for enterprise delivery pipelines."
-    } else {
-        "$first is in an active transition phase. Focus this cycle is sustaining mock discipline and closing pending certification benchmarks."
-    }
+    // Evidence-only: use server-computed structured_feedback when present. No generic
+    // behavioural boilerplate ("pacing & articulation", "hesitation and panic") is
+    // synthesized here; a dimension with no evidence says so.
+    val eval = managerEvaluation
+    val strength = eval?.str("strength")?.takeIf { it.isNotBlank() }
+        ?: "No standout strengths are on record for $first this cycle."
+    val improvement = eval?.str("area_of_improvement")?.takeIf { it.isNotBlank() }
+        ?: "No improvement areas are flagged from evidence this cycle."
+    val verdict = eval?.str("other_feedback")?.takeIf { it.isNotBlank() }
+        ?: eval?.str("trajectory")?.let { "$first: $it." }
+        ?: "$first is delivering steadily with no flags this cycle."
+    val trajectory = eval?.str("trajectory") ?: "Steady"
+    val mockSummary = eval?.str("mock_summary") ?: ""
 
-    val formatted = "Strength:\n$strength\n\nArea of Improvement:\n$improvement\n\nOther Feedback:\n$verdict"
+    // Fallback learner feedback block for display when evaluation quotes are present
+    val learnerFeedback = eval?.obj("learner_feedback")
+
+    val formatted = eval?.str("formatted_text")?.takeIf { it.isNotBlank() }
+        ?: "Strength:\n$strength\n\nArea of Improvement:\n$improvement\n\nManager's Verdict:\n$verdict"
 
     SkillCard(Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
