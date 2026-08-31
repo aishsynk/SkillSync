@@ -290,32 +290,25 @@ fun WeeklyReportScreen(
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             FilledTonalButton(
                                                 onClick = {
-                                                    if (teamUserMessage.isBlank() && teamMyMessage.isBlank()) {
-                                                        notify.error("Enter at least one message to rewrite")
-                                                        return@FilledTonalButton
-                                                    }
                                                     teamRewriting = true
                                                     teamScope.launch {
                                                         try {
-                                                            val resp = com.example.skillsync.data.api.RetrofitClient.instance.rewriteMessage(
-                                                                com.example.skillsync.data.api.RewriteRequest(
-                                                                    manager_email = managerEmail,
-                                                                    user_message = teamUserMessage,
-                                                                    my_message = teamMyMessage,
-                                                                    is_team = true,
-                                                                    style = if (style == MessageStyle.TEAMS) "teams" else "plain",
-                                                                )
-                                                            )
-                                                            teamRewritten = resp.rewritten
-                                                            notify.success("Rewritten for ${if (style == MessageStyle.TEAMS) "Teams" else "Plain"}")
-                                                        } catch (_: Exception) {
-                                                            teamRewritten = MessageRewriter.compose(
-                                                                userMessage = teamUserMessage,
+                                                            val resp = com.example.skillsync.data.api.RetrofitClient.instance.composeMessage(
+                                                                manager = managerEmail,
+                                                                cadence = "weekly",
+                                                                target = "",
                                                                 myMessage = teamMyMessage,
-                                                                style = style,
-                                                                isTeam = true,
                                                             )
-                                                            notify.success("Rewritten locally (offline)")
+                                                            teamRewritten = resp.message
+                                                            notify.success("Message composed")
+                                                        } catch (_: Exception) {
+                                                            teamRewritten = repData.teamDigest.ifBlank {
+                                                                MessageRewriter.compose(
+                                                                    userMessage = "", myMessage = teamMyMessage,
+                                                                    style = style, isTeam = true,
+                                                                )
+                                                            }
+                                                            notify.success("Composed locally (offline)")
                                                         } finally { teamRewriting = false }
                                                     }
                                                 },
@@ -731,47 +724,31 @@ private fun WeeklyReporteeLiveCard(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         FilledTonalButton(
                             onClick = {
-                                if (userMessage.isBlank() && myMessage.isBlank()) {
-                                    notify.error("Enter at least one message to rewrite")
-                                    return@FilledTonalButton
-                                }
                                 rewriting = true
                                 cardScope.launch {
                                     try {
-                                        val evidence = mapOf(
-                                            "cert_gap_courses" to rep.certGapCourses,
-                                            "learner_rating" to (rep.learnerRating ?: 0.0),
-                                            "learner_rating_count" to rep.learnerRatingCount,
-                                            "utilisation" to (rep.currentUtilization ?: 0),
-                                        )
-                                        val resp = com.example.skillsync.data.api.RetrofitClient.instance.rewriteMessage(
-                                            com.example.skillsync.data.api.RewriteRequest(
-                                                manager_email = managerEmail,
-                                                user_message = userMessage,
-                                                my_message = myMessage,
-                                                target_name = rep.name,
-                                                is_team = false,
-                                                style = if (style == MessageStyle.TEAMS) "teams" else "plain",
-                                                evidence_context = evidence,
-                                            )
-                                        )
-                                        rewritten = resp.rewritten
-                                        notify.success("Rewritten for ${if (style == MessageStyle.TEAMS) "Teams" else "Plain"}")
-                                    } catch (_: Exception) {
-                                        rewritten = MessageRewriter.compose(
-                                            userMessage = userMessage,
+                                        val resp = com.example.skillsync.data.api.RetrofitClient.instance.composeMessage(
+                                            manager = managerEmail,
+                                            cadence = "weekly",
+                                            target = rep.email,
                                             myMessage = myMessage,
-                                            style = style,
-                                            targetName = rep.name,
-                                            isTeam = false,
-                                            evidence = MessageRewriter.EvidenceContext(
-                                                certGapCourses = rep.certGapCourses,
-                                                learnerRating = rep.learnerRating,
-                                                learnerRatingCount = rep.learnerRatingCount,
-                                                utilisation = rep.currentUtilization,
-                                            ),
                                         )
-                                        notify.success("Rewritten locally (offline)")
+                                        rewritten = resp.message
+                                        notify.success("Message composed")
+                                    } catch (_: Exception) {
+                                        rewritten = rep.standpointNote.ifBlank {
+                                            MessageRewriter.compose(
+                                                userMessage = "", myMessage = myMessage, style = style,
+                                                targetName = rep.name, isTeam = false,
+                                                evidence = MessageRewriter.EvidenceContext(
+                                                    certGapCourses = rep.certGapCourses,
+                                                    learnerRating = rep.learnerRating,
+                                                    learnerRatingCount = rep.learnerRatingCount,
+                                                    utilisation = rep.currentUtilization,
+                                                ),
+                                            )
+                                        }
+                                        notify.success("Composed locally (offline)")
                                     } finally { rewriting = false }
                                 }
                             },

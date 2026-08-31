@@ -196,6 +196,19 @@ interface SkillEdgeApi {
         @Body request: RewriteRequest
     ): RewriteResponse
 
+    /**
+     * The house-style weekly/monthly message for a reportee (pass [target]) or
+     * the team (omit [target]), composed from the analysed data with an
+     * optional manager note ([myMessage]) woven in.
+     */
+    @GET("api/v2/message/compose")
+    suspend fun composeMessage(
+        @Query("manager") manager: String,
+        @Query("cadence") cadence: String = "weekly",
+        @Query("target") target: String = "",
+        @Query("my_message") myMessage: String = "",
+    ): ComposeMessageResponse
+
     // ── Manager action inbox ────────────────────────────────────────────────
 
     /** Derived + manager-raised actions with their lifecycle state. */
@@ -502,6 +515,15 @@ data class RewriteResponse(
     val length: Int = 0,
     val detected: Map<String, Any>? = null,
     val greeting: String = "",
+    val error: String? = null,
+)
+
+data class ComposeMessageResponse(
+    val message: String = "",
+    val scope: String = "",
+    val cadence: String = "weekly",
+    val target: String = "",
+    val length: Int = 0,
     val error: String? = null,
 )
 

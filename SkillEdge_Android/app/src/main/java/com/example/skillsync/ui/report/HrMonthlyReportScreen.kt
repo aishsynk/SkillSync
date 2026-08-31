@@ -582,44 +582,30 @@ private fun ReporteeSnapshotCard(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             androidx.compose.material3.FilledTonalButton(
                                 onClick = {
-                                    if (userMessage.isBlank() && myMessage.isBlank()) {
-                                        notify.error("Enter at least one message to rewrite")
-                                        return@FilledTonalButton
-                                    }
                                     rewriting = true
                                     hrCardScope.launch {
                                         try {
-                                            val ev = mapOf(
-                                                "cert_gap_courses" to rep.topCourses,
-                                                "learner_rating" to (rep.structuredFeedback.let { null } ?: 0.0),
-                                                "utilisation" to rep.utilisationPct.toInt(),
-                                            )
-                                            val resp = com.example.skillsync.data.api.RetrofitClient.instance.rewriteMessage(
-                                                com.example.skillsync.data.api.RewriteRequest(
-                                                    manager_email = managerEmail,
-                                                    user_message = userMessage,
-                                                    my_message = myMessage,
-                                                    target_name = rep.name,
-                                                    is_team = false,
-                                                    style = "teams",
-                                                    evidence_context = ev,
-                                                )
-                                            )
-                                            rewritten = resp.rewritten
-                                            notify.success("Rewritten for Teams")
-                                        } catch (_: Exception) {
-                                            rewritten = com.example.skillsync.ui.report.MessageRewriter.compose(
-                                                userMessage = userMessage,
+                                            val resp = com.example.skillsync.data.api.RetrofitClient.instance.composeMessage(
+                                                manager = managerEmail,
+                                                cadence = "monthly",
+                                                target = rep.email,
                                                 myMessage = myMessage,
-                                                style = com.example.skillsync.ui.report.MessageStyle.TEAMS,
-                                                targetName = rep.name,
-                                                isTeam = false,
-                                                evidence = com.example.skillsync.ui.report.MessageRewriter.EvidenceContext(
-                                                    certGapCourses = rep.topCourses,
-                                                    utilisation = rep.utilisationPct.toInt(),
-                                                ),
                                             )
-                                            notify.success("Rewritten locally (offline)")
+                                            rewritten = resp.message
+                                            notify.success("Message composed")
+                                        } catch (_: Exception) {
+                                            rewritten = rep.structuredFeedback.formattedText.ifBlank {
+                                                com.example.skillsync.ui.report.MessageRewriter.compose(
+                                                    userMessage = "", myMessage = myMessage,
+                                                    style = com.example.skillsync.ui.report.MessageStyle.TEAMS,
+                                                    targetName = rep.name, isTeam = false,
+                                                    evidence = com.example.skillsync.ui.report.MessageRewriter.EvidenceContext(
+                                                        certGapCourses = rep.topCourses,
+                                                        utilisation = rep.utilisationPct.toInt(),
+                                                    ),
+                                                )
+                                            }
+                                            notify.success("Composed locally (offline)")
                                         } finally { rewriting = false }
                                     }
                                 },

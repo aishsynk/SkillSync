@@ -3679,3 +3679,38 @@ Ranked backlog (this session shipped items 1-3 as v3.47.0):
 - **Known Issues / Blockers**: None. Render disk `skilledge-state` check pending if `-fpcl` is not a Blueprint (informational only, does not affect this release).
 - **Handover for Next Session**: Read `AI/PROGRESS.md` → latest entry confirms v3.49.0 deployed and verified. Continue roadmap 4-7: taxonomy `courseTechnology`+`courseDomain` (RMS key 114/205), surface 5 hidden endpoints (`trainerFeedback`/`assignmentPax`/`last3MonthsUtil`/`trainerAvailability`/`upcomingAssignments`), NotificationEngine expansion, team-level Copilot. Standard prompt: `Read and follow AGENTS.md. Review the latest AI/PROGRESS.md entry, provide a brief current-status summary, identify the last model and tool used, and continue with the next recommended actions.`
 
+
+## 2026-08-31T10:00:00+05:30 - v3.50.0/136: manager messages are composed prose, not fact lists
+
+- **Model/Tool**: Claude Sonnet 5 / Claude Code
+- **Files Modified**: `backend.py` (`_compose_manager_message`, `_reportee_message_facts`,
+  `_open_opportunities_for`, `_bold_first_action`, `_underline_one_timeref`, `/api/v2/message/compose`;
+  wired into `weekly_report_v2` standpoint_note + team_digest and `hr_monthly_report`
+  `_generate_manager_evaluation` message + team_digest), `tests/test_manager_messages.py` (new),
+  `SkillEdge_Android/.../SkillEdgeApi.kt` (`composeMessage` + `ComposeMessageResponse`),
+  `WeeklyReportScreen.kt` + `HrMonthlyReportScreen.kt` (compose buttons call `/api/v2/message/compose`),
+  `SkillEdge_Android/app/build.gradle.kts` (136/3.50.0), `releases/RELEASE_NOTES_v3.50.0.md`,
+  `AI/DECISIONS.md`, `AI/PROGRESS.md`, `AI/CONTEXT.md`
+- **Work Completed**:
+  - Root cause of the "makes no sense" report text: v3.48.0 added a rewrite engine for hand-typed
+    manager input but the auto-generated `standpoint_note` / `team_digest` were still labelled fact
+    lists routed through nothing.
+  - New deterministic composer produces house-style Teams/Viber prose for 4 scopes (reportee/team x
+    weekly/monthly). Content: current+upcoming delivery, utilisation, Qubits, learner rating + dated
+    quote, cert gaps, quality flags, and NEW opportunity cost (open demand matching the trainer's/
+    team's existing courses that they are not on). One bold action, one underlined time ref,
+    <=1000 chars, tone from the data.
+  - `GET /api/v2/message/compose` (reportee or team, weekly|monthly, optional `my_message`) reuses the
+    warm-cached report so no extra RMS calls; the `[My Message]` field is woven in as the lead.
+  - Client: `composeMessage` API; Weekly + HR Monthly compose buttons call it (was the raw rewrite).
+  - Tests: backend 175 pass (new `test_manager_messages.py`).
+- **Current Status**: Implemented; Android release gate running; not yet committed.
+- **Known Issues or Blockers**:
+  - `aishwar_v@koenig-solutions.com` has 0 RMS reportees, so per-reportee messages can only be
+    verified against a manager with a real roster or via the unit tests.
+  - The `[User Message]` field from the pasted spec is still present in the UI but no longer sent to
+    the composer (compose takes `my_message` only) — acceptable; remove in a follow-up if unwanted.
+- **Next Recommended Actions**:
+  1. Commit + push v3.50.0; CI; Render deploy; verify composed messages on a real-roster manager.
+  2. Roadmap items 4-7 still open (taxonomy, hidden endpoints, NotificationEngine, team Copilot).
+  3. Confirm the Render `skilledge-state` disk (operator).

@@ -62,6 +62,27 @@ a spinner. All five now use `_serve_or_warm(cache_key, view_func, build_path, fa
   the retained payload. `loading: true` bodies must never overwrite the client's local
   snapshot (already enforced in `ManagerRepository.cachedMap`).
 
+## Manager messages are composed prose (effective v3.50.0)
+
+Every manager-to-team message is produced by `_compose_manager_message(scope, cadence, facts,
+my_message)` in `backend.py` (helpers: `_reportee_message_facts`, `_open_opportunities_for`,
+`_bold_first_action`, `_underline_one_timeref`). Output is house-style Teams/Viber prose:
+greeting line, blank line, prose body, blank line, closing line; no emojis/bullets/hyphens;
+`**` marks the one key action, `__` the one time reference; italics only for a name; <=1000 chars;
+tone (appreciative / advisory / corrective / urgent) chosen from the data. Phrasing varies
+deterministically by `_msg_seed(subject, period)`.
+
+- `standpoint_note` (weekly reportee), `team_digest` (weekly + monthly team) and the HR-monthly
+  `structured_feedback.message` are all this composer's output — the old labelled fact lists are gone.
+- Facts fed in: current + upcoming delivery, utilisation, Qubits, learner rating + one dated quote,
+  named cert gaps, negative feedback / HR counts, and **opportunity cost** — open unallocated demand
+  (`_open_opportunities_for`) whose course the trainer/team already teaches but is not assigned to.
+- `GET /api/v2/message/compose` (`manager`, `cadence` weekly|monthly, `target` = reportee email or
+  omit for team, `my_message`) returns the composed message, reusing the warm-cached report (no extra
+  RMS calls). The Android Weekly/HR compose buttons call this; `my_message` is woven in as the lead.
+- Still deterministic — no LLM (project rule). The older `/api/v2/message/rewrite` +
+  `_compose_rewritten` (v3.48.0) remains for rewriting free-typed manager text.
+
 ## Report messages are evidence-only (effective v3.46.0)
 
 `_generate_manager_evaluation` (HR monthly `structured_feedback` + trainer-evaluation),
