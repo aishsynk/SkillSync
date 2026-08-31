@@ -23,6 +23,9 @@ import kotlinx.serialization.Serializable
 /** Monthly performance snapshot for HR — one card per reportee. */
 @Serializable data class HrReport(val email: String) : NavKey
 
+/** "This Week" — the ranked board of what needs the manager. */
+@Serializable data class Priorities(val email: String) : NavKey
+
 object HomeTab {
     const val DASHBOARD = "today"
     const val TEAM = "people"

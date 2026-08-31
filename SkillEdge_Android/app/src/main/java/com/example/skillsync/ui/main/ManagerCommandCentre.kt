@@ -86,6 +86,7 @@ fun ManagerCommandCentre(
     onOpenDemand: () -> Unit,
     onOpenWeeklyReport: () -> Unit = {},
     onOpenHrReport: () -> Unit = {},
+    onOpenPriorities: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
     onOpenDelivery: () -> Unit = {},
     onBatchClick: (String) -> Unit = {},
@@ -168,6 +169,9 @@ fun ManagerCommandCentre(
                 },
             )
         }
+
+        // ── 1b · This Week — the ranked board of what needs the manager ─────
+        ThisWeekCard(email = email, onOpen = onOpenPriorities)
 
         // ── 2 · What is on fire? ────────────────────────────────────────────
         val alerts = buildAlerts(atRisk, overloaded, demand, openActions, gaps, onDrill, onOpenDemand)
@@ -405,6 +409,56 @@ fun ManagerCommandCentre(
 }
 
 private fun plural(n: Int, one: String, many: String) = if (n == 1) one else many
+
+/** Prominent entry point to the "This Week" priority board. */
+@Composable
+private fun ThisWeekCard(email: String, onOpen: () -> Unit) {
+    val sk = MaterialTheme.skill
+    val openCount = remember(email) {
+        com.example.skillsync.ui.report.PrioritiesViewModel.cachedOpenCount(email)
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable { onOpen() },
+        shape = RoundedCornerShape(Radii.card),
+        color = Color(0x281D4ED8),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x6638BDF8)),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color(0x3338BDF8)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painterResource(R.drawable.ic_calendar),
+                    contentDescription = "This Week",
+                    tint = Color(0xFF38BDF8),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Column(Modifier.weight(1f)) {
+                Text("This Week", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 14.sp)
+                Text(
+                    if (openCount > 0) "$openCount ${plural(openCount, "item", "items")} need you — ranked ↗"
+                    else "What needs you — ranked ↗",
+                    color = sk.sky,
+                    fontSize = 11.sp,
+                )
+            }
+            if (openCount > 0) {
+                Box(
+                    Modifier.clip(RoundedCornerShape(10.dp)).background(Color(0xFF38BDF8))
+                        .padding(horizontal = 9.dp, vertical = 3.dp),
+                ) {
+                    Text("$openCount", color = Color(0xFF0B1220), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
 
 /** Freshness stamp, or null when the payload carries no write time at all. */
 private fun freshnessAge(epochMillis: Long): String? =

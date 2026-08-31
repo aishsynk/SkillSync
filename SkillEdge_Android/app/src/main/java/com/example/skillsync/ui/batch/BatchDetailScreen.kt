@@ -63,6 +63,7 @@ fun BatchDetailScreen(
     var showReportee by remember { mutableStateOf(false) }
     var showCurriculumSheet by remember { mutableStateOf(false) }
     var showNetworkSheet by remember { mutableStateOf(false) }
+    var showEligibilitySheet by remember { mutableStateOf(false) }
     var shareTarget by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showMessagePreview by remember { mutableStateOf(false) }
 
@@ -201,6 +202,23 @@ fun BatchDetailScreen(
                     loading = gatedCandidatesLoading,
                     unverified = gatedCandidatesUnverified,
                 )
+
+                // Koenig's algorithm allocates; the manager cannot. This opens
+                // the per-trainer blocker list with the fixes the manager IS
+                // allowed to make (record a skill, and hints for the rest).
+                if (batch.str("demand_id").isNotBlank()) {
+                    OutlinedButton(
+                        onClick = { showEligibilitySheet = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                    ) {
+                        Text(
+                            "Why my team isn't eligible",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = sk.amber, fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
 
                 Box(Modifier.fillMaxWidth().glassSurface()) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -594,6 +612,18 @@ fun BatchDetailScreen(
         NetworkStaffingSheet(
             courseName = courseName,
             onDismiss = { showNetworkSheet = false },
+        )
+    }
+
+    if (showEligibilitySheet) {
+        EligibilitySheet(
+            managerEmail = managerEmail,
+            demandId = batch.str("demand_id"),
+            courseId = courseId,
+            courseName = courseName,
+            markState = markState,
+            onMarkSkill = onMarkSkill,
+            onDismiss = { showEligibilitySheet = false },
         )
     }
 

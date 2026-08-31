@@ -130,6 +130,35 @@ class MainScreenViewModel(
         viewModelScope.launch { fetchCapability(email, context, fresh = false) }
     }
 
+    /**
+     * Certification priorities for the Courses tab: demand-led cert ranking plus
+     * the nearest held-cert expiry. Mirrors [ensureCapability] — loaded lazily
+     * the first time the tab that shows it is opened.
+     */
+    private val _certIntel = MutableStateFlow<Map<String, Any>?>(null)
+    val certIntel: StateFlow<Map<String, Any>?> = _certIntel
+    private var certIntelFor: String? = null
+
+    fun ensureCertIntel(email: String, context: android.content.Context) {
+        if (certIntelFor == email && _certIntel.value != null) return
+        certIntelFor = email
+        viewModelScope.launch {
+            if (!RetrofitClient.isNetworkAvailable(context)) {
+                if (_certIntel.value == null) _certIntel.value = LocalCache.loadMap(certIntelCacheKey(email))
+                return@launch
+            }
+            runCatching { RetrofitClient.instance.getCertIntel(email) }
+                .onSuccess { body ->
+                    if (body["loading"] != true) {
+                        _certIntel.value = body
+                        LocalCache.saveMap(certIntelCacheKey(email), body)
+                    }
+                }
+        }
+    }
+
+    private fun certIntelCacheKey(email: String) = "certintel_$email"
+
     /** Team requires capability and real action counts immediately on entry. */
     fun ensureTeamIntelligence(email: String, context: android.content.Context) {
         if (_capabilityLoading.value) return

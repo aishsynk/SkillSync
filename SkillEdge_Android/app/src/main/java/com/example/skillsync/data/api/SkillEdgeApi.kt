@@ -64,6 +64,10 @@ interface SkillEdgeApi {
         @Query("refresh") refresh: Int? = null,
     ): Map<String, Any>
 
+    /** Certification calendar + demand-led certification ranking for a manager. */
+    @GET("api/v2/capability/cert-intel")
+    suspend fun getCertIntel(@Query("email") m: String): Map<String, Any>
+
     /** Unallocated batches ranked against this manager's team capability. */
     @GET("api/data/allocation-desk")
     suspend fun getAllocationDesk(
@@ -121,6 +125,12 @@ interface SkillEdgeApi {
         @Query("delivery_mode") deliveryMode: String = "",
         @Query("international") international: String = "",
     ): AllocationCandidatesResponse
+
+    @GET("api/v2/eligibility/batch")
+    suspend fun getBatchEligibility(
+        @Query("manager") manager: String,
+        @Query("demand_id") id: String,
+    ): Map<String, Any>
 
     @GET("api/v2/planning/capacity")
     suspend fun getCapacityPlan(@Query("manager") manager: String): CapacityPlanResponse

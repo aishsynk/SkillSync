@@ -87,6 +87,10 @@ class ManagerRepository(
     suspend fun weeklyReport(email: String, week: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
         cachedMap("weekly_report_${email}_$week", fresh) { api.getWeeklyReport(email, week) }
 
+    /** "This Week" priority board — ranked, actionable items for the manager. */
+    suspend fun priorities(email: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
+        cachedMap("priorities_$email", fresh) { api.getManagerPriorities(email) }
+
     suspend fun utilizationHistory(email: String) =
         cachedMap("utilization_${email.lowercase()}", false) { api.getTrainerUtilizationHistory(email) }.data.orEmpty()
 

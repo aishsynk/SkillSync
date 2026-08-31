@@ -46,6 +46,7 @@ internal fun CoursesTab(
     capability: Map<String, Any>?,
     loading: Boolean,
     onTrainerClick: (String, String) -> Unit,
+    certIntel: Map<String, Any>? = null,
     people: List<Pair<String, String>> = emptyList(),
     markState: MarkState = MarkState.Idle,
     courseSearchResults: List<Map<String, Any>> = emptyList(),
@@ -137,6 +138,8 @@ internal fun CoursesTab(
             CatalogueSummary(kpis, courses)
             Spacer(Modifier.height(8.dp))
             CapabilityPortfolio(capability.obj("portfolio"))
+            Spacer(Modifier.height(8.dp))
+            CertificationPriorities(certIntel)
             Spacer(Modifier.height(8.dp))
             Button(onClick = { assignmentCourse = null; showAssignment = true }, modifier = Modifier.fillMaxWidth()) {
                 Text("Assign skill by course name")
@@ -256,6 +259,60 @@ internal fun CoursesTab(
                 onDismiss = { showAssignment = false; onClearMark() },
                 onAssign = onAssign,
             )
+        }
+    }
+}
+
+/**
+ * Compact certification priorities: which exams the open demand board is
+ * waiting on, and the nearest held-cert expiry (or the honest note when RMS
+ * exposes no expiry dates).
+ */
+@Composable
+private fun CertificationPriorities(certIntel: Map<*, *>?) {
+    if (certIntel == null || certIntel["loading"] == true) return
+    val sk = MaterialTheme.skill
+    val demandLed = certIntel.list("demand_led")
+    val expiring = certIntel.list("expiring")
+    if (demandLed.isEmpty() && expiring.isEmpty() && certIntel.str("note").isBlank()) return
+
+    Box(Modifier.fillMaxWidth().accentGlass(sk.blue, RoundedCornerShape(Radii.card))) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Certification priorities", style = MaterialTheme.typography.titleMedium, color = sk.bodyText)
+            Text("Which certifications the open demand board is waiting on", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+
+            if (demandLed.isEmpty()) {
+                Text("No open batch currently maps to a known certification exam.", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+            } else {
+                demandLed.take(3).forEach { d ->
+                    val batches = d.int("opens_batches")
+                    val missing = d.int("trainers_missing")
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Tag(d.str("exam_code").ifBlank { d.str("cert_name") }, sk.blue)
+                        Text(
+                            "unlocks $batches open batch${if (batches == 1) "" else "es"}" +
+                                if (missing > 0) " · $missing trainer${if (missing == 1) "" else "s"} missing it" else "",
+                            style = MaterialTheme.typography.labelSmall, color = sk.bodyText,
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = sk.cardBorder)
+            val nearest = expiring.minByOrNull { it.int("days_left") }
+            if (nearest != null) {
+                val days = nearest.int("days_left")
+                Text(
+                    "Nearest expiry: ${nearest.str("cert")} (${nearest.str("trainer_name")}) in $days day${if (days == 1) "" else "s"}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (days <= 30) sk.red else sk.amber, fontWeight = FontWeight.Bold,
+                )
+            } else {
+                Text(
+                    certIntel.str("note").ifBlank { "No held certifications are approaching expiry." },
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                )
+            }
         }
     }
 }

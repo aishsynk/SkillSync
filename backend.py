@@ -1116,8 +1116,10 @@ def _skills(email):
             delivered = int(str(r.get("Course Assignment") or "0").strip() or 0)
         except ValueError:
             delivered = 0
+        _cn = str(r.get("CourseName", "")).strip()
         out.append({
-            "course":       str(r.get("CourseName", "")).strip(),
+            "course":       _cn,
+            "course_name":  _cn,   # alias: several callers read course_name
             "vendor":       str(r.get("VendorName", "") or "").strip(),
             "qubits_score": round(qubits),
             "skill_level":  str(r.get("SkillLevel", "") or "").strip(),
@@ -2063,6 +2065,87 @@ def _exam_policy():
 def _norm_course(name):
     """Loose key for matching a capability row against the RMS catalogue."""
     return _re.sub(r"[^a-z0-9]+", " ", str(name or "").lower()).strip()
+
+
+# ─── Course technology / domain taxonomy (keys 114 + 205) ─────────────────────
+#
+# courseTechnology (key 114) is ~21k rows of course -> technology; courseDomain
+# (key 205) is keyed by TechName and gives the business domain per technology.
+# Building the full map means one big fetch plus one round-trip per distinct
+# technology, so the assembled result is held in a long module-level cache the
+# same way the exam policy leans on its 6-hour RMS TTL — a per-request rebuild
+# would be unaffordable.
+_TAXONOMY_TTL = 21600
+_taxonomy_cache = {"built_at": 0.0, "data": None}
+_taxonomy_lock = threading.Lock()
+
+
+def _course_taxonomy():
+    """
+    {normalised course name / "id:<course_id>" -> {"technology", "domain"}} for
+    the whole RMS catalogue. Returns {} (or the last good build) when RMS is
+    unreachable — callers treat an empty map as "taxonomy unavailable".
+    """
+    now = time.time()
+    with _taxonomy_lock:
+        cached = _taxonomy_cache["data"]
+        if cached is not None and (now - _taxonomy_cache["built_at"]) < _TAXONOMY_TTL:
+            return cached
+
+    rows = _rms("courseTechnology", {})
+    if not isinstance(rows, list) or not rows:
+        return _taxonomy_cache["data"] or {}
+
+    course_tech = {}
+    technologies = set()
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        tech = str(r.get("technology_name") or "").strip()
+        if not tech:
+            continue
+        technologies.add(tech)
+        cname = str(r.get("course_name") or "").strip()
+        cid = str(r.get("course_id") or "").strip()
+        if cname:
+            course_tech[_norm_course(cname)] = tech
+        if cid:
+            course_tech["id:" + cid] = tech
+
+    def _domain_for(tech):
+        drows = _rms("courseDomain", {"TechName": tech})
+        for d in (drows if isinstance(drows, list) else []):
+            if isinstance(d, dict):
+                dom = str(d.get("DomainName") or "").strip()
+                if dom:
+                    return dom
+        return ""
+
+    ordered = sorted(technologies)
+    tech_domain = {}
+    if ordered:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for tech, dom in zip(ordered, pool.map(_domain_for, ordered)):
+                tech_domain[tech] = dom
+
+    out = {
+        key: {"technology": tech, "domain": tech_domain.get(tech, "")}
+        for key, tech in course_tech.items()
+    }
+    with _taxonomy_lock:
+        _taxonomy_cache["data"] = out
+        _taxonomy_cache["built_at"] = time.time()
+    return out
+
+
+def _taxonomy_for_course(taxonomy, course):
+    """Resolve one capability/course row against the taxonomy map."""
+    if not taxonomy:
+        return None
+    cid = str(course.get("course_id") or "").strip()
+    if cid and ("id:" + cid) in taxonomy:
+        return taxonomy["id:" + cid]
+    return taxonomy.get(_norm_course(course.get("course") or course.get("course_name")))
 
 
 def _cert_intelligence(courses, held_certs, accreditations, exam_policy=None):
@@ -3326,8 +3409,14 @@ def _capability_for(r, policy=None):
     }
 
 
-def _capability_portfolio(team, courses):
-    """Decision rollup built only from verified capability evidence."""
+def _capability_portfolio(team, courses, taxonomy=None):
+    """Decision rollup built only from verified capability evidence.
+
+    [taxonomy] is the `_course_taxonomy()` map when the caller has built it;
+    when it is None/empty the domain and technology groupings are skipped and
+    `domain_taxonomy_available` stays False (back-compat with the vendor-only
+    view).
+    """
     vendor_rows = {}
     for course in courses:
         vendor = str(course.get("vendor") or "Unclassified").strip() or "Unclassified"
@@ -3363,6 +3452,41 @@ def _capability_portfolio(team, courses):
         priorities.append({"type": "succession", "count": len(single_owner), "label": "Courses dependent on one trainer"})
     if future:
         priorities.append({"type": "future_skill", "count": len(future), "label": "Future skills being developed"})
+    # ── Real domain / technology groupings (RMS keys 114 + 205) ──────────────
+    tax = taxonomy or {}
+    dom_rows, tech_rows = {}, {}
+    resolved = 0
+    for course in courses:
+        entry = _taxonomy_for_course(tax, course)
+        if not entry:
+            continue
+        resolved += 1
+        is_single = course.get("coverage") == "single"
+        is_exposed = bool(course.get("exam_code")) and int(course.get("certified_count") or 0) == 0
+        dom = entry.get("domain") or "Unclassified"
+        tech = entry.get("technology") or "Unclassified"
+        d = dom_rows.setdefault(dom, {"domain": dom, "courses": 0, "single_owner": 0,
+                                      "certification_exposed": 0, "_techs": set()})
+        d["courses"] += 1
+        d["single_owner"] += int(is_single)
+        d["certification_exposed"] += int(is_exposed)
+        d["_techs"].add(tech)
+        t = tech_rows.setdefault(tech, {"technology": tech, "domain": entry.get("domain") or "",
+                                        "courses": 0, "single_owner": 0, "certification_exposed": 0})
+        t["courses"] += 1
+        t["single_owner"] += int(is_single)
+        t["certification_exposed"] += int(is_exposed)
+    by_domain = sorted(
+        ({k: v for k, v in {**row, "technologies": len(row["_techs"])}.items() if k != "_techs"}
+         for row in dom_rows.values()),
+        key=lambda r: (-r["courses"], -r["certification_exposed"], r["domain"]),
+    )
+    by_technology = sorted(
+        tech_rows.values(),
+        key=lambda r: (-r["courses"], -r["certification_exposed"], r["technology"]),
+    )
+    taxonomy_ok = resolved > 0
+
     evidence_complete = bool(team) and all(trainer.get("readiness_score") is not None for trainer in team)
     return {
         "summary": {
@@ -3372,11 +3496,16 @@ def _capability_portfolio(team, courses):
             "certification_exposed_courses": len(uncertified), "future_skill_courses": len(future),
         },
         "vendor_coverage": vendors, "priorities": priorities,
+        "by_domain": by_domain, "by_technology": by_technology,
         "confidence": {
             "status": "verified" if evidence_complete else "partial",
             "basis": "Current RMS trainer capability, certification, approval and readiness evidence",
-            "domain_taxonomy_available": False,
-            "note": "Vendor groups are used because RMS domain and technology contracts are not yet verified.",
+            "domain_taxonomy_available": taxonomy_ok,
+            "note": (
+                "Domain and technology groups resolved from RMS course taxonomy (keys 114 + 205)."
+                if taxonomy_ok else
+                "Vendor groups are used because the RMS course taxonomy did not resolve."
+            ),
         },
     }
 
@@ -3422,6 +3551,7 @@ def team_capability():
     with ThreadPoolExecutor(max_workers=6) as pool:
         # One catalogue fetch for the whole team, not one per trainer.
         _policy = _exam_policy()
+        _taxonomy = _course_taxonomy()
         team = [t for t in pool.map(lambda r: _capability_for(r, _policy), rows) if t]
 
     # ── Course catalogue: one entry per course, with everyone who can teach it ──
@@ -3502,7 +3632,7 @@ def team_capability():
             "ready_trainers":          sum(1 for t in team
                                            if t["readiness_bucket"] == "Ready"),
         },
-        "portfolio": _capability_portfolio(team, courses),
+        "portfolio": _capability_portfolio(team, courses, _taxonomy),
         "timestamp": datetime.utcnow().isoformat(),
     }
     _warm_store(f"capability::{email}", _resp)
@@ -5270,6 +5400,104 @@ def evaluate_candidate(candidate, schedule, batch, required_level=None):
     }
 
 
+def _evaluate_team_against_batch(manager, course, start, end, country="", customer="",
+                                 delivery_mode="", international=False, required_level=None):
+    """
+    Shared core of GET /api/v2/allocation/candidates and GET /api/v2/eligibility/batch.
+
+    Evaluates the manager's reportee roster against one batch through the same
+    gate-then-fit pipeline. Returns either
+      {"ready": False, "code": ..., "message": ...}          (course unresolved)
+    or
+      {"ready": True, "pool": {...}, "results": [...],
+       "eligible": [...], "blocked": [...], "unmatched": [...]}.
+    """
+    pool, why = _free_schedule(course)
+    if why:
+        return {"ready": False, "code": "COURSE_UNRESOLVED", "message": why}
+
+    batch = {
+        "start_date": start, "end_date": end,
+        "country": country, "customer": customer,
+        "delivery_mode": delivery_mode,
+        "international": bool(international),
+    }
+
+    # The reportee roster is the scope: a manager evaluates their own team.
+    roster = {}
+    for r in (_rms("reportees", {"email": manager}) or []):
+        if isinstance(r, dict) and r.get("TrainerName"):
+            roster[str(r["TrainerName"]).strip().lower()] = str(r.get("OffEmail") or "").strip()
+
+    results, unmatched = [], []
+    for key, cand in pool.items():
+        email = roster.get(key)
+        if roster and not email:
+            unmatched.append(cand["trainer_name"])
+            continue
+        sched = {"leave_dates": set(), "confirmed_dates": set(), "tentative_dates": set(),
+                 "dnc_clients": set(), "specified_clients": set(), "modes": [], "rows": 0}
+        if email:
+            sched, _ = _rc_schedule(email, start, end)
+            cand = dict(cand, off_dates=_off_dates(email), utilisation=_safe_util(email))
+        verdict = evaluate_candidate(cand, sched, batch, required_level)
+        verdict["trainer_email"] = email
+        results.append(verdict)
+
+    eligible = [r for r in results if r["eligible"]]
+    blocked = [r for r in results if not r["eligible"]]
+    eligible.sort(key=lambda r: -r["fit"])
+    return {"ready": True, "pool": pool, "results": results,
+            "eligible": eligible, "blocked": blocked, "unmatched": unmatched}
+
+
+# gate name (from evaluate_candidate) -> (fixable_by, fix_hint). The manager can
+# only prepare their trainer; they cannot allocate. mark_skill has a real write
+# path in the app; confirm_availability / book_exam are hints for now.
+_ELIGIBILITY_FIX = {
+    "skill_level":                ("mark_skill",
+                                   "Record this trainer's skill level for the course in RMS so the "
+                                   "algorithm sees them at or above the required floor."),
+    "mock_rating":                ("book_exam",
+                                   "Arrange a qualifying mock — a satisfactory mock clears the "
+                                   "first-time-delivery gate."),
+    "mock_missing":               ("book_exam",
+                                   "Arrange a qualifying mock on record — first-time delivery for an "
+                                   "uncertified trainer needs one."),
+    "availability":               ("confirm_availability",
+                                   "Confirm or update this trainer's free-date calendar and leave "
+                                   "record for the batch window."),
+    "travel_window":              ("confirm_availability",
+                                   "Confirm the trainer's roaming/travel availability for the batch dates."),
+    "international_travel_window": ("confirm_availability",
+                                   "Confirm the trainer's international travel availability for the batch dates."),
+    "shift_window":               ("confirm_availability",
+                                   "Confirm the trainer can take the required night or early shift."),
+    "dnc":                        ("none",
+                                   "This is the client's do-not-call decision and is not something the "
+                                   "manager can change."),
+    "visa":                       ("none",
+                                   "Visa readiness is handled outside allocation; the trainer is "
+                                   "surfaced, never auto-excluded."),
+}
+
+
+def _eligibility_fix(gate):
+    g = str(gate or "").strip().lower()
+    if g in _ELIGIBILITY_FIX:
+        return _ELIGIBILITY_FIX[g]
+    if "skill" in g:
+        return _ELIGIBILITY_FIX["skill_level"]
+    if "mock" in g or "exam" in g or "cert" in g:
+        return _ELIGIBILITY_FIX["mock_missing"]
+    if "avail" in g or "leave" in g or "schedule" in g or "travel" in g or "shift" in g:
+        return ("confirm_availability",
+                "Confirm this trainer's availability for the batch window in RMS.")
+    if "dnc" in g or "visa" in g or "exclud" in g:
+        return ("none", "This block is outside the manager's control.")
+    return ("none", "No manager-side fix is available for this block.")
+
+
 def _capacity_plan_from_allocation(payload, today=None, weeks=8):
     """Turn the verified allocation board into an honest weekly pressure view."""
     today = today or datetime.utcnow().date()
@@ -5719,52 +5947,30 @@ def v2_allocation_candidates():
     if not start:
         return error_response("DATES_REQUIRED", "valid start date required", 400)
 
-    pool, why = _free_schedule(course)
-    if why:
-        return jsonify({
-            "schema_version": "2.0", "ready": False,
-            "code": "COURSE_UNRESOLVED", "message": why,
-            "candidates": [], "note": "Could not verify availability; this is not an empty pool.",
-        }), 422
-
-    batch = {
-        "start_date": start, "end_date": end,
-        "country": request.args.get('country', '').strip(),
-        "customer": request.args.get('customer', '').strip(),
-        "delivery_mode": request.args.get('delivery_mode', '').strip(),
-        "international": request.args.get('international', '').strip().lower() in ("1", "true", "yes"),
-    }
     try:
         required_level = int(request.args.get('level', '') or 0) or None
     except ValueError:
         required_level = None
 
-    # The reportee roster is the scope: a manager evaluates their own team.
-    # Names are the only join key key 171 offers, so the pool is filtered by
-    # name and anyone unmatched is reported rather than silently dropped.
-    roster = {}
-    for r in (_rms("reportees", {"email": manager}) or []):
-        if isinstance(r, dict) and r.get("TrainerName"):
-            roster[str(r["TrainerName"]).strip().lower()] = str(r.get("OffEmail") or "").strip()
+    core = _evaluate_team_against_batch(
+        manager, course, start, end,
+        country=request.args.get('country', '').strip(),
+        customer=request.args.get('customer', '').strip(),
+        delivery_mode=request.args.get('delivery_mode', '').strip(),
+        international=request.args.get('international', '').strip().lower() in ("1", "true", "yes"),
+        required_level=required_level,
+    )
+    if not core["ready"]:
+        return jsonify({
+            "schema_version": "2.0", "ready": False,
+            "code": core["code"], "message": core["message"],
+            "candidates": [], "note": "Could not verify availability; this is not an empty pool.",
+        }), 422
 
-    results, unmatched = [], []
-    for key, cand in pool.items():
-        email = roster.get(key)
-        if roster and not email:
-            unmatched.append(cand["trainer_name"])
-            continue
-        sched = {"leave_dates": set(), "confirmed_dates": set(), "tentative_dates": set(),
-                 "dnc_clients": set(), "specified_clients": set(), "modes": [], "rows": 0}
-        if email:
-            sched, _ = _rc_schedule(email, start, end)
-            cand = dict(cand, off_dates=_off_dates(email), utilisation=_safe_util(email))
-        verdict = evaluate_candidate(cand, sched, batch, required_level)
-        verdict["trainer_email"] = email
-        results.append(verdict)
-
-    eligible = [r for r in results if r["eligible"]]
-    blocked = [r for r in results if not r["eligible"]]
-    eligible.sort(key=lambda r: -r["fit"])
+    pool = core["pool"]
+    eligible = core["eligible"]
+    blocked = core["blocked"]
+    unmatched = core["unmatched"]
 
     return jsonify({
         "schema_version": "2.0",
@@ -5780,6 +5986,124 @@ def v2_allocation_candidates():
                  "never excluded."),
         "generated_at": datetime.utcnow().isoformat(),
     }), 200
+
+
+@app.route('/api/v2/eligibility/batch', methods=['GET'])
+def batch_eligibility_v2():
+    """
+    Per open batch: what blocks each of the manager's trainers from being the
+    top ELIGIBLE candidate, and which of those blocks the manager is actually
+    allowed to fix.
+
+    Koenig's algorithm owns allocation — a manager cannot allocate. Their only
+    lever is preparation: clear the fixable gates (record a skill, arrange a
+    mock, confirm availability) before the algorithm runs. This endpoint reuses
+    the exact gate-then-fit evaluation behind /api/v2/allocation/candidates and
+    reshapes it around that lever.
+
+    Params: manager, demand_id (the AssignmentID from the unallocated board).
+    """
+    manager = request.args.get('manager', '').strip().lower()
+    _, error = _v2_manager_session(manager)
+    if error:
+        return error
+
+    demand_id = request.args.get('demand_id', '').strip()
+    if not demand_id:
+        return error_response("DEMAND_ID_REQUIRED", "demand_id query param required", 400)
+
+    internal_build = request.args.get("_build") == "1"
+    if not internal_build:
+        ck = f"eligibility::{manager}::{demand_id}"
+        if _wants_fresh():
+            _warm_purge(ck)
+        return _serve_or_warm(
+            cache_key=ck,
+            view_func=batch_eligibility_v2,
+            build_path=(
+                f"/api/v2/eligibility/batch?manager={urllib.parse.quote(manager)}"
+                f"&demand_id={urllib.parse.quote(demand_id)}"
+                f"&_build=1{'&refresh=1' if _wants_fresh() else ''}"
+            ),
+            fast_payload={"loading": True, "demand_id": demand_id,
+                          "course": "", "start": "", "end": "",
+                          "ready": [], "blocked": []},
+        )
+
+    if _wants_fresh():
+        _cache_purge(manager)
+
+    rows = _demand_rows()
+    if rows is None:
+        return error_response("RMS_UNREACHABLE", "Cannot reach RMS — please retry", 503)
+    demand = next((d for d in rows if str(d.get("demand_id")) == demand_id), None)
+    if not demand:
+        return error_response("DEMAND_NOT_FOUND",
+                              f"No unallocated demand with id {demand_id}", 404)
+
+    course = demand.get("course_name", "")
+    start = _parse_date(demand.get("start_date", ""))
+    end = _parse_date(demand.get("end_date", "")) or start
+    location = demand.get("location", "") or ""
+    loc_l = location.strip().lower()
+    is_domestic = bool(loc_l) and any(m in loc_l for m in _INDIA_MARKERS)
+    is_international = bool(loc_l) and not is_domestic
+    country = location.split(",")[-1].strip() if location else ""
+
+    core = _evaluate_team_against_batch(
+        manager, course, start, end,
+        country=country,
+        customer=demand.get("customer", ""),
+        delivery_mode=demand.get("delivery_mode", ""),
+        international=is_international,
+        required_level=None,
+    )
+
+    result = {
+        "demand_id": demand_id,
+        "course": course,
+        "start": _iso(start),
+        "end": _iso(end),
+        "ready": [],
+        "blocked": [],
+        "loading": False,
+    }
+
+    if not core["ready"]:
+        result["note"] = (
+            (core.get("message") + " — " if core.get("message") else "")
+            + "Could not resolve this course against the RMS pool; this is not "
+              "an empty team.")
+        _warm_store(f"eligibility::{manager}::{demand_id}", result)
+        return jsonify(result), 200
+
+    for r in core["eligible"]:
+        factors = r.get("factors") or []
+        note = "; ".join(f["name"] for f in factors[:2]) if factors else ""
+        result["ready"].append({
+            "trainer_email": r.get("trainer_email") or "",
+            "trainer_name": r.get("trainer_name", ""),
+            "note": note or "Clears every gate for this batch.",
+        })
+
+    for r in core["blocked"]:
+        blockers = []
+        for b in r.get("blockers", []):
+            fixable_by, fix_hint = _eligibility_fix(b.get("gate"))
+            blockers.append({
+                "gate": b.get("gate", ""),
+                "detail": b.get("detail", ""),
+                "fixable_by": fixable_by,
+                "fix_hint": fix_hint,
+            })
+        result["blocked"].append({
+            "trainer_email": r.get("trainer_email") or "",
+            "trainer_name": r.get("trainer_name", ""),
+            "blockers": blockers,
+        })
+
+    _warm_store(f"eligibility::{manager}::{demand_id}", result)
+    return jsonify(result), 200
 
 
 @app.route('/api/data/trainer-skills', methods=['GET'])
@@ -9963,6 +10287,110 @@ def v2_batch_pax():
         "participants": participants,
         "timestamp": datetime.utcnow().isoformat(),
     }), 200
+
+
+@app.route('/api/v2/capability/cert-intel', methods=['GET'])
+def cert_intel_v2():
+    """
+    Certification calendar + demand-led certification ranking for a manager.
+
+      expiring    — held certifications approaching expiry, soonest first. RMS
+                    (vendorCertCount) exposes no expiry date today, so this is
+                    normally [] with an honest note rather than invented dates.
+      demand_led  — the exam each open unallocated batch needs, ranked by how
+                    many batches it unlocks, with a count of this team's
+                    trainers who teach the course but lack the certification.
+    """
+    email = request.args.get('email', '').strip().lower()
+    session, error = _v2_manager_session(email)
+    if error:
+        return error
+    email = session["email"]
+
+    if request.args.get("_build") != "1":
+        if _wants_fresh():
+            _warm_purge(f"certintel::{email}")
+        return _serve_or_warm(
+            cache_key=f"certintel::{email}",
+            view_func=cert_intel_v2,
+            build_path=(
+                f"/api/v2/capability/cert-intel?email={urllib.parse.quote(email)}"
+                f"&_build=1{'&refresh=1' if _wants_fresh() else ''}"
+            ),
+            fast_payload={"expiring": [], "demand_led": [], "loading": True},
+        )
+
+    reps = _rms("reportees", {"email": email}) or []
+    rows = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)]
+    policy = _exam_policy()
+    taxonomy = _course_taxonomy()
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        team = [t for t in pool.map(lambda r: _capability_for(r, policy), rows) if t]
+
+    # ── Certification expiry calendar ───────────────────────────────────────
+    # vendorCertCount is one True/False column per accrediting body — no dates.
+    # Probe every column for a date-like field before declaring none exists.
+    _DATE_HINTS = ("expir", "valid", "renew", "due", "date")
+    expiring, found_date_field = [], False
+    for t in team:
+        vrows = _rms("vendorCertCount", {"email": t["trainer_email"]}) or []
+        row = vrows[0] if (isinstance(vrows, list) and vrows and isinstance(vrows[0], dict)) else {}
+        for k, v in row.items():
+            if not any(h in k.lower() for h in _DATE_HINTS):
+                continue
+            d = _parse_date(v)
+            if not d:
+                continue
+            found_date_field = True
+            expiring.append({
+                "trainer_email": t["trainer_email"],
+                "trainer_name":  t["trainer_name"],
+                "cert":          k,
+                "exam_code":     _cert_code_for_title(k),
+                "expires_on":    _iso(d),
+                "days_left":     (d - datetime.utcnow().date()).days,
+            })
+    expiring.sort(key=lambda e: e["days_left"])
+
+    # ── Demand-led certification ranking ───────────────────────────────────
+    demand = _demand_rows() or []
+    by_exam = {}
+    for b in demand:
+        code = _exam_code(b.get("course_name", ""))
+        if not code:
+            continue
+        slot = by_exam.setdefault(code, {"batches": 0, "courses": set()})
+        slot["batches"] += 1
+        if b.get("course_name"):
+            slot["courses"].add(b["course_name"])
+
+    demand_led = []
+    for code, slot in by_exam.items():
+        trainers_missing = sum(
+            1 for t in team
+            if code in {m.get("code") for m in t["certification"].get("missing", [])}
+        )
+        domain = ""
+        for cn in slot["courses"]:
+            ent = _taxonomy_for_course(taxonomy, {"course": cn})
+            if ent and ent.get("domain"):
+                domain = ent["domain"]
+                break
+        demand_led.append({
+            "exam_code":        code,
+            "cert_name":        _CERT_CATALOG.get(code, (code,))[0],
+            "opens_batches":    slot["batches"],
+            "trainers_missing": trainers_missing,
+            "domain":           domain,
+        })
+    demand_led.sort(key=lambda r: (-r["opens_batches"], -r["trainers_missing"], r["exam_code"]))
+
+    resp = {"expiring": expiring, "demand_led": demand_led, "loading": False}
+    if not found_date_field:
+        resp["note"] = "RMS does not expose certification expiry dates"
+    _warm_store(f"certintel::{email}", resp)
+    return jsonify(resp), 200
 
 
 @app.errorhandler(500)

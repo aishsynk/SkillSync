@@ -492,6 +492,26 @@ class ScreenRenderTest {
         compose.onNodeWithText("Assignment data unavailable from RMS").assertExists()
     }
 
+    // ── This Week (Priorities) ──────────────────────────────────────────────
+
+    @Test
+    fun prioritiesScreen_rendersHeaderWithoutCrashing() {
+        // No network under Robolectric, so it settles on Loading/Error — the
+        // shell and title must still compose.
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.ui.report.PrioritiesScreen(
+                    managerEmail = "aishwar.c@koenig-solutions.com",
+                    onOpenDemand = {},
+                    onOpenTrainer = { _, _ -> },
+                    onOpenActions = {},
+                    onBack = {},
+                )
+            }
+        }
+        compose.onNodeWithText("This Week").assertExists()
+    }
+
     @Test
     fun navBar_reportsTabSelection() {
         var selected = HomeTab.DASHBOARD

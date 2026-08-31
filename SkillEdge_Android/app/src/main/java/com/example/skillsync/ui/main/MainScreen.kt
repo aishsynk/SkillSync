@@ -59,6 +59,7 @@ fun MainScreen(
     onBatchClick: (demandId: String) -> Unit = {},
     onOpenWeeklyReport: () -> Unit = {},
     onOpenHrReport: () -> Unit = {},
+    onOpenPriorities: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -91,6 +92,7 @@ fun MainScreen(
         // Dashboard needs it too: the "who is actually free" block reads it.
         if (tab == HomeTab.TEAM || tab == HomeTab.DASHBOARD) viewModel.loadTeamReadiness(email)
         if (tab == HomeTab.COURSES || tab == HomeTab.TEAM || tab == HomeTab.SEARCH) viewModel.ensureCapability(email, context)
+        if (tab == HomeTab.COURSES) viewModel.ensureCertIntel(email, context)
         if (tab == HomeTab.DASHBOARD || tab == HomeTab.TEAM || tab == HomeTab.SEARCH) {
             viewModel.ensureTeamIntelligence(email, context)
         }
@@ -118,6 +120,7 @@ fun MainScreen(
     val profile by viewModel.profile.collectAsState()
     val capability by viewModel.capability.collectAsState()
     val capLoading by viewModel.capabilityLoading.collectAsState()
+    val certIntel by viewModel.certIntel.collectAsState()
     val teamActions by viewModel.teamActions.collectAsState()
     val teamDataError by viewModel.teamDataError.collectAsState()
     val allocState by allocationViewModel.state.collectAsState()
@@ -414,6 +417,7 @@ fun MainScreen(
                     }.distinctBy { it.second.lowercase() }
                     CoursesTab(
                         capability, capLoading, onTrainerClick,
+                        certIntel = certIntel,
                         people = coursePeople,
                         markState = skillMarkState,
                         courseSearchResults = courseSearchResults,
@@ -537,6 +541,7 @@ fun MainScreen(
                                         onOpenDemand = { onTabChange(HomeTab.DEMAND) },
                                         onOpenWeeklyReport = onOpenWeeklyReport,
                                         onOpenHrReport = onOpenHrReport,
+                                        onOpenPriorities = onOpenPriorities,
                                         onOpenCopilot = onOpenCopilot,
                                         onOpenDelivery = { onTabChange(HomeTab.DELIVERY) },
                                         onBatchClick = onBatchClick,
@@ -788,6 +793,7 @@ internal fun DashboardTab(
     onOpenDemand: () -> Unit = {},
     onOpenWeeklyReport: () -> Unit = {},
     onOpenHrReport: () -> Unit = {},
+    onOpenPriorities: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
     onOpenDelivery: () -> Unit = {},
     onBatchClick: (String) -> Unit = {},
@@ -872,6 +878,7 @@ internal fun DashboardTab(
                     onOpenDemand = onOpenDemand,
                     onOpenWeeklyReport = onOpenWeeklyReport,
                     onOpenHrReport = onOpenHrReport,
+                    onOpenPriorities = onOpenPriorities,
                     onOpenCopilot = onOpenCopilot,
                     onOpenDelivery = onOpenDelivery,
                     onBatchClick = onBatchClick,

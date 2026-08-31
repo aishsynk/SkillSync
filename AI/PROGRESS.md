@@ -3873,3 +3873,21 @@ Wave D - Widen the lens:
   (backend + UI: per open batch, what blocks each trainer, fixable via mark-skill/availability/exam) ·
   polish opportunity KPI + message screens. v3.53.0 = B3 cert calendar (courseTechnology 114 /
   courseDomain 205). Build via parallel agents.
+
+## 2026-08-31T16:00:00+05:30 - v3.52.0/139: manager-view wave 2 (3 parallel agents merged clean)
+
+- **Model/Tool**: Claude Sonnet 5 / Claude Code (3 parallel worktree subagents)
+- **Merged with zero conflicts** onto v3.51.1. Backend 203 pytest pass (190 + 13).
+- **Files**: `backend.py` (`_evaluate_team_against_batch`, `_eligibility_fix`, `GET /api/v2/eligibility/batch`,
+  `_course_taxonomy`, `_capability_portfolio` by_domain/by_technology, `GET /api/v2/capability/cert-intel`),
+  `tests/test_batch_eligibility.py` + `test_cert_intel.py` (new),
+  `SkillEdge_Android`: `ui/report/PrioritiesScreen.kt` + `PrioritiesViewModel.kt` (new),
+  `ui/batch/EligibilitySheet.kt` (new), `NavigationKeys.kt` + `Navigation.kt` (Priorities nav),
+  `DataRepository.kt` (`priorities`), `MainScreen.kt` + `ManagerCommandCentre.kt` (This Week card),
+  `ui/batch/BatchDetailScreen.kt` (eligibility button+sheet), `ui/main/CoursesTab.kt` +
+  `MainScreenViewModel.kt` (cert priorities section), `SkillEdgeApi.kt` (3 methods),
+  `ui/ScreenRenderTest.kt`, `build.gradle.kts` (139/3.52.0), release notes, AI docs.
+- **Current Status**: merged; Kotlin compile + full gate running; not committed.
+- **Next**: commit + push v3.52.0; CI; Render; verify all 3 against `aishwar_c@`. Remaining roadmap:
+  message-send UX polish, D-wave (accounts view, team Copilot, digests, delivery-quality alerts),
+  Render `skilledge-state` disk (operator), physical-device upgrade test.
