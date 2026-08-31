@@ -560,10 +560,11 @@ def _v2_manager_session(manager_email=""):
             "The requested manager is outside this session",
             403,
         )
-    # Always operate on the session's canonical email downstream.
+    # Resolve to the local-part form RMS actually answers for, so a session
+    # minted before the resolver existed (aishwar_c@) still sees its real roster.
     if signed_in:
         session = dict(session)
-        session["email"] = signed_in
+        session["email"] = _resolve_manager_email(signed_in)
     return session, None
 
 # ─── Response cache ───────────────────────────────────────────────────────────
@@ -4444,9 +4445,10 @@ def allocation_desk():
 def v2_demand_context():
     """Verified, non-PII RMS context for one manager demand decision."""
     manager = request.args.get('manager', '').strip().lower()
-    _, error = _v2_manager_session(manager)
+    _sess, error = _v2_manager_session(manager)
     if error:
         return error
+    manager = (_sess or {}).get("email") or manager
 
     demand_id = request.args.get('demandId', '').strip()
     course_name = request.args.get('courseName', '').strip()
@@ -5589,9 +5591,10 @@ def _capacity_plan_from_allocation(payload, today=None, weeks=8):
 @app.route('/api/v2/planning/capacity', methods=['GET'])
 def v2_capacity_plan():
     manager = request.args.get('manager', '').strip().lower()
-    _, error = _v2_manager_session(manager)
+    _sess, error = _v2_manager_session(manager)
     if error:
         return error
+    manager = (_sess or {}).get("email") or manager
     with _allocation_lock:
         payload = _allocation_payload_cache.get(manager)
     if not payload:
@@ -5718,9 +5721,10 @@ def v2_team_readiness():
     failure mode this whole layer exists to remove.
     """
     manager = request.args.get('manager', '').strip().lower()
-    _, error = _v2_manager_session(manager)
+    _sess, error = _v2_manager_session(manager)
     if error:
         return error
+    manager = (_sess or {}).get("email") or manager
 
     today = datetime.utcnow().date()
     end = today + timedelta(days=90)
@@ -5811,9 +5815,10 @@ def v2_trainer_readiness():
     so "no policy entry" must read as unknown rather than as "no gap".
     """
     manager = request.args.get('manager', '').strip().lower()
-    _, error = _v2_manager_session(manager)
+    _sess, error = _v2_manager_session(manager)
     if error:
         return error
+    manager = (_sess or {}).get("email") or manager
 
     email = request.args.get('email', '').strip().lower()
     if not email:
@@ -5934,9 +5939,10 @@ def v2_allocation_candidates():
     failure an allocation tool can have.
     """
     manager = request.args.get('manager', '').strip().lower()
-    _, error = _v2_manager_session(manager)
+    _sess, error = _v2_manager_session(manager)
     if error:
         return error
+    manager = (_sess or {}).get("email") or manager
 
     course = request.args.get('course', '').strip()
     if not course:
@@ -6004,9 +6010,10 @@ def batch_eligibility_v2():
     Params: manager, demand_id (the AssignmentID from the unallocated board).
     """
     manager = request.args.get('manager', '').strip().lower()
-    _, error = _v2_manager_session(manager)
+    _sess, error = _v2_manager_session(manager)
     if error:
         return error
+    manager = (_sess or {}).get("email") or manager
 
     demand_id = request.args.get('demand_id', '').strip()
     if not demand_id:
@@ -6760,7 +6767,7 @@ def raise_action():
     session, error = _v2_manager_session(requested)
     if error:
         return error
-    manager_email = session["email"]
+    manager_email = (session or {}).get("email") or manager_email
     if not title:
         return error_response("INVALID_INPUT", "title is required", 400)
 
@@ -6797,7 +6804,7 @@ def set_action_state(action_id):
     session, error = _v2_manager_session(requested)
     if error:
         return error
-    manager_email = session["email"]
+    manager_email = (session or {}).get("email") or manager_email
     now = datetime.utcnow().isoformat()
     entry = {
         "state": state, "note": str(body.get("note", "")).strip(),
@@ -6822,7 +6829,7 @@ def add_action_note(action_id):
     session, error = _v2_manager_session(requested)
     if error:
         return error
-    manager_email = session["email"]
+    manager_email = (session or {}).get("email") or manager_email
     note = _action_repository.add_note(manager_email, action_id, text, manager_email)
     return jsonify({"id": action_id, "note": note,
                     "history": _action_repository.audit(manager_email, action_id)}), 200
@@ -7181,11 +7188,12 @@ def message_compose():
         return error
     target = str(src.get("target", "") or src.get("target_email", "") or "").strip().lower()
     cadence = str(src.get("cadence", "weekly") or "weekly").strip().lower()
-    if cadence not in ("weekly", "monthly"):
+    if cadence not in ("weekly", "weekend", "monthly", "monthend"):
         cadence = "weekly"
+    is_week = cadence in ("weekly", "weekend")
     my_message = str(src.get("my_message", "") or src.get("My Message", "") or "")
 
-    if cadence == "weekly":
+    if is_week:
         monday = datetime.utcnow().date()
         monday = monday - timedelta(days=monday.weekday())
         key = f"weekly::{manager}::{_iso(monday)}"
@@ -7197,12 +7205,12 @@ def message_compose():
     if report is None:
         # warm it now (bounded) so the first compose still returns real content
         path = (f"/api/v2/report/weekly?manager={urllib.parse.quote(manager)}&_build=1"
-                if cadence == "weekly" else
+                if is_week else
                 f"/api/v2/hr/monthly-report?manager={urllib.parse.quote(manager)}&_build=1")
         auth = request.headers.get("Authorization", "")
         try:
             with app.test_request_context(path, headers={"Authorization": auth} if auth else {}):
-                (weekly_report_v2 if cadence == "weekly" else hr_monthly_report)()
+                (weekly_report_v2 if is_week else hr_monthly_report)()
         except Exception:
             pass
         with _warm_lock:
@@ -7211,10 +7219,16 @@ def message_compose():
     if report is None:
         return error_response("REPORT_UNAVAILABLE", "The underlying report is still preparing; retry shortly.", 202)
 
+    _dkey = {"weekly": "team_digest_weekly", "weekend": "team_digest_weekend",
+             "monthly": "team_digest_monthly", "monthend": "team_digest_monthend"}[cadence]
+    _rkey = {"weekly": "message_weekly", "weekend": "message_weekend",
+             "monthly": "message_monthly", "monthend": "message_monthend"}[cadence]
+
     if not target:
-        digest = report.get("team_digest") or report.get("team_message") or ""
+        digest = report.get(_dkey) or report.get("team_digest") or ""
         if my_message.strip():
-            facts = {"period_key": key, "manager_first": manager.split("@")[0].split(".")[0].title()}
+            facts = {"period_key": key, "manager_first": manager.split("@")[0].split(".")[0].title(),
+                     "month_label": report.get("month", "")}
             digest = _compose_manager_message("team", cadence, facts, my_message=my_message)
         return jsonify({"message": digest, "scope": "team", "cadence": cadence,
                         "length": len(digest)}), 200
@@ -7223,8 +7237,14 @@ def message_compose():
                 if str(r.get("email", "")).strip().lower() == target), None)
     if row is None:
         return error_response("TARGET_NOT_IN_TEAM", "That reportee is not on this manager's roster.", 404)
+    sf = row.get("structured_feedback") or {}
+    prebuilt = row.get(_rkey) or sf.get(_rkey)
+    if prebuilt and not my_message.strip():
+        return jsonify({"message": prebuilt, "scope": "reportee", "cadence": cadence,
+                        "target": target, "length": len(prebuilt)}), 200
     facts = _reportee_message_facts(
-        row, cadence, demand_rows=[], skills_courses=[],
+        row if not sf else {**row, "learner_feedback": sf.get("learner_feedback", row.get("learner_feedback"))},
+        cadence, demand_rows=[], skills_courses=[],
         month_label=report.get("month", ""),
     )
     facts["opp_courses"] = row.get("opportunity_courses") or facts.get("opp_courses") or []
@@ -7469,6 +7489,16 @@ def _trim_message_to_limit(text: str, limit: int = _MESSAGE_LIMIT) -> str:
 # varies by a seed of (subject, period) so two reportees do not get identical
 # sentences, but the same input always produces the same message.
 
+def _msg_join_names(names, style="teams"):
+    firsts = [str(n).strip().split()[0] for n in names if str(n).strip()]
+    firsts = [_italic(n, style) for n in firsts]
+    if not firsts:
+        return ""
+    if len(firsts) == 1:
+        return firsts[0]
+    return ", ".join(firsts[:-1]) + " and " + firsts[-1]
+
+
 def _msg_seed(*parts) -> int:
     return int(hashlib.md5("|".join(str(p) for p in parts).encode("utf-8")).hexdigest(), 16)
 
@@ -7629,22 +7659,37 @@ def _underline_one_timeref(body: str, style: str, refs) -> str:
     return body
 
 
+_MSG_CADENCE = {
+    "weekly":   {"noun": "week",  "ref": "this week",   "deadline": "the end of the week",  "review": False},
+    "weekend":  {"noun": "week",  "ref": "this week",   "deadline": "Monday",               "review": True},
+    "monthly":  {"noun": "month", "ref": "this month",  "deadline": "the end of the month", "review": False},
+    "monthend": {"noun": "month", "ref": "this month",  "deadline": "next month",           "review": True},
+}
+
+
 def _compose_manager_message(scope: str, cadence: str, f: dict,
                              my_message: str = "", style: str = "teams") -> str:
     """
-    scope: "reportee" | "team"   cadence: "weekly" | "monthly"
+    scope:   "reportee" | "team"
+    cadence: "weekly" (Mon, plan) | "weekend" (Fri, wrap) |
+             "monthly" (1st, plan) | "monthend" (last day, review)
     f: analysed facts (see _reportee_message_facts / _team_message_facts).
-    my_message: the manager's own note; when present it leads and the data
-    becomes supporting context.
+    my_message: the manager's own note; when present it leads.
+
+    House rule enforced here: a TEAM (group) message never names an individual
+    for anything negative - bench, feedback flags and gaps are always aggregate
+    counts. Names appear in a group message only as recognition.
     """
     f = f or {}
-    period = "week" if cadence == "weekly" else "month"
-    period_ref = f.get("period_ref") or ("this week" if cadence == "weekly" else f.get("month_label") or "this month")
-    deadline_ref = "end of the week" if cadence == "weekly" else ("end of " + (f.get("month_label") or "the month"))
+    cadence = cadence if cadence in _MSG_CADENCE else "weekly"
+    cd = _MSG_CADENCE[cadence]
+    period = cd["noun"]
+    review = cd["review"]
+    period_ref = f.get("period_ref") or (cd["ref"] if period == "week" else (f.get("month_label") or "this month"))
+    deadline_ref = cd["deadline"] if period == "week" else ("the end of " + (f.get("month_label") or "the month"))
     mm = _professional_rephrase(my_message) if str(my_message or "").strip() else ""
 
     if scope == "team":
-        name = str(f.get("manager_first") or "").strip()
         greeting = "Hello team,"
         seed = _msg_seed("team", cadence, f.get("period_key", ""))
         beats = []
@@ -7652,44 +7697,71 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
         deliv = int(f.get("delivering") or 0)
         pax = int(f.get("total_pax") or 0)
         batches = int(f.get("total_batches") or 0)
-        if deliv or batches:
-            beats.append(_msg_pick([
-                f"This {period} {deliv} of {head} of us are in delivery, {pax} participants across {batches} batches.",
-                f"We have {deliv} of {head} trainers delivering this {period}, covering {pax} participants over {batches} batches.",
-            ], seed, 1))
         at_risk = int(f.get("at_risk") or 0)
-        if at_risk:
-            who = f.get("risk_names") or ""
-            beats.append(
-                f"{at_risk} of us {'is' if at_risk == 1 else 'are'} carrying a feedback flag this {period}"
-                + (f" ({_italic(who, style)})" if who else "") + ", and I will follow up with each of you individually."
-            )
         opp = int(f.get("open_demand") or 0)
         coverable = int(f.get("coverable_open") or 0)
         bench = int(f.get("bench") or 0)
-        if opp:
-            line = f"There {'is' if opp == 1 else 'are'} {opp} open {'batch' if opp == 1 else 'batches'} on the board"
-            if coverable:
-                line += f" and {coverable} of them match skills already on this team"
-            if bench:
-                line += f", with {bench} of us on the bench"
-            line += ". If you are free, please confirm your availability with me today so we do not lose the slot."
-            beats.append(line)
         gaps = int(f.get("total_gaps") or 0)
-        if gaps and not opp:
-            beats.append(
-                f"We are still carrying {gaps} open certification {'gap' if gaps == 1 else 'gaps'} across the team. "
-                f"Please close yours before {deadline_ref}."
-            )
-        if not beats:
-            beats.append(f"Delivery is steady across the team this {period} with no open flags. Thank you for keeping it that way.")
+        top = [t for t in (f.get("top_performers") or []) if t][:2]
+
+        if review:
+            # backward-looking wrap (weekend / month-end)
+            if batches or pax:
+                beats.append(_msg_pick([
+                    f"We closed the {period} with {batches} {'batch' if batches == 1 else 'batches'} delivered to {pax} participants.",
+                    f"This {period} the team delivered {batches} {'batch' if batches == 1 else 'batches'}, {pax} participants in total.",
+                ], seed, 1))
+            avg_rating = f.get("avg_rating")
+            if avg_rating is not None:
+                beats.append(f"Learner feedback across the team averaged {avg_rating} out of 5.")
+            if top:
+                beats.append("Particular thanks to %s for %s." % (
+                    _msg_join_names(top, style),
+                    _msg_pick(["strong delivery this " + period,
+                               "consistently high learner feedback",
+                               "carrying a heavy load well"], seed, 2)))
+            if at_risk:
+                beats.append(
+                    f"{at_risk} feedback {'point is' if at_risk == 1 else 'points are'} being worked through one to one; "
+                    "please keep raising concerns early rather than at the end of a batch."
+                )
+            if cadence == "monthend" and gaps:
+                beats.append(f"{gaps} certification {'gap remains' if gaps == 1 else 'gaps remain'} open across the team - please book yours.")
+            if not beats:
+                beats.append(f"A steady {period} across the team with nothing outstanding. Thank you all.")
+            closing_raw = ("Thank you all for the effort this " + period + "."
+                           if not at_risk else "Have a good break, and let us pick the open points up "
+                           + ("Monday" if cadence == "weekend" else "next month") + ".")
+        else:
+            # forward-looking plan (weekly / monthly)
+            if deliv or batches:
+                beats.append(_msg_pick([
+                    f"This {period} {deliv} of {head} of us are in delivery, {pax} participants across {batches} batches.",
+                    f"We have {deliv} of {head} trainers delivering this {period}, {pax} participants over {batches} {'batch' if batches == 1 else 'batches'}.",
+                ], seed, 1))
+            if opp:
+                line = f"There {'is' if opp == 1 else 'are'} {opp} open {'batch' if opp == 1 else 'batches'} on the board"
+                if coverable:
+                    line += f", {coverable} of which this team can already teach"
+                if bench:
+                    line += f", and {bench} of us {'is' if bench == 1 else 'are'} free"
+                line += ". If that could be you, please confirm your availability with me today so we do not lose the slot."
+                beats.append(line)
+            elif bench:
+                beats.append(f"{bench} of us {'is' if bench == 1 else 'are'} on the bench this {period}; check the demand board and tell me where you can help.")
+            if gaps:
+                beats.append(
+                    f"We are carrying {gaps} open certification {'gap' if gaps == 1 else 'gaps'} across the team. "
+                    f"Please book yours before {deadline_ref}."
+                )
+            if at_risk:
+                beats.append(f"{at_risk} feedback {'point is' if at_risk == 1 else 'points are'} being handled individually this {period}.")
+            if not beats:
+                beats.append(f"Delivery is steady across the team this {period} with no open flags. Thank you for keeping it that way.")
+            closing_raw = ("Have a good " + period + ", and thank you for keeping delivery steady." if not (opp or gaps)
+                           else "Please act on your part today and keep me posted.")
         if mm:
             beats = [mm] + beats[:2]
-        closing_raw = (
-            "Thank you all for the effort this " + period + "."
-            if not at_risk and not opp else
-            "Please act on your part today and keep me posted."
-        )
     else:
         first = str(f.get("first") or "there").strip()
         greeting = f"Hello {_italic(first, style)}," if style == "teams" else f"Hello {first},"
@@ -7707,6 +7779,57 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
         qubits = f.get("qubits")
         bench = bool(f.get("bench"))
         stretched = bool(f.get("stretched"))
+        trend = str(f.get("rating_trend") or "")
+        batches_done = int(f.get("batches_done") or 0)
+
+        if review:
+            # 1r. what happened this period
+            if batches_done or cur:
+                beats.append(_msg_pick([
+                    f"You wrapped {('the ' + cur) if cur else str(batches_done) + (' batch' if batches_done == 1 else ' batches')} this {period}"
+                    + (f" for {f.get('pax')} participants" if f.get('pax') else "") + ".",
+                    f"This {period} you delivered {('the ' + cur) if cur else str(batches_done) + (' batch' if batches_done == 1 else ' batches')}"
+                    + (f", {f.get('pax')} participants" if f.get('pax') else "") + ".",
+                ], seed, 1))
+            elif bench:
+                beats.append(f"You were on the bench this {period}"
+                             + (f" at {int(util)} percent utilisation" if util is not None else "") + ".")
+            if rating is not None:
+                b = f"Learners rated you {rating} out of 5 across {rc} response{'s' if rc != 1 else ''} this {period}"
+                b += {"improving": ", and the trend is up.", "declining": ", and that is down on the previous run."}.get(trend, ".")
+                q = f.get("pos_quote") if (rating >= 4) else f.get("neg_quote")
+                if q:
+                    b += f' One comment: "{q}".'
+                beats.append(b)
+            if neg or hr_neg:
+                beats.append(f"Let us find time {deadline_ref} to go through the {neg + hr_neg} feedback "
+                             f"{'record' if neg + hr_neg == 1 else 'records'} on file.")
+            if gap_courses:
+                beats.append(f"Certification for {', '.join(gap_courses[:2])} is still open - please book it before {deadline_ref}.")
+            if upc:
+                beats.append(f"Next up for you is {upc}.")
+            elif bench and opp_courses:
+                beats.append(f"There is open demand matching your work on {', '.join(opp_courses[:2])}. Confirm your availability and I will put you forward.")
+            if cadence == "monthend" and qubits is not None and qubits >= 40 and qubits < 80 and not (neg or hr_neg):
+                beats.append(f"Knowledge score is {int(qubits)} percent; lifting it toward the mid eighties opens up more batches.")
+            if not beats:
+                beats.append(f"A quiet {period} for you with nothing outstanding.")
+            if neg or hr_neg:
+                closing_raw = "Let us talk " + deadline_ref + "."
+            elif rating is not None and rating >= 4.5:
+                closing_raw = "Thank you - it shows in the feedback."
+            else:
+                closing_raw = ("Have a good weekend." if cadence == "weekend" else "Speak at the start of next month.")
+            body = " ".join(b for b in beats[:5] if b).strip()
+            body = _message_sanitise(body)
+            body = _bold_first_action(body, style)
+            refs = _extract_time_refs((period_ref + " " + deadline_ref).lower())
+            body = _underline_one_timeref(body, style, refs)
+            closing = _italic(closing_raw, style) if style == "teams" else closing_raw
+            msg = f"{greeting}\n\n{body}\n\n{closing}"
+            msg = _re.sub(r"[ \t]+", " ", msg)
+            msg = "\n".join(ln.rstrip() for ln in msg.split("\n"))
+            return _trim_message_to_limit(_re.sub(r"\n{3,}", "\n\n", msg).strip())
 
         # 1. status opener
         if stretched and cur:
@@ -7784,7 +7907,7 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
         if neg or hr_neg:
             closing_raw = "Please treat this as a priority and reply with your plan."
         elif bench and opp_courses:
-            closing_raw = "Please confirm today so we do not lose the slot."
+            closing_raw = ("Please confirm today so we do not lose the slot." if cadence == "weekly" else "Let me know where you can pick up demand this month.")
         elif rating is not None and rating >= 4.5 and cur:
             closing_raw = "Thank you for the consistency, it shows in the feedback."
         elif gap_courses:
@@ -7837,6 +7960,8 @@ def _reportee_message_facts(snap: dict, cadence: str, demand_rows=None,
         "opp_courses": opp,
         "bench": (snap.get("capacity_bucket") in ("On Bench", "Bench")) or (util is not None and util < 55),
         "stretched": snap.get("capacity_bucket") == "Stretched" or (util is not None and util >= 85),
+        "rating_trend": (fb.get("trend_direction") or "") if fb else "",
+        "batches_done": snap.get("batch_count") or len(assigns) or 0,
         "month_label": month_label,
         "period_key": month_label or "wk",
     }
@@ -8273,6 +8398,7 @@ def _generate_manager_evaluation(
         skills_courses=skills_courses or course_names, month_label=month_label,
     )
     message = _compose_manager_message("reportee", "monthly", _mfacts)
+    message_monthend = _compose_manager_message("reportee", "monthend", _mfacts)
 
     return {
         "strength": strength_text,
@@ -8284,6 +8410,8 @@ def _generate_manager_evaluation(
         "formatted_text": formatted_full,
         "learner_feedback": fb,
         "message": message,
+        "message_monthly": message,
+        "message_monthend": message_monthend,
         "message_scope": "reportee", "message_cadence": "monthly",
         "opportunity_courses": _mfacts.get("opp_courses") or [],
     }
@@ -8781,6 +8909,7 @@ def hr_monthly_report():
     session, error = _v2_manager_session(manager_email)
     if error:
         return error
+    manager_email = (session or {}).get("email") or manager_email
 
     today = datetime.utcnow().date()
     if month_str:
@@ -9017,6 +9146,15 @@ def hr_monthly_report():
     _hr_bench = sum(1 for r in out if (r.get("utilisation_pct") or 0) < 55)
     _hr_at_risk = sum(1 for r in out if (r["quality"]["negative_feedback"] or r["quality"]["hr_negative"]))
     _hr_cover = len({c.lower() for r in out for c in (r.get("opportunity_courses") or [])})
+    _hr_rated = [(r.get("structured_feedback") or {}).get("learner_feedback", {}).get("avg_rating")
+                 for r in out]
+    _hr_rated = [x for x in _hr_rated if x is not None]
+    _hr_top = sorted(
+        (r for r in out if r["delivery"]["batches"] > 0
+         and ((r.get("structured_feedback") or {}).get("learner_feedback", {}).get("avg_rating") or 0) >= 4.3
+         and not (r["quality"]["negative_feedback"] or r["quality"]["hr_negative"])),
+        key=lambda r: -((r.get("structured_feedback") or {}).get("learner_feedback", {}).get("avg_rating") or 0),
+    )
     _hr_team_facts = {
         "manager_first": manager_email.split("@")[0].split(".")[0].title(),
         "headcount": len(out),
@@ -9024,14 +9162,15 @@ def hr_monthly_report():
         "total_pax": sum(r["delivery"]["total_participants"] for r in out),
         "total_batches": sum(r["delivery"]["batches"] for r in out),
         "at_risk": _hr_at_risk,
-        "risk_names": ", ".join((r["name"].split()[0] if r.get("name") else "") for r in out
-                                if (r["quality"]["negative_feedback"] or r["quality"]["hr_negative"])).strip(", "),
         "open_demand": len([d for d in (_hr_unalloc if isinstance(_hr_unalloc, list) else []) if isinstance(d, dict)]),
         "coverable_open": _hr_cover, "bench": _hr_bench,
         "total_gaps": sum(r["certifications"]["gap_count"] for r in out),
+        "top_performers": [r["name"] for r in _hr_top[:2]],
+        "avg_rating": round(sum(_hr_rated) / len(_hr_rated), 1) if _hr_rated else None,
         "period_key": month_start_iso[:7], "month_label": month_label,
     }
     team_digest = _compose_manager_message("team", "monthly", _hr_team_facts)
+    team_digest_monthend = _compose_manager_message("team", "monthend", _hr_team_facts)
 
     _resp = {
         "loading":     False,
@@ -9040,6 +9179,8 @@ def hr_monthly_report():
         "generated_at": datetime.utcnow().isoformat(),
         "team_digest": team_digest,
         "team_message": team_digest,
+        "team_digest_monthly": team_digest,
+        "team_digest_monthend": team_digest_monthend,
         "team_summary": {
             "headcount":                 len(out),
             "reportee_count":            len(out),
@@ -9274,9 +9415,10 @@ def _priorities_build(manager):
 def manager_priorities_v2():
     """A single ranked worklist ("Your Week") a delivery manager acts from."""
     manager = request.args.get('manager', '').strip().lower()
-    _, error = _v2_manager_session(manager)
+    _sess, error = _v2_manager_session(manager)
     if error:
         return error
+    manager = (_sess or {}).get("email") or manager
 
     internal_build = request.args.get("_build") == "1"
     if not internal_build:
@@ -9310,6 +9452,7 @@ def weekly_report_v2():
     session, error = _v2_manager_session(manager_email)
     if error:
         return error
+    manager_email = (session or {}).get("email") or manager_email
 
     today = datetime.utcnow().date()
     if week_str:
@@ -9459,6 +9602,7 @@ def weekly_report_v2():
             demand_rows=(unalloc_raw if isinstance(unalloc_raw, list) else []),
             skills_courses=skill_course_names,
         )
+        _msg_weekend = _compose_manager_message("reportee", "weekend", _msg_facts)
         standpoint_text = _compose_manager_message("reportee", "weekly", _msg_facts)
 
         return {
@@ -9486,6 +9630,8 @@ def weekly_report_v2():
             "cert_gap_courses": gap_courses[:3],
             "standpoint_note": standpoint_text,
             "message": standpoint_text,
+            "message_weekly": standpoint_text,
+            "message_weekend": _msg_weekend,
             "message_scope": "reportee", "message_cadence": "weekly",
             "opportunity_courses": _msg_facts.get("opp_courses") or [],
             "learner_rating": fb["avg_rating"],
@@ -9518,19 +9664,27 @@ def weekly_report_v2():
     for _s in out:
         _all_team_courses += (_s.get("opportunity_courses") or [])
     _coverable = len({c.lower() for c in _all_team_courses})
-    _risk_names = ", ".join(
-        (r["name"].split()[0] if r.get("name") else "") for r in out if r["feedback_risk"] == "High"
-    ).strip(", ")
+    # Recognition only: trainers delivering with a strong learner rating and no flags.
+    _top = sorted(
+        (r for r in out if r["batch_count"] > 0 and (r.get("learner_rating") or 0) >= 4.3
+         and r["feedback_risk"] != "High"),
+        key=lambda r: -(r.get("learner_rating") or 0),
+    )
+    _top_performers = [r["name"] for r in _top[:2]]
+    _rated = [r["learner_rating"] for r in out if r.get("learner_rating") is not None]
+    _team_avg_rating = round(sum(_rated) / len(_rated), 1) if _rated else None
     _team_facts = {
         "manager_first": manager_email.split("@")[0].split(".")[0].title(),
         "headcount": len(out), "delivering": delivering_count,
         "total_pax": total_week_pax, "total_batches": total_batches,
-        "at_risk": at_risk_count, "risk_names": _risk_names,
+        "at_risk": at_risk_count,
         "open_demand": unalloc_count, "coverable_open": _coverable,
         "bench": bench_count, "total_gaps": total_gaps,
+        "top_performers": _top_performers, "avg_rating": _team_avg_rating,
         "period_key": week_start_iso,
     }
     team_digest_text = _compose_manager_message("team", "weekly", _team_facts)
+    team_digest_weekend = _compose_manager_message("team", "weekend", _team_facts)
 
     _resp = {
         "loading":       False,
@@ -9550,6 +9704,8 @@ def weekly_report_v2():
             "unallocated_demand": unalloc_count,
         },
         "team_digest":   team_digest_text,
+        "team_digest_weekly":  team_digest_text,
+        "team_digest_weekend": team_digest_weekend,
         "reportees":     out,
     }
     _warm_store(f"weekly::{manager_email}::{week_start_iso}", _resp)
@@ -10187,7 +10343,7 @@ def v2_upskilling_demand_opportunities():
     if error:
         return error
 
-    manager_email = session["email"] if session else manager
+    manager_email = (session or {}).get("email") or manager_email if session else manager
     team = _team(manager_email)
     demand = _demand_rows() or []
 

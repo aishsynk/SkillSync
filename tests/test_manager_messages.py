@@ -121,3 +121,53 @@ class ComposeRoute(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CadencesAndGroupSafety(unittest.TestCase):
+    """4 cadences (weekly/weekend/monthly/monthend) and the rule that a TEAM
+    message never names an individual for anything negative."""
+
+    def _team(self, cadence, **over):
+        f = {"manager_first": "A", "headcount": 4, "delivering": 2, "total_pax": 40,
+             "total_batches": 3, "at_risk": 1, "open_demand": 2, "coverable_open": 1,
+             "bench": 2, "total_gaps": 1, "top_performers": ["Krishna Dwivedi"],
+             "avg_rating": 4.4, "period_key": "x", "month_label": "August 2026"}
+        f.update(over)
+        return b._compose_manager_message("team", cadence, f)
+
+    def test_group_message_never_names_a_bench_or_flagged_trainer(self):
+        for cadence in ("weekly", "weekend", "monthly", "monthend"):
+            msg = self._team(cadence, at_risk=2)
+            self.assertNotIn("Neha", msg)
+            self.assertNotIn("on the bench", msg.replace("of us on the bench", ""))
+            # aggregate phrasing only
+            self.assertTrue("of us" in msg or "feedback point" in msg or "of them" in msg or "thank" in msg.lower())
+
+    def test_group_message_may_name_for_recognition(self):
+        msg = self._team("weekend")
+        self.assertIn("Krishna", msg)                       # named — but as thanks
+        self.assertIn("thank", msg.lower())
+
+    def test_weekend_and_monthend_look_backward(self):
+        we = self._team("weekend")
+        self.assertRegex(we.lower(), r"closed the week|team delivered|delivered")
+        me = self._team("monthend")
+        self.assertRegex(me.lower(), r"this month the team|closed the month|delivered")
+
+    def test_weekly_and_monthly_look_forward(self):
+        wk = self._team("weekly")
+        self.assertIn("open batch", wk.lower())
+        self.assertRegex(wk.split("\n")[-1].lower(), r"today|posted|good week")
+
+    def test_reportee_cadences_all_compose(self):
+        rf = b._reportee_message_facts(
+            {"email": "x@k.com", "name": "Sam", "current_utilization": 40, "avg_qubits": 70,
+             "assignments": [], "capacity_bucket": "On Bench", "batch_count": 0,
+             "negative_feedback_count": 0, "hr_negative_count": 0, "cert_gap_courses": [],
+             "learner_feedback": {"avg_rating": 4.6, "response_count": 8, "positive_quotes": [],
+                                  "constructive_quotes": [], "trend_direction": "improving"}},
+            "weekly", demand_rows=[], skills_courses=[])
+        for cadence in ("weekly", "weekend", "monthly", "monthend"):
+            msg = b._compose_manager_message("reportee", cadence, rf)
+            self.assertTrue(msg.startswith("Hello _Sam_,"))
+            self.assertLessEqual(len(msg), 1000)
