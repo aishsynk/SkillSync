@@ -3643,3 +3643,24 @@ Ranked backlog (this session shipped items 1-3 as v3.47.0):
   1. No immediate fix required — `v3.48.0.134` is production-validated. Pick up roadmap 4 (taxonomy) next, then 5–7, confirming Render disk if operator has not yet added it.
   2. Standard prompt for next session: `Read and follow AGENTS.md. Review the latest AI/PROGRESS.md entry, provide a brief current-status summary, identify the last model and tool used, and continue with the next recommended actions.`
 
+
+## 2026-08-31T07:00:00+05:30 - Demand Detail share now generic + TOC link, manager-view everywhere (v3.49.0 / Build 135)
+
+- **Model Used**: muse-spark-1.2-contributor-free
+- **Tool/Agent Used**: OpenCode
+- **Files Modified**:
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/BatchShare.kt` (generic, evidence-based demand share now appends `The course outline is at <tocUrl> . Please review it and confirm whether you can cover the content and prerequisites.` when `tocUrl` present; URL held verbatim (hyphens/slashes preserved, only prose hyphens stripped) and rendered as auto-linkable plain text + HTML `<br>` clipboard `newHtmlText` so Teams/Outlook/Viber keep it tappable; no emojis/bullets/dashes as separators; `<=1000` chars)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/batch/BatchDetailScreen.kt` (share now uses `effectiveToc = operationalContext?.course?.contentUrl` (verified `v2/course/curriculum`) → `batch["toc_url"]` → `batch["course_url"]` → `""`, `remember`ed on `effectiveToc`; both headline `Message` and per-candidate `Message` flow through the same generic `BatchShare.Batch(tocUrl = effectiveToc)`; no hardcoded course)
+  - `SkillEdge_Android/app/build.gradle.kts` (bumped `versionCode = 135`, `versionName = "3.49.0"`)
+  - `releases/RELEASE_NOTES_v3.49.0.md` (new)
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Demand Detail share is now complete from the manager's chair**: every un-allocated batch share is generic (course, window `from 12 Sep to 16 Sep`, `09:00 - 17:00` underlined, mode/language/participants/location/vendor/reference from `unallocated`/`allocation-desk` + `v2/course/curriculum`), house-style (`Hello Team,`/`Hello _First_,` → body → `_Thank you.` 3 blocks, `*bold*` single action, `_italic_` course, `__underline__` dates, full word forms, no emojis/bullets), and now includes the tappable TOC URL so a reportee can self-check before replying. Empty TOC → no broken placeholder.
+  2. **Manager-view everywhere audited**: `WeeklyReportScreen` team + per-reportee and `HrMonthlyReportScreen` per-reportee studios still evidence-only (`learner 4.2/5`, named cert gaps, utilisation) via `MessageRewriter` + `POST /api/v2/message/rewrite` → offline fallback; `Trainer360Screen` `ManagerEvaluationCard` still server `manager_evaluation`; `BatchDetailScreen` demand share now joins them — no screen still uses hardcoded or prompt-non-compliant text.
+  3. **Build and test verification**: `:app:compileDebugKotlin` `BUILD SUCCESSFUL` (33s), `:app:testDebugUnitTest` 153 passed, `pytest tests/ -q` 169 passed (no regression).
+- **Current Project State**: Local development validated on `v3.49.0` (Build 135). Ready for Validation/Testing → CI release. No new Azure resources; no secrets in plaintext.
+- **Known Issues / Blockers**: None for this release. Render disk `skilledge-state` check still pending if `-fpcl` is not a Blueprint.
+- **Next Recommended Actions**:
+  1. Push to `main` → CI builds `SkillEdge-v3.49.0.135.apk` (same keystore `c6868b14...1808`, installs over 134) and reuse existing Render deploy (no backend change); verify demand `Message` preview shows TOC link and copies tappable to Teams/Viber.
+  2. Continue roadmap 4-7: taxonomy `courseTechnology`+`courseDomain`, surface 5 hidden endpoints, NotificationEngine expansion, team-level Copilot.
+

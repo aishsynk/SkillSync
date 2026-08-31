@@ -71,7 +71,11 @@ fun BatchDetailScreen(
     val relevance = batch.int("relevance")
     val candidates = batch.list("candidates")
 
-    val shareBatch = remember(batch) {
+    val effectiveToc = operationalContext?.course?.contentUrl?.takeIf { it.isNotBlank() }
+        ?: batch.str("toc_url").takeIf { it.isNotBlank() }
+        ?: batch.str("course_url").takeIf { it.isNotBlank() }
+        ?: ""
+    val shareBatch = remember(batch, effectiveToc) {
         BatchShare.Batch(
             courseName = courseName,
             startDate = batch.str("start_date").longDate(),
@@ -84,7 +88,7 @@ fun BatchDetailScreen(
             location = batch.str("location"),
             vendor = batch.str("customer"),
             reference = batch.str("demand_id"),
-            tocUrl = batch.str("toc_url"),
+            tocUrl = effectiveToc,
         )
     }
 

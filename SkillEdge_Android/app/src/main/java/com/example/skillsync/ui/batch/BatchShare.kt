@@ -125,6 +125,10 @@ object BatchShare {
         append(".")
         facts(b).ifBlank { null }?.let { append(" $it") }
         b.reference.ifBlank { null }?.let { append(" The reference is $it.") }
+        // Evidence-only TOC link — generic, data-driven, manager-view. The URL is held verbatim (not sanitised) so the reportee can tap it; it is the only field that may legally contain hyphens/slashes in the house style.
+        if (b.tocUrl.isNotBlank()) {
+            append(" The course outline is at ${b.tocUrl} . Please review it and confirm whether you can cover the content and prerequisites.")
+        }
         appendLine()
         appendLine()
 
