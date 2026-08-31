@@ -7736,7 +7736,7 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
             # forward-looking plan (weekly / monthly)
             if deliv or batches:
                 beats.append(_msg_pick([
-                    f"This {period} {deliv} of {head} of us are in delivery, {pax} participants across {batches} batches.",
+                    f"This {period} {deliv} of {head} of us are in delivery, {pax} participants across {batches} {'batch' if batches == 1 else 'batches'}.",
                     f"We have {deliv} of {head} trainers delivering this {period}, {pax} participants over {batches} {'batch' if batches == 1 else 'batches'}.",
                 ], seed, 1))
             if opp:
@@ -7752,7 +7752,7 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
             if gaps:
                 beats.append(
                     f"We are carrying {gaps} open certification {'gap' if gaps == 1 else 'gaps'} across the team. "
-                    f"Please book yours before {deadline_ref}."
+                    + ("Please prioritise the ones tied to open demand." if gaps > 3 else f"Please book yours before {deadline_ref}.")
                 )
             if at_risk:
                 beats.append(f"{at_risk} feedback {'point is' if at_risk == 1 else 'points are'} being handled individually this {period}.")
@@ -7864,14 +7864,14 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
             beats.append(b)
 
         # 3. opportunity cost
-        if (bench or (util is not None and util < 60)) and opp_courses:
+        if (bench or (not cur and util is not None and util < 60)) and opp_courses:
             n = len(opp_courses)
             names = ", ".join(opp_courses[:2])
             beats.append(
                 f"There {'is' if n == 1 else 'are'} {n} open {'batch' if n == 1 else 'batches'} on the demand board that {'matches' if n == 1 else 'match'} your work on {names}. "
                 f"Please confirm your availability so I can put you forward."
             )
-        elif (bench or (util is not None and util < 55)) and not opp_courses and f.get("has_demand_view"):
+        elif (bench or (not cur and util is not None and util < 55)) and not opp_courses and f.get("has_demand_view"):
             beats.append(f"Nothing on the demand board matches your current skills right now, so let us use this {period} to add one course that opens up demand.")
 
         # 4. cert gap
@@ -7958,7 +7958,11 @@ def _reportee_message_facts(snap: dict, cadence: str, demand_rows=None,
         "hr_neg": snap.get("hr_negative_count") or 0,
         "cert_gap_courses": snap.get("cert_gap_courses") or [],
         "opp_courses": opp,
-        "bench": (snap.get("capacity_bucket") in ("On Bench", "Bench")) or (util is not None and util < 55),
+        # A trainer actively delivering a batch is NOT "on the bench" even if
+        # their RMS utilisation reading is low - the opportunity push is wrong
+        # for someone already in front of a class.
+        "bench": (snap.get("capacity_bucket") in ("On Bench", "Bench"))
+                 or (not cur and not assigns and util is not None and util < 55),
         "stretched": snap.get("capacity_bucket") == "Stretched" or (util is not None and util >= 85),
         "rating_trend": (fb.get("trend_direction") or "") if fb else "",
         "batches_done": snap.get("batch_count") or len(assigns) or 0,
