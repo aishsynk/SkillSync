@@ -3661,6 +3661,21 @@ Ranked backlog (this session shipped items 1-3 as v3.47.0):
 - **Current Project State**: **Deployed.** CI/CD (`main` push → `c0c4bf4`) built and published `SkillEdge-v3.49.0.135.apk` to GitHub Release `v3.49.0.135` (signed `c6868b14...1808`, installs over `v3.48.0.134`). Render auto-deployed on push; `GET /healthz` returns `ok` (`version 6.1.0`). No new Azure resources; no secrets in plaintext.
 - **Known Issues / Blockers**: None for this release. Render disk `skilledge-state` check still pending if `-fpcl` is not a Blueprint.
 - **Next Recommended Actions**:
-   1. Push to `main` → CI builds `SkillEdge-v3.49.0.135.apk` and publish to GitHub Release `v3.49.0.135` (`c0c4bf4`) — **verified**, signed with `keystore/skillsync-release.jks` (`c6868b14...1808`), installs over 134; Render auto-deployed on push (no backend change needed); demand `Message` preview shows TOC link and copies tappable to Teams/Viber.
+   1. Push to `main` → CI builds `SkillEdge-v3.49.0.135.apk` and publish to GitHub Release `v3.49.0.135` (`c0c4bf4`) — **verified and complete**, signed with `keystore/skillsync-release.jks` (`c6868b14...1808`), installs over 134; Render auto-deployed on push (no backend change needed); demand `Message` preview shows TOC link and copies tappable to Teams/Viber.
    2. Continue roadmap 4-7: taxonomy `courseTechnology`+`courseDomain`, surface 5 hidden endpoints, NotificationEngine expansion, team-level Copilot.
+
+## 2026-08-31T07:10:00+05:30 - Session handover: v3.49.0 deployment verified, all tasks complete
+
+- **Model Used**: muse-spark-1.2-contributor-free
+- **Tool/Agent Used**: OpenCode
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**:
+  1. **Full end-to-end validation of v3.49.0 (Build 135)**: All four todo items complete — (a) demand detail share audit, (b) BatchShare TOC URL, (c) TOC fallback + manager-view house style, (d) validate/bump/tests/docs/push/deploy.
+  2. **CI/CD verified**: `main` push (`c0c4bf4`) triggered GitHub Actions Android CI/CD → `SkillEdge-v3.49.0.135.apk` built and published to GitHub Release `v3.49.0.135` (signed `c6868b14...1808`, installs over `v3.48.0.134`). Docs commits (`02e62be`, `090ad15`) correctly skipped by `paths-ignore` (`.md`, `AI/**`) — no redundant builds.
+  3. **Render health**: `GET https://skilledge-backend-fpcl.onrender.com/healthz` → `ok` (`version 6.1.0`), auto-deployed on push to `main`.
+  4. **Tests**: `:app:testDebugUnitTest` 153 passing, `pytest tests/ -q` 169 passing (no regressions).
+  5. **Working tree clean**: `git status` shows no uncommitted changes; all commits pushed to `origin/main`.
+- **Current Project State**: **Production release v3.49.0 (Build 135) fully deployed and verified.** Code on `main`, CI/CD green, Render healthy, GitHub Release published. No open issues or blockers.
+- **Known Issues / Blockers**: None. Render disk `skilledge-state` check pending if `-fpcl` is not a Blueprint (informational only, does not affect this release).
+- **Handover for Next Session**: Read `AI/PROGRESS.md` → latest entry confirms v3.49.0 deployed and verified. Continue roadmap 4-7: taxonomy `courseTechnology`+`courseDomain` (RMS key 114/205), surface 5 hidden endpoints (`trainerFeedback`/`assignmentPax`/`last3MonthsUtil`/`trainerAvailability`/`upcomingAssignments`), NotificationEngine expansion, team-level Copilot. Standard prompt: `Read and follow AGENTS.md. Review the latest AI/PROGRESS.md entry, provide a brief current-status summary, identify the last model and tool used, and continue with the next recommended actions.`
 
