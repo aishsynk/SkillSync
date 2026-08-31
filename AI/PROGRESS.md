@@ -3714,3 +3714,50 @@ Ranked backlog (this session shipped items 1-3 as v3.47.0):
   1. Commit + push v3.50.0; CI; Render deploy; verify composed messages on a real-roster manager.
   2. Roadmap items 4-7 still open (taxonomy, hidden endpoints, NotificationEngine, team Copilot).
   3. Confirm the Render `skilledge-state` disk (operator).
+
+## 2026-08-31T10:45:00+05:30 - v3.50.0/136 pushed (a424c6d); manager-POV enhancement roadmap
+
+- **Model/Tool**: Claude Sonnet 5 / Claude Code
+- **v3.50.0 status**: commit `a424c6d` pushed to main. Backend 175 pytest pass; Android 153 unit
+  tests, lint-release clean, signed release APK assembled (two earlier gate runs failed on a
+  transient concurrent-gradle `classes1000.dex` collision — not a code fault; a clean single run
+  passed). CI + Render deploy + production message verification in progress.
+
+### MANAGER-POV ENHANCEMENT ROADMAP (2026-08-31)
+
+The tool is a strong diagnostic but stops one step short of being the OS a manager runs their week
+from. Grouped by the manager decision it serves; waves ordered by day-one lift.
+
+Wave A - Act, don't just advise:
+- A1 Write allocation back through RMS (like mark-skill) or emit the pre-filled RMS request - one tap
+  from "recommended candidate" to "assigned".
+- A2 "Your Week" - a single ranked worklist (unstaffed batches by deadline, 1:1s needed, cert expiries,
+  over-capacity trainers). Today's Actions inbox is RMS-flagged only.
+- A3 Action inbox SLAs - due dates, "open N days" escalation, overdue line in the weekly digest.
+
+Wave B - Look forward:
+- B1 Capacity Runway screen - next 8 weeks: incoming demand vs available capacity per week, the gap,
+  ranked "upskill now" list (wire `demand-opportunities` + `capacity`).
+- B2 Opportunity-cost as a dashboard KPI (not just message text) - trainer-days / batches left on the
+  table this month, split by cause (skill gap / availability / cert), each tap-through actionable.
+- B3 Certification calendar - expiries, "book exam" workflow + reminders, "which certs unlock the most
+  open demand" ranking (needs `courseTechnology` 114 / `courseDomain` 205).
+
+Wave C - Coach deeper:
+- C1 Feedback trend + theme extraction (deterministic keyword clustering over RMS key 244 history) +
+  peer/team comparison. Today: last 90d + one quote only.
+- C2 Development Plan object per reportee - set a goal, track vs RMS signals, nudge. `growth-benchmark`
+  produces roadmaps but nothing persists.
+- C3 New-trainer first-90-days ramp view (mock completion, first delivery, first feedback).
+
+Wave D - Widen the lens:
+- D1 Accounts view (per-client demand, preferred trainer, DNC, fill rate) from demand+assignment data.
+- D2 Team-level Copilot ("who's free next week for AZ-104", "biggest coverage risk", "top 3 upskills").
+- D3 Manager benchmarking (my team's util/feedback/cert coverage vs peer managers).
+- D4 Scheduled digests - morning brief + end-of-week summary (cadence on the existing MonitoringService).
+- D5 Delivery-quality early warning - recording-compliance breach, pax drop pre-batch, day-1 no-show
+  (`recordingDetails` / `assignmentPax` are fetched but shown passively).
+
+- **Next Recommended Actions**: confirm v3.50.0 in production, then start Wave A (A1/A2 highest lift).
+  Earlier infra roadmap (taxonomy 114/205, 5 hidden endpoints, NotificationEngine expansion) folds into
+  B3 / D2 / D5 above. Confirm Render `skilledge-state` disk (operator).
