@@ -3849,3 +3849,27 @@ Wave D - Widen the lens:
   4. Confirm the Render disk (operator). Physical-device upgrade validation.
 - **Review artifact** (RMS coverage, data-integrity findings, manager-view roadmap):
   https://claude.ai/code/artifact/ca868032-e50f-4ee6-a497-b42a6143d65c
+
+## 2026-08-31T14:40:00+05:30 - v3.51.1/138: email resolver (the "app is empty" root cause)
+
+- **Model/Tool**: Claude Sonnet 5 / Claude Code
+- **ROOT CAUSE of "no changes / app empty"**: RMS `reportees` (key 82) returns [] for
+  `aishwar_c@koenig-solutions.com` but 2 real reportees (Abhinav Samant, Niharika) for
+  `aishwar.c@koenig-solutions.com`. Login email vs RMS `OffEmail` local-part separator differ.
+  With 0 reportees every manager-view feature has nothing to render, so v3.48-3.51 all looked absent.
+  Also: v3.47.0 removed the fabricated fallback team (correct), which is why `aishwar_c@` went blank.
+- **Files Modified**: `backend.py` (`_email_variants`, `_resolve_manager_email`, `_manager_email_cache`;
+  `login()` normalises; `_v2_manager_session` accepts variants + canonicalises session email;
+  priorities: coverable-demand-while-bench severity bump), `tests/test_email_resolver.py` (new),
+  `SkillEdge_Android/app/build.gradle.kts` (138/3.51.1), `releases/RELEASE_NOTES_v3.51.1.md`, `AI/PROGRESS.md`
+- **Verified locally**: login `aishwar_c@` -> `aishwar.c@`; dashboard team_size 2, `no_reportees:false`,
+  `opportunity_cost` `1/2` coverable, `trainer_days_at_stake:5`; weekly report renders composed
+  per-reportee messages for Abhinav + Niharika + team digest. Backend 190 pytest pass.
+- **TEST ACCOUNT for all future verification**: `aishwar_c@koenig-solutions.com` (resolves to
+  `aishwar.c@`, 2 reportees, real RMS data).
+- **Current Status**: v3.51.1 implemented; committing + pushing now.
+- **Next (user directive: build ALL of today's items with proper UI/UX, working, pushed)**:
+  v3.52.0 = "This Week" priorities SCREEN (Compose + VM + nav) · A1 eligibility-gap closer
+  (backend + UI: per open batch, what blocks each trainer, fixable via mark-skill/availability/exam) ·
+  polish opportunity KPI + message screens. v3.53.0 = B3 cert calendar (courseTechnology 114 /
+  courseDomain 205). Build via parallel agents.

@@ -554,12 +554,16 @@ def _v2_manager_session(manager_email=""):
         return None, error
     requested = str(manager_email or "").strip().lower()
     signed_in = str(session.get("email", "") or "").strip().lower()
-    if requested and requested != signed_in:
+    if requested and requested != signed_in and requested not in _email_variants(signed_in):
         return None, error_response(
             "MANAGER_SCOPE_MISMATCH",
             "The requested manager is outside this session",
             403,
         )
+    # Always operate on the session's canonical email downstream.
+    if signed_in:
+        session = dict(session)
+        session["email"] = signed_in
     return session, None
 
 # ─── Response cache ───────────────────────────────────────────────────────────
@@ -837,6 +841,47 @@ def _rms(api_name, body, timeout=_TIMEOUT, attempts=2):
 
 
 # ─── Role verification ────────────────────────────────────────────────────────
+
+_manager_email_cache: dict = {}
+
+
+def _email_variants(email):
+    """Login emails and RMS `OffEmail` do not always use the same local-part
+    separator (aishwar_c@ vs aishwar.c@). Yield the plausible forms, original
+    first."""
+    e = str(email or "").strip().lower()
+    if "@" not in e:
+        return [e]
+    local, domain = e.split("@", 1)
+    out = [e]
+    for alt in (local.replace("_", "."), local.replace(".", "_"),
+                local.replace("-", "."), local.replace(".", "-")):
+        v = f"{alt}@{domain}"
+        if v not in out:
+            out.append(v)
+    return out
+
+
+def _resolve_manager_email(email):
+    """
+    Return the form of `email` that RMS `reportees` (key 82) actually answers
+    for. Falls back to the original when no variant returns a roster, so a
+    genuinely reportee-less manager still logs in. Cached per input.
+    """
+    e = str(email or "").strip().lower()
+    if not e:
+        return e
+    if e in _manager_email_cache:
+        return _manager_email_cache[e]
+    resolved = e
+    for v in _email_variants(e):
+        rows = _rms("reportees", {"email": v})
+        if isinstance(rows, list) and rows:
+            resolved = v
+            break
+    _manager_email_cache[e] = resolved
+    return resolved
+
 
 def _verify_role(email):
     """
@@ -2572,6 +2617,11 @@ def login():
                 "Only @koenig-solutions.com accounts are permitted",
                 401,
             )
+
+        # Normalise to the local-part form RMS recognises (aishwar_c@ -> aishwar.c@)
+        # so every downstream endpoint, which keys off the session email, sees
+        # the manager's real roster.
+        email = _resolve_manager_email(email)
 
         role, role_data = _verify_role(email)
 
@@ -8809,6 +8859,42 @@ def _priorities_build(manager):
         with ThreadPoolExecutor(max_workers=8) as pool:
             for sub in pool.map(_trainer_signals, team):
                 items.extend(sub)
+
+    # ── opportunity overlay on unstaffed demand ───────────────────────────
+    # The pool above already warmed the _skills / utilisation caches for every
+    # trainer, so this re-pass is cache-cheap. An open batch the team can cover
+    # while trainers sit on the bench is a stronger call than a distant one.
+    team_codes = set()
+    bench_names = []
+    for (email, name) in team:
+        try:
+            for s in (_skills(email) or []):
+                cn = s.get("course_name")
+                if not cn:
+                    continue
+                m = _re.search(r"[A-Z]{2,4}-[0-9]{2,4}", str(cn))
+                team_codes.add(m.group(0).upper() if m else _norm(cn))
+            series = _util_series(_util_row(email))
+            if series and (series[-1].get("utilization") or 0) < 55:
+                bench_names.append(name.split()[0] if name else email)
+        except Exception:
+            pass
+    _bump = {"low": "medium", "medium": "high", "high": "high"}
+    for it in items:
+        if it["kind"] != "unstaffed_demand":
+            continue
+        cn = it["title"].replace("Unstaffed: ", "")
+        m = _re.search(r"[A-Z]{2,4}-[0-9]{2,4}", cn)
+        code = m.group(0).upper() if m else _norm(cn)
+        coverable = code in team_codes or any(
+            tc and len(tc) > 6 and (tc in _norm(cn) or _norm(cn) in tc) for tc in team_codes
+        )
+        if coverable:
+            it["coverable"] = True
+            if bench_names:
+                it["severity"] = _bump[it["severity"]]
+                it["detail"] += " Your team can cover this and %s %s on the bench." % (
+                    ", ".join(bench_names[:3]), "is" if len(bench_names) == 1 else "are")
 
     # ── action_overdue ────────────────────────────────────────────────────
     try:
