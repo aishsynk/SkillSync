@@ -11,6 +11,14 @@ SkillEdge is a manager decision system, not a trainer/skill/batch record browser
 ## Aishwar international-demand policy (effective v1.42.0)
 For the exact account `aishwar_v@koenig-solutions.com`, a foreign-location FMAT or ILT batch with at least 75% course match is automatically recommended with Skill Level 8 and the next verified available weekend. This is recommendation metadata only and never writes to RMS. It does not apply to other trainers, India/domestic batches, ILO, unknown locations, or matches below 75%.
 
+## AI Mind message composition contract (effective v3.56.0)
+All manager-to-reportee and team-level generated messages, standpoints, evaluations, and digests must cross-reference multi-dimensional signals rather than using generic filler:
+- **Cert Gaps + Live Demand**: Quantify opportunity cost in participant-days and batches unlocked, as well as Trainer Index points gain (~200 points per exam).
+- **Learner Feedback Themes**: Extract and cite deterministic theme clusters (depth of knowledge, practical labs, clarity, pacing) for strengths and coaching.
+- **Career & Readiness**: Reference Qubits knowledge score, Trainer Index tier standings (Platinum/Gold/Silver/Bronze), leave balances, and ramp stages (`onboarding`, `first-deliveries`, `established`, `stalled`).
+- **Group Broadcast Safety (Hard Rule)**: Team broadcasts must NEVER name an individual for negative signals (bench, feedback flags, cert gaps). Names appear ONLY for positive recognition.
+- **Teams/Viber Prose Formatting**: Greeting `Hello _First_,`, blank line, sanitised body with at most one `**bold**` action and one `__underlined__` time reference, blank line, italicized closing `_Thank you..._`, maximum 1000 characters, no hyphens, bullets, emojis, or dashes.
+
 ## What it is
 
 AI-assisted delivery-intelligence workspace for Koenig Solutions delivery managers.

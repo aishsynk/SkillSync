@@ -7,6 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -132,7 +133,7 @@ fun Figure(
 
 // ── Chip ────────────────────────────────────────────────────────────────────
 
-/** Every pill in the app: status, filter, tag, code. One shape, one rhythm. */
+/** Every pill in the app: status, filter, tag, code. One shape, one rhythm with crisp edge definition. */
 @Composable
 fun ToneChip(
     text: String,
@@ -140,6 +141,7 @@ fun ToneChip(
     modifier: Modifier = Modifier,
     solid: Boolean = false,
 ) {
+    val chipShape = RoundedCornerShape(Radii.chip)
     Text(
         text,
         style = MaterialTheme.typography.labelSmall,
@@ -148,7 +150,12 @@ fun ToneChip(
         modifier = modifier
             .background(
                 tint.copy(alpha = if (solid) 0.85f else 0.16f),
-                RoundedCornerShape(Radii.chip),
+                chipShape,
+            )
+            .border(
+                1.dp,
+                tint.copy(alpha = if (solid) 0.90f else 0.28f),
+                chipShape,
             )
             .padding(horizontal = Space.sm, vertical = Space.xs),
     )

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.R
+import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.Layout
 import com.example.skillsync.theme.SectionHeading
 import com.example.skillsync.theme.SkillCard
@@ -49,6 +50,7 @@ fun Trainer360Screen(
     onBack: () -> Unit,
     viewModel: Trainer360ViewModel = viewModel(),
 ) {
+    val sk = MaterialTheme.skill
     val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(trainerEmail, managerEmail) {
         viewModel.load(trainerEmail, managerEmail, context)
@@ -76,48 +78,48 @@ fun Trainer360Screen(
         )
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.skill.pageBg,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            trainerName.ifBlank { "Trainer" },
-                            fontWeight = FontWeight.Bold, color = Color.White,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                        Text("Trainer 360", color = Color.White.copy(alpha = 0.78f))
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            painterResource(R.drawable.ic_back),
-                            contentDescription = "Back",
-                            tint = Color.White,
-                        )
-                    }
-                },
-                actions = {
-                    // Export is offered only once the profile has loaded —
-                    // publishing a half-fetched payload would produce a PDF
-                    // that disagrees with the screen it was exported from.
-                    (state as? Trainer360State.Success)?.let { loaded ->
-                        IconButton(onClick = { TrainerReport.export(context, loaded.data) }) {
+    Box(Modifier.fillMaxSize()) {
+        AuroraBackground()
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text(
+                                trainerName.ifBlank { "Trainer" },
+                                fontWeight = FontWeight.Bold, color = sk.bodyText,
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                            Text("Trainer 360 Profile", color = sk.sky, style = MaterialTheme.typography.labelSmall)
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
                             Icon(
-                                painterResource(R.drawable.ic_export_pdf),
-                                contentDescription = "Export profile as PDF",
-                                tint = Color.White,
+                                painterResource(R.drawable.ic_back),
+                                contentDescription = "Back",
+                                tint = sk.ice,
                             )
                         }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                ),
-            )
-        },
+                    },
+                    actions = {
+                        (state as? Trainer360State.Success)?.let { loaded ->
+                            IconButton(onClick = { TrainerReport.export(context, loaded.data) }) {
+                                Icon(
+                                    painterResource(R.drawable.ic_export_pdf),
+                                    contentDescription = "Export profile as PDF",
+                                    tint = sk.ice,
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                    ),
+                )
+            },
         floatingActionButton = {
             // The backend route `POST /api/agent/ask` now exists — restore the FAB.
             if (state is Trainer360State.Success) {
@@ -212,6 +214,7 @@ fun Trainer360Screen(
             }
         }
     }
+}
 }
 
 @Composable

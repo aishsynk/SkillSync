@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.hasScrollAction
@@ -24,6 +25,8 @@ import com.example.skillsync.ui.main.TrainerCard
 import com.example.skillsync.ui.main.DeliveryOperationsWorkspace
 import com.example.skillsync.ui.main.UniversalCommandSearch
 import com.example.skillsync.ui.trainer.Trainer360Content
+import com.example.skillsync.data.cache.LocalCache
+import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -510,6 +513,63 @@ class ScreenRenderTest {
             }
         }
         compose.onNodeWithText("This Week").assertExists()
+    }
+
+    @Test
+    fun prioritiesScreen_rendersBulkShareBarWhenBulkBatchesPresent() {
+        val vm = com.example.skillsync.ui.report.PrioritiesViewModel(
+            repository = com.example.skillsync.data.ManagerRepository()
+        )
+        // Seed the bulk-batches state directly so the screen renders the bar.
+        LocalCache.init(ApplicationProvider.getApplicationContext())
+        LocalCache.saveMap(
+            "allocation_aishwar.c@koenig-solutions.com",
+            mapOf<String, Any>(
+                "batches" to listOf<Map<String, Any>>(
+                    mapOf<String, Any>(
+                        "course_name" to "PL-300T00: Power BI",
+                        "start_date" to "2026-10-01",
+                        "end_date" to "2026-10-05",
+                        "delivery_mode" to "ILO",
+                        "language" to "French",
+                        "participants" to 1,
+                        "location" to "Gurgaon, India",
+                        "customer" to "Microsoft",
+                        "demand_id" to "DEM-001",
+                        "session_time" to "12:30 to 20:30 IST",
+                        "toc_url" to "",
+                    ),
+                    mapOf<String, Any>(
+                        "course_name" to "AZ-104T00: Azure Admin",
+                        "start_date" to "2026-10-10",
+                        "end_date" to "2026-10-10",
+                        "delivery_mode" to "FMAT",
+                        "language" to "",
+                        "participants" to 12,
+                        "location" to "London, UK",
+                        "customer" to "Microsoft",
+                        "demand_id" to "DEM-002",
+                        "session_time" to "",
+                        "toc_url" to "",
+                    ),
+                ),
+                "loading" to false,
+                "generated_at" to "2026-10-01T00:00:00Z",
+            ),
+        )
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.ui.report.PrioritiesScreen(
+                    managerEmail = "aishwar.c@koenig-solutions.com",
+                    onOpenDemand = {},
+                    onOpenTrainer = { _, _ -> },
+                    onOpenActions = {},
+                    onBack = {},
+                )
+            }
+        }
+        compose.onNodeWithText("This Week").assertExists()
+        compose.onNodeWithContentDescription("Share unallocated pipeline").assertExists()
     }
 
     @Test

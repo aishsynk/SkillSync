@@ -8,6 +8,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -450,47 +451,57 @@ private fun WeekNavBar(
     onReset: () -> Unit,
     sk: SkillColors,
 ) {
-    Row(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .background(sk.heroBg.copy(alpha = 0.6f))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = Layout.gutter, vertical = Space.xs),
+        shape = RoundedCornerShape(Radii.card),
+        color = sk.surface1.copy(alpha = 0.70f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
     ) {
-        IconButton(onClick = onPrev) {
-            Icon(painterResource(R.drawable.ic_back), "Previous week", tint = Color.White)
-        }
         Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Space.sm, vertical = Space.xs),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                displayWeek,
-                color = Color.White,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 14.sp,
-            )
-            Surface(
-                onClick = onReset,
-                shape = RoundedCornerShape(12.dp),
-                color = sk.brand.copy(alpha = 0.35f),
+            IconButton(onClick = onPrev, modifier = Modifier.size(36.dp)) {
+                Icon(painterResource(R.drawable.ic_back), "Previous week", tint = sk.ice, modifier = Modifier.size(18.dp))
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    "Today",
-                    color = sk.cyan,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                    displayWeek,
+                    color = sk.bodyText,
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Surface(
+                    onClick = onReset,
+                    shape = RoundedCornerShape(Radii.chip),
+                    color = sk.brand.copy(alpha = 0.22f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.brand.copy(alpha = 0.40f)),
+                ) {
+                    Text(
+                        "Today",
+                        color = sk.cyan,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                }
+            }
+            IconButton(onClick = onNext, enabled = canNext, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    painterResource(R.drawable.ic_forward),
+                    "Next week",
+                    tint = if (canNext) sk.ice else sk.subText.copy(alpha = 0.4f),
+                    modifier = Modifier.size(18.dp),
                 )
             }
-        }
-        IconButton(onClick = onNext, enabled = canNext) {
-            Icon(
-                painterResource(R.drawable.ic_forward),
-                "Next week",
-                tint = if (canNext) Color.White else Color.White.copy(alpha = 0.3f),
-            )
         }
     }
 }
@@ -498,15 +509,22 @@ private fun WeekNavBar(
 @Composable
 private fun WeeklyTeamOverviewCard(ts: WeeklyTeamSummary, sk: SkillColors) {
     SkillCard(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Weekly Operations Pulse", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 15.sp)
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Weekly Operations Pulse", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = sk.bodyText)
+                ToneChip("${ts.headcount} Trainers", tint = sk.sky)
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 WeeklyMetric("Delivering", ts.deliveringCount.toString(), sk, Modifier.weight(1f), sk.good)
                 WeeklyMetric("On Bench", ts.benchCount.toString(), sk, Modifier.weight(1f), if (ts.benchCount > 0) sk.cyan else sk.good)
                 WeeklyMetric("Total Pax", ts.totalParticipants.toString(), sk, Modifier.weight(1f), sk.sky)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                WeeklyMetric("Batches", ts.totalBatches.toString(), sk, Modifier.weight(1f))
+                WeeklyMetric("Batches", ts.totalBatches.toString(), sk, Modifier.weight(1f), sk.frost)
                 WeeklyMetric(
                     "At Risk",
                     ts.atRiskCount.toString(),
@@ -536,13 +554,25 @@ private fun WeeklyMetric(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(sk.surface1.copy(alpha = 0.5f))
-            .padding(8.dp),
+            .clip(RoundedCornerShape(Radii.kpi))
+            .background(sk.surface1.copy(alpha = 0.65f))
+            .border(1.dp, sk.glassBorder.copy(alpha = 0.50f), RoundedCornerShape(Radii.kpi))
+            .padding(horizontal = 8.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(value, fontWeight = FontWeight.Bold, color = valueColor ?: sk.bodyText, fontSize = 17.sp)
-        Text(label, color = sk.subText, fontSize = 11.sp, textAlign = TextAlign.Center)
+        Text(
+            value,
+            fontWeight = FontWeight.Bold,
+            color = valueColor ?: sk.bodyText,
+            style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
+        )
+        Text(
+            label.uppercase(),
+            color = sk.labelText,
+            style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 2.dp),
+        )
     }
 }
 

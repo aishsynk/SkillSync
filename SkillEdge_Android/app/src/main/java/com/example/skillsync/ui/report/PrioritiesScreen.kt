@@ -1,6 +1,7 @@
 package com.example.skillsync.ui.report
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,10 +25,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.R
+import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.SkillColors
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.skill
+import com.example.skillsync.ui.batch.BatchShare
+import com.example.skillsync.ui.batch.BulkBatchShare
+import com.example.skillsync.ui.components.longDate
+import com.example.skillsync.ui.components.str
+import com.example.skillsync.ui.components.intOrNull
 
 /**
  * "This Week" — the manager's ranked board of what needs them, driven by
@@ -53,63 +60,100 @@ fun PrioritiesScreen(
 
     val state by vm.state.collectAsState()
     val refreshing by vm.refreshing.collectAsState()
+    val bulkBatches by vm.bulkBatches.collectAsState()
 
-    Scaffold(
-        containerColor = sk.pageBg,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("This Week", fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(
-                            "What needs you — ranked",
-                            color = Color.White.copy(alpha = 0.78f),
-                            fontSize = 13.sp,
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_back), "Back", tint = Color.White)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onOpenRamp) {
-                        Icon(painterResource(R.drawable.ic_people), "New trainer ramp", tint = Color.White)
-                    }
-                    IconButton(onClick = onOpenRunway) {
-                        Icon(painterResource(R.drawable.ic_trend), "Capacity Runway", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = sk.heroBg),
+    var showBulkShare by remember { mutableStateOf(false) }
+    var bulkDraft by remember { mutableStateOf("") }
+
+    fun buildShareBatches(): List<BatchShare.Batch> =
+        bulkBatches.map { m ->
+            BatchShare.Batch(
+                courseName = m.str("course_name"),
+                startDate = m.str("start_date").longDate(),
+                endDate = m.str("end_date").longDate(),
+                sessionTime = m.str("session_time"),
+                days = m.intOrNull("days"),
+                deliveryMode = m.str("delivery_mode"),
+                language = m.str("language"),
+                participants = m.intOrNull("participants")?.toString().orEmpty(),
+                location = m.str("location"),
+                vendor = m.str("customer"),
+                reference = m.str("demand_id"),
+                tocUrl = m.str("toc_url").ifBlank { m.str("course_url") },
             )
-        },
-    ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            when (val s = state) {
-                is PrioritiesState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = sk.brand)
-                }
+        }
 
-                is PrioritiesState.Error -> Column(
-                    Modifier.fillMaxSize().padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Text("Could not load this week", color = sk.warn, style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.height(8.dp))
-                    Text(s.message, color = sk.subText, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(16.dp))
-                    Button(onClick = { vm.refresh() }, colors = ButtonDefaults.buttonColors(containerColor = sk.brand)) {
-                        Text("Retry")
+    fun openBulkShare() {
+        val list = buildShareBatches()
+        if (list.isEmpty()) {
+            android.widget.Toast.makeText(context.applicationContext, "No unallocated batches to share right now", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        bulkDraft = BulkBatchShare.composeBulkMessage(list, recipient = "Team")
+        showBulkShare = true
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        AuroraBackground()
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text("This Week", fontWeight = FontWeight.Bold, color = sk.bodyText, style = MaterialTheme.typography.titleLarge)
+                            Text(
+                                "What needs you — ranked",
+                                color = sk.sky,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(painterResource(R.drawable.ic_back), "Back", tint = sk.ice)
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { openBulkShare() }) {
+                            Icon(painterResource(R.drawable.ic_mail), "Share unallocated pipeline", tint = sk.ice)
+                        }
+                        IconButton(onClick = onOpenRamp) {
+                            Icon(painterResource(R.drawable.ic_people), "New trainer ramp", tint = sk.ice)
+                        }
+                        IconButton(onClick = onOpenRunway) {
+                            Icon(painterResource(R.drawable.ic_trend), "Capacity Runway", tint = sk.ice)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                )
+            },
+        ) { padding ->
+            Box(Modifier.fillMaxSize().padding(padding)) {
+                when (val s = state) {
+                    is PrioritiesState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = sk.brand)
                     }
-                }
+
+                    is PrioritiesState.Error -> Column(
+                        Modifier.fillMaxSize().padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text("Could not load this week", color = sk.warn, style = MaterialTheme.typography.titleSmall)
+                        Spacer(Modifier.height(8.dp))
+                        Text(s.message, color = sk.subText, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(16.dp))
+                        Button(onClick = { vm.refresh() }, colors = ButtonDefaults.buttonColors(containerColor = sk.brand)) {
+                            Text("Retry")
+                        }
+                    }
 
                 is PrioritiesState.Success -> PullToRefreshBox(
                     isRefreshing = refreshing,
                     onRefresh = { vm.refresh() },
                 ) {
-                    if (s.items.isEmpty()) {
+                    if (s.items.isEmpty() && bulkBatches.isEmpty()) {
                         Column(
                             Modifier.fillMaxSize().padding(32.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -125,6 +169,14 @@ fun PrioritiesScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         item { SummaryStrip(s.counts, s.items.size, sk) }
+                        if (bulkBatches.isNotEmpty()) {
+                            item {
+                                BulkShareBar(
+                                    count = bulkBatches.size,
+                                    onShare = { openBulkShare() },
+                                )
+                            }
+                        }
                         items(s.items, key = { it.id.ifBlank { it.title } }) { item ->
                             PriorityCard(
                                 item = item,
@@ -144,6 +196,121 @@ fun PrioritiesScreen(
             }
         }
     }
+
+    if (showBulkShare) {
+        BulkSharePreviewDialog(
+            message = bulkDraft,
+            count = bulkBatches.size,
+            onDismiss = { showBulkShare = false },
+            onCopy = { text ->
+                val list = buildShareBatches()
+                // Compare against the stored draft rather than recomputing from the
+                // current list: recomputing would fail if the pipeline changed
+                // between opening the dialog and tapping Copy, and exact equality
+                // against a fresh compose would lose HTML when the user barely
+                // edited whitespace. Trimming is the lightest normalization that
+                // preserves HTML for an unedited draft while dropping it after a
+                // real edit.
+                val html = if (text.trim() == bulkDraft.trim()) {
+                    BulkBatchShare.htmlBulkMessage(list)
+                } else null
+                BatchShare.copyMessage(context, text, html)
+                showBulkShare = false
+            },
+            onShare = { text ->
+                BatchShare.shareAnywhere(context, text)
+                showBulkShare = false
+            },
+        )
+    }
+    }
+}
+
+@Composable
+private fun BulkShareBar(count: Int, onShare: () -> Unit) {
+    val sk = MaterialTheme.skill
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable { onShare() },
+        shape = RoundedCornerShape(Radii.card),
+        color = sk.cardBg.copy(alpha = 0.85f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(Space.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                Modifier.size(38.dp).clip(RoundedCornerShape(10.dp))
+                    .background(sk.brand.copy(alpha = 0.16f))
+                    .border(1.dp, sk.brand.copy(alpha = 0.30f), RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(painterResource(R.drawable.ic_mail), "Share pipeline", tint = sk.brand, modifier = Modifier.size(18.dp))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    "Share pipeline with team",
+                    color = sk.bodyText,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    "$count unallocated ${if (count == 1) "batch" else "batches"} · one message for your reportees to review",
+                    color = sk.subText,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Icon(painterResource(R.drawable.ic_chevron), null, tint = sk.subText, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun BulkSharePreviewDialog(
+    message: String,
+    count: Int,
+    onDismiss: () -> Unit,
+    onCopy: (String) -> Unit,
+    onShare: (String) -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    var text by remember(message) { mutableStateOf(message) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(onClick = { onCopy(text) }, shape = RoundedCornerShape(10.dp)) {
+                Icon(painterResource(R.drawable.ic_check), null, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(7.dp))
+                Text("Copy", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(onClick = { onShare(text) }) { Text("Share") }
+            }
+        },
+        title = {
+            Column {
+                Text("Share pipeline", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "$count ${if (count == 1) "batch" else "batches"} · ${text.length} of 3500 characters · paste into Viber or Teams",
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                )
+            }
+        },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                textStyle = MaterialTheme.typography.bodySmall,
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 420.dp),
+            )
+        },
+    )
 }
 
 private fun kindLabel(kind: String): String = when (kind) {
@@ -172,18 +339,19 @@ private fun SummaryStrip(counts: Map<String, Int>, total: Int, sk: SkillColors) 
             "$total ${if (total == 1) "item" else "items"} open",
             color = sk.bodyText,
             fontWeight = FontWeight.Bold,
-            fontSize = 15.sp,
+            style = MaterialTheme.typography.titleMedium,
         )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(entries) { (kind, n) ->
                 Surface(
                     shape = RoundedCornerShape(Radii.chip),
                     color = sk.surface1,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
                 ) {
                     Text(
                         "${kindLabel(kind)} $n",
                         style = MaterialTheme.typography.labelSmall,
-                        color = sk.subText,
+                        color = sk.labelText,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     )
                 }
@@ -198,7 +366,7 @@ private fun PriorityCard(item: PriorityItem, sk: SkillColors, onClick: () -> Uni
     Surface(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         shape = RoundedCornerShape(Radii.card),
-        color = sk.cardBg,
+        color = sk.cardBg.copy(alpha = 0.88f),
         border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
     ) {
         Row(Modifier.height(IntrinsicSize.Min)) {
@@ -222,6 +390,7 @@ private fun PriorityCard(item: PriorityItem, sk: SkillColors, onClick: () -> Uni
                             Modifier
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(stripe.copy(alpha = 0.15f))
+                                .border(1.dp, stripe.copy(alpha = 0.30f), RoundedCornerShape(6.dp))
                                 .padding(horizontal = 6.dp, vertical = 2.dp),
                         ) {
                             Text(
@@ -231,16 +400,16 @@ private fun PriorityCard(item: PriorityItem, sk: SkillColors, onClick: () -> Uni
                                 fontWeight = FontWeight.Bold,
                             )
                         }
-                        Text(kindLabel(item.kind), color = sk.subText, fontSize = 10.sp)
+                        Text(kindLabel(item.kind), color = sk.subText, fontSize = 11.sp)
                         if (item.coverable) {
-                            Text("· coverable", color = sk.good, fontSize = 10.sp)
+                            Text("· coverable", color = sk.good, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                     Text(
                         item.title,
                         color = sk.bodyText,
                         fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -248,7 +417,7 @@ private fun PriorityCard(item: PriorityItem, sk: SkillColors, onClick: () -> Uni
                         Text(
                             item.detail,
                             color = sk.subText,
-                            fontSize = 12.sp,
+                            style = MaterialTheme.typography.bodySmall,
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -257,8 +426,7 @@ private fun PriorityCard(item: PriorityItem, sk: SkillColors, onClick: () -> Uni
                         Text(
                             "Due ${item.due}",
                             color = sk.sky,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
+                            style = MaterialTheme.typography.labelSmall,
                             textDecoration = TextDecoration.Underline,
                         )
                     }

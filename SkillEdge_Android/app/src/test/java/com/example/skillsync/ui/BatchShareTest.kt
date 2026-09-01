@@ -1,6 +1,7 @@
 package com.example.skillsync.ui
 
 import com.example.skillsync.ui.batch.BatchShare
+import com.example.skillsync.ui.batch.BulkBatchShare
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -148,8 +149,9 @@ class BatchShareTest {
     }
 
     /** RMS names carry doubled spaces and repeated surnames; greet by first name. */
-    @Test
     fun message_greetsByFirstNameOnly() {
         assertTrue(plain("Niharika  Niharika").startsWith("Hello Niharika,"))
     }
+
+
 }

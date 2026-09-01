@@ -8,6 +8,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,6 +34,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import com.example.skillsync.R
+import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.SkillColors
@@ -66,55 +68,57 @@ fun HrMonthlyReportScreen(
     // Screen-level message cadence: false = "This month", true = "Month end".
     var monthendSelected by rememberSaveable { mutableStateOf(false) }
 
-    Scaffold(
-        containerColor = sk.pageBg,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("HR Monthly Report", fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(displayMonth, color = Color.White.copy(alpha = 0.78f), fontSize = 13.sp)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_back), "Back", tint = Color.White)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onOpenBenchmark) {
-                        Icon(painterResource(R.drawable.ic_trend), "How your team compares", tint = Color.White)
-                    }
-                    if (state is HrReportState.Success) {
-                        val reportData = (state as HrReportState.Success).data
-                        IconButton(onClick = {
-                            exportHrCsv(context, reportData)
-                            notify.success("Exported HR Monthly CSV")
-                        }) {
-                            Icon(painterResource(R.drawable.ic_copy), "Export CSV", tint = Color.White)
+    Box(Modifier.fillMaxSize()) {
+        AuroraBackground()
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text("HR Monthly Report", fontWeight = FontWeight.Bold, color = sk.bodyText, style = MaterialTheme.typography.titleLarge)
+                            Text(displayMonth, color = sk.sky, style = MaterialTheme.typography.labelSmall)
                         }
-                        IconButton(onClick = { shareReport(context, reportData) }) {
-                            Icon(painterResource(R.drawable.ic_share), "Share", tint = Color.White)
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(painterResource(R.drawable.ic_back), "Back", tint = sk.ice)
                         }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = sk.heroBg),
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-        ) {
-            // Month navigation bar
-            MonthNavBar(
-                displayMonth = displayMonth,
-                canNext = canNext,
-                onPrev = { vm.previousMonth() },
-                onNext = { vm.nextMonth() },
-                sk = sk,
-            )
+                    },
+                    actions = {
+                        IconButton(onClick = onOpenBenchmark) {
+                            Icon(painterResource(R.drawable.ic_trend), "How your team compares", tint = sk.ice)
+                        }
+                        if (state is HrReportState.Success) {
+                            val reportData = (state as HrReportState.Success).data
+                            IconButton(onClick = {
+                                exportHrCsv(context, reportData)
+                                notify.success("Exported HR Monthly CSV")
+                            }) {
+                                Icon(painterResource(R.drawable.ic_copy), "Export CSV", tint = sk.ice)
+                            }
+                            IconButton(onClick = { shareReport(context, reportData) }) {
+                                Icon(painterResource(R.drawable.ic_share), "Share", tint = sk.ice)
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                )
+            },
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+            ) {
+                // Month navigation bar
+                MonthNavBar(
+                    displayMonth = displayMonth,
+                    canNext = canNext,
+                    onPrev = { vm.previousMonth() },
+                    onNext = { vm.nextMonth() },
+                    sk = sk,
+                )
 
             when (val s = state) {
                 is HrReportState.Loading -> {
@@ -260,6 +264,7 @@ fun HrMonthlyReportScreen(
             sk = sk,
         )
     }
+    }
 }
 
 @Composable
@@ -270,29 +275,38 @@ private fun MonthNavBar(
     onNext: () -> Unit,
     sk: SkillColors,
 ) {
-    Row(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .background(sk.heroBg.copy(alpha = 0.6f))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = Space.lg, vertical = Space.xs),
+        shape = RoundedCornerShape(Radii.card),
+        color = sk.surface1.copy(alpha = 0.70f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
     ) {
-        IconButton(onClick = onPrev) {
-            Icon(painterResource(R.drawable.ic_back), "Previous month", tint = Color.White)
-        }
-        Text(
-            displayMonth,
-            color = Color.White,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 16.sp,
-        )
-        IconButton(onClick = onNext, enabled = canNext) {
-            Icon(
-                painterResource(R.drawable.ic_forward),
-                "Next month",
-                tint = if (canNext) Color.White else Color.White.copy(alpha = 0.3f),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Space.sm, vertical = Space.xs),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onPrev, modifier = Modifier.size(36.dp)) {
+                Icon(painterResource(R.drawable.ic_back), "Previous month", tint = sk.ice, modifier = Modifier.size(18.dp))
+            }
+            Text(
+                displayMonth,
+                color = sk.bodyText,
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleMedium,
             )
+            IconButton(onClick = onNext, enabled = canNext, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    painterResource(R.drawable.ic_forward),
+                    "Next month",
+                    tint = if (canNext) sk.ice else sk.subText.copy(alpha = 0.4f),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
     }
 }
@@ -300,15 +314,22 @@ private fun MonthNavBar(
 @Composable
 private fun TeamSummaryCard(ts: TeamSummaryData, sk: SkillColors) {
     SkillCard(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Team Overview", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 15.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SummaryMetric("Headcount", ts.headcount.toString(), sk, Modifier.weight(1f))
-                SummaryMetric("Avg Util", "${ts.avgUtilisation.toInt()}%", sk, Modifier.weight(1f))
-                SummaryMetric("Avg HR Score", "${ts.avgHrScore.toInt()}/100", sk, Modifier.weight(1f))
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Team Monthly Overview", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = sk.bodyText)
+                ToneChip("${ts.headcount} Reportees", tint = sk.sky)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SummaryMetric("Batches", ts.totalBatches.toString(), sk, Modifier.weight(1f))
+                SummaryMetric("Headcount", ts.headcount.toString(), sk, Modifier.weight(1f))
+                SummaryMetric("Avg Util", "${ts.avgUtilisation.toInt()}%", sk, Modifier.weight(1f), sk.cyan)
+                SummaryMetric("HR Score", "${ts.avgHrScore.toInt()}/100", sk, Modifier.weight(1f), sk.good)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SummaryMetric("Batches", ts.totalBatches.toString(), sk, Modifier.weight(1f), sk.frost)
                 SummaryMetric(
                     "Neg Feedback",
                     ts.totalNegativeFeedback.toString(),
@@ -392,13 +413,25 @@ private fun SummaryMetric(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(sk.surface1.copy(alpha = 0.5f))
-            .padding(8.dp),
+            .clip(RoundedCornerShape(Radii.kpi))
+            .background(sk.surface1.copy(alpha = 0.65f))
+            .border(1.dp, sk.glassBorder.copy(alpha = 0.50f), RoundedCornerShape(Radii.kpi))
+            .padding(horizontal = 8.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(value, fontWeight = FontWeight.Bold, color = valueColor ?: sk.bodyText, fontSize = 17.sp)
-        Text(label, color = sk.subText, fontSize = 11.sp, textAlign = TextAlign.Center)
+        Text(
+            value,
+            fontWeight = FontWeight.Bold,
+            color = valueColor ?: sk.bodyText,
+            style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
+        )
+        Text(
+            label.uppercase(),
+            color = sk.labelText,
+            style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 2.dp),
+        )
     }
 }
 

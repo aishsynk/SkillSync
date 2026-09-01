@@ -8122,6 +8122,19 @@ def _msg_pick(options, seed: int, salt: int = 0):
 def _open_opportunities_for(course_names, demand_rows, limit=4):
     """Open unallocated batches whose course this trainer already teaches -
     the capacity the team is leaving on the table."""
+    det = _open_opportunities_detailed(course_names, demand_rows, limit=limit)
+    return det.get("courses", [])
+
+
+def _open_opportunities_detailed(course_names, demand_rows, limit=4):
+    """
+    Returns detailed opportunity metrics:
+    - courses: list of course titles (up to limit)
+    - batch_count: total matching open batches
+    - pax_days: total participant-days across matching batches
+    - course_counts: dict of {course_title: count}
+    - course_pax_days: dict of {course_title: pax_days}
+    """
     owned_names = {_norm(c) for c in (course_names or []) if c}
     _code = _re.compile(r"[A-Z]{2,4}-[0-9]{2,4}")
     owned_codes = set()
@@ -8130,6 +8143,11 @@ def _open_opportunities_for(course_names, demand_rows, limit=4):
         if m:
             owned_codes.add(m.group(0).upper())
     hits = []
+    course_counts = {}
+    course_pax_days = {}
+    total_batches = 0
+    total_pax_days = 0
+
     for d in (demand_rows or []):
         if not isinstance(d, dict):
             continue
@@ -8142,14 +8160,25 @@ def _open_opportunities_for(course_names, demand_rows, limit=4):
         code = m.group(0).upper() if m else ""
         if n in owned_names or (code and code in owned_codes) or \
            any(o and (o in n or n in o) for o in owned_names if len(o) > 6):
-            hits.append(_re.sub(r"^[A-Z]{2,4}-[0-9]{2,4}T?[0-9]*:\s*", "", cn).strip())
-    seen, out = set(), []
-    for h in hits:
-        k = h.lower()
-        if k not in seen:
-            seen.add(k)
-            out.append(h)
-    return out[:limit]
+            title = _re.sub(r"^[A-Z]{2,4}-[0-9]{2,4}T?[0-9]*:\s*", "", cn).strip() or cn
+            pax = int(d.get("participants") or d.get("Participants") or d.get("Pax") or 1)
+            days = _opp_batch_days(d)
+            pax_days = pax * days if pax > 0 else days
+
+            total_batches += 1
+            total_pax_days += pax_days
+            course_counts[title] = course_counts.get(title, 0) + 1
+            course_pax_days[title] = course_pax_days.get(title, 0) + pax_days
+            if title not in hits:
+                hits.append(title)
+
+    return {
+        "courses": hits[:limit],
+        "batch_count": total_batches,
+        "pax_days": total_pax_days,
+        "course_counts": course_counts,
+        "course_pax_days": course_pax_days,
+    }
 
 
 def _opp_batch_days(d):
@@ -8277,6 +8306,16 @@ _MSG_CADENCE = {
 }
 
 
+_THEME_LABELS = {
+    "depth": "depth of knowledge",
+    "labs": "practical hands-on labs",
+    "clarity": "clear communication",
+    "knowledge": "subject matter expertise",
+    "engagement": "learner engagement",
+    "pace": "pacing",
+}
+
+
 def _compose_manager_message(scope: str, cadence: str, f: dict,
                              my_message: str = "", style: str = "teams") -> str:
     """
@@ -8313,6 +8352,9 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
         bench = int(f.get("bench") or 0)
         gaps = int(f.get("total_gaps") or 0)
         top = [t for t in (f.get("top_performers") or []) if t][:2]
+        top_cust = f.get("top_customer")
+        top_cust_pct = f.get("top_customer_share_pct")
+        stalled_cnt = int(f.get("ramp_stalled_count") or 0)
 
         if review:
             # backward-looking wrap (weekend / month-end)
@@ -8337,6 +8379,8 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
                 )
             if cadence == "monthend" and gaps:
                 beats.append(f"{gaps} certification {'gap remains' if gaps == 1 else 'gaps remain'} open across the team - please book yours.")
+            if top_cust and top_cust_pct and top_cust_pct >= 40:
+                beats.append(f"Delivery was concentrated with {top_cust} representing {int(top_cust_pct)} percent of our load this {period}.")
             if not beats:
                 beats.append(f"A steady {period} across the team with nothing outstanding. Thank you all.")
             closing_raw = ("Thank you all for the effort this " + period + "."
@@ -8366,6 +8410,8 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
                 )
             if at_risk:
                 beats.append(f"{at_risk} feedback {'point is' if at_risk == 1 else 'points are'} being handled individually this {period}.")
+            if stalled_cnt > 0:
+                beats.append(f"{stalled_cnt} new trainer onboarding {'milestone needs' if stalled_cnt == 1 else 'milestones need'} staffing focus this {period}.")
             if not beats:
                 beats.append(f"Delivery is steady across the team this {period} with no open flags. Thank you for keeping it that way.")
             closing_raw = ("Have a good " + period + ", and thank you for keeping delivery steady." if not (opp or gaps)
@@ -8391,45 +8437,90 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
         stretched = bool(f.get("stretched"))
         trend = str(f.get("rating_trend") or "")
         batches_done = int(f.get("batches_done") or 0)
+        pos_themes = f.get("pos_themes") or []
+        cons_themes = f.get("cons_themes") or []
+        gap_demand_cnt = int(f.get("gap_demand_count") or 0)
+        gap_demand_pax_days = int(f.get("gap_demand_pax_days") or 0)
+        opp_pax_days = int(f.get("opp_pax_days") or 0)
+        ti_score = f.get("ti_score")
+        ti_tier = f.get("ti_tier")
+        leave_days = int(f.get("leave_days") or 0)
+        ramp_stage = str(f.get("ramp_stage") or "")
+        stalled = bool(f.get("stalled"))
+
+        pos_theme_str = ""
+        if pos_themes:
+            pos_theme_str = " and ".join(f'"{_THEME_LABELS.get(t, t)}"' for t in pos_themes[:2])
 
         if review:
-            # 1r. what happened this period
+            # ── 1r. what happened this period ────────────────────────────────
             if batches_done or cur:
-                beats.append(_msg_pick([
-                    f"You wrapped {('the ' + cur) if cur else str(batches_done) + (' batch' if batches_done == 1 else ' batches')} this {period}"
-                    + (f" for {f.get('pax')} participants" if f.get('pax') else "") + ".",
-                    f"This {period} you delivered {('the ' + cur) if cur else str(batches_done) + (' batch' if batches_done == 1 else ' batches')}"
-                    + (f", {f.get('pax')} participants" if f.get('pax') else "") + ".",
-                ], seed, 1))
+                opener = f"You wrapped {('the ' + cur) if cur else str(batches_done) + (' batch' if batches_done == 1 else ' batches')} this {period}"
+                if f.get("pax"):
+                    opener += f" for {f.get('pax')} participants"
+                if qubits is not None and qubits >= 40:
+                    opener += f" with your Qubits knowledge score at {int(qubits)} percent"
+                opener += "."
+                beats.append(_msg_pick([opener, opener], seed, 1))
             elif bench:
                 beats.append(f"You were on the bench this {period}"
                              + (f" at {int(util)} percent utilisation" if util is not None else "") + ".")
+            elif ramp_stage == "onboarding":
+                beats.append(f"You completed onboarding milestones this {period} as you prepare for initial delivery.")
+
+            # ── 2r. feedback evidence ─────────────────────────────────────────
             if rating is not None:
                 b = f"Learners rated you {rating} out of 5 across {rc} response{'s' if rc != 1 else ''} this {period}"
+                if pos_theme_str:
+                    b += f', with {pos_theme_str} highlighted as strengths'
                 b += {"improving": ", and the trend is up.", "declining": ", and that is down on the previous run."}.get(trend, ".")
                 q = f.get("pos_quote") if (rating >= 4) else f.get("neg_quote")
                 if q:
                     b += f' One comment: "{q}".'
                 beats.append(b)
+
+            # ── 3r. quality / coaching records ───────────────────────────────
             if neg or hr_neg:
                 beats.append(f"Let us find time {deadline_ref} to go through the {neg + hr_neg} feedback "
                              f"{'record' if neg + hr_neg == 1 else 'records'} on file.")
+
+            # ── 4r. cert gaps + quantified opportunity ────────────────────────
             if gap_courses:
-                beats.append(f"Certification for {', '.join(gap_courses[:2])} is still open - please book it before {deadline_ref}.")
+                if gap_demand_cnt > 0:
+                    beats.append(
+                        f"Closing your open certification on {', '.join(gap_courses[:2])} unlocks {gap_demand_cnt} "
+                        f"batch{'es' if gap_demand_cnt != 1 else ''} ({gap_demand_pax_days} participant-days) on the demand board - "
+                        f"please book the exam before {deadline_ref}."
+                    )
+                else:
+                    beats.append(f"Certification for {', '.join(gap_courses[:2])} is still open - please book it before {deadline_ref}.")
+
+            # ── 5r. next step / bench opportunities ───────────────────────────
             if upc:
                 beats.append(f"Next up for you is {upc}.")
             elif bench and opp_courses:
-                beats.append(f"There is open demand matching your work on {', '.join(opp_courses[:2])}. Confirm your availability and I will put you forward.")
-            if cadence == "monthend" and qubits is not None and qubits >= 40 and qubits < 80 and not (neg or hr_neg):
+                beats.append(
+                    f"There is open demand matching your skills on {', '.join(opp_courses[:2])}"
+                    + (f" ({opp_pax_days} participant-days)" if opp_pax_days else "")
+                    + ". Confirm your availability and I will put you forward."
+                )
+
+            # ── 6r. growth / qubits / TI progression ──────────────────────────
+            if ti_score is not None and ti_tier:
+                beats.append(f"Your Trainer Index stands at {ti_score} points ({ti_tier}).")
+            elif cadence == "monthend" and qubits is not None and qubits >= 40 and qubits < 80 and not (neg or hr_neg):
                 beats.append(f"Knowledge score is {int(qubits)} percent; lifting it toward the mid eighties opens up more batches.")
+
             if not beats:
                 beats.append(f"A quiet {period} for you with nothing outstanding.")
+
             if neg or hr_neg:
                 closing_raw = "Let us talk " + deadline_ref + "."
             elif rating is not None and rating >= 4.5:
                 closing_raw = "Thank you - it shows in the feedback."
             else:
                 closing_raw = ("Have a good weekend." if cadence == "weekend" else "Speak at the start of next month.")
+
             body = " ".join(b for b in beats[:5] if b).strip()
             body = _message_sanitise(body)
             body = _bold_first_action(body, style)
@@ -8441,17 +8532,24 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
             msg = "\n".join(ln.rstrip() for ln in msg.split("\n"))
             return _trim_message_to_limit(_re.sub(r"\n{3,}", "\n\n", msg).strip())
 
-        # 1. status opener
+        # ── 1. status opener (forward-looking) ───────────────────────────────
         if stretched and cur:
             beats.append(_msg_pick([
                 f"You are carrying a heavy load this {period} with {cur}" + (f", and utilisation is at {int(util)} percent" if util is not None else "") + ".",
                 f"This {period} is a stretch for you: {cur}" + (f" with utilisation at {int(util)} percent" if util is not None else "") + ".",
             ], seed, 1))
         elif cur:
-            beats.append(_msg_pick([
-                f"You are delivering {cur} this {period}" + (f" to {f.get('pax')} participants" if f.get("pax") else "") + ".",
-                f"Your {period} is on {cur}" + (f", {f.get('pax')} participants" if f.get("pax") else "") + ".",
-            ], seed, 2))
+            cur_line = f"You are delivering {cur} this {period}"
+            if f.get("pax"):
+                cur_line += f" to {f.get('pax')} participants"
+            if qubits is not None and qubits >= 40:
+                cur_line += f" and your Qubits knowledge score sits at {int(qubits)} percent"
+            cur_line += "."
+            beats.append(_msg_pick([cur_line, cur_line], seed, 2))
+        elif stalled:
+            beats.append(f"You are currently flagged as stalled on the ramp tracker with 0 batch deliveries over recent months.")
+        elif ramp_stage == "onboarding":
+            beats.append(f"You are in your onboarding ramp phase as a new joiner this {period}.")
         elif bench:
             beats.append(_msg_pick([
                 f"You are on the bench this {period}" + (f" with utilisation at {int(util)} percent" if util is not None else "") + ".",
@@ -8460,47 +8558,63 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
         elif util is not None:
             beats.append(f"Your {period} is steady at {int(util)} percent utilisation.")
 
-        # 2. feedback
+        # ── 2. feedback evidence & themes ───────────────────────────────────
         if rating is not None and rating >= 4.0:
-            b = f"Learner feedback stays strong at {rating} out of 5 across {rc} response{'s' if rc != 1 else ''}."
+            b = f"Learner feedback stays strong at {rating} out of 5 across {rc} response{'s' if rc != 1 else ''}"
+            if pos_theme_str:
+                b += f', with {pos_theme_str} highlighted as strengths'
+            b += "."
             q = (f.get("pos_quote") or "")
             if q:
                 b += f' One recent comment: "{q}".'
             beats.append(b)
         elif rating is not None and rating < 3.7:
             b = f"Learner feedback has slipped to {rating} out of 5 across {rc} response{'s' if rc != 1 else ''}."
+            if cons_themes:
+                cons_label = _THEME_LABELS.get(cons_themes[0], cons_themes[0])
+                b += f' "{cons_label.title()}" emerged as an area to watch.'
             q = (f.get("neg_quote") or "")
             b += f' A recent comment: "{q}".' if q else " I would like us to look at the recent comments together this " + period + "."
             beats.append(b)
 
-        # 3. opportunity cost
+        # ── 3. cert gap + quantified opportunity cost (AI Mind cross-reference)
+        if gap_courses:
+            names = ", ".join(gap_courses[:2])
+            if gap_demand_cnt > 0:
+                beats.append(
+                    f"You are teaching {names} without the matching certification on file. "
+                    f"{gap_demand_cnt} open batch{'es are' if gap_demand_cnt != 1 else ' is'} waiting on the demand board ({gap_demand_pax_days} participant-days). "
+                    f"Booking the exam unlocks those batches and adds roughly 200 points to your Trainer Index."
+                )
+            else:
+                beats.append(
+                    f"You are teaching {names} without the matching certification on file. "
+                    f"Please book the exam before {deadline_ref}."
+                )
+
+        # ── 4. opportunity cost for bench ────────────────────────────────────
         if (bench or (not cur and util is not None and util < 60)) and opp_courses:
             n = len(opp_courses)
             names = ", ".join(opp_courses[:2])
+            pax_clause = f" ({opp_pax_days} participant-days)" if opp_pax_days else ""
             beats.append(
-                f"There {'is' if n == 1 else 'are'} {n} open {'batch' if n == 1 else 'batches'} on the demand board that {'matches' if n == 1 else 'match'} your work on {names}. "
+                f"There {'is' if n == 1 else 'are'} {n} open {'batch' if n == 1 else 'batches'} on the demand board that {'matches' if n == 1 else 'match'} your work on {names}{pax_clause}. "
                 f"Please confirm your availability so I can put you forward."
             )
         elif (bench or (not cur and util is not None and util < 55)) and not opp_courses and f.get("has_demand_view"):
             beats.append(f"Nothing on the demand board matches your current skills right now, so let us use this {period} to add one course that opens up demand.")
 
-        # 4. cert gap
-        if gap_courses:
-            names = ", ".join(gap_courses[:2])
-            beats.append(
-                f"You are teaching {names} without the matching certification on file. "
-                f"Please book the exam before {deadline_ref}."
-            )
-
-        # 5. quality risk
+        # ── 5. quality risk / HR / leaves ────────────────────────────────────
         if neg or hr_neg:
             tot = neg + hr_neg
             beats.append(
                 f"There {'is' if tot == 1 else 'are'} {tot} feedback record{'s' if tot != 1 else ''} on file that we need to review. "
                 f"Please come back to me this {period} with what happened and your plan."
             )
+        elif leave_days >= 3:
+            beats.append(f"You have {leave_days} days of planned leave on record this {period}; please ensure batch handovers are confirmed in advance.")
 
-        # 6. growth / qubits (fills a thin message, or monthly close)
+        # ── 6. growth / qubits / TI progression ──────────────────────────────
         if qubits is not None and qubits >= 40 and (len(beats) < 2 or cadence == "monthly"):
             if qubits >= 80:
                 beats.append(f"Your knowledge score is holding at {int(qubits)} percent, which keeps you first in line for the harder batches.")
@@ -8540,7 +8654,7 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
 
 def _reportee_message_facts(snap: dict, cadence: str, demand_rows=None,
                             skills_courses=None, month_label: str = "") -> dict:
-    """Flatten a weekly/monthly reportee snapshot into composer facts."""
+    """Flatten a weekly/monthly reportee snapshot into composer facts with full AI Mind intelligence."""
     fb = snap.get("learner_feedback") or {}
     pos = (fb.get("positive_quotes") or [{}])[0].get("text") if fb.get("positive_quotes") else ""
     neg = (fb.get("constructive_quotes") or [{}])[0].get("text") if fb.get("constructive_quotes") else ""
@@ -8550,7 +8664,24 @@ def _reportee_message_facts(snap: dict, cadence: str, demand_rows=None,
     util = snap.get("current_utilization")
     if util is None:
         util = snap.get("utilisation_pct")
-    opp = _open_opportunities_for(skills_courses or [], demand_rows or [])
+
+    # Detailed demand opportunities matching trainer's skill catalogue
+    opp_det = _open_opportunities_detailed(skills_courses or [], demand_rows or [])
+    gap_courses = snap.get("cert_gap_courses") or []
+    gap_demand_det = _open_opportunities_detailed(gap_courses, demand_rows or [])
+
+    # Feedback themes
+    themes = fb.get("themes") or []
+    pos_themes = [t.get("theme") for t in themes if t.get("sentiment") == "positive" and t.get("theme")]
+    cons_themes = [t.get("theme") for t in themes if t.get("sentiment") == "constructive" and t.get("theme")]
+
+    # Trainer Index tier / score
+    ti_score = snap.get("trainer_index_score") or snap.get("ti_score")
+    ti_tier = snap.get("trainer_index_tier") or snap.get("ti_tier")
+    if ti_score is None and snap.get("trainer_index"):
+        ti_score = snap["trainer_index"].get("total_points")
+        ti_tier = snap["trainer_index"].get("standing_tier_label")
+
     return {
         "has_demand_view": bool(demand_rows) and bool(skills_courses),
         "email": snap.get("email"),
@@ -8566,8 +8697,19 @@ def _reportee_message_facts(snap: dict, cadence: str, demand_rows=None,
         "neg_quote": neg or "",
         "neg_feedback": snap.get("negative_feedback_count") or snap.get("negativeFeedbackCount") or 0,
         "hr_neg": snap.get("hr_negative_count") or 0,
-        "cert_gap_courses": snap.get("cert_gap_courses") or [],
-        "opp_courses": opp,
+        "cert_gap_courses": gap_courses,
+        "opp_courses": opp_det.get("courses", []),
+        "opp_batch_count": opp_det.get("batch_count", 0),
+        "opp_pax_days": opp_det.get("pax_days", 0),
+        "gap_demand_count": gap_demand_det.get("batch_count", 0),
+        "gap_demand_pax_days": gap_demand_det.get("pax_days", 0),
+        "pos_themes": pos_themes,
+        "cons_themes": cons_themes,
+        "ti_score": ti_score,
+        "ti_tier": ti_tier,
+        "leave_days": snap.get("leave_days") or snap.get("leaves_this_month") or 0,
+        "ramp_stage": snap.get("ramp_stage") or "",
+        "stalled": bool(snap.get("stalled")),
         # A trainer actively delivering a batch is NOT "on the bench" even if
         # their RMS utilisation reading is low - the opportunity push is wrong
         # for someone already in front of a class.
@@ -8938,6 +9080,10 @@ def _generate_manager_evaluation(
     s = []
     if fb["avg_rating"] is not None and fb["avg_rating"] >= 4.0:
         s.append(f"Learners rate {first_name} {fb['avg_rating']}/5 across {fb['response_count']} response(s) in the last {feedback_window_days} days.")
+    pos_themes = [t.get("theme") for t in (fb.get("themes") or []) if t.get("sentiment") == "positive" and t.get("theme")]
+    if pos_themes:
+        th_names = ", ".join(_THEME_LABELS.get(t, t) for t in pos_themes[:2])
+        s.append(f"Standout strengths highlighted in learner comments: {th_names}.")
     for q in fb["positive_quotes"][:2]:
         s.append(f'Learner feedback ({_human_date(q["date"])}): "{q["text"]}"')
     if hr_pos > 0:
@@ -8950,12 +9096,21 @@ def _generate_manager_evaluation(
 
     # ── AREA OF IMPROVEMENT — only what is evidenced ────────────────────
     a = []
+    gap_opp = _open_opportunities_detailed(gap_names, demand_rows or [])
     if gap_count > 0:
-        a.append(f"Close {gap_count} open certification gap(s){' (' + gap_str + ')' if gap_str else ''}.")
+        gap_desc = f"Close {gap_count} open certification gap(s){' (' + gap_str + ')' if gap_str else ''}"
+        if gap_opp.get("batch_count", 0) > 0:
+            gap_desc += f" — unlocks {gap_opp['batch_count']} open batch(es) ({gap_opp['pax_days']} participant-days)"
+        gap_desc += "."
+        a.append(gap_desc)
     if neg_total > 0:
         a.append(f"Resolve {neg_total} negative feedback record(s) on file.")
     if hr_neg > 0:
         a.append(f"Address {hr_neg} negative HR incident record(s).")
+    cons_themes = [t.get("theme") for t in (fb.get("themes") or []) if t.get("sentiment") == "constructive" and t.get("theme")]
+    if cons_themes:
+        c_names = ", ".join(_THEME_LABELS.get(t, t) for t in cons_themes[:2])
+        a.append(f"Learner feedback areas to watch: {c_names}.")
     for q in fb["constructive_quotes"][:2]:
         a.append(f'Learner feedback ({_human_date(q["date"])}): "{q["text"]}"')
     if month_util is not None and month_util < 60:
@@ -8968,7 +9123,10 @@ def _generate_manager_evaluation(
         verdict = f"{first_name} needs a focused 1-on-1 this cycle to resolve the feedback on file before the next batch."
     elif gap_count > 0:
         trajectory, sentiment = "Certification Pending", "Constructive"
-        verdict = f"{first_name} is delivery-steady but below full accreditation - closing the pending exam(s) unlocks scheduled client work."
+        if gap_opp.get("batch_count", 0) > 0:
+            verdict = f"{first_name} has {gap_count} pending certification(s) blocking {gap_opp['batch_count']} open batch(es) ({gap_opp['pax_days']} pax-days) — booking the exam unlocks live demand."
+        else:
+            verdict = f"{first_name} is delivery-steady but below full accreditation - closing the pending exam(s) unlocks scheduled client work."
     elif month_util is not None and month_util < 55:
         trajectory, sentiment = "Bench Upskilling", "Constructive"
         verdict = f"{first_name} is on bench ({int(month_util)}%); the priority is capturing open demand in {top_topics_str or 'assigned domains'}."

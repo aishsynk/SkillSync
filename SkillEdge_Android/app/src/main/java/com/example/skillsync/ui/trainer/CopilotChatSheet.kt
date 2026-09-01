@@ -19,6 +19,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.text.HtmlCompat
+import com.example.skillsync.theme.ToneChip
+import com.example.skillsync.theme.skill
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,6 +30,7 @@ fun CopilotChatSheet(
     viewModel: CopilotViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     onDismiss: () -> Unit
 ) {
+    val sk = MaterialTheme.skill
     val messages by viewModel.messages.collectAsState()
 
     // Team context = the Copilot was opened without a specific trainer target.
@@ -67,7 +70,7 @@ fun CopilotChatSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = sk.surface2,
         dragHandle = null
     ) {
         Column(
@@ -79,18 +82,21 @@ fun CopilotChatSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = if (isTeam) "Team Copilot ✨" else "SkillEdge Copilot ✨",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = if (isTeam) "Team Copilot" else "SkillEdge Copilot",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = sk.bodyText,
+                    )
+                    ToneChip("AI Intelligence", tint = sk.cyan)
+                }
                 IconButton(onClick = onDismiss) {
-                    Text("✕", fontSize = 20.sp)
+                    Text("✕", fontSize = 18.sp, color = sk.subText)
                 }
             }
 
@@ -105,15 +111,22 @@ fun CopilotChatSheet(
             ) {
                 if (messages.isEmpty()) {
                     item {
-                        Text(
-                            text = if (isTeam)
-                                "Ask about your team — who is free for a course, coverage risk, the bench, upskills, or who needs a 1:1."
-                            else
-                                "Ask me anything about this trainer's readiness, gaps, and allocation fit.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 32.dp, horizontal = 16.dp),
-                            fontSize = 14.sp
-                        )
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            color = sk.surface1.copy(alpha = 0.6f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+                        ) {
+                            Text(
+                                text = if (isTeam)
+                                    "Ask about your team — who is free for a course, coverage risk, the bench, upskills, or who needs a 1:1."
+                                else
+                                    "Ask me anything about this trainer's readiness, gaps, and allocation fit.",
+                                color = sk.subText,
+                                modifier = Modifier.padding(20.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
                     }
                 }
 
@@ -122,15 +135,16 @@ fun CopilotChatSheet(
                         is ChatMessage.User -> {
                             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
                                 Surface(
-                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    color = sk.brand.copy(alpha = 0.22f),
                                     shape = RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.brand.copy(alpha = 0.45f)),
                                     modifier = Modifier.widthIn(max = 280.dp)
                                 ) {
                                     Text(
                                         text = msg.text,
                                         modifier = Modifier.padding(12.dp),
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        fontSize = 14.sp
+                                        color = sk.frost,
+                                        style = MaterialTheme.typography.bodyMedium,
                                     )
                                 }
                             }
@@ -138,12 +152,14 @@ fun CopilotChatSheet(
                         is ChatMessage.Loading -> {
                             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                                 Surface(
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
+                                    color = sk.surface1,
+                                    shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
                                 ) {
                                     CircularProgressIndicator(
-                                        modifier = Modifier.padding(12.dp).size(24.dp),
-                                        strokeWidth = 2.dp
+                                        modifier = Modifier.padding(12.dp).size(22.dp),
+                                        strokeWidth = 2.dp,
+                                        color = sk.brand,
                                     )
                                 }
                             }
@@ -151,14 +167,15 @@ fun CopilotChatSheet(
                         is ChatMessage.Error -> {
                             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                                 Surface(
-                                    color = MaterialTheme.colorScheme.errorContainer,
-                                    shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
+                                    color = sk.crit.copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.crit.copy(alpha = 0.35f)),
                                 ) {
                                     Text(
                                         text = msg.message,
                                         modifier = Modifier.padding(12.dp),
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                        fontSize = 14.sp
+                                        color = sk.crit,
+                                        style = MaterialTheme.typography.bodySmall,
                                     )
                                 }
                             }
@@ -167,39 +184,37 @@ fun CopilotChatSheet(
                             val r = msg.response
                             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                                 Surface(
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    color = sk.surface1.copy(alpha = 0.90f),
                                     shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.glassBorder),
                                     modifier = Modifier.widthIn(max = 320.dp)
                                 ) {
-                                    Column(modifier = Modifier.padding(12.dp)) {
-                                        Text(text = r.answer, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(text = r.answer, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
                                         if (r.data.isNotEmpty()) {
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            r.data.forEach { d ->
-                                                Row(modifier = Modifier.padding(vertical = 2.dp)) {
-                                                    Text("• ", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                    Text(
-                                                        text = if (d.note.isBlank()) d.name else "${d.name} — ${d.note}",
-                                                        fontSize = 13.sp,
-                                                        fontWeight = FontWeight.Medium,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
+                                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                r.data.forEach { d ->
+                                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                        Box(Modifier.size(4.dp).background(sk.cyan, RoundedCornerShape(2.dp)))
+                                                        Text(
+                                                            text = if (d.note.isBlank()) d.name else "${d.name} — ${d.note}",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            fontWeight = FontWeight.Medium,
+                                                            color = sk.ice,
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
                                         if (!r.evidence.isNullOrBlank()) {
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            Text(r.evidence, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                            Text(r.evidence, style = MaterialTheme.typography.labelSmall, color = sk.subText)
                                         }
-                                        Spacer(modifier = Modifier.height(6.dp))
                                         val badgeColor = when (r.confidence) {
-                                            "high" -> Color(0xFF81C784)
-                                            "low" -> Color(0xFFE57373)
-                                            else -> Color(0xFFFFB74D)
+                                            "high" -> sk.good
+                                            "low" -> sk.crit
+                                            else -> sk.warn
                                         }
-                                        Surface(color = badgeColor.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
-                                            Text("Confidence ${r.confidence ?: "?"}", fontSize = 10.sp, color = badgeColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                                        }
+                                        ToneChip("Confidence ${r.confidence ?: "?"}", tint = badgeColor)
                                     }
                                 }
                             }
@@ -208,47 +223,43 @@ fun CopilotChatSheet(
                             val r = msg.response
                             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                                 Surface(
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    color = sk.surface1.copy(alpha = 0.90f),
                                     shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.glassBorder),
                                     modifier = Modifier.widthIn(max = 320.dp)
                                 ) {
-                                    Column(modifier = Modifier.padding(12.dp)) {
-                                        Text(text = r.answer, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(text = r.answer, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
 
                                         if (r.evidence != null) {
-                                            Spacer(modifier = Modifier.height(8.dp))
                                             Surface(
-                                                color = MaterialTheme.colorScheme.surface.copy(alpha=0.5f),
-                                                shape = RoundedCornerShape(8.dp)
+                                                color = sk.surface2.copy(alpha = 0.6f),
+                                                shape = RoundedCornerShape(8.dp),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
                                             ) {
                                                 val parsedHtml = HtmlCompat.fromHtml(r.evidence.replace("<div>", "").replace("</div>", "<br>"), HtmlCompat.FROM_HTML_MODE_COMPACT)
                                                 Text(
                                                     text = parsedHtml.toString().trim(),
-                                                    fontSize = 12.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = sk.subText,
                                                     modifier = Modifier.padding(8.dp)
                                                 )
                                             }
                                         }
 
-                                        Spacer(modifier = Modifier.height(8.dp))
                                         Row(
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             val badgeColor = when {
-                                                r.confidence == "Low" -> Color(0xFFE57373)
-                                                r.confidence?.contains("%") == true && (r.confidence.replace("%","").toIntOrNull() ?: 0) >= 90 -> Color(0xFF81C784)
-                                                else -> Color(0xFFFFB74D)
+                                                r.confidence == "Low" -> sk.crit
+                                                r.confidence?.contains("%") == true && (r.confidence.replace("%","").toIntOrNull() ?: 0) >= 90 -> sk.good
+                                                else -> sk.warn
                                             }
 
-                                            Surface(color = badgeColor.copy(alpha=0.2f), shape = RoundedCornerShape(4.dp)) {
-                                                Text("Confidence ${r.confidence}", fontSize = 10.sp, color = badgeColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                                            }
+                                            ToneChip("Confidence ${r.confidence}", tint = badgeColor)
                                             if (!r.decisionVersion.isNullOrEmpty() && r.decisionVersion != "Not available") {
-                                                Surface(color = Color.Gray.copy(alpha=0.2f), shape = RoundedCornerShape(4.dp)) {
-                                                    Text("v${r.decisionVersion}", fontSize = 10.sp, color = Color.Gray, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                                                }
+                                                ToneChip("v${r.decisionVersion}", tint = sk.subText)
                                             }
                                         }
                                     }
@@ -268,17 +279,35 @@ fun CopilotChatSheet(
             ) {
                 if (isTeam) {
                     items(teamQuestions) { (key, label) ->
-                        SuggestionChip(
+                        Surface(
                             onClick = { viewModel.askTeam(managerEmail, label, questionKey = key) },
-                            label = { Text(label) }
-                        )
+                            shape = RoundedCornerShape(12.dp),
+                            color = sk.surface1,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+                        ) {
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = sk.labelText,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
                     }
                 } else {
                     items(trainerQuestions) { (key, label) ->
-                        SuggestionChip(
+                        Surface(
                             onClick = { viewModel.askQuestion(managerEmail, targetEmail, key, label) },
-                            label = { Text(label) }
-                        )
+                            shape = RoundedCornerShape(12.dp),
+                            color = sk.surface1,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+                        ) {
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = sk.labelText,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -295,9 +324,17 @@ fun CopilotChatSheet(
                     OutlinedTextField(
                         value = draft,
                         onValueChange = { draft = it },
-                        placeholder = { Text("Ask about your team") },
+                        placeholder = { Text("Ask about your team…", color = sk.subText) },
                         singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = sk.brand,
+                            unfocusedBorderColor = sk.glassBorder,
+                            focusedTextColor = sk.bodyText,
+                            unfocusedTextColor = sk.bodyText,
+                            cursorColor = sk.brand,
+                        ),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                         keyboardActions = KeyboardActions(onSend = {
                             if (draft.isNotBlank()) {
@@ -312,8 +349,10 @@ fun CopilotChatSheet(
                                 viewModel.askTeam(managerEmail, draft, freeText = draft)
                                 draft = ""
                             }
-                        }
-                    ) { Text("Ask") }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = sk.brand)
+                    ) { Text("Ask", fontWeight = FontWeight.Bold) }
                 }
             }
         }
