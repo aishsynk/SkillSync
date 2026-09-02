@@ -33,11 +33,27 @@ class ReporteeViewModel : ViewModel() {
     private val _calendarLoading = MutableStateFlow(true)
     val calendarLoading: StateFlow<Boolean> = _calendarLoading
 
+    private val _profile360 = MutableStateFlow<Map<String, Any>?>(null)
+    val profile360: StateFlow<Map<String, Any>?> = _profile360
+    private val _profile360Loading = MutableStateFlow(true)
+    val profile360Loading: StateFlow<Boolean> = _profile360Loading
+
+    private var myEmail: String = ""
+
     private val _updates = MutableStateFlow<List<Map<*, *>>>(emptyList())
     val updates: StateFlow<List<Map<*, *>>> = _updates
 
-    fun load() {
-        loadHome(); loadDemand(); loadCalendar(); loadUpdates()
+    fun load(email: String = myEmail) {
+        myEmail = email
+        loadHome(); loadDemand(); loadCalendar(); loadUpdates(); load360()
+    }
+
+    fun load360() = viewModelScope.launch {
+        _profile360Loading.value = true
+        try {
+            _profile360.value = RetrofitClient.instance.getTrainer360(email = myEmail)
+        } catch (_: Exception) {}
+        _profile360Loading.value = false
     }
 
     fun loadHome() = viewModelScope.launch {

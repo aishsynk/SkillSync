@@ -59,9 +59,9 @@ import kotlinx.serialization.Serializable
 
 object ReporteeTab {
     const val TODAY = "today"
+    const val PROFILE = "profile"
     const val DEMAND = "demand"
     const val CALENDAR = "calendar"
-    const val PRACTICE = "practice"
 }
 
 object HomeTab {

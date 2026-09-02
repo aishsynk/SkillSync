@@ -351,7 +351,7 @@ fun MainNavigation() {
                 onBack = {
                     val me = com.example.skillsync.data.SessionManager.getEmail().orEmpty()
                     current = if (com.example.skillsync.data.SessionManager.isReportee())
-                        ReporteeMain(me, ReporteeTab.PRACTICE)
+                        ReporteeMain(me, ReporteeTab.PROFILE)
                     else Trainer360(me, screen.email, screen.name)
                 },
             )

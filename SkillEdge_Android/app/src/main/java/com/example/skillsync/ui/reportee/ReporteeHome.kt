@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.skillsync.R
 import com.example.skillsync.ReporteeTab
 import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.NumericStyle
@@ -49,18 +50,24 @@ import com.example.skillsync.ui.auth.roleLabel
 import com.example.skillsync.ui.components.Appear
 import com.example.skillsync.ui.components.Figure
 import com.example.skillsync.ui.components.FigureSize
+import com.example.skillsync.ui.components.Pulse
+import com.example.skillsync.ui.components.PulseTone
+import com.example.skillsync.ui.components.ReadinessRing
 import com.example.skillsync.ui.components.SectionHeader
+import com.example.skillsync.ui.components.Sparkline
+import com.example.skillsync.ui.components.list
 import com.example.skillsync.ui.components.obj
 import com.example.skillsync.ui.components.pressable
 import com.example.skillsync.ui.components.rows
 import com.example.skillsync.ui.components.str
-import com.example.skillsync.ui.components.strings
+import com.example.skillsync.ui.main.AppNavBar
+import com.example.skillsync.ui.trainer.Trainer360Content
 
 /**
- * The trainer (reportee) app — a distinct four-page experience, not the manager
- * shell with things hidden. Today · Demand · Calendar · Practice. Every page is
- * scoped to this one person, and the only writes are: mark my own skill (capped
- * at level 4, above that it becomes a manager request) and message my manager.
+ * The trainer (reportee) app — a distinct shell that carries the same visual
+ * richness as the manager app (readiness ring, utilisation trend, the full 360
+ * with every chart), just without the team-management actions. Four places:
+ * Today · My 360 · Demand · Calendar.
  */
 @Composable
 fun ReporteeHome(
@@ -71,27 +78,62 @@ fun ReporteeHome(
     onLogout: () -> Unit,
     viewModel: ReporteeViewModel = viewModel(),
 ) {
-    LaunchedEffect(email) { viewModel.load() }
+    LaunchedEffect(email) { viewModel.load(email) }
     val context = LocalContext.current
 
     var skillTarget by remember { mutableStateOf<Pair<String, String>?>(null) }
     var messageOpen by remember { mutableStateOf(false) }
 
+    val home by viewModel.home.collectAsState()
+    val p360 by viewModel.profile360.collectAsState()
+    val homeLoading by viewModel.homeLoading.collectAsState()
+
+    // The Pulse — the one number, same as the manager app.
+    val readiness = (p360?.obj("metrics")?.get("readiness_score") as? Number)?.toInt()
+    val openReq = (home ?: emptyMap()).rows("my_requests").count { it.str("status") == "pending" }
+
     Box(Modifier.fillMaxSize()) {
         AuroraBackground()
         Scaffold(
             containerColor = Color.Transparent,
-            bottomBar = { ReporteeDock(tab, onTabChange) },
+            bottomBar = {
+                AppNavBar(
+                    items = listOf(
+                        Triple(ReporteeTab.TODAY, R.drawable.ic_home, "Today"),
+                        Triple(ReporteeTab.PROFILE, R.drawable.ic_people, "My 360"),
+                        Triple(ReporteeTab.DEMAND, R.drawable.ic_inbox, "Demand"),
+                        Triple(ReporteeTab.CALENDAR, R.drawable.ic_calendar, "Calendar"),
+                    ),
+                    current = tab,
+                    onSelect = onTabChange,
+                )
+            },
         ) { pad ->
             Box(Modifier.padding(pad).fillMaxSize()) {
                 when (tab) {
+                    ReporteeTab.PROFILE -> ProfileTab(viewModel, onOpenPractice)
                     ReporteeTab.DEMAND -> DemandTab(viewModel) { id, name -> skillTarget = id to name }
                     ReporteeTab.CALENDAR -> CalendarTab(viewModel)
-                    ReporteeTab.PRACTICE -> PracticeTab(onOpenPractice, onLogout)
                     else -> TodayTab(
                         viewModel = viewModel,
                         onMarkSkill = { id, name -> skillTarget = id to name },
                         onMessageManager = { messageOpen = true },
+                    )
+                }
+                if (tab == ReporteeTab.TODAY || tab == ReporteeTab.PROFILE) {
+                    Pulse(
+                        value = when {
+                            openReq > 0 -> "$openReq"
+                            readiness != null -> "$readiness"
+                            else -> "—"
+                        },
+                        label = if (openReq > 0) "pending" else "readiness",
+                        tone = if (openReq > 0) PulseTone.Watch else PulseTone.Calm,
+                        refreshing = homeLoading,
+                        onTap = { viewModel.load(email) },
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 6.dp),
                     )
                 }
             }
@@ -112,49 +154,6 @@ fun ReporteeHome(
     }
 }
 
-/* ── Dock ───────────────────────────────────────────────────────────────── */
-
-@Composable
-private fun ReporteeDock(current: String, onTabChange: (String) -> Unit) {
-    val sk = MaterialTheme.skill
-    val items = listOf(
-        ReporteeTab.TODAY to "Today",
-        ReporteeTab.DEMAND to "Demand",
-        ReporteeTab.CALENDAR to "Calendar",
-        ReporteeTab.PRACTICE to "Practice",
-    )
-    Column(
-        Modifier.fillMaxWidth().glassSurface(RoundedCornerShape(0.dp)).editorialRule(top = true),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = Space.md).height(58.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            items.forEach { (key, label) ->
-                val selected = current == key
-                Column(
-                    Modifier.weight(1f).pressable { onTabChange(key) },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (selected) sk.bodyText else sk.labelText,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Box(
-                        Modifier
-                            .width(if (selected) 16.dp else 0.dp)
-                            .height(2.dp)
-                            .then(if (selected) Modifier.glassSurface(RoundedCornerShape(1.dp)) else Modifier),
-                    )
-                }
-            }
-        }
-    }
-}
-
 /* ── Today ──────────────────────────────────────────────────────────────── */
 
 @Composable
@@ -164,20 +163,26 @@ private fun TodayTab(
     onMessageManager: () -> Unit,
 ) {
     val home by viewModel.home.collectAsState()
+    val p360 by viewModel.profile360.collectAsState()
     val loading by viewModel.homeLoading.collectAsState()
-    val updates by viewModel.updates.collectAsState()
     val sk = MaterialTheme.skill
 
     if (loading && home == null) { Center { CircularProgressIndicator(color = sk.brand) }; return }
     val h = home ?: emptyMap()
-    val util = (h["current_utilization"] as? Number)?.toInt()
+    val m = p360?.obj("metrics")
+    val u = p360?.obj("utilization")
+    val readiness = (m?.get("readiness_score") as? Number)?.toInt()
+    val util = (u?.get("current") as? Number)?.toInt()
+        ?: (h["current_utilization"] as? Number)?.toInt()
+    val series = u?.list("series").orEmpty()
+        .mapNotNull { (it["utilization"] as? Number)?.toInt() }
     val next = h["next_batch"] as? Map<*, *>
     val requests = h.rows("my_requests")
     val skills = h.rows("my_skills")
 
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = Space.xl),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(top = Space.xxl, bottom = Space.xxl),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 56.dp, bottom = Space.xxl),
         verticalArrangement = Arrangement.spacedBy(Space.sm),
     ) {
         item {
@@ -192,39 +197,45 @@ private fun TodayTab(
                 }
             }
         }
+
         item {
             Appear(1) {
-                Column(Modifier.padding(top = Space.xl)) {
-                    Figure(util?.let { "$it%" } ?: "—", "My utilisation", size = FigureSize.Hero)
-                    Spacer(Modifier.height(Space.lg))
-                    Text(
-                        if (next != null) "Next up — ${next.str("course")}, ${next.str("start_date")}."
-                        else "Nothing on your calendar yet.",
-                        style = MaterialTheme.typography.bodyLarge, color = sk.subText,
-                    )
+                Row(
+                    Modifier.fillMaxWidth().padding(top = Space.xl),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Figure(util?.let { "$it%" } ?: "—", "My utilisation", size = FigureSize.Large)
+                        if (series.size >= 2) {
+                            Spacer(Modifier.height(Space.sm))
+                            Sparkline(series, tint = sk.brand, modifier = Modifier.fillMaxWidth().height(30.dp))
+                        }
+                    }
+                    Spacer(Modifier.width(Space.lg))
+                    ReadinessRing(readiness, util, size = 92.dp)
                 }
-            }
-        }
-        item {
-            Appear(2) {
-                Button(
-                    onClick = onMessageManager,
-                    modifier = Modifier.padding(top = Space.xl),
-                    colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
-                    shape = RoundedCornerShape(Radii.chip),
-                ) { Text("Message my manager") }
             }
         }
 
-        if (updates.isNotEmpty()) {
-            item { SectionHeader("Updates") }
-            items(updates.take(6)) { n ->
-                Row(Modifier.fillMaxWidth().padding(vertical = Space.md).editorialRule()) {
-                    Column {
-                        Text(n.str("title"), style = MaterialTheme.typography.titleMedium, color = sk.bodyText)
-                        Text(n.str("message"), style = MaterialTheme.typography.bodySmall, color = sk.subText)
-                    }
-                }
+        item {
+            Appear(2) {
+                Text(
+                    if (next != null) "Next up — ${next.str("course")}, ${next.str("start_date")}."
+                    else "Nothing on your calendar yet.",
+                    style = MaterialTheme.typography.bodyLarge, color = sk.subText,
+                    modifier = Modifier.padding(top = Space.md),
+                )
+            }
+        }
+
+        item {
+            Appear(3) {
+                Button(
+                    onClick = onMessageManager,
+                    modifier = Modifier.padding(top = Space.lg),
+                    colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
+                    shape = RoundedCornerShape(Radii.chip),
+                ) { Text("Message my manager") }
             }
         }
 
@@ -235,9 +246,9 @@ private fun TodayTab(
                     Modifier.fillMaxWidth().padding(vertical = Space.md).editorialRule(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Level ${r.str("requested_level")}", style = NumericStyle.copy(
+                    Text("L${r.str("requested_level")}", style = NumericStyle.copy(
                         fontSize = MaterialTheme.typography.headlineMedium.fontSize), color = sk.bodyText,
-                        modifier = Modifier.width(76.dp))
+                        modifier = Modifier.width(56.dp))
                     Spacer(Modifier.width(Space.md))
                     Text(r.str("course_name").ifBlank { "Course ${r.str("course_id")}" },
                         style = MaterialTheme.typography.titleMedium, color = sk.bodyText,
@@ -252,7 +263,7 @@ private fun TodayTab(
 
         item {
             SectionHeader("My skills", conclusion =
-                if (skills.isEmpty()) "Nothing on record yet." else "${skills.size} on your register.")
+                if (skills.isEmpty()) "Nothing on record yet." else "${skills.size} on your register — tap to update a level.")
         }
         items(skills) { s ->
             Row(
@@ -265,6 +276,28 @@ private fun TodayTab(
                 Text("UPDATE LEVEL", style = MaterialTheme.typography.labelMedium, color = sk.brand)
             }
         }
+    }
+}
+
+/* ── My 360 ─────────────────────────────────────────────────────────────── */
+
+@Composable
+private fun ProfileTab(viewModel: ReporteeViewModel, onOpenPractice: () -> Unit) {
+    val p360 by viewModel.profile360.collectAsState()
+    val loading by viewModel.profile360Loading.collectAsState()
+    val sk = MaterialTheme.skill
+
+    when {
+        loading && p360 == null -> Center { CircularProgressIndicator(color = sk.brand) }
+        p360 == null -> Center {
+            Text("Couldn't load your profile — pull to refresh.",
+                style = MaterialTheme.typography.bodyLarge, color = sk.subText)
+        }
+        else -> Trainer360Content(
+            data = p360!!,
+            canEdit = false,
+            onOpenPractice = onOpenPractice,
+        )
     }
 }
 
@@ -327,7 +360,9 @@ private fun CalendarTab(viewModel: ReporteeViewModel) {
     val c = cal ?: emptyMap()
     val current = c.rows("current")
     val upcoming = c.rows("upcoming")
-    val offBands = (c["off_bands"] as? Map<*, *>).orEmpty()
+    val past = c.rows("past")
+    val offBands = (c["off_bands"] as? Map<*, *>) ?: emptyMap<Any, Any>()
+    val series = c.rows("utilisation_series").mapNotNull { (it["utilization"] as? Number)?.toInt() }
 
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = Space.xl),
@@ -340,14 +375,14 @@ private fun CalendarTab(viewModel: ReporteeViewModel) {
                 else -> "Clear diary."
             })
         }
-        if (current.isNotEmpty()) {
-            item { Label("DELIVERING NOW") }
-            items(current) { AssignmentRow(it, sk.aqua) }
+        if (series.size >= 2) {
+            item {
+                Sparkline(series, tint = sk.brand,
+                    modifier = Modifier.fillMaxWidth().height(40.dp).padding(bottom = Space.md))
+            }
         }
-        if (upcoming.isNotEmpty()) {
-            item { Label("UPCOMING") }
-            items(upcoming) { AssignmentRow(it, sk.brand) }
-        }
+        if (current.isNotEmpty()) { item { Lbl("DELIVERING NOW") }; items(current) { Assign(it) } }
+        if (upcoming.isNotEmpty()) { item { Lbl("UPCOMING") }; items(upcoming) { Assign(it) } }
         if (offBands.isNotEmpty()) {
             item { SectionHeader("Shift bands you're marked off",
                 conclusion = "Batches in these bands skip you. Ask your manager to update if wrong.") }
@@ -358,14 +393,16 @@ private fun CalendarTab(viewModel: ReporteeViewModel) {
                 }
             }
         }
+        if (past.isNotEmpty()) { item { Lbl("RECENTLY DELIVERED") }; items(past.reversed()) { Assign(it, dim = true) } }
     }
 }
 
 @Composable
-private fun AssignmentRow(a: Map<*, *>, tone: Color) {
+private fun Assign(a: Map<*, *>, dim: Boolean = false) {
     val sk = MaterialTheme.skill
     Column(Modifier.fillMaxWidth().padding(vertical = Space.md).editorialRule()) {
-        Text(a.str("course"), style = MaterialTheme.typography.titleMedium, color = sk.bodyText)
+        Text(a.str("course"), style = MaterialTheme.typography.titleMedium,
+            color = if (dim) sk.subText else sk.bodyText)
         Text(
             listOf(a.str("start_date"), a.str("end_date").let { if (it.isNotBlank()) "→ $it" else "" },
                 a.str("mode"), a.str("location"))
@@ -376,35 +413,10 @@ private fun AssignmentRow(a: Map<*, *>, tone: Color) {
 }
 
 @Composable
-private fun Label(t: String) = Text(
-    t, style = MaterialTheme.typography.labelSmall,
-    color = MaterialTheme.skill.labelText, fontWeight = FontWeight.Bold,
-    modifier = Modifier.padding(top = Space.lg, bottom = Space.xs),
+private fun Lbl(t: String) = Text(
+    t, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.labelText,
+    fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = Space.lg, bottom = Space.xs),
 )
-
-/* ── Practice ───────────────────────────────────────────────────────────── */
-
-@Composable
-private fun PracticeTab(onOpenPractice: () -> Unit, onLogout: () -> Unit) {
-    val sk = MaterialTheme.skill
-    Column(
-        Modifier.fillMaxSize().padding(horizontal = Space.xl, vertical = Space.xxl),
-        verticalArrangement = Arrangement.spacedBy(Space.lg),
-    ) {
-        SectionHeader("My practice", conclusion = "What learners said, and every session you delivered.")
-        Text(
-            "Your learner-feedback log and session recordings, in one place.",
-            style = MaterialTheme.typography.bodyLarge, color = sk.subText,
-        )
-        Button(
-            onClick = onOpenPractice,
-            colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
-            shape = RoundedCornerShape(Radii.chip),
-        ) { Text("Open my practice record  →") }
-        Spacer(Modifier.weight(1f))
-        TextButton(onClick = onLogout) { Text("Sign out", color = sk.warn) }
-    }
-}
 
 /* ── Dialogs ────────────────────────────────────────────────────────────── */
 
@@ -459,5 +471,3 @@ private fun Center(content: @Composable () -> Unit) =
 
 private fun toast(context: android.content.Context, message: String) =
     android.widget.Toast.makeText(context.applicationContext, message, android.widget.Toast.LENGTH_SHORT).show()
-
-private fun Map<*, *>?.orEmpty(): Map<*, *> = this ?: emptyMap<Any, Any>()

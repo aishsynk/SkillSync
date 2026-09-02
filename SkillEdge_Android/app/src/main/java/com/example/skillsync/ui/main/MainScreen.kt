@@ -701,15 +701,30 @@ private fun tabTitle(tab: String) = when (tab) {
  * above the 48dp accessibility minimum despite the smaller visual footprint.
  */
 @Composable
-internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
-    val sk = MaterialTheme.skill
-    val items = listOf(
+internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) = AppNavBar(
+    items = listOf(
         Triple(HomeTab.DASHBOARD, R.drawable.ic_home, "Today"),
         Triple(HomeTab.TEAM, R.drawable.ic_people, "People"),
         Triple(HomeTab.DEMAND, R.drawable.ic_inbox, "Plan"),
         Triple(HomeTab.DELIVERY, R.drawable.ic_calendar, "Work"),
         Triple(HomeTab.SEARCH, R.drawable.ic_search, "Search"),
-    )
+    ),
+    current = current,
+    onSelect = onSelect,
+)
+
+/**
+ * The shared frosted bottom bar — same treatment for the manager and the trainer
+ * apps, only the destinations differ. Cyan glow bar + lit icon marks the active
+ * tab; no Material indicator pill.
+ */
+@Composable
+fun AppNavBar(
+    items: List<Triple<String, Int, String>>,
+    current: String,
+    onSelect: (String) -> Unit,
+) {
+    val sk = MaterialTheme.skill
     // Frosted over the aurora. Material's indicator pill is gone — the active
     // tab is marked by a cyan glow bar and a lit icon instead, which costs no
     // vertical space on a bar that already has to stay under 60dp.

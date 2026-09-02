@@ -1,6 +1,34 @@
 
 
 
+## 2026-09-02T17:30:00+05:30 - Rich trainer shell: same charts/graphs/360 as the manager (v3.68.0, Build 156)
+
+- **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
+- **Tool/Agent Used**: Claude Code (Kotlin/Compose, Gradle, Git)
+- **Feedback (operator)**: the stripped trainer pages felt boring; they must carry the same
+  visual richness as the manager app — readiness ring, utilisation trend, the full 360 with
+  every chart — just without the team-management *functions*. And the nav must match the
+  manager bar design.
+- **Auth**: operator confirmed the RMS employee code IS the credential (first login = emp
+  code, then set own app password). No auth change.
+- **Android**:
+  - `ui/main/MainScreen.kt` — `SkillSyncNavBar` refactored to delegate to a shared public
+    `AppNavBar(items, current, onSelect)` (identical frosted / cyan-glow / gradient-pill
+    treatment). `SkillSyncNavBar` behaviour unchanged.
+  - `ui/reportee/ReporteeHome.kt` rebuilt: **Today · My 360 · Demand · Calendar**, `AppNavBar`.
+    - Today: the **Pulse**, `Figure` + `Sparkline` utilisation trend, `ReadinessRing`, next
+      batch, skill requests, "Message my manager", tap-to-mark skills.
+    - **My 360**: renders `Trainer360Content(payload, canEdit = false)` — the manager's full
+      profile: readiness, util chart, certifications analysis, feedback, delivery history,
+      dev plan (read-only), link to Practice.
+    - Calendar: assignments + off bands + a utilisation sparkline.
+  - `ui/reportee/ReporteeViewModel.kt` — `load360()` pulls `/api/data/trainer-360?email=self`
+    (already `_profile_session` gated).
+  - `NavigationKeys.kt` — `ReporteeTab` now TODAY / PROFILE / DEMAND / CALENDAR.
+  - `app/build.gradle.kts` — 3.67.0/155 -> **3.68.0/156**.
+- **Validation**: Android `compileDebugKotlin` + `testDebugUnitTest` green; `assembleRelease`
+  building. Backend untouched (293).
+
 ## 2026-09-02T16:45:00+05:30 - Managers/asst-mgr/trainer+ get their OWN schedule too (v3.67.0, Build 155)
 
 - **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
