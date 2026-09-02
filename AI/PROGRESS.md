@@ -1,6 +1,31 @@
 
 
 
+## 2026-09-02T02:00:00+05:30 - Hotfix v3.57.1 (Build 145): remove Viber accessibility service (Play Protect block)
+
+- **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
+- **Tool/Agent Used**: Claude Code (Kotlin/Compose, Gradle, Git)
+- **Symptom**: installing v3.57.0.144 triggered Google Play Protect ("App blocked to protect
+  your device — this app can request access to sensitive data") and the install failed
+  ("App not installed"). No prior release did this.
+- **Root cause**: the folded-in Viber automation wave registered a
+  `BIND_ACCESSIBILITY_SERVICE` (`ViberAutomationService`, `android:exported="true"`,
+  reads `com.viber.voip` UI). Play Protect flags any accessibility service on a sideloaded
+  APK. It was the *only* manifest change vs the last published release (v3.56.0.143) —
+  permissions were otherwise identical.
+- **Fix (Files Modified)**:
+  - `SkillEdge_Android/app/src/main/AndroidManifest.xml` — removed the `<service>` block
+  - deleted `util/ViberAutomationService.kt`, `res/xml/viber_accessibility_service_config.xml`,
+    `strings.xml` accessibility label
+  - `util/ViberDispatcher.kt` — `MODE_ACCESSIBILITY` now behaves as the 1-tap Intent path
+  - `ui/report/ViberAutomationViewModel.kt` — `isAccessibilityEnabled` hard-wired false
+  - `app/build.gradle.kts` — 3.57.0/144 → **3.57.1/145**
+- **Validation**: `compileReleaseKotlin`, `testDebugUnitTest`, `assembleRelease` all green;
+  `aapt2 dump permissions` on the APK confirms no accessibility permission.
+- **Update-in-place**: applicationId `com.example.skillsync` and the CI `skillsync-release.jks`
+  signing key are unchanged; 145 > 143 installed → clean in-place update (144 was never
+  installable).
+
 ## 2026-09-02T00:00:00+05:30 - Reportee self-service role + initials-only login
 
 - **Model Used**: Claude Sonnet 5 (claude-sonnet-5)

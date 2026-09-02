@@ -9,7 +9,6 @@ import com.example.skillsync.data.cache.ViberConfigStore
 import com.example.skillsync.data.cache.ViberOutboxItem
 import com.example.skillsync.data.cache.ViberOutboxStore
 import com.example.skillsync.util.ViberAutomationEngine
-import com.example.skillsync.util.ViberAutomationService
 import com.example.skillsync.util.ViberDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,7 +40,7 @@ class ViberAutomationViewModel(
         _uiState.value = _uiState.value.copy(
             config = config,
             items = items,
-            isAccessibilityEnabled = ViberAutomationService.isRunning,
+            isAccessibilityEnabled = false,
         )
 
         viewModelScope.launch {
@@ -77,7 +76,7 @@ class ViberAutomationViewModel(
             _uiState.value = _uiState.value.copy(
                 isLoading = false,
                 items = ViberOutboxStore.getAll(managerEmail),
-                isAccessibilityEnabled = ViberAutomationService.isRunning,
+                isAccessibilityEnabled = false,
             )
         }
     }

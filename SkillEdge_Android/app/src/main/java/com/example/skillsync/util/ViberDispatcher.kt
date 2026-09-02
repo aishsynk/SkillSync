@@ -78,26 +78,13 @@ object ViberDispatcher {
             }
 
             ViberConfig.MODE_ACCESSIBILITY -> {
-                // If Accessibility Service is running, dispatch one-by-one
-                if (ViberAutomationService.isRunning) {
-                    for (item in items) {
-                        try {
-                            ViberAutomationService.currentItem = item
-                            launchViberIntent(context, item, config)
-                            successCount++
-                            // Service will mark status once UI click completes
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Accessibility launch failed", e)
-                            ViberOutboxStore.markStatus(managerEmail, item.id, ViberOutboxItem.STATUS_FAILED, e.localizedMessage)
-                        }
-                    }
-                } else {
-                    // Fallback to Intent Notification or Intent direct
-                    for (item in items) {
-                        dispatchViaIntent(context, item, config)
-                        ViberOutboxStore.markStatus(managerEmail, item.id, ViberOutboxItem.STATUS_SENT)
-                        successCount++
-                    }
+                // On-device accessibility automation was withdrawn (Play Protect
+                // flags any accessibility service on a sideloaded APK). This mode
+                // now behaves as the 1-tap Intent path.
+                for (item in items) {
+                    dispatchViaIntent(context, item, config)
+                    ViberOutboxStore.markStatus(managerEmail, item.id, ViberOutboxItem.STATUS_SENT)
+                    successCount++
                 }
             }
 
