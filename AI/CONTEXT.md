@@ -21,12 +21,14 @@ All manager-to-reportee and team-level generated messages, standpoints, evaluati
 
 ## Reportee role & self-service contract (effective v3.57.0, two-step login v3.58.0)
 
-SkillEdge now has two roles, decided by identity at `/api/auth/login` (no client toggle):
-- **manager** — signs in with work ID only (initials, e.g. `aishwar.c`; the client appends
-  `@koenig-solutions.com`). Anyone who owns a non-empty RMS `reportees` roster, plus every
-  account RMS has no structure for (unchanged default).
-- **reportee** — an email that appears in some manager's RMS roster and owns no roster of its
-  own. Signs in with a **password**: first login is the RMS employee code, then the app forces
+Sign-in is two steps: `POST /api/auth/check` validates the work ID (initials, e.g.
+`aishwar.c`; client appends `@koenig-solutions.com`) and returns the role + `needs_password`
+with no session; `POST /api/auth/login` then mints it. Roles come from `_classify_identity`:
+- **manager** — owns a non-empty RMS `reportees` roster (or unknown to RMS). No password.
+- **trainer_plus** — in a roster with `TrainerPlus=Yes`. No password.
+- **assistant_manager** — in a roster whose `Designation` reads as a manager title. No password.
+- **reportee** — in a roster, none of the above. Signs in with a **password**: first login is
+  the RMS employee code, then the app forces
   a change (`/api/auth/set-password`). Hashes (PBKDF2) live in `skilledge_reportees.sqlite3`
   via `reportee_store.py`; no plaintext, no RMS write. A reportee can only sign in after their
   manager has loaded a roster at least once — that is the only source of the reportee→manager
