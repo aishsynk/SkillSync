@@ -54,15 +54,6 @@ import kotlinx.serialization.Serializable
 /** Your own delivery schedule + leave bands — for anyone who also delivers. */
 @Serializable data class MySchedule(val email: String) : NavKey
 
-/** Reportee self-service shell: their own profile, matched demand, and updates. */
-@Serializable data class ReporteeMain(val email: String, val tab: String = ReporteeTab.TODAY) : NavKey
-
-object ReporteeTab {
-    const val TODAY = "today"
-    const val PROFILE = "profile"
-    const val DEMAND = "demand"
-    const val CALENDAR = "calendar"
-}
 
 object HomeTab {
     const val DASHBOARD = "today"

@@ -150,6 +150,26 @@ class ReporteeStore:
                 clean,
             )
 
+    def self_register(self, email: str, emp_id: str = "", name: str = "") -> None:
+        """A trainer signs in before their manager has ever loaded a roster —
+        record a minimal self-row so their personal dashboard is not blank.
+        Never overwrites a real manager_email if one is already stored."""
+        email = str(email or "").strip().lower()
+        if not email:
+            return
+        with self._lock, self._db() as db:
+            db.execute(
+                """
+                INSERT INTO directory(reportee_email,manager_email,name,emp_id,trainer_plus,designation,is_direct,updated_at)
+                VALUES(?,?,?,?,0,'',1,?)
+                ON CONFLICT(reportee_email) DO UPDATE SET
+                  emp_id=CASE WHEN excluded.emp_id != '' THEN excluded.emp_id ELSE directory.emp_id END,
+                  name=CASE WHEN directory.name = '' THEN excluded.name ELSE directory.name END,
+                  updated_at=excluded.updated_at
+                """,
+                (email, "", " ".join(str(name or "").split()), str(emp_id or "").strip(), _now()),
+            )
+
     def lookup(self, email: str) -> dict | None:
         email = str(email or "").strip().lower()
         if not email:

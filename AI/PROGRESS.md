@@ -1,6 +1,35 @@
 
 
 
+## 2026-09-02T18:15:00+05:30 - Trainer runs the manager shell verbatim, scoped to self (v3.69.0, Build 157)
+
+- **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
+- **Tool/Agent Used**: Claude Code (Python/Flask, Kotlin/Compose, Pytest, Gradle, Git)
+- **Feedback (operator)**: the bespoke trainer shell must be dropped entirely — the trainer
+  must get the **exact manager layout**: same top bar, same nav bar, same DashboardTab home,
+  same logout bottom sheet, same colours, same charts. Only the data (self) and the
+  team-management *functions* differ.
+- **Android**:
+  - `Navigation.kt` — `homeFor()` routes **everyone to `Main`**. `ReporteeMain` NavKey +
+    `ReporteeTab` removed; `ui/reportee/ReporteeHome.kt` + `ReporteeViewModel.kt` **deleted**.
+    `TrainerPractice` / `BatchDetail` back handlers point to `Main` for trainers.
+  - `ui/main/MainScreen.kt` — `SkillSyncNavBar` relabels for a trainer
+    (People→"My 360", Plan→"Demand", Work→"Calendar"); same component, same design.
+    Executive Operations deck already hidden for reportees.
+  - So a trainer now gets `MainScreen` + `MainScreenViewModel` + `DashboardTab` +
+    `ProfileMenuBottomSheet` verbatim, with the `unified-manager-intelligence` payload
+    scoped to a team of one.
+- **Backend (`backend.py` / `reportee_store.py`)**:
+  - `ReporteeStore.self_register(email, emp_id, name)` — minimal self-row, never overwrites a
+    real `manager_email`.
+  - `/api/auth/login` calls it for any non-manager not yet in a roster, so their team-of-one
+    dashboard renders instead of an empty state.
+  - Reverted the RMS-based self-row synthesis inside `_reportees()` (it broke the
+    demand-safety guard by adding RMS calls on the allocation path).
+- **Validation**: backend `pytest tests/ -q` → **293 passed**; Android `compileDebugKotlin`
+  + `testDebugUnitTest` green; `assembleRelease` building.
+- **`app/build.gradle.kts`** — 3.68.0/156 -> **3.69.0/157**.
+
 ## 2026-09-02T17:30:00+05:30 - Rich trainer shell: same charts/graphs/360 as the manager (v3.68.0, Build 156)
 
 - **Model Used**: Claude Sonnet 5 (claude-sonnet-5)

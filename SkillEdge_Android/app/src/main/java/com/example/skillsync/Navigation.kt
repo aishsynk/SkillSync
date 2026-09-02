@@ -45,10 +45,11 @@ fun MainNavigation() {
     // SessionManager.loginState is nullable: null = init() not yet called (app
     // cold start, prefs not read). We start with Login only if we KNOW the user
     // is not logged in (i.e. state is false), never while it is still null.
-    // A trainer (reportee) gets their own four-page shell — Today / Demand /
-    // Calendar / Practice — distinct from the manager app, scoped to themselves.
-    fun homeFor(email: String): NavKey =
-        if (com.example.skillsync.data.SessionManager.isReportee()) ReporteeMain(email) else Main(email)
+    // A trainer (reportee) runs the exact same shell as a manager — same top
+    // bar, same nav design, same dashboard, same charts, same logout sheet.
+    // The backend scopes every "team" figure to a team of one (themselves) and
+    // the manager-only consoles are hidden; the layout is identical.
+    fun homeFor(email: String): NavKey = Main(email)
 
     var current by remember {
         mutableStateOf<NavKey>(
@@ -108,7 +109,7 @@ fun MainNavigation() {
         current = when (val c = current) {
             is Trainer360 -> Main(c.email, HomeTab.TEAM)
             is SkillRequests -> Main(c.email, HomeTab.DASHBOARD)
-            is BatchDetail -> if (com.example.skillsync.data.SessionManager.isReportee()) ReporteeMain(c.email, ReporteeTab.DEMAND) else Main(c.email, HomeTab.DEMAND)
+            is BatchDetail -> Main(c.email, HomeTab.DEMAND)
             is WeeklyReport -> Main(c.email, HomeTab.DASHBOARD)
             is Copilot -> Main(c.email, HomeTab.DASHBOARD)
             is HrReport -> Main(c.email, HomeTab.TEAM)
@@ -185,18 +186,6 @@ fun MainNavigation() {
                 onLoginSuccess = { email -> current = homeFor(email) },
             )
 
-            is ReporteeMain -> com.example.skillsync.ui.reportee.ReporteeHome(
-                email = screen.email,
-                tab = screen.tab,
-                onTabChange = { t -> current = ReporteeMain(screen.email, t) },
-                onOpenPractice = {
-                    current = TrainerPractice(screen.email, "My practice record")
-                },
-                onLogout = {
-                    com.example.skillsync.data.SessionManager.clearSession()
-                    current = Login
-                },
-            )
 
             is SkillRequests -> com.example.skillsync.ui.report.SkillRequestsScreen(
                 managerEmail = screen.email,
@@ -351,7 +340,7 @@ fun MainNavigation() {
                 onBack = {
                     val me = com.example.skillsync.data.SessionManager.getEmail().orEmpty()
                     current = if (com.example.skillsync.data.SessionManager.isReportee())
-                        ReporteeMain(me, ReporteeTab.PROFILE)
+                        Main(me, HomeTab.TEAM)
                     else Trainer360(me, screen.email, screen.name)
                 },
             )

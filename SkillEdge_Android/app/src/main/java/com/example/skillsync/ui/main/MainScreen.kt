@@ -701,17 +701,22 @@ private fun tabTitle(tab: String) = when (tab) {
  * above the 48dp accessibility minimum despite the smaller visual footprint.
  */
 @Composable
-internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) = AppNavBar(
-    items = listOf(
-        Triple(HomeTab.DASHBOARD, R.drawable.ic_home, "Today"),
-        Triple(HomeTab.TEAM, R.drawable.ic_people, "People"),
-        Triple(HomeTab.DEMAND, R.drawable.ic_inbox, "Plan"),
-        Triple(HomeTab.DELIVERY, R.drawable.ic_calendar, "Work"),
-        Triple(HomeTab.SEARCH, R.drawable.ic_search, "Search"),
-    ),
-    current = current,
-    onSelect = onSelect,
-)
+internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
+    // Same bar, same design — a trainer just gets destinations named for a
+    // person who delivers rather than one who runs a team.
+    val trainer = com.example.skillsync.data.SessionManager.isReportee()
+    AppNavBar(
+        items = listOf(
+            Triple(HomeTab.DASHBOARD, R.drawable.ic_home, "Today"),
+            Triple(HomeTab.TEAM, R.drawable.ic_people, if (trainer) "My 360" else "People"),
+            Triple(HomeTab.DEMAND, R.drawable.ic_inbox, if (trainer) "Demand" else "Plan"),
+            Triple(HomeTab.DELIVERY, R.drawable.ic_calendar, if (trainer) "Calendar" else "Work"),
+            Triple(HomeTab.SEARCH, R.drawable.ic_search, "Search"),
+        ),
+        current = current,
+        onSelect = onSelect,
+    )
+}
 
 /**
  * The shared frosted bottom bar — same treatment for the manager and the trainer

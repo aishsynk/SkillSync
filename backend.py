@@ -2968,6 +2968,13 @@ def login():
                 return error_response("ACCESS_DENIED", "Incorrect password", 401)
             must_change = bool(cred.get("must_change"))
 
+        # A trainer not yet in any manager's roster gets a minimal self-row so
+        # their personal (team-of-one) dashboard renders instead of an empty one.
+        if role != "manager" and not _reportee_repo.lookup(email):
+            _reportee_repo.self_register(
+                email, emp_id=str(_emp_code(email) or ""),
+            )
+
         sid = _generate_session_token(email, role)
         return jsonify({
             "success": True, "session_id": sid, "email": email, "role": role,
