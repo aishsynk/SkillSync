@@ -48,8 +48,14 @@ interface SkillEdgeApi {
     @GET("api/v2/notifications")
     suspend fun notifications(): Map<String, Any>
 
+    @GET("api/v2/reportee/home")
+    suspend fun reporteeHome(): Map<String, Any>
+
     @GET("api/v2/reportee/demand")
     suspend fun reporteeDemand(): Map<String, Any>
+
+    @POST("api/v2/reportee/message")
+    suspend fun reporteeMessage(@Body body: Map<String, String>): Map<String, Any>
 
     @GET("api/v2/manager/skill-requests")
     suspend fun skillRequests(@Query("status") status: String = "pending"): Map<String, Any>

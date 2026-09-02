@@ -49,10 +49,10 @@ import kotlinx.serialization.Serializable
 @Serializable data class SkillRequests(val email: String) : NavKey
 
 /** Reportee self-service shell: their own profile, matched demand, and updates. */
-@Serializable data class ReporteeMain(val email: String, val tab: String = ReporteeTab.ME) : NavKey
+@Serializable data class ReporteeMain(val email: String, val tab: String = ReporteeTab.TODAY) : NavKey
 
 object ReporteeTab {
-    const val ME = "me"
+    const val TODAY = "today"
     const val DEMAND = "demand"
     const val UPDATES = "updates"
 }

@@ -1,6 +1,37 @@
 
 
 
+## 2026-09-02T05:00:00+05:30 - Hard role separation: trainers never see manager tools (v3.59.0, Build 147)
+
+- **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
+- **Tool/Agent Used**: Claude Code (Python/Flask, Kotlin/Compose, Pytest, Gradle, Git)
+- **Symptom**: a plain trainer (e.g. Abhinav) who was not yet in the local directory got
+  classified `manager` (the old "unknown -> manager" default) and landed in the full manager
+  shell with every console/tile.
+- **Backend (`backend.py`)**:
+  - `_classify_identity`: an account becomes `manager` only on a POSITIVE signal (owns an RMS
+    roster) or the `SKILLEDGE_FORCE_MANAGER_EMAILS` allowlist. Everything else unknown ->
+    `reportee` (restricted trainer view, no password) instead of the manager app.
+  - NEW `GET /api/v2/reportee/home` — lean self-scoped payload: name, utilisation, next batch,
+    `my_skills` (course_id + name), `my_requests`.
+  - NEW `POST /api/v2/reportee/message` — a trainer note that reaches **their manager only**
+    (manager + reportee notification), never a team broadcast.
+- **`reportee_store.py`**: `list_for_reportee` already existed; used by the home route.
+- **Android**:
+  - `ReporteeHome.kt` rebuilt: **Today / Demand / Updates**. Today is purpose-built (greeting,
+    my week, my skill requests, my skills with "update my level", "Message my manager") — no
+    Trainer360 embed, no manager sections. Demand cards carry a "Mark my skill" dialog
+    (level slider; ≤4 saves, >4 -> manager approval). New `MarkSkillDialog`,
+    `MessageManagerDialog`.
+  - `ReporteeViewModel` rebuilt: `reporteeHome`, `markSkill` (self), `messageManager`.
+  - `SkillEdgeApi.kt`: `reporteeHome`, `reporteeMessage`.
+  - `NavigationKeys.kt`: `ReporteeTab.TODAY` (was `ME`).
+  - `app/build.gradle.kts`: 3.58.0/146 -> **3.59.0/147**.
+- **Validation**: backend `pytest tests/ -q` -> **285 passed** (+3); Android `testDebugUnitTest`
+  + `assembleRelease` green.
+- **Next**: live-probe — confirm real managers still resolve a roster (so they keep the
+  manager app), and that Abhinav lands in the trainer shell.
+
 ## 2026-09-02T03:30:00+05:30 - Two-step login: email always validated first (v3.58.0, Build 146)
 
 - **Model Used**: Claude Sonnet 5 (claude-sonnet-5)

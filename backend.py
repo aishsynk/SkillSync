@@ -996,10 +996,19 @@ def _classify_identity(email):
     Returns (role, manager_email, resolved_email, needs_password). `manager_email`
     is only set for the in-roster roles; `resolved_email` is the local-part form
     the rest of the app keys off.
+
+    An account only becomes a manager on a POSITIVE signal — it owns an RMS
+    roster. An email RMS has no structure for is NOT given the manager app
+    (that used to be the default and let any unrecognised trainer in with every
+    manager tool); it gets the restricted trainer view, no password, until its
+    manager has loaded a roster and the directory entry pins it down.
     """
     email = str(email or "").strip().lower()
     if not email.endswith("@koenig-solutions.com"):
         return None, "", email, False
+
+    if email in _FORCE_MANAGER_EMAILS:
+        return "manager", "", email, False
 
     manager_form = _resolve_manager_email(email)
     own = _rms("reportees", {"email": manager_form})
@@ -1018,7 +1027,15 @@ def _classify_identity(email):
                 return titled, mgr, variant, False
             return "reportee", mgr, variant, True
 
-    return "manager", "", manager_form, False
+    # Unknown to RMS: restricted trainer view, no password.
+    return "reportee", "", email, False
+
+
+_FORCE_MANAGER_EMAILS = {
+    e.strip().lower()
+    for e in os.getenv("SKILLEDGE_FORCE_MANAGER_EMAILS", "").split(",")
+    if e.strip()
+}
 
 
 # ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -6680,6 +6697,59 @@ def v2_notifications():
     return jsonify({"notifications": notes, "role": role, **extra}), 200
 
 
+@app.route('/api/v2/reportee/home', methods=['GET'])
+def v2_reportee_home():
+    """Everything the reportee 'Today' screen needs — lean, self-scoped."""
+    session, error = _v2_reportee_session()
+    if error:
+        return error
+    email = str(session.get("email", "") or "").strip().lower()
+    entry = _reportee_repo.lookup(email) or {}
+    name = str(entry.get("name", "") or "") or email.split("@")[0].replace(".", " ").title()
+
+    emp = _emp_code(email)
+    register = _skill_register(emp) or []
+    util_row = _util_row(email)
+    series = _util_series(util_row)
+    current_util = series[-1]["utilization"] if series else None
+
+    today = datetime.utcnow().date()
+    assigns = _rms("prevUpcoming", {
+        "Startdate": today.strftime("%Y-%m-%d"),
+        "Enddate":   (today + timedelta(days=120)).strftime("%Y-%m-%d"),
+        "Email":     email,
+    }) or []
+    upcoming = []
+    for a in (assigns if isinstance(assigns, list) else []):
+        if not isinstance(a, dict):
+            continue
+        st = _parse_date(a.get("StarDate", a.get("StartDate", "")))
+        if st and st >= today:
+            upcoming.append({
+                "course": str(a.get("Course", "") or "").strip(),
+                "start_date": _iso(st),
+                "end_date": _iso(_parse_date(a.get("EndDate", ""))),
+            })
+    upcoming.sort(key=lambda x: x["start_date"])
+
+    requests = _reportee_repo.list_for_reportee(email)
+
+    return jsonify({
+        "email": email,
+        "name": name,
+        "role": session.get("role", "reportee"),
+        "current_utilization": current_util,
+        "next_batch": upcoming[0] if upcoming else None,
+        "upcoming_count": len(upcoming),
+        "my_skills": [
+            {"course_id": s["course_id"], "course_name": s["course_name"]}
+            for s in register if s.get("course_id")
+        ],
+        "my_requests": requests,
+        "generated_at": datetime.utcnow().isoformat(),
+    }), 200
+
+
 @app.route('/api/v2/reportee/demand', methods=['GET'])
 def v2_reportee_demand():
     """Unallocated batches whose course matches the signed-in reportee's skills."""
@@ -6711,6 +6781,42 @@ def v2_reportee_demand():
         "matched_demand": matches,
         "generated_at": datetime.utcnow().isoformat(),
     }), 200
+
+
+@app.route('/api/v2/reportee/message', methods=['POST'])
+def v2_reportee_message():
+    """A reportee sends a short note. It goes to their manager only — never a
+    team broadcast, never another trainer."""
+    session, error = _v2_reportee_session()
+    if error:
+        return error
+    email = str(session.get("email", "") or "").strip().lower()
+    text = str((request.get_json(silent=True) or {}).get("text", "") or "").strip()
+    if not text:
+        return error_response("INVALID_INPUT", "Message text is required", 400)
+    text = text[:1000]
+
+    entry = _reportee_repo.lookup(email) or {}
+    manager_email = str(entry.get("manager_email", "") or "").strip().lower()
+    name = str(entry.get("name", "") or "") or email.split("@")[0]
+    if not manager_email:
+        return jsonify({
+            "success": False, "code": "NOT_FOUND",
+            "error": "No manager is on record for your account yet.",
+        }), 409
+
+    _push_notification(_manager_notifications, manager_email, {
+        "severity": "INFO", "category": "REPORTEE_MESSAGE",
+        "title": f"Message from {name}",
+        "message": text,
+        "trainer_email": email,
+    })
+    _push_notification(_reportee_notifications, email, {
+        "severity": "INFO", "category": "REPORTEE_MESSAGE",
+        "title": "Message sent to your manager",
+        "message": text,
+    })
+    return jsonify({"success": True, "delivered_to": manager_email}), 200
 
 
 @app.route('/api/v2/manager/skill-requests', methods=['GET'])

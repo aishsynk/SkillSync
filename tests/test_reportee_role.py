@@ -79,10 +79,18 @@ class ReporteeRoleTests(unittest.TestCase):
         self.assertEqual(role, "trainer_plus")
         self.assertFalse(needs_pw)
 
-    def test_classify_unknown_defaults_to_manager(self):
+    def test_classify_unknown_is_restricted_trainer_not_manager(self):
         role, _, _, needs_pw = backend._classify_identity("nobody.x@koenig-solutions.com")
-        self.assertEqual(role, "manager")
-        self.assertFalse(needs_pw)
+        self.assertEqual(role, "reportee")   # never the manager app on a blank signal
+        self.assertFalse(needs_pw)           # nothing to check a password against yet
+
+    def test_force_manager_env_override(self):
+        backend._FORCE_MANAGER_EMAILS.add("override@koenig-solutions.com")
+        try:
+            role, _, _, _ = backend._classify_identity("override@koenig-solutions.com")
+            self.assertEqual(role, "manager")
+        finally:
+            backend._FORCE_MANAGER_EMAILS.discard("override@koenig-solutions.com")
 
     def test_auth_check_reports_role_without_session(self):
         self._seed_directory()
@@ -179,6 +187,23 @@ class ReporteeRoleTests(unittest.TestCase):
         self.assertTrue(r.get_json()["success"])
         self.assertEqual(w.call_args[0][3], 7)
         self.assertEqual(backend._reportee_repo.get_request(req_id)["status"], "approved")
+
+    def test_reportee_home_is_self_scoped(self):
+        r = self.client.get("/api/v2/reportee/home", headers=self._reportee_headers())
+        body = r.get_json()
+        self.assertEqual(body["email"], REPORTEE)
+        self.assertIn("my_skills", body)
+        self.assertIn("my_requests", body)
+
+    def test_reportee_message_goes_to_manager_only(self):
+        self._seed_directory()
+        r = self.client.post("/api/v2/reportee/message", headers=self._reportee_headers(),
+                             json={"text": "Free next weekend for the AZ-104 batch."})
+        self.assertTrue(r.get_json()["success"])
+        self.assertEqual(r.get_json()["delivered_to"], MANAGER)
+        self.assertTrue(backend._manager_notifications[MANAGER])
+        # nothing broadcast anywhere else
+        self.assertEqual(set(backend._manager_notifications), {MANAGER})
 
     def test_manager_deny_resolves_without_write(self):
         self._seed_directory()
