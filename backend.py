@@ -1009,7 +1009,8 @@ _NO_PASSWORD_ROLES = {"manager", "assistant_manager", "trainer_plus"}
 
 
 def _needs_password(role):
-    return role == "reportee"
+    # Password entry is mandatory for every account — manager and trainer alike.
+    return role is not None
 
 
 def _designation_role(designation):
@@ -1047,27 +1048,27 @@ def _classify_identity(email):
         return None, "", email, False
 
     if email in _FORCE_MANAGER_EMAILS:
-        return "manager", "", email, False
+        return "manager", "", email, True
 
     manager_form = _resolve_manager_email(email)
     own = _rms("reportees", {"email": manager_form})
     if isinstance(own, list) and own:
         _reportee_repo.remember_roster(manager_form, own)
-        return "manager", "", manager_form, False
+        return "manager", "", manager_form, True
 
     for variant in [email] + _email_variants(email):
         entry = _reportee_repo.lookup(variant)
         if entry:
             mgr = entry.get("manager_email", "")
             if str(entry.get("trainer_plus") or "") in ("1", "True", "true"):
-                return "trainer_plus", mgr, variant, False
+                return "trainer_plus", mgr, variant, True
             titled = _designation_role(entry.get("designation"))
             if titled:
-                return titled, mgr, variant, False
+                return titled, mgr, variant, True
             return "reportee", mgr, variant, True
 
-    # Unknown to RMS: restricted trainer view, no password.
-    return "reportee", "", email, False
+    # Unknown to RMS: restricted trainer view — still password-gated.
+    return "reportee", "", email, True
 
 
 _FORCE_MANAGER_EMAILS = {
@@ -2929,16 +2930,8 @@ def login():
                 401,
             )
 
-        # ── Privileged roles: email only ───────────────────────────────────
-        if not needs_password:
-            _verify_role(email)  # keeps the directory warm
-            sid = _generate_session_token(email, role)
-            return jsonify({
-                "success": True, "session_id": sid, "email": email,
-                "role": role, "message": "Login successful",
-            }), 200
-
-        # ── Reportee: password required ─────────────────────────────────────
+        # ── Every account signs in with a password. ────────────────────────
+        _verify_role(email)  # keeps the directory warm for managers too
         if not password:
             return jsonify({
                 "success": False, "code": "PASSWORD_REQUIRED", "role": role,
@@ -2946,21 +2939,30 @@ def login():
                 "message": "This account signs in with a password.",
             }), 200
 
-        entry = _reportee_repo.lookup(email) or {}
         cred = _reportee_repo.credential(email)
         must_change = False
 
         if cred is None:
             # First login: the RMS employee code is the bootstrap password.
-            emp_id = str(entry.get("emp_id", "") or "").strip()
-            if not emp_id or password.strip().lower() != emp_id.strip().lower():
+            emp_id = str((_reportee_repo.lookup(email) or {}).get("emp_id", "") or "").strip()
+            if not emp_id:
+                emp_id = str(_emp_code(email) or "").strip()
+            if emp_id:
+                if password.strip().lower() != emp_id.strip().lower():
+                    return error_response(
+                        "ACCESS_DENIED",
+                        "That password is not recognised. First-time sign-in uses your employee code.",
+                        401,
+                    )
+            elif len(password.strip()) < 6:
+                # No employee code on record — claim the account with a real password.
                 return error_response(
-                    "ACCESS_DENIED",
-                    "That password is not recognised. First-time sign-in uses your employee code.",
-                    401,
+                    "INVALID_INPUT",
+                    "First sign-in: choose a password of at least 6 characters.",
+                    400,
                 )
-            _reportee_repo.set_password(email, password, must_change=True)
-            must_change = True
+            _reportee_repo.set_password(email, password, must_change=bool(emp_id))
+            must_change = bool(emp_id)
         else:
             if not _reportee_repo.verify_password(email, password):
                 return error_response("ACCESS_DENIED", "Incorrect password", 401)
@@ -3001,8 +3003,8 @@ def validate_session():
 
 @app.route('/api/auth/set-password', methods=['POST'])
 def set_password():
-    """A reportee replaces their bootstrap (employee-code) password."""
-    session, error = _v2_reportee_session()
+    """Any signed-in account replaces its bootstrap (employee-code) password."""
+    session, error = _session_payload(required=True)
     if error:
         return error
     data = request.get_json(silent=True) or {}

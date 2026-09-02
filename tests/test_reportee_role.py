@@ -75,10 +75,10 @@ class ReporteeRoleTests(unittest.TestCase):
         backend._reportee_repo.remember_roster(MANAGER, ROSTER)
 
     # ── identity ─────────────────────────────────────────────────────────────
-    def test_classify_roster_owner_is_manager(self):
+    def test_classify_roster_owner_is_manager_and_needs_a_password(self):
         role, mgr, _, needs_pw = backend._classify_identity(MANAGER)
         self.assertEqual(role, "manager")
-        self.assertFalse(needs_pw)
+        self.assertTrue(needs_pw)   # every account is password-gated now
 
     def test_classify_directory_member_is_reportee(self):
         self._seed_directory()
@@ -87,18 +87,18 @@ class ReporteeRoleTests(unittest.TestCase):
         self.assertEqual(mgr, MANAGER)
         self.assertTrue(needs_pw)
 
-    def test_classify_trainer_plus_needs_no_password(self):
+    def test_classify_trainer_plus_still_needs_a_password(self):
         backend._reportee_repo.remember_roster(MANAGER, [
             {"OffEmail": "tp@koenig-solutions.com", "TrainerName": "TP", "EmpId": "1", "TrainerPlus": "Yes"},
         ])
         role, _, _, needs_pw = backend._classify_identity("tp@koenig-solutions.com")
         self.assertEqual(role, "trainer_plus")
-        self.assertFalse(needs_pw)
+        self.assertTrue(needs_pw)
 
     def test_classify_unknown_is_restricted_trainer_not_manager(self):
         role, _, _, needs_pw = backend._classify_identity("nobody.x@koenig-solutions.com")
         self.assertEqual(role, "reportee")   # never the manager app on a blank signal
-        self.assertFalse(needs_pw)           # nothing to check a password against yet
+        self.assertTrue(needs_pw)
 
     def test_force_manager_env_override(self):
         backend._FORCE_MANAGER_EMAILS.add("override@koenig-solutions.com")
@@ -118,9 +118,9 @@ class ReporteeRoleTests(unittest.TestCase):
         self.assertTrue(body["first_login"])
         self.assertEqual(backend._sessions, {})  # no session minted
 
-    def test_auth_check_manager_needs_no_password(self):
+    def test_auth_check_every_account_needs_a_password(self):
         r = self.client.post("/api/auth/check", json={"email": "manager"})
-        self.assertFalse(r.get_json()["needs_password"])
+        self.assertTrue(r.get_json()["needs_password"])
 
     # ── login handshake ──────────────────────────────────────────────────────
     def test_reportee_login_requires_password_then_emp_code(self):
@@ -135,6 +135,16 @@ class ReporteeRoleTests(unittest.TestCase):
         body = r3.get_json()
         self.assertTrue(body["success"])
         self.assertEqual(body["role"], "reportee")
+        self.assertTrue(body["must_change"])
+
+    def test_manager_also_signs_in_with_a_password(self):
+        r1 = self.client.post("/api/auth/login", json={"email": "manager"})
+        self.assertEqual(r1.get_json()["code"], "PASSWORD_REQUIRED")
+        # bootstrap = the RMS employee code (mocked to 9001)
+        r2 = self.client.post("/api/auth/login", json={"email": "manager", "password": "9001"})
+        body = r2.get_json()
+        self.assertTrue(body["success"])
+        self.assertEqual(body["role"], "manager")
         self.assertTrue(body["must_change"])
 
     def test_set_password_then_login_with_it(self):

@@ -1,6 +1,28 @@
 
 
 
+## 2026-09-02T16:00:00+05:30 - Password mandatory for EVERY account (v3.66.0, Build 154)
+
+- **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
+- **Tool/Agent Used**: Claude Code (Python/Flask, Kotlin/Compose, Pytest, Gradle, Git)
+- **Change (operator)**: password entry is now mandatory for **manager, assistant-manager,
+  trainer+ and reportee alike** — reverses the earlier "privileged roles sign in on email
+  only" decision.
+- **Backend (`backend.py`)**:
+  - `_needs_password(role)` → `role is not None`; `_classify_identity` returns
+    `needs_password=True` for every resolved role.
+  - `/api/auth/login` — the email-only branch is gone. Everyone hits the password handshake:
+    first login bootstraps against the RMS employee code (directory `emp_id` for a trainer,
+    `_emp_code(email)` for a manager) then forces a change; an account with no employee code
+    on record claims itself with any 6+ char password.
+  - `/api/auth/set-password` — now any authenticated session, not reportee-only.
+  - `/api/v2/trainer/sentiment` gate already widened.
+- **Android**: `ui/auth/LoginViewModel.kt` — `checkEmail` always advances to the PASSWORD
+  step (the no-password CONFIRM branch is retired).
+- **`app/build.gradle.kts`** — 3.65.0/153 -> **3.66.0/154**.
+- **Validation**: backend `pytest tests/ -q` → **293 passed** (+1: manager signs in with a
+  password); Android `testDebugUnitTest` + `assembleRelease`.
+
 ## 2026-09-02T15:30:00+05:30 - Trainer app split from the manager app: four dedicated pages (v3.65.0, Build 153)
 
 - **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
