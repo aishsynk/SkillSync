@@ -30,10 +30,11 @@ val SoftBlue   = Color(0xFFDBEAFE)
 val FrostWhite = Color(0xFFF8FAFC)
 
 // ── Dark surfaces (elevation steps, not drop shadows) ────────────────────────
-val Surface0 = Color(0xFF0B0F17)
-val Surface1 = Color(0xFF101722)
-val Surface2 = Color(0xFF151E2B)
-val Surface3 = Color(0xFF1C2736)
+// Held just off pure black: a true #000 smears on OLED as dark UI scrolls.
+val Surface0 = Color(0xFF0A0D14)
+val Surface1 = Color(0xFF111725)
+val Surface2 = Color(0xFF161F2E)
+val Surface3 = Color(0xFF1E2A3B)
 
 // ── Semantic status ──────────────────────────────────────────────────────────
 val StatusGood = Aqua

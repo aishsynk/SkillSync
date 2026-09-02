@@ -1,6 +1,39 @@
 
 
 
+## 2026-09-02T07:00:00+05:30 - V3 Editorial design system + trainer app + shell (v3.60.0, Build 148)
+
+- **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
+- **Tool/Agent Used**: Claude Code (Kotlin/Compose, Gradle, Git) + ui-ux-pro-max skill
+- **Direction (operator)**: editorial premium (Fraunces serif + Inter), bold reinvention,
+  bundled fonts, one release. See `AI/DESIGN_VISION_V3_2026_09_02.md`.
+- **Files**:
+  - `app/src/main/res/font/` (NEW) — `fraunces_light/regular/medium`,
+    `inter_light/regular/medium/semibold/bold` (SIL OFL, latin subset)
+  - `theme/Type.kt` — Fraunces `Display` + Inter `Sans` families; editorial scale;
+    `NumericStyle` (Fraunces Light tnum) + `NumericInline`
+  - `theme/Color.kt` — Surface0–3 lifted off near-black (OLED)
+  - `theme/Surfaces.kt` — `Modifier.frostedGlass()` (real RenderEffect blur API 31+),
+    `Modifier.editorialRule()`
+  - `ui/components/Motion.kt` — `Motion.Expo`, `Modifier.pressable{}` (scale+haptic,
+    reduced-motion aware), `Motion.press()`
+  - `ui/components/Editorial.kt` (NEW) — `Figure`, `SectionHeader`, `MicroStat`
+  - `ui/components/Branding.kt` — wordmark now "SkillEdge" in Fraunces displaySmall
+  - `ui/reportee/ReporteeHome.kt` — rebuilt editorial end to end (dock, Today hero,
+    Demand, Updates, dialogs, `EditorialRow`)
+  - `ui/main/MainScreen.kt` — Fraunces tab title + tracked eyebrow; haptic nav select
+  - `ui/auth/LoginScreen.kt` — larger Fraunces heading, single wordmark lockup
+  - `app/build.gradle.kts` — 3.59.0/147 -> **3.60.0/148**
+  - `AI/DESIGN_VISION_V3_2026_09_02.md` (NEW)
+- **Scope note**: the type/motion/surface foundation applies to ALL screens (every string
+  now renders Fraunces/Inter). Bespoke *layout* reinvention was done for the trainer app,
+  shell and login this release; Today/People/Trainer360/Demand/reports keep their current
+  structure with the new type and are the next per-area releases.
+- **Validation**: `./gradlew.bat testDebugUnitTest` green (no test copy changed);
+  `assembleRelease` building at handover.
+- **Next**: bespoke layout passes per `AI/DESIGN_VISION_V3` "Next" section; migrate the
+  duplicate figure/chip components onto `Figure`; add `SkillChartTheme`.
+
 ## 2026-09-02T05:00:00+05:30 - Hard role separation: trainers never see manager tools (v3.59.0, Build 147)
 
 - **Model Used**: Claude Sonnet 5 (claude-sonnet-5)

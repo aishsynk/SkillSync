@@ -78,15 +78,13 @@ fun SkillSyncWordmark(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Text(
-            text = "SkillSync",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.ExtraBold,
+            text = "SkillEdge",
+            style = MaterialTheme.typography.displaySmall,
             color = MaterialTheme.colorScheme.onBackground,
         )
         Text(
-            text = "MANAGER INTELLIGENCE",
+            text = "DELIVERY INTELLIGENCE",
             style = MaterialTheme.typography.labelSmall,
-            letterSpacing = 2.4.sp,
             color = MaterialTheme.skill.subText,
         )
     }

@@ -11,7 +11,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -186,6 +189,52 @@ fun Modifier.heroSurface(shape: Shape = RoundedCornerShape(Radii.hero)): Modifie
         ),
         shape
     )
+
+/**
+ * A true hairline rule — the editorial section break. One device pixel of a
+ * faint ice tint, full bleed. Replaces heavier `HorizontalDivider` usage so the
+ * rhythm between a conclusion and its evidence stays quiet.
+ */
+fun Modifier.editorialRule(
+    color: Color = Color(0x1FBFDBFE),
+    top: Boolean = false,
+): Modifier = this.drawWithContent {
+    drawContent()
+    val y = if (top) 0f else size.height
+    drawLine(color, Offset(0f, y), Offset(size.width, y), strokeWidth = 1f)
+}
+
+/**
+ * Real backdrop frost on API 31+, the layered gradient fake below it.
+ *
+ * `RenderEffect.createBlurEffect` samples what is already drawn behind this
+ * node, so the aurora ground genuinely diffuses through the card. On older
+ * devices that call does nothing, so we fall back to [glassSurface]'s translucent
+ * gradient which reads as frost without the sample.
+ */
+@Composable
+fun Modifier.frostedGlass(
+    shape: Shape = RoundedCornerShape(Radii.card),
+    blurRadius: Dp = 22.dp,
+    tint: Color = Color(0xFF0F172A).copy(alpha = 0.55f),
+): Modifier {
+    val base = this.glassSurface(shape)
+    if (android.os.Build.VERSION.SDK_INT < 31) return base
+    val px = with(androidx.compose.ui.platform.LocalDensity.current) { blurRadius.toPx() }
+    return this
+        .clip(shape)
+        .graphicsLayer {
+            renderEffect = android.graphics.RenderEffect
+                .createBlurEffect(px, px, android.graphics.Shader.TileMode.CLAMP)
+                .asComposeRenderEffect()
+        }
+        .background(tint)
+        .border(
+            1.dp,
+            Brush.verticalGradient(listOf(Color(0x5293C5FD), Color(0x1F38BDF8), Color(0x121E293B))),
+            shape,
+        )
+}
 
 /** Soft blue glow ring for focused, active or pressed elements. */
 fun Modifier.glowRing(

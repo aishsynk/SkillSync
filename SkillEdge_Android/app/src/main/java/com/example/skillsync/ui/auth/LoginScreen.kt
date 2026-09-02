@@ -149,17 +149,9 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Appear(index = 0) { SkillSyncLogo(size = 116.dp, floating = true) }
-                Spacer(Modifier.height(Space.lg))
+                Appear(index = 0) { SkillSyncLogo(size = 104.dp, floating = true) }
+                Spacer(Modifier.height(Space.xl))
                 Appear(index = 1) { SkillSyncWordmark() }
-                Spacer(Modifier.height(Space.sm))
-                Appear(index = 2) {
-                    Text(
-                        "DELIVERY INTELLIGENCE",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.skill.ice,
-                    )
-                }
 
                 Spacer(Modifier.height(Space.xxl))
 
@@ -179,7 +171,7 @@ fun LoginScreen(
                                 LoginStep.CONFIRM -> "Confirm sign-in"
                                 else -> "Sign in"
                             },
-                            style = MaterialTheme.typography.headlineSmall,
+                            style = MaterialTheme.typography.headlineLarge,
                             color = MaterialTheme.skill.bodyText,
                         )
                         Spacer(Modifier.height(Space.xs))

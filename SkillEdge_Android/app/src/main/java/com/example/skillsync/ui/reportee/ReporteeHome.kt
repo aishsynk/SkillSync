@@ -4,17 +4,21 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -32,21 +36,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.ReporteeTab
 import com.example.skillsync.theme.AuroraBackground
+import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.Space
-import com.example.skillsync.theme.SkillCard
+import com.example.skillsync.theme.editorialRule
+import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.auth.roleLabel
-import com.example.skillsync.ui.components.list
+import com.example.skillsync.ui.components.Appear
+import com.example.skillsync.ui.components.Figure
+import com.example.skillsync.ui.components.FigureSize
+import com.example.skillsync.ui.components.SectionHeader
+import com.example.skillsync.ui.components.pressable
 import com.example.skillsync.ui.components.rows
 import com.example.skillsync.ui.components.str
 
 /**
- * The whole app a trainer (reportee) sees. Three tabs, nothing from the manager
- * consoles. The only writes a trainer can make: mark their own skill (capped at
- * level 4 by the backend) and message their own manager.
+ * The trainer (reportee) app — Today / Demand / Updates. Same editorial voice as
+ * the manager app, one tier simpler. Nothing from the manager consoles.
  */
 @Composable
 fun ReporteeHome(
@@ -59,8 +69,7 @@ fun ReporteeHome(
     LaunchedEffect(email) { viewModel.load() }
     val context = LocalContext.current
 
-    // Skill-mark dialog state, shared by Today and Demand.
-    var skillTarget by remember { mutableStateOf<Pair<String, String>?>(null) } // courseId to courseName
+    var skillTarget by remember { mutableStateOf<Pair<String, String>?>(null) }
     var messageOpen by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize()) {
@@ -68,11 +77,7 @@ fun ReporteeHome(
         Scaffold(
             containerColor = Color.Transparent,
             bottomBar = {
-                NavigationBar(containerColor = MaterialTheme.skill.cardBg) {
-                    NavItem(tab, ReporteeTab.TODAY, "Today", onTabChange)
-                    NavItem(tab, ReporteeTab.DEMAND, "Demand", onTabChange)
-                    NavItem(tab, ReporteeTab.UPDATES, "Updates", onTabChange)
-                }
+                ReporteeDock(tab, onTabChange)
             },
         ) { pad ->
             Box(Modifier.padding(pad).fillMaxSize()) {
@@ -99,7 +104,6 @@ fun ReporteeHome(
             },
         )
     }
-
     if (messageOpen) {
         MessageManagerDialog(
             onDismiss = { messageOpen = false },
@@ -111,15 +115,55 @@ fun ReporteeHome(
     }
 }
 
+/* ── Dock ───────────────────────────────────────────────────────────────── */
+
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.NavItem(
-    current: String, key: String, label: String, onTabChange: (String) -> Unit,
-) = NavigationBarItem(
-    selected = current == key,
-    onClick = { onTabChange(key) },
-    icon = { Text(label.take(1), fontWeight = FontWeight.Bold) },
-    label = { Text(label) },
-)
+private fun ReporteeDock(current: String, onTabChange: (String) -> Unit) {
+    val sk = MaterialTheme.skill
+    val items = listOf(
+        ReporteeTab.TODAY to "Today",
+        ReporteeTab.DEMAND to "Demand",
+        ReporteeTab.UPDATES to "Updates",
+    )
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .glassSurface(RoundedCornerShape(0.dp))
+            .editorialRule(top = true),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Space.lg)
+                .height(58.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            items.forEach { (key, label) ->
+                val selected = current == key
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .pressable { onTabChange(key) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (selected) sk.bodyText else sk.labelText,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Box(
+                        Modifier
+                            .width(if (selected) 18.dp else 0.dp)
+                            .height(2.dp)
+                            .then(if (selected) Modifier.glassSurface(RoundedCornerShape(1.dp)) else Modifier),
+                    )
+                }
+            }
+        }
+    }
+}
 
 /* ── Today ──────────────────────────────────────────────────────────────── */
 
@@ -138,83 +182,101 @@ private fun TodayTab(
         return
     }
     val h = home ?: emptyMap()
+    val util = (h["current_utilization"] as? Number)?.toInt()
+    val next = h["next_batch"] as? Map<*, *>
+    val requests = h.rows("my_requests")
+    val skills = h.rows("my_skills")
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(Space.lg),
-        verticalArrangement = Arrangement.spacedBy(Space.md),
+        Modifier.fillMaxSize().padding(horizontal = Space.xl),
+        verticalArrangement = Arrangement.spacedBy(Space.sm),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(top = Space.xxl, bottom = Space.xxl),
     ) {
         item {
-            Text(
-                "Hi ${h.str("name").ifBlank { "there" }}",
-                style = MaterialTheme.typography.headlineSmall, color = sk.bodyText,
-            )
-            Text(roleLabel(h.str("role").ifBlank { "reportee" }),
-                style = MaterialTheme.typography.labelMedium, color = sk.subText)
-        }
-
-        item {
-            SkillCard(Modifier.fillMaxWidth()) {
-                Text("MY WEEK", style = MaterialTheme.typography.labelSmall,
-                    color = sk.labelText, fontWeight = FontWeight.Bold)
-                val util = h["current_utilization"]
-                Text(
-                    if (util != null) "Utilisation ${(util as? Number)?.toInt() ?: util}%"
-                    else "Utilisation not available",
-                    style = MaterialTheme.typography.titleMedium, color = sk.bodyText,
-                )
-                val next = h["next_batch"] as? Map<*, *>
-                Text(
-                    if (next != null) "Next: ${next.str("course")} · ${next.str("start_date")}"
-                    else "No upcoming batch assigned",
-                    style = MaterialTheme.typography.bodySmall, color = sk.subText,
-                )
-            }
-        }
-
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.md)) {
-                Button(onClick = onMessageManager) { Text("Message my manager") }
-            }
-        }
-
-        val requests = h.rows("my_requests")
-        if (requests.isNotEmpty()) {
-            item {
-                Text("MY SKILL REQUESTS", style = MaterialTheme.typography.labelSmall,
-                    color = sk.labelText, fontWeight = FontWeight.Bold)
-            }
-            items(requests) { r ->
-                SkillCard(Modifier.fillMaxWidth()) {
+            Appear(0) {
+                Column {
                     Text(
-                        "Level ${r.str("requested_level")} · " +
-                            r.str("course_name").ifBlank { "course ${r.str("course_id")}" },
-                        style = MaterialTheme.typography.bodyMedium, color = sk.bodyText,
+                        "Hello, ${h.str("name").substringBefore(" ").ifBlank { "there" }}.",
+                        style = MaterialTheme.typography.displaySmall,
+                        color = sk.bodyText,
                     )
-                    Text(r.str("status").uppercase(),
+                    Spacer(Modifier.height(Space.xs))
+                    Text(
+                        roleLabel(h.str("role").ifBlank { "reportee" }).uppercase(),
                         style = MaterialTheme.typography.labelSmall,
-                        color = when (r.str("status")) {
-                            "approved" -> sk.brand; "denied" -> sk.warn; else -> sk.subText
-                        })
+                        color = sk.labelText,
+                    )
                 }
             }
         }
 
-        val skills = h.rows("my_skills")
         item {
-            Text("MY SKILLS", style = MaterialTheme.typography.labelSmall,
-                color = sk.labelText, fontWeight = FontWeight.Bold)
+            Appear(1) {
+                Column(Modifier.padding(top = Space.xl)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.xxl)) {
+                        Figure(
+                            value = util?.let { "$it%" } ?: "—",
+                            label = "My utilisation",
+                            size = FigureSize.Hero,
+                        )
+                    }
+                    Spacer(Modifier.height(Space.lg))
+                    Text(
+                        if (next != null)
+                            "Next up — ${next.str("course")}, ${next.str("start_date")}."
+                        else "Nothing on your calendar yet.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = sk.subText,
+                    )
+                }
+            }
         }
-        if (skills.isEmpty()) {
-            item { Text("No skills on record yet.", color = sk.subText,
-                style = MaterialTheme.typography.bodySmall) }
+
+        item {
+            Appear(2) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = Space.xl),
+                    horizontalArrangement = Arrangement.spacedBy(Space.md),
+                ) {
+                    Button(
+                        onClick = onMessageManager,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
+                        shape = RoundedCornerShape(Radii.chip),
+                    ) { Text("Message my manager") }
+                }
+            }
+        }
+
+        if (requests.isNotEmpty()) {
+            item { SectionHeader("Skill requests", conclusion = "Waiting on your manager.") }
+            items(requests) { r ->
+                EditorialRow(
+                    lead = "Level ${r.str("requested_level")}",
+                    body = r.str("course_name").ifBlank { "Course ${r.str("course_id")}" },
+                    trailing = r.str("status").uppercase(),
+                    trailingTone = when (r.str("status")) {
+                        "approved" -> sk.aqua; "denied" -> sk.warn; else -> sk.labelText
+                    },
+                )
+            }
+        }
+
+        item {
+            SectionHeader(
+                "My skills",
+                conclusion = if (skills.isEmpty()) "Nothing on record yet."
+                else "${skills.size} on your register.",
+            )
         }
         items(skills) { s ->
-            SkillCard(Modifier.fillMaxWidth()) {
-                Text(s.str("course_name"), style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
-                TextButton(onClick = { onMarkSkill(s.str("course_id"), s.str("course_name")) }) {
-                    Text("Update my level")
-                }
-            }
+            EditorialRow(
+                lead = null,
+                body = s.str("course_name"),
+                trailing = "Update level",
+                trailingTone = sk.brand,
+                onClick = { onMarkSkill(s.str("course_id"), s.str("course_name")) },
+            )
         }
     }
 }
@@ -235,29 +297,32 @@ private fun DemandTab(
         loading -> Center { CircularProgressIndicator(color = sk.brand) }
         error != null -> Center { Text(error!!, color = sk.warn) }
         rows.isEmpty() -> Center {
-            Text("No open batches match your current skills.", color = sk.subText)
+            Text(
+                "No open batches match your current skills.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = sk.subText,
+            )
         }
         else -> LazyColumn(
-            Modifier.fillMaxSize().padding(Space.lg),
-            verticalArrangement = Arrangement.spacedBy(Space.md),
+            Modifier.fillMaxSize().padding(horizontal = Space.xl),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(top = Space.xl, bottom = Space.xxl),
         ) {
             item {
-                Text("OPEN BATCHES YOU CAN TEACH", style = MaterialTheme.typography.labelSmall,
-                    color = sk.labelText, fontWeight = FontWeight.Bold)
+                SectionHeader(
+                    "Open work you can teach",
+                    conclusion = "${rows.size} unallocated ${if (rows.size == 1) "batch matches" else "batches match"} your skills.",
+                )
             }
             items(rows) { row ->
-                SkillCard(Modifier.fillMaxWidth()) {
-                    Text(row.str("course_name"), style = MaterialTheme.typography.titleSmall, color = sk.bodyText)
-                    Text(
-                        listOf(row.str("start_date"), row.str("location"),
-                            "match ${row.str("skill_match_pct")}%")
-                            .filter { it.isNotBlank() }.joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall, color = sk.subText,
-                    )
-                    TextButton(onClick = { onMarkSkill(row.str("course_id"), row.str("course_name")) }) {
-                        Text("Mark my skill")
-                    }
-                }
+                EditorialRow(
+                    lead = "${row.str("skill_match_pct")}%",
+                    body = row.str("course_name"),
+                    sub = listOf(row.str("start_date"), row.str("location"))
+                        .filter { it.isNotBlank() }.joinToString("  ·  "),
+                    trailing = "Mark my skill",
+                    trailingTone = sk.brand,
+                    onClick = { onMarkSkill(row.str("course_id"), row.str("course_name")) },
+                )
             }
         }
     }
@@ -270,18 +335,62 @@ private fun UpdatesTab(viewModel: ReporteeViewModel, onLogout: () -> Unit) {
     val updates by viewModel.updates.collectAsState()
     val sk = MaterialTheme.skill
     LazyColumn(
-        Modifier.fillMaxSize().padding(Space.lg),
-        verticalArrangement = Arrangement.spacedBy(Space.md),
+        Modifier.fillMaxSize().padding(horizontal = Space.xl),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(top = Space.xl, bottom = Space.xxl),
     ) {
-        if (updates.isEmpty()) item { Text("Nothing new.", color = sk.subText) }
+        item { SectionHeader("Updates", conclusion = if (updates.isEmpty()) "Nothing new." else null) }
         items(updates) { n ->
-            SkillCard(Modifier.fillMaxWidth()) {
-                Text(n.str("title"), style = MaterialTheme.typography.titleSmall, color = sk.bodyText)
-                Text(n.str("message"), style = MaterialTheme.typography.bodySmall, color = sk.subText)
-            }
+            EditorialRow(lead = null, body = n.str("title"), sub = n.str("message"))
         }
         item {
+            Spacer(Modifier.height(Space.xl))
             TextButton(onClick = onLogout) { Text("Sign out", color = sk.warn) }
+        }
+    }
+}
+
+/* ── Row primitive local to the trainer app ─────────────────────────────── */
+
+@Composable
+private fun EditorialRow(
+    lead: String?,
+    body: String,
+    modifier: Modifier = Modifier,
+    sub: String? = null,
+    trailing: String? = null,
+    trailingTone: Color? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    val sk = MaterialTheme.skill
+    Row(
+        modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.pressable(onClick = onClick) else Modifier)
+            .padding(vertical = Space.lg)
+            .editorialRule(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (lead != null) {
+            Text(
+                lead,
+                style = com.example.skillsync.theme.NumericStyle.copy(
+                    fontSize = MaterialTheme.typography.headlineMedium.fontSize,
+                ),
+                color = sk.bodyText,
+                modifier = Modifier.width(64.dp),
+            )
+            Spacer(Modifier.width(Space.md))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(body, style = MaterialTheme.typography.titleMedium, color = sk.bodyText)
+            if (sub != null && sub.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(sub, style = MaterialTheme.typography.bodySmall, color = sk.subText)
+            }
+        }
+        if (trailing != null) {
+            Spacer(Modifier.width(Space.md))
+            Text(trailing, style = MaterialTheme.typography.labelMedium, color = trailingTone ?: sk.labelText)
         }
     }
 }
@@ -298,12 +407,12 @@ private fun MarkSkillDialog(
     val sk = MaterialTheme.skill
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Mark my skill") },
+        containerColor = sk.cardBg,
+        title = { Text("Mark my skill", style = MaterialTheme.typography.headlineSmall) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                Text(courseName, color = sk.bodyText)
-                Text("Level ${level.toInt()}", color = sk.bodyText,
-                    style = MaterialTheme.typography.titleMedium)
+                Text(courseName, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
+                Figure(value = level.toInt().toString(), label = "Level", size = FigureSize.Medium)
                 Slider(value = level, onValueChange = { level = it }, valueRange = 1f..10f, steps = 8)
                 Text(
                     if (level.toInt() <= 4) "Saved to your record immediately."
@@ -321,9 +430,11 @@ private fun MarkSkillDialog(
 @Composable
 private fun MessageManagerDialog(onDismiss: () -> Unit, onSend: (String) -> Unit) {
     var text by remember { mutableStateOf("") }
+    val sk = MaterialTheme.skill
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Message my manager") },
+        containerColor = sk.cardBg,
+        title = { Text("Message my manager", style = MaterialTheme.typography.headlineSmall) },
         text = {
             OutlinedTextField(
                 value = text, onValueChange = { text = it.take(1000) },

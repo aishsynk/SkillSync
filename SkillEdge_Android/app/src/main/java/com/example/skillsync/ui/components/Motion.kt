@@ -14,6 +14,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -50,11 +52,72 @@ object Motion {
     val Emphasized: Easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
     val Standard: Easing = FastOutSlowInEasing
 
+    /**
+     * Expo-out — the V3 signature curve. Almost all of the travel happens in the
+     * first third, so content arrives fast and settles without a bounce. Used for
+     * reveals, section entrances and page transitions.
+     */
+    val Expo: Easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+
     /** Slight overshoot; used for anything that should feel physical. */
     fun <T> springy() = spring<T>(dampingRatio = 0.62f, stiffness = Spring.StiffnessMediumLow)
 
+    /** Tight, no-overshoot spring for press feedback. */
+    fun <T> press() = spring<T>(dampingRatio = 0.9f, stiffness = Spring.StiffnessHigh)
+
     /** Per-item delay for staggered list entrances, capped so long lists stay snappy. */
-    fun stagger(index: Int, step: Int = 45, max: Int = 400) = (index * step).coerceAtMost(max)
+    fun stagger(index: Int, step: Int = 40, max: Int = 240) = (index * step).coerceAtMost(max)
+}
+
+/**
+ * Press feedback for any tappable surface: a small scale dip plus a haptic tick.
+ * Honours the system "remove animations" setting — with animator scale at 0 the
+ * card still clicks, it just doesn't move.
+ */
+@Composable
+fun Modifier.pressable(
+    enabled: Boolean = true,
+    hapticOnPress: Boolean = true,
+    onClick: () -> Unit,
+): Modifier {
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val reduceMotion = animatorScaleIsZero()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed && !reduceMotion) 0.972f else 1f,
+        animationSpec = Motion.press(),
+        label = "press",
+    )
+    LaunchedEffect(pressed) {
+        if (pressed && hapticOnPress) {
+            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+        }
+    }
+    return this
+        .graphicsLayer { scaleX = scale; scaleY = scale }
+        .clickable(
+            interactionSource = interaction,
+            indication = null,
+            enabled = enabled,
+            onClick = onClick,
+        )
+}
+
+@Composable
+private fun animatorScaleIsZero(): Boolean {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return remember {
+        try {
+            android.provider.Settings.Global.getFloat(
+                context.contentResolver,
+                android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f,
+            ) == 0f
+        } catch (_: Throwable) {
+            false
+        }
+    }
 }
 
 /**

@@ -315,18 +315,14 @@ fun MainScreen(
                             Spacer(Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    tabTitle(tab),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 17.sp,
-                                    color = Color.White,
-                                    letterSpacing = (-0.01).em,
+                                    "SKILLEDGE · EXECUTIVE CONSOLE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF93C5FD),
                                 )
                                 Text(
-                                    "SKILLEDGE  /  EXECUTIVE CONSOLE",
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    letterSpacing = 0.09.em,
-                                    color = Color(0xFF93C5FD),
+                                    tabTitle(tab),
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    color = Color.White,
                                 )
                             }
                         }
@@ -682,6 +678,7 @@ internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
                     .height(60.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
                 items.forEach { (key, icon, label) ->
                     val selected = current == key
                     val tint by animateColorAsState(
@@ -694,7 +691,12 @@ internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
                             .fillMaxHeight()
                             .selectable(
                                 selected = selected,
-                                onClick = { onSelect(key) },
+                                onClick = {
+                                    haptic.performHapticFeedback(
+                                        androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
+                                    )
+                                    onSelect(key)
+                                },
                                 role = Role.Tab,
                             ),
                         horizontalAlignment = Alignment.CenterHorizontally,
