@@ -885,34 +885,60 @@ private fun BriefingHero(
             ReadinessRing(readiness, utilisation, size = 92.dp)
         }
 
-        // The brief itself — high-contrast executive summary pills
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = Color(0x26000000),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x2093C5FD)),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                buildList {
-                    add("$deployed of $team deployed")
-                    utilisation?.let {
-                        add("utilisation $it%" + when {
-                            utilDelta == null -> ""
-                            utilDelta > 0 -> " and rising"
-                            utilDelta < 0 -> " and falling"
-                            else -> " and flat"
-                        })
-                    }
-                    if (atRisk > 0) add("$atRisk ${plural(atRisk, "trainer", "trainers")} at risk")
-                    if (unallocated > 0) add("$unallocated ${plural(unallocated, "demand", "demands")} unallocated")
-                    if (atRisk == 0 && unallocated == 0) add("all deliveries covered")
-                }.joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                color = Color(0xFFDBEAFE),
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        // The brief — the thesis of the screen, set as a line to be read, not a
+        // strip of pills. Everything below it is evidence for this sentence.
+        Text(
+            managerBriefLine(deployed, team, utilisation, utilDelta, atRisk, unallocated),
+            style = MaterialTheme.typography.headlineSmall,
+            color = Color(0xFFEAF1FE),
+        )
+
+        // Score literacy — one line, the first time only.
+        if (readiness != null) {
+            com.example.skillsync.ui.components.ScoreHint(
+                key = com.example.skillsync.ui.components.ScoreHints.READINESS,
+                text = com.example.skillsync.ui.components.ScoreHints.readiness(),
             )
         }
     }
+}
+
+/**
+ * One sentence that reads the whole delivery org. Used at full size in the
+ * briefing hero and, collapsed, in the top bar as the manager scrolls — so the
+ * conclusion is always on screen.
+ */
+fun managerBriefLine(
+    deployed: Int, team: Int, utilisation: Int?, utilDelta: Int?, atRisk: Int, unallocated: Int,
+): String = buildList {
+    add("$deployed of $team deployed")
+    utilisation?.let {
+        add("utilisation $it%" + when {
+            utilDelta == null -> ""
+            utilDelta > 0 -> " and rising"
+            utilDelta < 0 -> " and falling"
+            else -> " and flat"
+        })
+    }
+    if (atRisk > 0) add("$atRisk ${plural(atRisk, "trainer", "trainers")} at risk")
+    if (unallocated > 0) add("$unallocated ${plural(unallocated, "demand", "demands")} unallocated")
+    if (atRisk == 0 && unallocated == 0) add("all deliveries covered")
+}.joinToString(" · ")
+
+/** The brief, derived straight from a unified-manager-intelligence payload. */
+fun managerBriefFromPayload(data: Map<String, Any>?): String {
+    if (data == null) return ""
+    val kpis = data.obj("manager_kpis")
+    val states = data.rows("trainer_current_state_df")
+    val ops = data.rows("trainer_operations_df")
+    val team = kpis?.intOrNull("total_team_members") ?: ops.size
+    val deployed = states.count { it.str("current_status") != "free" }
+    val util = kpis?.intOrNull("avg_team_utilization")
+    val hist = (kpis?.get("utilization_history") as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }.orEmpty()
+    val delta = if (hist.size >= 2) hist.last() - hist[hist.lastIndex - 1] else null
+    val atRisk = ops.count { it.str("feedback_risk").equals("High", true) }
+    val unalloc = kpis?.intOrNull("open_demand") ?: data.rows("unallocated_demand_df").size
+    return managerBriefLine(deployed, team, util, delta, atRisk, unalloc)
 }
 
 // ── 2 · Attention strip ─────────────────────────────────────────────────────

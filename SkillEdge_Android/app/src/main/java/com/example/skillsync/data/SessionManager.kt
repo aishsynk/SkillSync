@@ -87,4 +87,12 @@ object SessionManager {
         if (::prefs.isInitialized) prefs.getLong("last_sync_time", 0L) else 0L
 
     fun isLoggedIn(): Boolean = getEmail() != null && getSessionId() != null
+
+    /** One-line score explainers: shown until the user dismisses them once. */
+    fun isHintDismissed(key: String): Boolean =
+        ::prefs.isInitialized && prefs.getBoolean("hint_$key", false)
+
+    fun dismissHint(key: String) {
+        if (::prefs.isInitialized) prefs.edit().putBoolean("hint_$key", true).apply()
+    }
 }

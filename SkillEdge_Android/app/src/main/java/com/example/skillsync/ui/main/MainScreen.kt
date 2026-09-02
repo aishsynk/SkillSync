@@ -14,6 +14,12 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -123,6 +129,14 @@ fun MainScreen(
 
     val state by viewModel.uiState.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
+
+    // V4 · the collapsing brief. Today's LazyColumn scroll state is hoisted here
+    // so the top bar can trade the tab title for the one-sentence brief once the
+    // hero has scrolled away — the conclusion is always on screen.
+    val dashListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val briefCollapsed by remember {
+        derivedStateOf { dashListState.firstVisibleItemIndex > 0 || dashListState.firstVisibleItemScrollOffset > 260 }
+    }
     val profile by viewModel.profile.collectAsState()
     val capability by viewModel.capability.collectAsState()
     val capLoading by viewModel.capabilityLoading.collectAsState()
@@ -313,17 +327,37 @@ fun MainScreen(
                                 contentAlignment = Alignment.Center,
                             ) { SkillSyncLogo(size = 22.dp) }
                             Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    "SKILLEDGE · EXECUTIVE CONSOLE",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFF93C5FD),
-                                )
-                                Text(
-                                    tabTitle(tab),
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    color = Color.White,
-                                )
+                            val showBrief = tab == HomeTab.DASHBOARD && briefCollapsed
+                            val briefLine = remember(state) {
+                                (state as? DashboardState.Success)?.let {
+                                    managerBriefFromPayload(it.intelligenceData)
+                                }.orEmpty()
+                            }
+                            AnimatedContent(
+                                targetState = showBrief && briefLine.isNotBlank(),
+                                transitionSpec = {
+                                    (fadeIn(tween(220)) + slideInVertically(tween(260)) { it / 3 })
+                                        .togetherWith(fadeOut(tween(140)))
+                                },
+                                label = "brief",
+                            ) { collapsed ->
+                                Column {
+                                    Text(
+                                        if (collapsed) "TODAY · THE BRIEF" else "SKILLEDGE · EXECUTIVE CONSOLE",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF93C5FD),
+                                    )
+                                    Text(
+                                        if (collapsed) briefLine else tabTitle(tab),
+                                        style = MaterialTheme.typography.headlineSmall.copy(
+                                            fontSize = if (collapsed) 15.sp else
+                                                MaterialTheme.typography.headlineMedium.fontSize,
+                                        ),
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
                             }
                         }
                     },
@@ -580,6 +614,7 @@ fun MainScreen(
                                         calendarReadiness = teamReadiness,
                                         fromCache = s.fromCache,
                                         cachedAt = s.cachedAt,
+                                        listState = dashListState,
                                     )
                                 }
                             }
@@ -878,6 +913,8 @@ internal fun DashboardTab(
     /** Disk-write time of the payload, so the hero can state a real "as of". */
     fromCache: Boolean = false,
     cachedAt: Long = 0L,
+    listState: androidx.compose.foundation.lazy.LazyListState =
+        androidx.compose.foundation.lazy.rememberLazyListState(),
 ) {
     val sk = MaterialTheme.skill
     val ops = data.rows("trainer_operations_df")
@@ -921,6 +958,7 @@ internal fun DashboardTab(
 
     LazyColumn(
         Modifier.fillMaxSize(),
+        state = listState,
         contentPadding = PaddingValues(
             start = com.example.skillsync.theme.Layout.gutter,
             end = com.example.skillsync.theme.Layout.gutter,

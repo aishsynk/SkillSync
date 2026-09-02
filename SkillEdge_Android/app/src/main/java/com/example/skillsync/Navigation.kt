@@ -153,18 +153,17 @@ fun MainNavigation() {
         transitionSpec = {
             val from = initialState
             val to = targetState
+            val gentleOffset = com.example.skillsync.theme.SkillMotion.gentle<androidx.compose.ui.unit.IntOffset>()
             when {
-                // Drilling into a trainer: slide in from the right.
+                // Drilling into a trainer: the detail rises in on the V4 flow spring.
                 to is Trainer360 ->
-                    (slideInHorizontally(tween(Motion.NORMAL, easing = Motion.Emphasized)) { it } +
-                        fadeIn(tween(Motion.NORMAL)))
+                    (slideInHorizontally(gentleOffset) { it } + fadeIn(tween(Motion.NORMAL)))
                         .togetherWith(fadeOut(tween(Motion.FAST)))
                 // Coming back out: slide away to the right.
                 from is Trainer360 ->
                     fadeIn(tween(Motion.NORMAL))
                         .togetherWith(
-                            slideOutHorizontally(tween(Motion.NORMAL, easing = Motion.Emphasized)) { it } +
-                                fadeOut(tween(Motion.NORMAL))
+                            slideOutHorizontally(gentleOffset) { it } + fadeOut(tween(Motion.NORMAL))
                         )
                 // Switching tabs inside the shell: cross-fade only.
                 from is Main && to is Main ->

@@ -1,6 +1,34 @@
 
 
 
+## 2026-09-02T12:30:00+05:30 - V4 Phase 1b + 3 + 6a: collapsing brief, haptic vocabulary, score literacy (v3.63.0, Build 151)
+
+- **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
+- **Tool/Agent Used**: Claude Code (Kotlin/Compose, Gradle, Git)
+- **Files**:
+  - `ui/main/ManagerCommandCentre.kt` — the briefing sentence is now the screen's **thesis**
+    (Fraunces `headlineSmall`, read as a line, not a pill strip). New top-level
+    `managerBriefLine(...)` + `managerBriefFromPayload(data)` so the same sentence can be
+    reused collapsed. `ScoreHint` wired under the readiness reading.
+  - `ui/main/MainScreen.kt` — **the collapsing brief**: `DashboardTab` gains a hoisted
+    `listState`; MainScreen derives `briefCollapsed` from scroll and the top-bar title
+    `AnimatedContent`-swaps the tab name for the one-sentence brief once the hero scrolls
+    away — the conclusion is always on screen.
+  - `ui/components/SkillHaptics.kt` (NEW) — the 7-signal haptic vocabulary
+    (move / press / saved / confirmed / objection / threshold / alert), `rememberSkillHaptics()`.
+  - `ui/components/ScoreHint.kt` (NEW) + `data/SessionManager.kt` — one-line score explainer,
+    dismissed-once, persisted (`ScoreHints.readiness()` / `.risk()`).
+  - `Navigation.kt` — Trainer 360 push/pop transitions now ride `SkillMotion.gentle()` spring
+    instead of a fixed tween.
+  - `app/build.gradle.kts` — 3.62.0/150 -> **3.63.0/151**.
+- **Validation**: Android `testDebugUnitTest` green (Pulse tests + all render tests — brief
+  content unchanged so ScreenRenderTest still passes); `assembleRelease` building; backend untouched.
+- **V4 status**: Phase 1 (Pulse + collapsing brief) **done**; phase 3 (haptics) API in place,
+  wired at nav/press/pulse — full call-site pass pending; phase 6a (literacy) started.
+- **Next**: phase 2 (container-transform decision loop, `SharedTransitionLayout` + predictive
+  back), phase 4 (Demand as opportunity — a standalone AllocationDesk redesign with test
+  rewrites), phase 5 (light mode + adaptive panes — a standalone second-palette build).
+
 ## 2026-09-02T11:00:00+05:30 - V4 Phase 1a: The Pulse + motion spring tokens (v3.62.0, Build 150)
 
 - **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
