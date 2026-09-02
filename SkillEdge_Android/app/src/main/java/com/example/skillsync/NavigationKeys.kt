@@ -51,6 +51,9 @@ import kotlinx.serialization.Serializable
 /** A trainer's practice record — learner comment log + session recordings. */
 @Serializable data class TrainerPractice(val email: String, val name: String) : NavKey
 
+/** Your own delivery schedule + leave bands — for anyone who also delivers. */
+@Serializable data class MySchedule(val email: String) : NavKey
+
 /** Reportee self-service shell: their own profile, matched demand, and updates. */
 @Serializable data class ReporteeMain(val email: String, val tab: String = ReporteeTab.TODAY) : NavKey
 

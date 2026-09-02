@@ -1,6 +1,31 @@
 
 
 
+## 2026-09-02T16:45:00+05:30 - Managers/asst-mgr/trainer+ get their OWN schedule too (v3.67.0, Build 155)
+
+- **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
+- **Tool/Agent Used**: Claude Code (Python/Flask, Kotlin/Compose, Pytest, Gradle, Git)
+- **Change (operator)**: managers, assistant managers and trainer+ also deliver trainings,
+  so any account must be able to see **its own** calendar, assignments, leave bands and
+  practice record — not only the team view.
+- **Backend (`backend.py`)**:
+  - `_personal_calendar_build(email)` extracted; `/api/v2/reportee/calendar` now delegates.
+  - NEW `GET /api/v2/trainer/calendar?email=` — `_profile_session` gated, so a manager can
+    pull their own schedule (assignments key 16, shift-band off-dates key 75, utilisation
+    series). `feedback-log` / `recordings` were already `_profile_session` and work for
+    any role querying their own email.
+- **Android**:
+  - `ui/trainer/MyScheduleScreen.kt` (NEW) + VM — own delivery (current / upcoming / recent),
+    shift bands marked off, link to "My learner feedback & recordings".
+  - `ui/main/DashboardSections.kt` — `ProfileMenuBottomSheet` gains **"My schedule & leave
+    bands"**.
+  - `MainScreen.kt` / `DashboardTab` — `onOpenMySchedule` threaded through.
+  - `NavigationKeys.kt` / `Navigation.kt` — `MySchedule(email)` route.
+  - `data/api/SkillEdgeApi.kt` — `trainerCalendar`.
+  - `app/build.gradle.kts` — 3.66.0/154 -> **3.67.0/155**.
+- **Validation**: backend `pytest` (reportee + v1-auth suites) green; Android
+  `compileDebugKotlin` clean; `testDebugUnitTest` + `assembleRelease` running.
+
 ## 2026-09-02T16:00:00+05:30 - Password mandatory for EVERY account (v3.66.0, Build 154)
 
 - **Model Used**: Claude Sonnet 5 (claude-sonnet-5)

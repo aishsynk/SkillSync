@@ -6824,14 +6824,11 @@ def v2_reportee_demand():
     }), 200
 
 
-@app.route('/api/v2/reportee/calendar', methods=['GET'])
-def v2_reportee_calendar():
-    """The signed-in trainer's own schedule — assignments, and the shift bands
-    RMS has them marked off for."""
-    session, error = _v2_reportee_session()
-    if error:
-        return error
-    email = str(session.get("email", "") or "").strip().lower()
+def _personal_calendar_build(email):
+    """One person's own schedule — assignments, the shift bands RMS has them
+    marked off for, and their utilisation trend. The same for a trainer or a
+    manager who also delivers."""
+    email = str(email or "").strip().lower()
     today = datetime.utcnow().date()
 
     raw = _rms("prevUpcoming", {
@@ -6859,17 +6856,38 @@ def v2_reportee_calendar():
         })
     assignments.sort(key=lambda x: x["start_date"])
 
-    series = _util_series(_util_row(email))
-
-    return jsonify({
+    return {
         "email": email,
         "assignments": assignments,
         "current": [a for a in assignments if a["state"] == "current"],
         "upcoming": [a for a in assignments if a["state"] == "upcoming"],
+        "past": [a for a in assignments if a["state"] == "past"][-10:],
         "off_bands": _off_dates(email),
-        "utilisation_series": series,
+        "utilisation_series": _util_series(_util_row(email)),
         "generated_at": datetime.utcnow().isoformat(),
-    }), 200
+    }
+
+
+@app.route('/api/v2/reportee/calendar', methods=['GET'])
+def v2_reportee_calendar():
+    """The signed-in trainer's own schedule."""
+    session, error = _v2_reportee_session()
+    if error:
+        return error
+    return jsonify(_personal_calendar_build(session.get("email", ""))), 200
+
+
+@app.route('/api/v2/trainer/calendar', methods=['GET'])
+def v2_trainer_calendar():
+    """Any account's own schedule — including managers / assistant managers /
+    trainer+ who also deliver. Self or manager-in-scope."""
+    email = str(request.args.get("email", "") or request.args.get("trainer_email", "")).strip().lower()
+    session, error = _profile_session(email)
+    if error:
+        return error
+    if not email:
+        email = str(session.get("email", "") or "").strip().lower()
+    return jsonify(_personal_calendar_build(email)), 200
 
 
 @app.route('/api/v2/reportee/message', methods=['POST'])

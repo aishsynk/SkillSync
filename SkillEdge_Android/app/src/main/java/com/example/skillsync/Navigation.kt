@@ -203,6 +203,12 @@ fun MainNavigation() {
                 onBack = { current = Main(screen.email, HomeTab.DASHBOARD) },
             )
 
+            is MySchedule -> com.example.skillsync.ui.trainer.MyScheduleScreen(
+                email = screen.email,
+                onOpenPractice = { current = TrainerPractice(screen.email, "My practice record") },
+                onBack = { current = Main(screen.email, HomeTab.DASHBOARD) },
+            )
+
             is Main -> MainScreen(
                 email = screen.email,
                 tab = screen.tab,
@@ -221,6 +227,7 @@ fun MainNavigation() {
                 onOpenCapacityRunway = { current = CapacityRunway(screen.email) },
                 onOpenViberAutomation = { current = ViberAutomation(screen.email) },
                 onOpenSkillRequests = { current = SkillRequests(screen.email) },
+                onOpenMySchedule = { current = MySchedule(screen.email) },
                 onLogout = { current = Login },
                 modifier = Modifier,
                 viewModel = mainViewModel,

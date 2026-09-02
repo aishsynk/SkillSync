@@ -233,7 +233,8 @@ fun ProfileMenuBottomSheet(
     email: String,
     onDismiss: () -> Unit,
     onLogout: () -> Unit,
-    onViewProfile: () -> Unit
+    onViewProfile: () -> Unit,
+    onMySchedule: () -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
     val sheetState = rememberModalBottomSheetState()
@@ -258,6 +259,13 @@ fun ProfileMenuBottomSheet(
                 headlineContent = { Text("View My Profile", color = Color.White) },
                 leadingContent = { Icon(painterResource(R.drawable.ic_people), null, tint = Color.White) },
                 modifier = Modifier.clickable { onViewProfile() },
+                colors = ListItemDefaults.colors(containerColor = sk.cardBg)
+            )
+            ListItem(
+                headlineContent = { Text("My schedule & leave bands", color = Color.White) },
+                supportingContent = { Text("Your own delivery — you deliver too", color = Color.LightGray) },
+                leadingContent = { Icon(painterResource(R.drawable.ic_calendar), null, tint = Color.White) },
+                modifier = Modifier.clickable { onMySchedule() },
                 colors = ListItemDefaults.colors(containerColor = sk.cardBg)
             )
             ListItem(

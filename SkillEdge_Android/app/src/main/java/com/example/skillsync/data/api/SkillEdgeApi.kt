@@ -54,6 +54,9 @@ interface SkillEdgeApi {
     @GET("api/v2/trainer/recordings")
     suspend fun trainerRecordings(@Query("email") email: String): Map<String, Any>
 
+    @GET("api/v2/trainer/calendar")
+    suspend fun trainerCalendar(@Query("email") email: String): Map<String, Any>
+
     @GET("api/v2/reportee/home")
     suspend fun reporteeHome(): Map<String, Any>
 

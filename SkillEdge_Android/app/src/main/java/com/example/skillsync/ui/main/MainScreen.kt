@@ -73,6 +73,7 @@ fun MainScreen(
     onOpenCapacityRunway: () -> Unit = {},
     onOpenViberAutomation: () -> Unit = {},
     onOpenSkillRequests: () -> Unit = {},
+    onOpenMySchedule: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: MainScreenViewModel = viewModel(),
@@ -593,6 +594,7 @@ fun MainScreen(
                                         email = email,
                                         onTrainerClick = onTrainerClick,
                                         onOpenProfile = { onTrainerClick(email, profile?.str("name").orEmpty()) },
+                                        onOpenMySchedule = onOpenMySchedule,
                                         onLogout = { showLogoutConfirm = true },
                                         onDrill = { drill = it },
                                         onLoadCapability = { viewModel.ensureCapability(email, context) },
@@ -891,6 +893,7 @@ internal fun DashboardTab(
     email: String,
     onTrainerClick: (String, String) -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenMySchedule: () -> Unit = {},
     onLogout: () -> Unit = {},
     onDrill: (Drill) -> Unit,
     onLoadCapability: () -> Unit = {},
@@ -952,7 +955,11 @@ internal fun DashboardTab(
             onViewProfile = {
                 showProfileMenu = false
                 onOpenProfile()
-            }
+            },
+            onMySchedule = {
+                showProfileMenu = false
+                onOpenMySchedule()
+            },
         )
     }
 
