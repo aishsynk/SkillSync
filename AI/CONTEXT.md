@@ -19,7 +19,7 @@ All manager-to-reportee and team-level generated messages, standpoints, evaluati
 - **Group Broadcast Safety (Hard Rule)**: Team broadcasts must NEVER name an individual for negative signals (bench, feedback flags, cert gaps). Names appear ONLY for positive recognition.
 - **Teams/Viber Prose Formatting**: Greeting `Hello _First_,`, blank line, sanitised body with at most one `**bold**` action and one `__underlined__` time reference, blank line, italicized closing `_Thank you..._`, maximum 1000 characters, no hyphens, bullets, emojis, or dashes.
 
-## Reportee role & self-service contract (effective v3.57.0)
+## Reportee role & self-service contract (effective v3.57.0, two-step login v3.58.0)
 
 SkillEdge now has two roles, decided by identity at `/api/auth/login` (no client toggle):
 - **manager** — signs in with work ID only (initials, e.g. `aishwar.c`; the client appends

@@ -42,6 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -96,6 +97,7 @@ fun LoginScreen(
     var secret by remember { mutableStateOf("") }
     val loginState by viewModel.loginState.collectAsState()
     val step by viewModel.step.collectAsState()
+    val identity by viewModel.identity.collectAsState()
     val keyboard = LocalSoftwareKeyboardController.current
     val notify = LocalNotify.current
 
@@ -174,6 +176,7 @@ fun LoginScreen(
                             when (step) {
                                 LoginStep.SET_PASSWORD -> "Set a password"
                                 LoginStep.PASSWORD -> "Enter your password"
+                                LoginStep.CONFIRM -> "Confirm sign-in"
                                 else -> "Sign in"
                             },
                             style = MaterialTheme.typography.headlineSmall,
@@ -185,7 +188,11 @@ fun LoginScreen(
                                 LoginStep.SET_PASSWORD ->
                                     "First sign-in: replace your employee code with a password (6+ characters)."
                                 LoginStep.PASSWORD ->
-                                    "First-time sign-in uses your employee code."
+                                    if (identity?.firstLogin == true)
+                                        "First-time sign-in uses your employee code."
+                                    else "Enter your password."
+                                LoginStep.CONFIRM ->
+                                    "${identity?.name ?: ""} · ${roleLabel(identity?.role)}"
                                 else -> "Enter your Koenig work ID."
                             },
                             style = MaterialTheme.typography.bodyMedium,
@@ -194,21 +201,27 @@ fun LoginScreen(
 
                         Spacer(Modifier.height(Space.lg))
 
-                        if (step == LoginStep.ID) {
-                            EmailField(
+                        when (step) {
+                            LoginStep.ID -> EmailField(
                                 value = workId,
                                 onValueChange = { workId = it },
                                 isError = errorMessage != null,
                                 onSubmit = onSubmit,
                             )
-                        } else {
-                            SecretField(
+                            LoginStep.CONFIRM -> Unit
+                            else -> SecretField(
                                 value = secret,
                                 onValueChange = { secret = it },
                                 label = if (step == LoginStep.SET_PASSWORD) "New password" else "Password",
                                 isError = errorMessage != null,
                                 onSubmit = onSubmit,
                             )
+                        }
+
+                        if (step != LoginStep.ID) {
+                            TextButton(onClick = { viewModel.editWorkId() }) {
+                                Text("Not you? Change work ID", style = MaterialTheme.typography.labelMedium)
+                            }
                         }
 
                         AnimatedVisibility(
@@ -223,7 +236,12 @@ fun LoginScreen(
 
                         SignInButton(
                             state = loginState,
-                            enabled = if (step == LoginStep.ID) workId.isNotBlank() else secret.isNotBlank(),
+                            label = if (step == LoginStep.ID) "Continue" else "Sign in",
+                            enabled = when (step) {
+                                LoginStep.ID -> workId.isNotBlank()
+                                LoginStep.CONFIRM -> true
+                                else -> secret.isNotBlank()
+                            },
                             onClick = onSubmit,
                         )
                     }
@@ -386,6 +404,7 @@ private fun SignInButton(
     state: LoginState,
     enabled: Boolean,
     onClick: () -> Unit,
+    label: String = "Sign in",
 ) {
     val sk = MaterialTheme.skill
     val loading = state is LoginState.Loading
@@ -424,7 +443,7 @@ private fun SignInButton(
             label = "button",
         ) { phase ->
             when (phase) {
-                ButtonPhase.IDLE -> Text("Sign in", style = MaterialTheme.typography.labelLarge)
+                ButtonPhase.IDLE -> Text(label, style = MaterialTheme.typography.labelLarge)
                 ButtonPhase.LOADING -> Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(
                         color = sk.frost,

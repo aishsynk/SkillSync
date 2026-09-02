@@ -13,8 +13,13 @@ import retrofit2.HttpException
 
 private const val DOMAIN = "@koenig-solutions.com"
 
-/** Which field the sign-in form is currently asking for. */
-enum class LoginStep { ID, PASSWORD, SET_PASSWORD }
+/**
+ * Sign-in is always two steps. Step one (`ID`) validates the email and returns
+ * the role. Privileged roles (manager / assistant manager / trainer+) then land
+ * on `CONFIRM` — a bare Sign-in button. A reportee lands on `PASSWORD`, and on
+ * `SET_PASSWORD` the first time (their bootstrap employee code must be replaced).
+ */
+enum class LoginStep { ID, CONFIRM, PASSWORD, SET_PASSWORD }
 
 sealed class LoginState {
     object Idle : LoginState()
@@ -27,6 +32,14 @@ sealed class LoginState {
 fun sanitiseWorkId(raw: String): String =
     raw.trim().lowercase().removeSuffix(DOMAIN).substringBefore("@").filterNot { it.isWhitespace() }
 
+fun roleLabel(role: String?): String = when (role) {
+    "manager" -> "Manager"
+    "assistant_manager" -> "Assistant Manager"
+    "trainer_plus" -> "Trainer Plus"
+    "reportee" -> "Trainer"
+    else -> "Team member"
+}
+
 class LoginViewModel : ViewModel() {
     private val _loginState = MutableStateFlow<LoginState>(LoginState.Idle)
     val loginState: StateFlow<LoginState> = _loginState
@@ -34,26 +47,70 @@ class LoginViewModel : ViewModel() {
     private val _step = MutableStateFlow(LoginStep.ID)
     val step: StateFlow<LoginStep> = _step
 
+    /** Set once step one succeeds — drives the CONFIRM / PASSWORD copy. */
+    private val _identity = MutableStateFlow<Identity?>(null)
+    val identity: StateFlow<Identity?> = _identity
+
+    data class Identity(val name: String, val role: String, val firstLogin: Boolean)
+
     private var pendingId: String = ""
 
     fun reset() {
         _loginState.value = LoginState.Idle
         _step.value = LoginStep.ID
+        _identity.value = null
         pendingId = ""
     }
 
-    /** Submit whatever the current step needs. */
+    /** Back out of a password / confirm step to re-type the work ID. */
+    fun editWorkId() {
+        _step.value = LoginStep.ID
+        _identity.value = null
+        _loginState.value = LoginState.Idle
+    }
+
     fun submit(workId: String, password: String) {
         when (_step.value) {
-            LoginStep.ID -> authenticate(sanitiseWorkId(workId), null)
+            LoginStep.ID -> checkEmail(sanitiseWorkId(workId))
+            LoginStep.CONFIRM -> authenticate(pendingId, null)
             LoginStep.PASSWORD -> authenticate(pendingId, password)
             LoginStep.SET_PASSWORD -> setNewPassword(password)
         }
     }
 
-    private fun authenticate(id: String, password: String?) {
+    private fun checkEmail(id: String) {
         if (id.isBlank()) return
         pendingId = id
+        viewModelScope.launch {
+            _loginState.value = LoginState.Loading
+            try {
+                val res = RetrofitClient.instance.authCheck(LoginRequest(email = "$id$DOMAIN"))
+                if (res.ok == true) {
+                    _identity.value = Identity(
+                        name = res.name ?: id,
+                        role = res.role ?: "manager",
+                        firstLogin = res.first_login == true,
+                    )
+                    _step.value = if (res.needs_password == true) LoginStep.PASSWORD else LoginStep.CONFIRM
+                    _loginState.value = LoginState.Idle
+                } else {
+                    _loginState.value = LoginState.Error(res.error ?: "This account is not recognised")
+                }
+            } catch (e: HttpException) {
+                _loginState.value = LoginState.Error(
+                    when (e.code()) {
+                        401 -> "Access denied — use your @koenig-solutions.com work ID"
+                        503 -> "RMS service unavailable — please retry in a moment"
+                        else -> e.userMessage("check work ID")
+                    }
+                )
+            } catch (e: Exception) {
+                _loginState.value = LoginState.Error(e.userMessage("check work ID"))
+            }
+        }
+    }
+
+    private fun authenticate(id: String, password: String?) {
         viewModelScope.launch {
             _loginState.value = LoginState.Loading
             try {

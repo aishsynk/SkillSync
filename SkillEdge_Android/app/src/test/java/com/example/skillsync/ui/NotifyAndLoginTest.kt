@@ -117,8 +117,9 @@ class NotifyAndLoginTest {
     @Test
     fun login_showsBrandFormAndDisclosure() {
         compose.setContent { SkillSyncTheme { LoginScreen(onLoginSuccess = {}) } }
-        // "Sign in" appears twice by design — the card heading and the button.
-        compose.onAllNodesWithText("Sign in").assertCountEquals(2)
+        // Step one: "Sign in" heading, "Continue" button, work-ID field.
+        compose.onNodeWithText("Sign in").assertExists()
+        compose.onNodeWithText("Continue").assertExists()
         compose.onNodeWithText("Enter your Koenig work ID.").assertExists()
         compose.onNodeWithText("Work ID").assertExists()
         compose.onNodeWithText("DELIVERY INTELLIGENCE").assertExists()
@@ -132,15 +133,13 @@ class NotifyAndLoginTest {
     fun login_formIsCentredAndWidthCapped() {
         compose.setContent { SkillSyncTheme { LoginScreen(onLoginSuccess = {}) } }
         val field = compose.onNodeWithText("Work ID").fetchSemanticsNode().boundsInRoot
-        val root = compose.onAllNodesWithText("Sign in").onFirst().fetchSemanticsNode().boundsInRoot
+        val root = compose.onNodeWithText("Sign in").fetchSemanticsNode().boundsInRoot
         assertTrue("Field must sit under the heading", field.top > root.top)
     }
 
     @Test
-    fun login_signInButtonIsDisabledUntilAnEmailIsTyped() {
+    fun login_stepOneShowsContinueButton() {
         compose.setContent { SkillSyncTheme { LoginScreen(onLoginSuccess = {}) } }
-        // Two nodes carry "Sign in" — the card heading and the button label.
-        compose.onAllNodesWithText("Sign in").assertCountEquals(2)
-        compose.onAllNodesWithText("Sign in").onFirst().assertExists()
+        compose.onNodeWithText("Continue").assertExists()
     }
 }

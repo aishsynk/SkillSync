@@ -1,6 +1,40 @@
 
 
 
+## 2026-09-02T03:30:00+05:30 - Two-step login: email always validated first (v3.58.0, Build 146)
+
+- **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
+- **Tool/Agent Used**: Claude Code (Python/Flask, Kotlin/Compose, Pytest, Gradle, Git)
+- **Change**: sign-in is now always two steps. Step one validates the email and returns the
+  role without minting a session; the client then shows either just a Sign-in button
+  (manager / assistant manager / trainer+) or a password field + button (reportee).
+- **Files Modified**:
+  - `reportee_store.py` — `directory` gains `designation` + `is_direct` (with ALTER migration);
+    `remember_roster` stores them.
+  - `backend.py`:
+    - `_classify_identity` → 4-tuple `(role, manager_email, resolved_email, needs_password)`;
+      roles `manager` / `assistant_manager` (designation) / `trainer_plus` (TrainerPlus=Yes)
+      sign in with no password; only `reportee` is challenged. `_NO_PASSWORD_ROLES`,
+      `_needs_password`, `_designation_role`, `_normalise_work_id` helpers.
+    - NEW `POST /api/auth/check` — validates email, returns `{role, name, needs_password,
+      first_login}`, no session.
+    - `/api/auth/login` keys the password branch off `needs_password`, not a hardcoded role.
+  - `tests/test_reportee_role.py` — updated to 4-tuple; +4 tests (trainer+ no-password,
+    `/api/auth/check` for reportee and manager).
+  - Android:
+    - `data/api/SkillEdgeApi.kt` — `AuthCheckResponse`, `authCheck` endpoint.
+    - `ui/auth/LoginViewModel.kt` — `LoginStep.{ID,CONFIRM,PASSWORD,SET_PASSWORD}`,
+      `checkEmail()` → CONFIRM or PASSWORD, `editWorkId()`, `roleLabel()`, `Identity` state.
+    - `ui/auth/LoginScreen.kt` — step-one button now "Continue"; CONFIRM step shows
+      "{name} · {role}" + Sign-in button, no field; "Not you? Change work ID"; `SignInButton`
+      gains a `label`.
+    - `app/src/test/.../NotifyAndLoginTest.kt` — updated for the two-step copy.
+    - `app/build.gradle.kts` — 3.57.1/145 → **3.58.0/146**.
+- **Validation**: backend `pytest tests/ -q` → **282 passed**; Android `testDebugUnitTest`
+  + `assembleRelease` green.
+- **Next Recommended Actions**: commit + push (CI cuts v3.58.0.146); then live-probe against
+  RMS — especially assistant-manager designation detection and trainer+ no-password path.
+
 ## 2026-09-02T02:00:00+05:30 - Hotfix v3.57.1 (Build 145): remove Viber accessibility service (Play Protect block)
 
 - **Model Used**: Claude Sonnet 5 (claude-sonnet-5)

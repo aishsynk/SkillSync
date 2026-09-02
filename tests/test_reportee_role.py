@@ -60,18 +60,43 @@ class ReporteeRoleTests(unittest.TestCase):
 
     # ── identity ─────────────────────────────────────────────────────────────
     def test_classify_roster_owner_is_manager(self):
-        role, mgr, _ = backend._classify_identity(MANAGER)
+        role, mgr, _, needs_pw = backend._classify_identity(MANAGER)
         self.assertEqual(role, "manager")
+        self.assertFalse(needs_pw)
 
     def test_classify_directory_member_is_reportee(self):
         self._seed_directory()
-        role, mgr, resolved = backend._classify_identity(REPORTEE)
+        role, mgr, resolved, needs_pw = backend._classify_identity(REPORTEE)
         self.assertEqual(role, "reportee")
         self.assertEqual(mgr, MANAGER)
+        self.assertTrue(needs_pw)
+
+    def test_classify_trainer_plus_needs_no_password(self):
+        backend._reportee_repo.remember_roster(MANAGER, [
+            {"OffEmail": "tp@koenig-solutions.com", "TrainerName": "TP", "EmpId": "1", "TrainerPlus": "Yes"},
+        ])
+        role, _, _, needs_pw = backend._classify_identity("tp@koenig-solutions.com")
+        self.assertEqual(role, "trainer_plus")
+        self.assertFalse(needs_pw)
 
     def test_classify_unknown_defaults_to_manager(self):
-        role, _, _ = backend._classify_identity("nobody.x@koenig-solutions.com")
+        role, _, _, needs_pw = backend._classify_identity("nobody.x@koenig-solutions.com")
         self.assertEqual(role, "manager")
+        self.assertFalse(needs_pw)
+
+    def test_auth_check_reports_role_without_session(self):
+        self._seed_directory()
+        r = self.client.post("/api/auth/check", json={"email": "asha.k"})
+        body = r.get_json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["role"], "reportee")
+        self.assertTrue(body["needs_password"])
+        self.assertTrue(body["first_login"])
+        self.assertEqual(backend._sessions, {})  # no session minted
+
+    def test_auth_check_manager_needs_no_password(self):
+        r = self.client.post("/api/auth/check", json={"email": "manager"})
+        self.assertFalse(r.get_json()["needs_password"])
 
     # ── login handshake ──────────────────────────────────────────────────────
     def test_reportee_login_requires_password_then_emp_code(self):

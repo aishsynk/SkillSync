@@ -71,6 +71,8 @@ class ReporteeStore:
                     name           TEXT NOT NULL DEFAULT '',
                     emp_id         TEXT NOT NULL DEFAULT '',
                     trainer_plus   INTEGER NOT NULL DEFAULT 0,
+                    designation    TEXT NOT NULL DEFAULT '',
+                    is_direct      INTEGER NOT NULL DEFAULT 0,
                     updated_at     TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS credentials (
@@ -99,6 +101,12 @@ class ReporteeStore:
                     ON skill_requests(reportee_email, created_at);
                 """
             )
+            # Migrate pre-existing directory tables that predate these columns.
+            cols = {r[1] for r in db.execute("PRAGMA table_info(directory)").fetchall()}
+            if "designation" not in cols:
+                db.execute("ALTER TABLE directory ADD COLUMN designation TEXT NOT NULL DEFAULT ''")
+            if "is_direct" not in cols:
+                db.execute("ALTER TABLE directory ADD COLUMN is_direct INTEGER NOT NULL DEFAULT 0")
 
     # ── directory ────────────────────────────────────────────────────────────
     def remember_roster(self, manager_email: str, rows: list) -> None:
@@ -121,6 +129,8 @@ class ReporteeStore:
                     " ".join(str(r.get("TrainerName", "") or "").split()),
                     str(r.get("EmpId", "") or "").strip(),
                     1 if str(r.get("TrainerPlus", "") or "").strip().lower() == "yes" else 0,
+                    " ".join(str(r.get("Designation", "") or "").split()),
+                    1 if str(r.get("IsdirectReportee", "") or "").strip().lower() == "yes" else 0,
                     now,
                 )
             )
@@ -129,12 +139,13 @@ class ReporteeStore:
         with self._lock, self._db() as db:
             db.executemany(
                 """
-                INSERT INTO directory(reportee_email,manager_email,name,emp_id,trainer_plus,updated_at)
-                VALUES(?,?,?,?,?,?)
+                INSERT INTO directory(reportee_email,manager_email,name,emp_id,trainer_plus,designation,is_direct,updated_at)
+                VALUES(?,?,?,?,?,?,?,?)
                 ON CONFLICT(reportee_email) DO UPDATE SET
                   manager_email=excluded.manager_email, name=excluded.name,
                   emp_id=CASE WHEN excluded.emp_id != '' THEN excluded.emp_id ELSE directory.emp_id END,
-                  trainer_plus=excluded.trainer_plus, updated_at=excluded.updated_at
+                  trainer_plus=excluded.trainer_plus, designation=excluded.designation,
+                  is_direct=excluded.is_direct, updated_at=excluded.updated_at
                 """,
                 clean,
             )

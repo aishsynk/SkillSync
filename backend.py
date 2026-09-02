@@ -964,36 +964,61 @@ def _verify_role(email):
     return "manager", roster
 
 
+# Roles that sign in on the email alone. Only `reportee` is challenged for a
+# password.
+_NO_PASSWORD_ROLES = {"manager", "assistant_manager", "trainer_plus"}
+
+
+def _needs_password(role):
+    return role == "reportee"
+
+
+def _designation_role(designation):
+    """Map an RMS designation string to a privileged role, or '' if it is none."""
+    d = str(designation or "").strip().lower()
+    if "assistant" in d and "manager" in d:
+        return "assistant_manager"
+    if d in ("manager", "delivery manager") or d.endswith(" manager"):
+        return "assistant_manager"  # a titled manager who owns no roster yet
+    return ""
+
+
 def _classify_identity(email):
     """
-    Decide whether a Koenig email signs in as a `manager` or a `reportee`.
+    Resolve the sign-in role for a Koenig email.
 
-    A person who owns a non-empty RMS roster is a manager (a team lead who both
-    manages people and is someone else's reportee still gets the manager view).
-    Otherwise, if a manager has previously loaded a roster that contains this
-    email, they are that manager's reportee. Everyone else defaults to manager,
-    which preserves today's behaviour for accounts RMS has no structure for.
+      * owns a non-empty RMS roster                 -> "manager"
+      * in a manager's roster, TrainerPlus = Yes    -> "trainer_plus"
+      * in a manager's roster, designation ~ manager -> "assistant_manager"
+      * in a manager's roster, otherwise            -> "reportee"  (password)
+      * unknown to RMS                              -> "manager"   (unchanged default)
 
-    Returns (role, manager_email, resolved_email). `manager_email` is only set
-    for reportees; `resolved_email` is the local-part form the rest of the app
-    should key off.
+    Returns (role, manager_email, resolved_email, needs_password). `manager_email`
+    is only set for the in-roster roles; `resolved_email` is the local-part form
+    the rest of the app keys off.
     """
     email = str(email or "").strip().lower()
     if not email.endswith("@koenig-solutions.com"):
-        return None, "", email
+        return None, "", email, False
 
     manager_form = _resolve_manager_email(email)
     own = _rms("reportees", {"email": manager_form})
     if isinstance(own, list) and own:
         _reportee_repo.remember_roster(manager_form, own)
-        return "manager", "", manager_form
+        return "manager", "", manager_form, False
 
     for variant in [email] + _email_variants(email):
         entry = _reportee_repo.lookup(variant)
         if entry:
-            return "reportee", entry.get("manager_email", ""), variant
+            mgr = entry.get("manager_email", "")
+            if str(entry.get("trainer_plus") or "") in ("1", "True", "true"):
+                return "trainer_plus", mgr, variant, False
+            titled = _designation_role(entry.get("designation"))
+            if titled:
+                return titled, mgr, variant, False
+            return "reportee", mgr, variant, True
 
-    return "manager", "", manager_form
+    return "manager", "", manager_form, False
 
 
 # ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -2778,21 +2803,59 @@ def healthz():
     }), 200
 
 
+def _normalise_work_id(raw):
+    """A work ID ("aishwar.c") or a full address -> a full @koenig-solutions.com email."""
+    raw = str(raw or "").strip().lower()
+    if not raw:
+        return ""
+    email = raw if "@" in raw else f"{raw}@koenig-solutions.com"
+    return _re.sub(r"\s+", "", email)
+
+
+@app.route('/api/auth/check', methods=['POST'])
+@app.route('/auth/check', methods=['POST'])
+def auth_check():
+    """
+    Step one of sign-in: validate the email and report the role WITHOUT minting
+    a session. The client uses `needs_password` to decide whether to show the
+    password field or go straight to the Sign-in button.
+    """
+    try:
+        email = _normalise_work_id((request.get_json(silent=True) or {}).get("email", ""))
+        if not email:
+            return error_response("EMAIL_REQUIRED", "Work ID is required", 400)
+        if not email.endswith("@koenig-solutions.com"):
+            return error_response("INVALID_EMAIL", "Only @koenig-solutions.com accounts are permitted", 401)
+
+        role, manager_email, email, needs_password = _classify_identity(email)
+        if role is None:
+            return error_response("ACCESS_DENIED", "This account is not recognised", 401)
+
+        entry = _reportee_repo.lookup(email) or {}
+        name = str(entry.get("name", "") or "").strip() or email.split("@")[0].replace(".", " ").title()
+        first_login = needs_password and _reportee_repo.credential(email) is None
+        return jsonify({
+            "ok": True,
+            "email": email,
+            "role": role,
+            "name": name,
+            "needs_password": needs_password,
+            "first_login": first_login,
+        }), 200
+    except Exception as exc:
+        return error_response("INTERNAL_ERROR", f"Server error: {exc}", 500)
+
+
 @app.route('/api/auth/login', methods=['POST'])
 @app.route('/auth/login', methods=['POST'])
 def login():
     try:
         data  = request.get_json(silent=True) or {}
-        raw   = str(data.get('email', '') or data.get('username', '')).strip().lower()
         password = str(data.get('password', '') or '')
+        email = _normalise_work_id(data.get('email', '') or data.get('username', ''))
 
-        if not raw:
+        if not email:
             return error_response("EMAIL_REQUIRED", "Work ID is required", 400)
-
-        # The client sends initials only ("aishwar.c"); tolerate a full address
-        # too. Everything below keys off a full @koenig-solutions.com email.
-        email = raw if '@' in raw else f"{raw}@koenig-solutions.com"
-        email = _re.sub(r"\s+", "", email)
 
         if not email.endswith('@koenig-solutions.com'):
             return error_response(
@@ -2801,7 +2864,7 @@ def login():
                 401,
             )
 
-        role, manager_email, email = _classify_identity(email)
+        role, manager_email, email, needs_password = _classify_identity(email)
 
         if role is None:
             return error_response(
@@ -2810,8 +2873,8 @@ def login():
                 401,
             )
 
-        # ── Manager: email only, unchanged ──────────────────────────────────
-        if role == "manager":
+        # ── Privileged roles: email only ───────────────────────────────────
+        if not needs_password:
             _verify_role(email)  # keeps the directory warm
             sid = _generate_session_token(email, role)
             return jsonify({
@@ -2822,7 +2885,7 @@ def login():
         # ── Reportee: password required ─────────────────────────────────────
         if not password:
             return jsonify({
-                "success": False, "code": "PASSWORD_REQUIRED", "role": "reportee",
+                "success": False, "code": "PASSWORD_REQUIRED", "role": role,
                 "email": email,
                 "message": "This account signs in with a password.",
             }), 200

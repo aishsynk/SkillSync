@@ -21,11 +21,24 @@ data class LoginResponse(
     val message: String?,
 )
 
+data class AuthCheckResponse(
+    val ok: Boolean?,
+    val email: String?,
+    val role: String?,
+    val name: String?,
+    val needs_password: Boolean?,
+    val first_login: Boolean?,
+    val error: String?,
+)
+
 data class SetPasswordRequest(val new_password: String)
 
 data class SkillRequestResolve(val decision: String)
 
 interface SkillEdgeApi {
+    @POST("api/auth/check")
+    suspend fun authCheck(@Body request: LoginRequest): AuthCheckResponse
+
     @POST("api/auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
 
