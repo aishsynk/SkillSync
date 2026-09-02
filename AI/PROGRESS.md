@@ -1,6 +1,31 @@
 
 
 
+## 2026-09-02T11:00:00+05:30 - V4 Phase 1a: The Pulse + motion spring tokens (v3.62.0, Build 150)
+
+- **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
+- **Tool/Agent Used**: Claude Code (Kotlin/Compose, Gradle, Git) + artifact-design skill
+- **Context**: `AI/DESIGN_VISION_V4_2026_09_02.md` published
+  (https://claude.ai/code/artifact/ff2537b9-13ed-4506-a0ae-a9663a448d37). Roadmap phase 1
+  is "The Pulse + the collapsing brief"; this ships the Pulse first.
+- **Files**:
+  - `theme/SkillMotion.kt` (NEW) — the three V4 springs: `snappy` (.82), `gentle` (.78),
+    `flow` (critically damped), plus `press`.
+  - `ui/components/Pulse.kt` (NEW) — a frosted stadium capsule docked top-centre on
+    Today/People/Plan. Carries the one number: attention count when something needs the
+    manager (Watch/Critical tone), else team readiness (Calm). Breathes (1.0→1.035 scale
+    loop) while refreshing; a tap pulls fresh (haptic via `pressable`). Value swaps
+    cross-fade, never snap.
+  - `ui/main/MainScreen.kt` — Pulse overlaid in the outer Box, top-centre, `statusBarsPadding`.
+  - `app/src/test/.../PulseTest.kt` (NEW) — renders the capsule, asserts the number/label
+    and the tap action.
+  - `app/build.gradle.kts` — 3.61.0/149 -> **3.62.0/150**.
+- **Validation**: Android `testDebugUnitTest` green (+2 Pulse tests); backend untouched
+  (289 still green from prior run); `assembleRelease` building.
+- **Next (V4 roadmap)**: 1b — the collapsing brief (large Fraunces briefing sentence that
+  tracks scroll into the masthead; needs LazyListState hoisted from DashboardTab). Then
+  phase 2 — container-transform decision loop.
+
 ## 2026-09-02T09:00:00+05:30 - Trainer = manager app scoped to self + warm graphite palette (v3.61.0, Build 149)
 
 - **Model Used**: Claude Sonnet 5 (claude-sonnet-5)

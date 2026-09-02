@@ -591,6 +591,39 @@ fun MainScreen(
     }
 
     }
+
+        // ── V4 · The Pulse ────────────────────────────────────────────────
+        // The one number that matters right now, docked top-centre over every
+        // primary surface. Breathes while data refreshes; a tap pulls fresh.
+        if (tab == HomeTab.DASHBOARD || tab == HomeTab.TEAM || tab == HomeTab.DEMAND) {
+            val pulseKpis = (state as? DashboardState.Success)?.intelligenceData?.obj("manager_kpis")
+            val readinessNow = pulseKpis?.intOrNull("team_readiness_score")
+            val atRiskNow = pulseKpis?.intOrNull("high_risk_trainers") ?: 0
+            val openNow = pulseKpis?.intOrNull("open_actions") ?: 0
+            val attention = atRiskNow + openNow
+            Pulse(
+                value = when {
+                    attention > 0 -> "$attention"
+                    readinessNow != null -> "$readinessNow"
+                    else -> "—"
+                },
+                label = when {
+                    attention > 0 -> "need you"
+                    else -> "readiness"
+                },
+                tone = when {
+                    atRiskNow > 0 -> PulseTone.Critical
+                    attention > 0 -> PulseTone.Watch
+                    else -> PulseTone.Calm
+                },
+                refreshing = refreshing,
+                onTap = { viewModel.refresh(email, context) },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 6.dp),
+            )
+        }
     }
 
     drill?.let { DrillSheet(it) { drill = null } }
