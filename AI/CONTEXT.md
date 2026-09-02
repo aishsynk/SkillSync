@@ -19,6 +19,31 @@ All manager-to-reportee and team-level generated messages, standpoints, evaluati
 - **Group Broadcast Safety (Hard Rule)**: Team broadcasts must NEVER name an individual for negative signals (bench, feedback flags, cert gaps). Names appear ONLY for positive recognition.
 - **Teams/Viber Prose Formatting**: Greeting `Hello _First_,`, blank line, sanitised body with at most one `**bold**` action and one `__underlined__` time reference, blank line, italicized closing `_Thank you..._`, maximum 1000 characters, no hyphens, bullets, emojis, or dashes.
 
+## Reportee role & self-service contract (effective v3.57.0)
+
+SkillEdge now has two roles, decided by identity at `/api/auth/login` (no client toggle):
+- **manager** — signs in with work ID only (initials, e.g. `aishwar.c`; the client appends
+  `@koenig-solutions.com`). Anyone who owns a non-empty RMS `reportees` roster, plus every
+  account RMS has no structure for (unchanged default).
+- **reportee** — an email that appears in some manager's RMS roster and owns no roster of its
+  own. Signs in with a **password**: first login is the RMS employee code, then the app forces
+  a change (`/api/auth/set-password`). Hashes (PBKDF2) live in `skilledge_reportees.sqlite3`
+  via `reportee_store.py`; no plaintext, no RMS write. A reportee can only sign in after their
+  manager has loaded a roster at least once — that is the only source of the reportee→manager
+  mapping (`_reportee_repo.remember_roster`, called from `_verify_role` / `_classify_identity`).
+
+Reportee scope: their own Trainer 360 (`_profile_session` widens `trainer-360`), skill-matched
+unallocated demand (`GET /api/v2/reportee/demand`, ≥60 match score, fee/currency stripped),
+and an in-app updates feed (`GET /api/v2/notifications`, role-branched). No team roster, no
+other trainers, no manager consoles; `_v2_manager_session` rejects reportee tokens.
+
+**Self-mark skill ceiling = 4.** `/api/action/mark-skill` accepts reportee sessions but forces
+`trainer_email` to self and `OfficiallyApproved=No`. Level ≤ 4 writes to RMS via
+`_write_trainer_skill` (shared helper). Level > 4 writes **nothing** — it creates a pending
+row in `skill_requests`, notifies the manager (`SKILL_REQUEST`) and the reportee. The manager
+resolves at `POST /api/v2/manager/skill-requests/<id>` (`approve` runs the real verified write
+at the requested level with `OfficiallyApproved=Yes`; `deny` just closes it).
+
 ## What it is
 
 AI-assisted delivery-intelligence workspace for Koenig Solutions delivery managers.

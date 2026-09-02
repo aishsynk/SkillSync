@@ -179,6 +179,47 @@ class ManagerRepository(
         }
     }
 
+    suspend fun preDemandPipeline(manager: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
+        cachedMap("pipeline_$manager", fresh) { api.getPreDemandPipeline(manager) }
+
+    suspend fun deliveryCompliance(manager: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
+        cachedMap("compliance_$manager", fresh) { api.getDeliveryCompliance(manager) }
+
+    suspend fun endorseSkill(
+        managerEmail: String,
+        trainerEmail: String,
+        courseId: String,
+        courseName: String,
+        skillLevel: Int,
+        fromDate: String = "",
+        devPlanId: String = "",
+    ): Map<String, Any> = api.endorseSkill(
+        mapOf(
+            "manager_email" to managerEmail,
+            "trainer_email" to trainerEmail,
+            "course_id" to courseId,
+            "course_name" to courseName,
+            "skill_level" to skillLevel,
+            "from_date" to fromDate,
+            "dev_plan_id" to devPlanId,
+        )
+    )
+
+    suspend fun trainerSentiment(trainerEmail: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
+        cachedMap("sentiment_$trainerEmail", fresh) { api.getTrainerSentiment(trainerEmail) }
+
+    suspend fun viberQueue(manager: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
+        cachedMap("viber_queue_$manager", fresh) { api.getViberQueue(manager) }
+
+    suspend fun dispatchViber(body: Map<String, Any>): Map<String, Any> =
+        api.dispatchViber(body)
+
+    suspend fun viberConfig(manager: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
+        cachedMap("viber_config_$manager", fresh) { api.getViberConfig(manager) }
+
+    suspend fun updateViberConfig(body: Map<String, Any>): Map<String, Any> =
+        api.updateViberConfig(body)
+
     /** Production skill writes share the repository boundary with all reads. */
     suspend fun markSkill(request: MarkSkillRequest): retrofit2.Response<MarkSkillResponse> =
         api.markSkill(request)

@@ -36,6 +36,27 @@ import kotlinx.serialization.Serializable
 /** "How your team compares" — team health vs an honest, documented baseline. */
 @Serializable data class Benchmark(val email: String) : NavKey
 
+/** "Pre-Demand Pipeline Radar" — advance Service Confirmations with lead times and candidate matching. */
+@Serializable data class PipelineRadar(val email: String) : NavKey
+
+/** "Delivery Compliance Sentinel" — checks daily recording uploads for ongoing batches across reportees. */
+@Serializable data class DeliveryCompliance(val email: String) : NavKey
+
+/** "Viber Background Automation" — automated queue, outbox, and background dispatch console. */
+@Serializable data class ViberAutomation(val email: String) : NavKey
+
+/** "Skill Requests" — pending reportee skill-level elevation requests for a manager to approve/deny. */
+@Serializable data class SkillRequests(val email: String) : NavKey
+
+/** Reportee self-service shell: their own profile, matched demand, and updates. */
+@Serializable data class ReporteeMain(val email: String, val tab: String = ReporteeTab.ME) : NavKey
+
+object ReporteeTab {
+    const val ME = "me"
+    const val DEMAND = "demand"
+    const val UPDATES = "updates"
+}
+
 object HomeTab {
     const val DASHBOARD = "today"
     const val TEAM = "people"

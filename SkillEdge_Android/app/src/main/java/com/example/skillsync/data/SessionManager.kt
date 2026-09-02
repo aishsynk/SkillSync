@@ -21,6 +21,8 @@ object SessionManager {
     private const val PREF_NAME = "skilledge_session"
     private const val KEY_EMAIL = "logged_in_email"
     private const val KEY_SESSION_ID = "session_id"
+    private const val KEY_ROLE = "role"
+    private const val KEY_MUST_CHANGE = "must_change"
 
     private lateinit var prefs: SharedPreferences
 
@@ -39,16 +41,35 @@ object SessionManager {
         _loginState.value = isLoggedIn()
     }
 
-    fun saveSession(email: String, sessionId: String) {
+    fun saveSession(
+        email: String,
+        sessionId: String,
+        role: String = "manager",
+        mustChange: Boolean = false,
+    ) {
         prefs.edit()
             .putString(KEY_EMAIL, email)
             .putString(KEY_SESSION_ID, sessionId)
+            .putString(KEY_ROLE, role)
+            .putBoolean(KEY_MUST_CHANGE, mustChange)
             .apply()
         _loginState.value = true
     }
 
     fun getEmail(): String? =
         if (::prefs.isInitialized) prefs.getString(KEY_EMAIL, null) else null
+
+    fun getRole(): String =
+        if (::prefs.isInitialized) prefs.getString(KEY_ROLE, "manager") ?: "manager" else "manager"
+
+    fun isReportee(): Boolean = getRole() == "reportee"
+
+    fun mustChangePassword(): Boolean =
+        if (::prefs.isInitialized) prefs.getBoolean(KEY_MUST_CHANGE, false) else false
+
+    fun clearMustChange() {
+        if (::prefs.isInitialized) prefs.edit().putBoolean(KEY_MUST_CHANGE, false).apply()
+    }
 
     fun getSessionId(): String? =
         if (::prefs.isInitialized) prefs.getString(KEY_SESSION_ID, null) else null

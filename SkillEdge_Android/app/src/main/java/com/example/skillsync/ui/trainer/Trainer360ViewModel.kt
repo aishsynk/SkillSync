@@ -46,6 +46,9 @@ class Trainer360ViewModel(
     /** Development plan for this trainer: { items: [...], suggested: [...] }. */
     val devPlan = MutableStateFlow<Map<String, Any>?>(null)
 
+    /** Learner voice qualitative sentiment and keyword cloud. */
+    val sentiment = MutableStateFlow<Map<String, Any>?>(null)
+
     fun load(trainerEmail: String, managerEmail: String = "", context: android.content.Context) {
         if (loadedFor == trainerEmail && _state.value is Trainer360State.Success) return
         loadedFor = trainerEmail
@@ -56,6 +59,16 @@ class Trainer360ViewModel(
         fetchUtilHistory(trainerEmail)
         fetchActions(managerEmail, trainerEmail)
         fetchDevPlan(managerEmail, trainerEmail, fresh = false)
+        fetchSentiment(trainerEmail)
+    }
+
+    fun fetchSentiment(trainerEmail: String) {
+        if (trainerEmail.isBlank()) return
+        viewModelScope.launch {
+            sentiment.value = runCatching {
+                com.example.skillsync.data.api.RetrofitClient.instance.getTrainerSentiment(trainerEmail)
+            }.getOrNull()
+        }
     }
 
     private fun fetchDevPlan(managerEmail: String, trainerEmail: String, fresh: Boolean) {
@@ -95,7 +108,75 @@ class Trainer360ViewModel(
             fetchUtilHistory(trainerEmail)
             fetchActions(managerEmail, trainerEmail)
             fetchDevPlan(managerEmail, trainerEmail, fresh = true)
+            fetchSentiment(trainerEmail)
             _refreshing.value = false
+        }
+    }
+
+    fun endorseSkill(
+        managerEmail: String,
+        trainerEmail: String,
+        courseId: String,
+        courseName: String,
+        skillLevel: Int = 8,
+        devPlanId: String = "",
+        onResult: (Boolean, String) -> Unit = { _, _ -> },
+    ) {
+        viewModelScope.launch {
+            try {
+                val res = com.example.skillsync.data.api.RetrofitClient.instance.endorseSkill(
+                    mapOf(
+                        "manager_email" to managerEmail,
+                        "trainer_email" to trainerEmail,
+                        "course_id" to courseId,
+                        "course_name" to courseName,
+                        "skill_level" to skillLevel,
+                        "dev_plan_id" to devPlanId,
+                    )
+                )
+                val ok = res["ok"] == true
+                val msg = res["rms_message"]?.toString() ?: if (ok) "Skill endorsed to RMS" else "Endorsement failed"
+                if (ok) {
+                    fetchDevPlan(managerEmail, trainerEmail, fresh = true)
+                }
+                onResult(ok, msg)
+            } catch (e: Exception) {
+                onResult(false, e.localizedMessage ?: "Network error during endorsement")
+            }
+        }
+    }
+
+    /**
+     * A reportee marks their own skill. The backend caps self-service at level 4
+     * and converts anything higher into a manager-approval request, so this
+     * simply forwards and reports whichever outcome came back.
+     */
+    fun selfMarkSkill(
+        trainerEmail: String,
+        courseId: String,
+        skillLevel: Int,
+        onResult: (Boolean, String) -> Unit = { _, _ -> },
+    ) {
+        viewModelScope.launch {
+            try {
+                val today = java.time.LocalDate.now().toString()
+                val res = repository.markSkill(
+                    com.example.skillsync.data.api.MarkSkillRequest(
+                        course_id = courseId,
+                        trainer_email = trainerEmail,
+                        skill_level = skillLevel,
+                        from_date = today,
+                    )
+                )
+                val body = res.body()
+                val ok = res.isSuccessful && body?.success == true
+                val msg = body?.message
+                    ?: body?.error
+                    ?: if (ok) "Skill saved" else "Could not mark skill"
+                onResult(ok, msg)
+            } catch (e: Exception) {
+                onResult(false, e.localizedMessage ?: "Network error")
+            }
         }
     }
 
@@ -114,6 +195,7 @@ class Trainer360ViewModel(
             fetch(trainerEmail, managerEmail, context, fresh = false)
             fetchUtilHistory(trainerEmail)
             fetchActions(managerEmail, trainerEmail)
+            fetchSentiment(trainerEmail)
         }
     }
 

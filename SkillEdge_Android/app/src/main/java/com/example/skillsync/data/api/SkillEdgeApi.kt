@@ -7,20 +7,45 @@ import retrofit2.http.Path
 import retrofit2.http.Body
 import retrofit2.http.Query
 
-data class LoginRequest(val email: String)
+data class LoginRequest(val email: String, val password: String? = null)
 
 data class LoginResponse(
     val success: Boolean?,
     val session_id: String?,
     val email: String?,
     val role: String?,
+    val code: String?,
+    val manager_email: String?,
+    val must_change: Boolean?,
     val error: String?,
     val message: String?,
 )
 
+data class SetPasswordRequest(val new_password: String)
+
+data class SkillRequestResolve(val decision: String)
+
 interface SkillEdgeApi {
     @POST("api/auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
+
+    @POST("api/auth/set-password")
+    suspend fun setPassword(@Body request: SetPasswordRequest): Map<String, Any>
+
+    @GET("api/v2/notifications")
+    suspend fun notifications(): Map<String, Any>
+
+    @GET("api/v2/reportee/demand")
+    suspend fun reporteeDemand(): Map<String, Any>
+
+    @GET("api/v2/manager/skill-requests")
+    suspend fun skillRequests(@Query("status") status: String = "pending"): Map<String, Any>
+
+    @POST("api/v2/manager/skill-requests/{id}")
+    suspend fun resolveSkillRequest(
+        @Path("id") id: String,
+        @Body body: SkillRequestResolve,
+    ): Map<String, Any>
 
     @POST("api/auth/logout")
     suspend fun logout(): Map<String, Any>
@@ -342,6 +367,38 @@ interface SkillEdgeApi {
     /** Update a plan item. Body: manager, id, status?, note?, target_date?. */
     @PATCH("api/v2/devplan/item")
     suspend fun updateDevPlanItem(@Body body: Map<String, String>): Map<String, Any>
+
+    /** "Pre-Demand Pipeline Radar" — advance Service Confirmations with lead times and candidate matching. */
+    @GET("api/v2/planning/pipeline")
+    suspend fun getPreDemandPipeline(@Query("manager") manager: String): Map<String, Any>
+
+    /** "Delivery Compliance Sentinel" — checks daily recording uploads for ongoing batches across reportees. */
+    @GET("api/v2/delivery/compliance")
+    suspend fun getDeliveryCompliance(@Query("manager") manager: String): Map<String, Any>
+
+    /** "1-Tap IDP Skill Endorsement" — write verified skill directly to RMS with audit trail. */
+    @POST("api/v2/skills/endorse")
+    suspend fun endorseSkill(@Body body: Map<String, Any>): Map<String, Any>
+
+    /** "Learner Voice & Sentiment" — keyword clouds, praise ratio, and categorized verbatim quotes. */
+    @GET("api/v2/trainer/sentiment")
+    suspend fun getTrainerSentiment(@Query("trainer_email") email: String): Map<String, Any>
+
+    /** "Viber Background Automation Queue" — fetches pre-composed candidate messages for demand, standpoints, and alerts. */
+    @GET("api/v2/viber/queue")
+    suspend fun getViberQueue(@Query("manager") manager: String): Map<String, Any>
+
+    /** "Viber Background Automation Dispatch" — dispatches one or more messages to Viber. */
+    @POST("api/v2/viber/dispatch")
+    suspend fun dispatchViber(@Body body: Map<String, Any>): Map<String, Any>
+
+    /** "Viber Automation Preferences" — gets manager automation settings. */
+    @GET("api/v2/viber/config")
+    suspend fun getViberConfig(@Query("manager") manager: String): Map<String, Any>
+
+    /** "Viber Automation Preferences" — updates manager automation settings. */
+    @POST("api/v2/viber/config")
+    suspend fun updateViberConfig(@Body body: Map<String, Any>): Map<String, Any>
 }
 
 data class StructuredFeedbackDto(
@@ -466,6 +523,9 @@ data class MarkSkillResponse(
     val rms_message: String?,
     val message: String?,
     val error: String?,
+    /** Reportee self-mark above level 4: queued for manager approval, not written. */
+    val pending: Boolean? = null,
+    val request_id: String? = null,
 )
 
 data class AgentAskRequest(

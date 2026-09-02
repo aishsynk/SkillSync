@@ -24,6 +24,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.example.skillsync.R
 import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.Radii
@@ -32,6 +35,7 @@ import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.batch.BatchShare
 import com.example.skillsync.ui.batch.BulkBatchShare
+import com.example.skillsync.ui.components.LocalNotify
 import com.example.skillsync.ui.components.longDate
 import com.example.skillsync.ui.components.str
 import com.example.skillsync.ui.components.intOrNull
@@ -50,11 +54,14 @@ fun PrioritiesScreen(
     onOpenActions: () -> Unit,
     onOpenRunway: () -> Unit = {},
     onOpenRamp: () -> Unit = {},
+    onOpenPipelineRadar: () -> Unit = {},
+    onOpenDeliveryCompliance: () -> Unit = {},
     onBack: () -> Unit,
     vm: PrioritiesViewModel = viewModel(),
 ) {
     val sk = MaterialTheme.skill
     val context = LocalContext.current
+    val notify = LocalNotify.current
 
     LaunchedEffect(managerEmail) { if (managerEmail.isNotBlank()) vm.init(managerEmail, context) }
 
@@ -115,6 +122,12 @@ fun PrioritiesScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = onOpenPipelineRadar) {
+                            Icon(painterResource(R.drawable.ic_calendar), "Pre-Demand Pipeline Radar", tint = sk.ice)
+                        }
+                        IconButton(onClick = onOpenDeliveryCompliance) {
+                            Icon(painterResource(R.drawable.ic_check), "Live Delivery Compliance", tint = sk.ice)
+                        }
                         IconButton(onClick = { openBulkShare() }) {
                             Icon(painterResource(R.drawable.ic_mail), "Share unallocated pipeline", tint = sk.ice)
                         }
@@ -221,6 +234,22 @@ fun PrioritiesScreen(
                 BatchShare.shareAnywhere(context, text)
                 showBulkShare = false
             },
+            onAutoViber = { text ->
+                val outboxItem = com.example.skillsync.data.cache.ViberOutboxItem(
+                    id = "viber_pipeline_bulk_${System.currentTimeMillis()}",
+                    category = com.example.skillsync.data.cache.ViberOutboxItem.CAT_DEMAND,
+                    recipientName = "Team",
+                    recipientEmail = "team",
+                    courseName = "Open Pipeline (${bulkBatches.size} batches)",
+                    messageText = text,
+                )
+                com.example.skillsync.data.cache.ViberOutboxStore.enqueue(managerEmail, listOf(outboxItem))
+                CoroutineScope(Dispatchers.IO).launch {
+                    com.example.skillsync.util.ViberDispatcher.dispatchBatch(context, managerEmail, listOf(outboxItem))
+                }
+                notify.success("Auto-dispatching pipeline to Viber in background...")
+                showBulkShare = false
+            },
         )
     }
     }
@@ -273,6 +302,7 @@ private fun BulkSharePreviewDialog(
     onDismiss: () -> Unit,
     onCopy: (String) -> Unit,
     onShare: (String) -> Unit,
+    onAutoViber: (String) -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
     var text by remember(message) { mutableStateOf(message) }
@@ -287,9 +317,12 @@ private fun BulkSharePreviewDialog(
             }
         },
         dismissButton = {
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onDismiss) { Text("Cancel") }
                 TextButton(onClick = { onShare(text) }) { Text("Share") }
+                TextButton(onClick = { onAutoViber(text) }) {
+                    Text("🚀 Auto-Viber", color = Color(0xFF818CF8), fontWeight = FontWeight.Bold)
+                }
             }
         },
         title = {

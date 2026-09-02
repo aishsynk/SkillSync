@@ -90,6 +90,12 @@ fun ManagerCommandCentre(
     onOpenAccounts: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
     onOpenDelivery: () -> Unit = {},
+    onOpenPipelineRadar: () -> Unit = {},
+    onOpenDeliveryCompliance: () -> Unit = {},
+    onOpenCapacityRunway: () -> Unit = {},
+    onOpenViberAutomation: () -> Unit = {},
+    onOpenSkillRequests: () -> Unit = {},
+    pendingSkillRequests: Int = 0,
     onBatchClick: (String) -> Unit = {},
     /**
      * Real calendar availability per trainer email. Named explicitly because
@@ -237,12 +243,13 @@ fun ManagerCommandCentre(
             onOpenDelivery = onOpenDelivery,
         )
 
-        // ── Executive Command Deck (4-Tile Fast Launch) ─────────────────────
-        SectionHeading("Executive Operations", "One-tap operational reports and dispatch")
+        // ── Executive Command Deck (8-Tile Bento Grid) ─────────────────────
+        SectionHeading("Executive Operations", "Real-time intelligence dispatch & strategic consoles")
         Column(
             Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // Row 1: Priorities & Pre-Demand Radar
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -250,7 +257,7 @@ fun ManagerCommandCentre(
                 Surface(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable { onOpenWeeklyReport() },
+                        .clickable { onOpenPriorities() },
                     shape = RoundedCornerShape(14.dp),
                     color = Color(0x281D4ED8),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x6638BDF8)),
@@ -269,14 +276,14 @@ fun ManagerCommandCentre(
                         ) {
                             Icon(
                                 painterResource(R.drawable.ic_calendar),
-                                contentDescription = "Weekly Report",
+                                contentDescription = "This Week Priorities",
                                 tint = Color(0xFF38BDF8),
                                 modifier = Modifier.size(18.dp),
                             )
                         }
                         Column {
-                            Text("Weekly Report", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
-                            Text("Standpoint & Digest ↗", color = sk.sky, fontSize = 10.sp)
+                            Text("This Week", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text("Urgent Actions ↗", color = Color(0xFF38BDF8), fontSize = 10.sp)
                         }
                     }
                 }
@@ -284,9 +291,123 @@ fun ManagerCommandCentre(
                 Surface(
                     modifier = Modifier
                         .weight(1f)
+                        .clickable { onOpenPipelineRadar() },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0x284F46E5),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66818CF8)),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0x33818CF8)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_trend),
+                                contentDescription = "Pre-Demand Pipeline Radar",
+                                tint = Color(0xFF818CF8),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Column {
+                            Text("Pipeline Radar", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text("Signed SC Radar ↗", color = Color(0xFF818CF8), fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+
+            // Row 2: Live Delivery Sentinel & Weekly Standpoint
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onOpenDeliveryCompliance() },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0x28059669),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x6634D399)),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0x3334D399)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_check),
+                                contentDescription = "Delivery Compliance Sentinel",
+                                tint = Color(0xFF34D399),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Column {
+                            Text("Live Sentinel", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text("Daily Recording Audit ↗", color = Color(0xFF34D399), fontSize = 10.sp)
+                        }
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onOpenWeeklyReport() },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0x280284C7),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x6638BDF8)),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0x3338BDF8)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_copy),
+                                contentDescription = "Weekly Standpoint Note",
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Column {
+                            Text("Weekly Standpoint", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text("AI Mind Dispatch ↗", color = Color(0xFF38BDF8), fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+
+            // Row 3: HR Monthly Review & Capacity Runway
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
                         .clickable { onOpenHrReport() },
                     shape = RoundedCornerShape(14.dp),
-                    color = Color(0x28F59E0B),
+                    color = Color(0x28D97706),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66FBBF24)),
                 ) {
                     Row(
@@ -303,30 +424,25 @@ fun ManagerCommandCentre(
                         ) {
                             Icon(
                                 painterResource(R.drawable.ic_certificate),
-                                contentDescription = "HR Monthly Report",
+                                contentDescription = "HR Monthly Review",
                                 tint = Color(0xFFFBBF24),
                                 modifier = Modifier.size(18.dp),
                             )
                         }
                         Column {
                             Text("HR Monthly Review", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
-                            Text("TI Score & Review ↗", color = Color(0xFFFBBF24), fontSize = 10.sp)
+                            Text("TI Score Breakdown ↗", color = Color(0xFFFBBF24), fontSize = 10.sp)
                         }
                     }
                 }
-            }
 
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
                 Surface(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable { onOpenDemand() },
+                        .clickable { onOpenCapacityRunway() },
                     shape = RoundedCornerShape(14.dp),
-                    color = Color(0x2806B6D4),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x6622D3EE)),
+                    color = Color(0x28E11D48),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66FB7185)),
                 ) {
                     Row(
                         Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
@@ -337,58 +453,25 @@ fun ManagerCommandCentre(
                             Modifier
                                 .size(34.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0x3322D3EE)),
+                                .background(Color(0x33FB7185)),
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
-                                painterResource(R.drawable.ic_inbox),
-                                contentDescription = "Allocation Desk",
-                                tint = Color(0xFF22D3EE),
+                                painterResource(R.drawable.ic_trend),
+                                contentDescription = "Capacity Runway",
+                                tint = Color(0xFFFB7185),
                                 modifier = Modifier.size(18.dp),
                             )
                         }
                         Column {
-                            Text("Allocation Desk", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
-                            Text("${demand.size} Batches Waiting ↗", color = Color(0xFF22D3EE), fontSize = 10.sp)
-                        }
-                    }
-                }
-
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable { onOpenDelivery() },
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color(0x2810B981),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x6634D399)),
-                ) {
-                    Row(
-                        Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Box(
-                            Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0x3334D399)),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                painterResource(R.drawable.ic_calendar),
-                                contentDescription = "Delivery Operations",
-                                tint = Color(0xFF34D399),
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                        Column {
-                            Text("Delivery Ops", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
-                            Text("${ops.size} Instructors Live ↗", color = Color(0xFF34D399), fontSize = 10.sp)
+                            Text("Capacity Runway", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text("8-Wk Demand Gap ↗", color = Color(0xFFFB7185), fontSize = 10.sp)
                         }
                     }
                 }
             }
 
+            // Row 4: Customer Accounts & Team Copilot AI
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -398,7 +481,7 @@ fun ManagerCommandCentre(
                         .weight(1f)
                         .clickable { onOpenAccounts() },
                     shape = RoundedCornerShape(14.dp),
-                    color = Color(0x288B5CF6),
+                    color = Color(0x287C3AED),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66A78BFA)),
                 ) {
                     Row(
@@ -415,14 +498,163 @@ fun ManagerCommandCentre(
                         ) {
                             Icon(
                                 painterResource(R.drawable.ic_inbox),
-                                contentDescription = "Accounts",
+                                contentDescription = "Customer Accounts",
                                 tint = Color(0xFFA78BFA),
                                 modifier = Modifier.size(18.dp),
                             )
                         }
                         Column {
-                            Text("Accounts", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
-                            Text("Customer delivery book ↗", color = Color(0xFFA78BFA), fontSize = 10.sp)
+                            Text("Accounts Book", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text("Client Concentration ↗", color = Color(0xFFA78BFA), fontSize = 10.sp)
+                        }
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onOpenCopilot() },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0x280891B2),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x6622D3EE)),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0x3322D3EE)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_alert),
+                                contentDescription = "Team Copilot AI",
+                                tint = Color(0xFF22D3EE),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Column {
+                            Text("Team Copilot AI", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text("Ask Team Agent ↗", color = Color(0xFF22D3EE), fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+
+            // Row 5: Viber Automation & Delivery Operations
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onOpenViberAutomation() },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0x286366F1),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66818CF8)),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0x33818CF8)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_forward),
+                                contentDescription = "Viber Background Automation",
+                                tint = Color(0xFF818CF8),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Column {
+                            Text("Viber Automation", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text("Auto-Dispatch Queue ↗", color = Color(0xFF818CF8), fontSize = 10.sp)
+                        }
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onOpenDelivery() },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0x280D9488),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x662DD4BF)),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0x332DD4BF)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_calendar),
+                                contentDescription = "Delivery Operations",
+                                tint = Color(0xFF2DD4BF),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Column {
+                            Text("Delivery Ops", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text("Full Calendar ↗", color = Color(0xFF2DD4BF), fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+
+            // Row 6: Skill approval queue
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onOpenSkillRequests() },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0x28F59E0B),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66FBBF24)),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Box(
+                            Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color(0x33FBBF24)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_check),
+                                contentDescription = "Skill Requests",
+                                tint = Color(0xFFFBBF24),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Column {
+                            Text("Skill Requests", fontWeight = FontWeight.Bold, color = sk.bodyText, fontSize = 12.sp)
+                            Text(
+                                if (pendingSkillRequests > 0) "$pendingSkillRequests awaiting approval ↗"
+                                else "Reportee level requests ↗",
+                                color = Color(0xFFFBBF24), fontSize = 10.sp,
+                            )
                         }
                     }
                 }

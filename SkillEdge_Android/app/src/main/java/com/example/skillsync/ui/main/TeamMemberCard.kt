@@ -85,10 +85,29 @@ internal fun TeamMemberCard(
     val series = trainer.list("utilization_series")
         .mapNotNull { it.intOrNull("utilization") }
 
+    val currentStatus = state?.str("current_status").orEmpty()
+    val statusLabel = when (currentStatus) {
+        "teaching_now" -> "Delivering"
+        "scheduled_today" -> "Scheduled"
+        "preparing" -> "Preparing"
+        "free" -> if ((calendarAvailability?.get("leave_days") as? Number)?.toInt() ?: 0 > 0) "On Leave" else "Available"
+        else -> "Active"
+    }
+    val statusColor = when (statusLabel) {
+        "Delivering" -> Color(0xFF10B981)
+        "Scheduled" -> Color(0xFF06B6D4)
+        "Preparing" -> Color(0xFF8B5CF6)
+        "On Leave" -> Color(0xFFF59E0B)
+        "Available" -> Color(0xFF38BDF8)
+        else -> Color(0xFF94A3B8)
+    }
+
     Row(
         Modifier
             .fillMaxWidth()
-            .glassSurface(RoundedCornerShape(Radii.card))
+            .clip(RoundedCornerShape(Radii.card))
+            .background(Color(0x22111827))
+            .border(1.dp, Color(0x3538BDF8), RoundedCornerShape(Radii.card))
             .pressable(onClick),
     ) {
         // Glowing severity indicator bar on the left edge
@@ -112,7 +131,7 @@ internal fun TeamMemberCard(
                 .padding(horizontal = Space.md, vertical = Space.md),
             verticalArrangement = Arrangement.spacedBy(Space.xs),
         ) {
-            // Identity row: avatar with glowing border + name/designation + readiness badge
+            // Identity row: avatar with glowing border + name/designation + status/readiness badge
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier
@@ -125,13 +144,40 @@ internal fun TeamMemberCard(
                 }
                 Spacer(Modifier.width(Space.md))
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        name,
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            name,
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(statusColor.copy(alpha = 0.16f))
+                                .border(1.dp, statusColor.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Box(
+                                    Modifier
+                                        .size(5.dp)
+                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(statusColor)
+                                )
+                                Text(
+                                    statusLabel,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = statusColor,
+                                    fontSize = 9.sp,
+                                )
+                            }
+                        }
+                    }
                     if (designation.isNotBlank()) {
                         Text(
                             designation,
@@ -154,11 +200,11 @@ internal fun TeamMemberCard(
                             .clip(RoundedCornerShape(8.dp))
                             .background(rColor.copy(alpha = 0.16f))
                             .border(1.dp, rColor.copy(alpha = 0.40f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                            .padding(horizontal = 7.dp, vertical = 3.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            "$readiness% Ready",
+                            "$readiness%",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = rColor,
                         )

@@ -92,8 +92,10 @@ fun LoginScreen(
     onLoginSuccess: (email: String) -> Unit,
     viewModel: LoginViewModel = viewModel(),
 ) {
-    var email by remember { mutableStateOf("") }
+    var workId by remember { mutableStateOf("") }
+    var secret by remember { mutableStateOf("") }
     val loginState by viewModel.loginState.collectAsState()
+    val step by viewModel.step.collectAsState()
     val keyboard = LocalSoftwareKeyboardController.current
     val notify = LocalNotify.current
 
@@ -101,6 +103,8 @@ fun LoginScreen(
 
     val errorMessage = (loginState as? LoginState.Error)?.message
     val shake by rememberShake(errorMessage)
+
+    LaunchedEffect(step) { secret = "" }
 
     LaunchedEffect(loginState) {
         when (val s = loginState) {
@@ -113,6 +117,11 @@ fun LoginScreen(
             is LoginState.Error -> notify.error("Sign-in failed", s.message)
             else -> Unit
         }
+    }
+
+    val onSubmit = {
+        keyboard?.hide()
+        viewModel.submit(workId, secret)
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -162,25 +171,45 @@ fun LoginScreen(
                             .padding(Space.xl),
                     ) {
                         Text(
-                            "Sign in",
+                            when (step) {
+                                LoginStep.SET_PASSWORD -> "Set a password"
+                                LoginStep.PASSWORD -> "Enter your password"
+                                else -> "Sign in"
+                            },
                             style = MaterialTheme.typography.headlineSmall,
                             color = MaterialTheme.skill.bodyText,
                         )
                         Spacer(Modifier.height(Space.xs))
                         Text(
-                            "Managers and Trainer Plus accounts only.",
+                            when (step) {
+                                LoginStep.SET_PASSWORD ->
+                                    "First sign-in: replace your employee code with a password (6+ characters)."
+                                LoginStep.PASSWORD ->
+                                    "First-time sign-in uses your employee code."
+                                else -> "Enter your Koenig work ID."
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.skill.subText,
                         )
 
                         Spacer(Modifier.height(Space.lg))
 
-                        EmailField(
-                            value = email,
-                            onValueChange = { email = it },
-                            isError = errorMessage != null,
-                            onSubmit = { viewModel.login(email) },
-                        )
+                        if (step == LoginStep.ID) {
+                            EmailField(
+                                value = workId,
+                                onValueChange = { workId = it },
+                                isError = errorMessage != null,
+                                onSubmit = onSubmit,
+                            )
+                        } else {
+                            SecretField(
+                                value = secret,
+                                onValueChange = { secret = it },
+                                label = if (step == LoginStep.SET_PASSWORD) "New password" else "Password",
+                                isError = errorMessage != null,
+                                onSubmit = onSubmit,
+                            )
+                        }
 
                         AnimatedVisibility(
                             visible = errorMessage != null,
@@ -194,11 +223,8 @@ fun LoginScreen(
 
                         SignInButton(
                             state = loginState,
-                            enabled = email.isNotBlank(),
-                            onClick = {
-                                keyboard?.hide()
-                                viewModel.login(email)
-                            },
+                            enabled = if (step == LoginStep.ID) workId.isNotBlank() else secret.isNotBlank(),
+                            onClick = onSubmit,
                         )
                     }
                 }
@@ -230,9 +256,10 @@ private fun EmailField(
 
     OutlinedTextField(
         value = value,
-        onValueChange = onValueChange,
-        label = { Text("Work email") },
-        placeholder = { Text("name@koenig-solutions.com") },
+        onValueChange = { onValueChange(it.filterNot { c -> c.isWhitespace() }) },
+        label = { Text("Work ID") },
+        placeholder = { Text("aishwar.c") },
+        suffix = { Text("@koenig-solutions.com", color = sk.labelText) },
         leadingIcon = {
             Icon(
                 painter = painterResource(R.drawable.ic_mail),
@@ -252,6 +279,60 @@ private fun EmailField(
         textStyle = MaterialTheme.typography.bodyLarge,
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.Email,
+            imeAction = ImeAction.Done,
+        ),
+        keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = sk.brand,
+            unfocusedBorderColor = sk.glassBorder,
+            errorBorderColor = sk.crit,
+            focusedLabelColor = sk.brand,
+            unfocusedLabelColor = sk.labelText,
+            focusedTextColor = sk.bodyText,
+            unfocusedTextColor = sk.bodyText,
+            cursorColor = sk.brand,
+            focusedContainerColor = sk.brand.copy(alpha = 0.05f),
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun SecretField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    isError: Boolean,
+    onSubmit: () -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        leadingIcon = {
+            Icon(
+                painter = painterResource(R.drawable.ic_alert),
+                contentDescription = null,
+                tint = when {
+                    isError -> sk.crit
+                    focused -> sk.brand
+                    else -> sk.labelText
+                },
+                modifier = Modifier.size(20.dp),
+            )
+        },
+        singleLine = true,
+        isError = isError,
+        interactionSource = interaction,
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        shape = RoundedCornerShape(Radii.chip),
+        textStyle = MaterialTheme.typography.bodyLarge,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Password,
             imeAction = ImeAction.Done,
         ),
         keyboardActions = KeyboardActions(onDone = { onSubmit() }),

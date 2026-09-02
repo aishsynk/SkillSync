@@ -119,8 +119,8 @@ class NotifyAndLoginTest {
         compose.setContent { SkillSyncTheme { LoginScreen(onLoginSuccess = {}) } }
         // "Sign in" appears twice by design — the card heading and the button.
         compose.onAllNodesWithText("Sign in").assertCountEquals(2)
-        compose.onNodeWithText("Managers and Trainer Plus accounts only.").assertExists()
-        compose.onNodeWithText("Work email").assertExists()
+        compose.onNodeWithText("Enter your Koenig work ID.").assertExists()
+        compose.onNodeWithText("Work ID").assertExists()
         compose.onNodeWithText("DELIVERY INTELLIGENCE").assertExists()
     }
 
@@ -131,7 +131,7 @@ class NotifyAndLoginTest {
     @Test
     fun login_formIsCentredAndWidthCapped() {
         compose.setContent { SkillSyncTheme { LoginScreen(onLoginSuccess = {}) } }
-        val field = compose.onNodeWithText("Work email").fetchSemanticsNode().boundsInRoot
+        val field = compose.onNodeWithText("Work ID").fetchSemanticsNode().boundsInRoot
         val root = compose.onAllNodesWithText("Sign in").onFirst().fetchSemanticsNode().boundsInRoot
         assertTrue("Field must sit under the heading", field.top > root.top)
     }

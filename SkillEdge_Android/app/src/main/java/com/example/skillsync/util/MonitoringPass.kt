@@ -65,6 +65,7 @@ object MonitoringPass {
             }
 
             maybePostDigests(context, email)
+            ViberAutomationEngine.processPass(context, email, data)
             Result.Ok
         } catch (e: Exception) {
             Log.e("MonitoringPass", "monitoring pass failed", e)

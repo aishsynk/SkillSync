@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">SkillSync</string>
+    <string name="viber_accessibility_description">Automates background dispatch of unallocated demand and weekly standpoint messages to Viber contacts.</string>
 </resources>

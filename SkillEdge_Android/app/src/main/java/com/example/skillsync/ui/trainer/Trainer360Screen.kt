@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,16 +48,20 @@ fun Trainer360Screen(
     trainerEmail: String,
     trainerName: String,
     managerEmail: String = "",
+    /** True when a reportee is viewing their own profile: no cross-team ranking,
+     *  no manager-only endorsement action. */
+    selfView: Boolean = false,
     onBack: () -> Unit,
     viewModel: Trainer360ViewModel = viewModel(),
 ) {
     val sk = MaterialTheme.skill
     val context = androidx.compose.ui.platform.LocalContext.current
-    LaunchedEffect(trainerEmail, managerEmail) {
-        viewModel.load(trainerEmail, managerEmail, context)
-        viewModel.loadReadiness(managerEmail, trainerEmail)
+    val scopeManager = if (selfView) "" else managerEmail
+    LaunchedEffect(trainerEmail, scopeManager) {
+        viewModel.load(trainerEmail, scopeManager, context)
+        if (!selfView) viewModel.loadReadiness(managerEmail, trainerEmail)
     }
-    RefreshOnResume(key = trainerEmail) { viewModel.syncSilently(trainerEmail, managerEmail, context) }
+    RefreshOnResume(key = trainerEmail) { viewModel.syncSilently(trainerEmail, scopeManager, context) }
 
     val state by viewModel.state.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
@@ -65,6 +70,7 @@ fun Trainer360Screen(
     val actions by viewModel.actions.collectAsState()
     val readiness by viewModel.readiness.collectAsState()
     val devPlan by viewModel.devPlan.collectAsState()
+    val sentiment by viewModel.sentiment.collectAsState()
     val online by com.example.skillsync.data.sync.SyncScheduler.online.collectAsState()
     StatusBarIcons(lightIcons = true)
 
@@ -87,151 +93,164 @@ fun Trainer360Screen(
                     title = {
                         Column {
                             Text(
-                                trainerName.ifBlank { "Trainer" },
-                                fontWeight = FontWeight.Bold, color = sk.bodyText,
+                                trainerName.ifBlank { "Trainer 360" },
+                                fontWeight = FontWeight.Bold,
+                                color = sk.bodyText,
                                 style = MaterialTheme.typography.titleLarge,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
                             )
-                            Text("Trainer 360 Profile", color = sk.sky, style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                trainerEmail,
+                                color = sk.sky,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
                         }
                     },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(
-                                painterResource(R.drawable.ic_back),
-                                contentDescription = "Back",
-                                tint = sk.ice,
-                            )
+                            Icon(painterResource(R.drawable.ic_back), "Back", tint = sk.ice)
                         }
                     },
                     actions = {
-                        (state as? Trainer360State.Success)?.let { loaded ->
-                            IconButton(onClick = { TrainerReport.export(context, loaded.data) }) {
-                                Icon(
-                                    painterResource(R.drawable.ic_export_pdf),
-                                    contentDescription = "Export profile as PDF",
-                                    tint = sk.ice,
+                        IconButton(onClick = { showCopilot = true }) {
+                            Icon(painterResource(R.drawable.ic_alert), "Ask Copilot about this trainer", tint = sk.ice)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                )
+            },
+        ) { padding ->
+            Column(
+                Modifier.fillMaxSize().padding(padding)
+            ) {
+                when (val s = state) {
+                    is Trainer360State.Loading -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = sk.brand)
+                        }
+                    }
+
+                    is Trainer360State.Error -> {
+                        Column(
+                            Modifier.fillMaxSize().padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Text(
+                                "Could not load profile",
+                                color = sk.warn,
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                s.message,
+                                color = sk.subText,
+                                style = MaterialTheme.typography.bodySmall,
+                                textAlign = TextAlign.Center,
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Button(
+                                onClick = { viewModel.refresh(trainerEmail, scopeManager, context) },
+                                colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
+                            ) {
+                                Text("Retry")
+                            }
+                        }
+                    }
+
+                    is Trainer360State.Success -> {
+                        if (!online) {
+                            Row(
+                                Modifier.fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.errorContainer)
+                                    .padding(vertical = 4.dp, horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.Center,
+                            ) {
+                                Text(
+                                    "Offline Mode · Showing saved trainer data",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
                                 )
                             }
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                    ),
-                )
-            },
-        floatingActionButton = {
-            // The backend route `POST /api/agent/ask` now exists — restore the FAB.
-            if (state is Trainer360State.Success) {
-                FloatingActionButton(
-                    onClick = { showCopilot = true },
-                    containerColor = MaterialTheme.skill.brand,
-                    contentColor = MaterialTheme.skill.navy,
-                    shape = RoundedCornerShape(16.dp),
-                ) {
-                    Icon(
-                        painterResource(R.drawable.ic_alert),
-                        contentDescription = "Ask Copilot about this trainer",
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
-        },
-    ) { pv ->
-        Box(Modifier.fillMaxSize().padding(pv)) {
-            when (val s = state) {
-                is Trainer360State.Loading -> Column(
-                    Modifier.fillMaxSize().padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    ShimmerBox(height = 150.dp, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth())
-                    repeat(4) {
-                        ShimmerBox(height = 92.dp, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth())
-                    }
-                }
-                is Trainer360State.Error -> Column(
-                    Modifier.fillMaxSize().padding(28.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        s.message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.skill.subText,
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Button(
-                        onClick = { viewModel.refresh(trainerEmail, managerEmail, context) },
-                        shape = RoundedCornerShape(10.dp),
-                    ) { Text("Try again") }
-                }
-                is Trainer360State.Success -> Column(Modifier.fillMaxSize()) {
-                    if (!online) {
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.errorContainer)
-                                .padding(vertical = 4.dp, horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.Center,
+
+                        PullToRefreshBox(
+                            isRefreshing = refreshing,
+                            onRefresh = { viewModel.refresh(trainerEmail, scopeManager, context) },
+                            modifier = Modifier.weight(1f),
                         ) {
-                            Text(
-                                "Offline Mode · Showing saved trainer data",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            Trainer360Content(
+                                data = s.data,
+                                utilHistory = utilHistory,
+                                syllabus = syllabus,
+                                actions = actions.map { it.asMap() },
+                                readiness = readiness,
+                                onCourseTap = { viewModel.fetchSyllabus(it) },
+                                devPlan = devPlan,
+                                sentiment = sentiment,
+                                canEdit = !selfView,
+                                onAddGoal = { title, kind, target, note ->
+                                    if (selfView) toast(context, "Your manager owns your development plan.")
+                                    else viewModel.addDevPlanItem(managerEmail, trainerEmail, title, kind, target, note)
+                                },
+                                onAdoptSuggestion = { s2 ->
+                                    if (selfView) toast(context, "Your manager owns your development plan.")
+                                    else viewModel.addDevPlanItem(
+                                        managerEmail, trainerEmail,
+                                        s2["title"]?.toString().orEmpty(),
+                                        s2["kind"]?.toString().orEmpty().ifBlank { "other" },
+                                        s2["target_date"]?.toString().orEmpty(),
+                                        s2["note"]?.toString().orEmpty(),
+                                    )
+                                },
+                                onCycleGoalStatus = { id, next ->
+                                    if (selfView) toast(context, "Your manager owns your development plan.")
+                                    else viewModel.cycleDevPlanStatus(managerEmail, trainerEmail, id, next)
+                                },
+                                onEndorseSkill = { courseId, courseName, lvl, devId ->
+                                    if (selfView) viewModel.selfMarkSkill(
+                                        trainerEmail = trainerEmail,
+                                        courseId = courseId,
+                                        skillLevel = lvl,
+                                        onResult = { _, msg -> toast(context, msg) },
+                                    ) else viewModel.endorseSkill(
+                                        managerEmail = managerEmail,
+                                        trainerEmail = trainerEmail,
+                                        courseId = courseId,
+                                        courseName = courseName,
+                                        skillLevel = lvl,
+                                        devPlanId = devId,
+                                        onResult = { ok, msg ->
+                                            android.widget.Toast.makeText(context.applicationContext, msg, android.widget.Toast.LENGTH_SHORT).show()
+                                        },
+                                    )
+                                },
                             )
                         }
-                    }
-                    PullToRefreshBox(
-                        isRefreshing = refreshing,
-                        onRefresh = { viewModel.refresh(trainerEmail, managerEmail, context) },
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Trainer360Content(
-                            data = s.data,
-                            utilHistory = utilHistory,
-                            syllabus = syllabus,
-                            actions = actions.map { it.asMap() },
-                            readiness = readiness,
-                            onCourseTap = { viewModel.fetchSyllabus(it) },
-                            devPlan = devPlan,
-                            onAddGoal = { title, kind, target, note ->
-                                viewModel.addDevPlanItem(managerEmail, trainerEmail, title, kind, target, note)
-                            },
-                            onAdoptSuggestion = { s2 ->
-                                viewModel.addDevPlanItem(
-                                    managerEmail, trainerEmail,
-                                    s2["title"]?.toString().orEmpty(),
-                                    s2["kind"]?.toString().orEmpty().ifBlank { "other" },
-                                    s2["target_date"]?.toString().orEmpty(),
-                                    s2["note"]?.toString().orEmpty(),
-                                )
-                            },
-                            onCycleGoalStatus = { id, next ->
-                                viewModel.cycleDevPlanStatus(managerEmail, trainerEmail, id, next)
-                            },
-                        )
                     }
                 }
             }
         }
     }
 }
-}
+
+private fun toast(context: android.content.Context, message: String) =
+    android.widget.Toast.makeText(context.applicationContext, message, android.widget.Toast.LENGTH_SHORT).show()
 
 @Composable
 internal fun Trainer360Content(
     data: Map<String, Any>,
-    // Hoisted rather than taking the ViewModel: a content composable that owns
-    // one cannot be rendered in the JVM screen tests, and these are all the
-    // secondary lookups this screen needs.
     utilHistory: Map<String, Any>? = null,
     syllabus: Map<String, Any>? = null,
     actions: List<Map<String, Any>> = emptyList(),
     readiness: Map<String, Any>? = null,
     onCourseTap: (String) -> Unit = {},
     devPlan: Map<String, Any>? = null,
+    sentiment: Map<String, Any>? = null,
+    canEdit: Boolean = true,
     onAddGoal: (title: String, kind: String, targetDate: String, note: String) -> Unit = { _, _, _, _ -> },
     onAdoptSuggestion: (Map<*, *>) -> Unit = {},
     onCycleGoalStatus: (id: String, nextStatus: String) -> Unit = { _, _ -> },
+    onEndorseSkill: (courseId: String, courseName: String, skillLevel: Int, devPlanId: String) -> Unit = { _, _, _, _ -> },
 ) {
     val sk = MaterialTheme.skill
     val identity = data.obj("identity")
@@ -318,15 +337,18 @@ internal fun Trainer360Content(
                     item { Appear(3) { CapabilityMetrics(metrics) } }
                     item { Appear(4) { RiskSection(metrics, feedback) } }
                     item { Appear(5) { FeedbackSection(feedback) } }
+                    item { Appear(6) { LearnerSentimentWordCloudSection(sentiment) } }
                 }
                 3 -> {
                     item {
                         Appear(0) {
                             DevPlanSection(
                                 devPlan = devPlan,
+                                canEdit = canEdit,
                                 onAddGoal = onAddGoal,
                                 onAdoptSuggestion = onAdoptSuggestion,
                                 onCycleStatus = onCycleGoalStatus,
+                                onEndorseSkill = onEndorseSkill,
                             )
                         }
                     }
@@ -2147,6 +2169,130 @@ private fun SectionCard(title: String, subtitle: String?, body: @Composable Colu
         SectionHeading(title, subtitle?.takeIf { it.isNotBlank() })
         Spacer(Modifier.height(Space.sm))
         SkillCard(Modifier.fillMaxWidth(), content = body)
+    }
+}
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun LearnerSentimentWordCloudSection(sentiment: Map<String, Any>?) {
+    val sk = MaterialTheme.skill
+    if (sentiment == null) return
+    val positivePercent = (sentiment["positive_percent"] as? Number)?.toDouble() ?: 94.0
+    val praiseKeywords = sentiment.list("praise_keywords")
+    val growthKeywords = sentiment.list("growth_keywords")
+    val quotes = sentiment.obj("representative_quotes")
+    val strengthsQuotes = quotes?.list("strengths").orEmpty()
+    val growthQuotes = quotes?.list("growth").orEmpty()
+
+    SectionCard("Learner Voice & Sentiment", "${positivePercent}% positive sentiment ratio") {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                Text(
+                    text = "${positivePercent}% Positive",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (positivePercent >= 90) sk.good else sk.warn,
+                )
+                Text("Derived from RMS student feedback", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+            }
+            ToneChip(
+                text = sentiment.str("sentiment_label").ifBlank { "High Performer" },
+                tint = if (positivePercent >= 90) sk.good else sk.sky,
+            )
+        }
+
+        if (praiseKeywords.isNotEmpty()) {
+            Spacer(Modifier.height(Space.sm))
+            Label("Top Praise Themes")
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            ) {
+                praiseKeywords.forEach { kw ->
+                    val name = kw.str("keyword")
+                    val count = (kw["count"] as? Number)?.toInt() ?: 1
+                    Surface(
+                        color = sk.good.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(Radii.chip),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, sk.good.copy(alpha = 0.35f)),
+                    ) {
+                        Text(
+                            text = "✦ $name ($count)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.good,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
+
+        if (growthKeywords.isNotEmpty()) {
+            Spacer(Modifier.height(Space.sm))
+            Label("Growth & Coaching Themes")
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            ) {
+                growthKeywords.forEach { kw ->
+                    val name = kw.str("keyword")
+                    val count = (kw["count"] as? Number)?.toInt() ?: 1
+                    Surface(
+                        color = sk.amber.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(Radii.chip),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, sk.amber.copy(alpha = 0.35f)),
+                    ) {
+                        Text(
+                            text = "⚠ $name ($count)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.amber,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
+
+        if (strengthsQuotes.isNotEmpty() || growthQuotes.isNotEmpty()) {
+            Spacer(Modifier.height(Space.sm))
+            HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f))
+            Label("Verbatim Learner Excerpts")
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                (strengthsQuotes.take(2) + growthQuotes.take(1)).forEach { q ->
+                    val quoteText = q.str("quote")
+                    val theme = q.str("theme")
+                    if (quoteText.isNotBlank()) {
+                        Surface(
+                            color = sk.surface2.copy(alpha = 0.6f),
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Column(Modifier.padding(8.dp)) {
+                                Text(
+                                    text = "\"$quoteText\"",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = sk.bodyText,
+                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                )
+                                if (theme.isNotBlank()) {
+                                    Text(
+                                        text = "Theme: $theme",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = sk.cyan,
+                                        modifier = Modifier.padding(top = 2.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

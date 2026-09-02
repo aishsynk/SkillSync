@@ -62,6 +62,11 @@ fun MainScreen(
     onOpenPriorities: () -> Unit = {},
     onOpenAccounts: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
+    onOpenPipelineRadar: () -> Unit = {},
+    onOpenDeliveryCompliance: () -> Unit = {},
+    onOpenCapacityRunway: () -> Unit = {},
+    onOpenViberAutomation: () -> Unit = {},
+    onOpenSkillRequests: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: MainScreenViewModel = viewModel(),
@@ -292,69 +297,93 @@ fun MainScreen(
             contentColor = MaterialTheme.skill.frost,
             topBar = {
                 TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier.size(34.dp).clip(RoundedCornerShape(11.dp))
-                                .background(MaterialTheme.skill.brand.copy(alpha = 0.14f)),
-                            contentAlignment = Alignment.Center,
-                        ) { SkillSyncLogo(size = 22.dp) }
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                tabTitle(tab),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp,
-                                color = MaterialTheme.skill.frost,
-                                letterSpacing = (-0.01).em,
-                            )
-                            Text(
-                                "SKILLEDGE  /  MANAGER WORKSPACE",
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                letterSpacing = 0.09.em,
-                                color = MaterialTheme.skill.labelText,
-                            )
-                        }
-                    }
-                },
-                actions = {
-                    // Manual fallback next to pull-to-refresh, for anyone who
-                    // does not think to drag a screen that is already at the top.
-                    IconButton(onClick = {
-                        viewModel.refresh(email, context)
-                        if (tab == HomeTab.DEMAND) allocationViewModel.refresh(email, context)
-                    }) {
-                        Icon(
-                            painterResource(R.drawable.ic_trend),
-                            contentDescription = "Refresh",
-                            tint = MaterialTheme.skill.ice,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                    IconButton(onClick = { showLogoutConfirm = true }) {
-                        Surface(
-                            color = MaterialTheme.skill.surface3,
-                            shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.skill.cardBorder),
-                        ) {
-                            Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier.size(36.dp).clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(
+                                                Color(0xFF2563EB).copy(alpha = 0.35f),
+                                                Color(0xFF06B6D4).copy(alpha = 0.35f),
+                                            )
+                                        )
+                                    )
+                                    .border(1.dp, Color(0x6638BDF8), RoundedCornerShape(12.dp)),
+                                contentAlignment = Alignment.Center,
+                            ) { SkillSyncLogo(size = 22.dp) }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
                                 Text(
-                                    profile?.str("name").orEmpty().trim().take(1).uppercase().ifBlank { "M" },
-                                    color = MaterialTheme.skill.frost,
+                                    tabTitle(tab),
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
+                                    fontSize = 17.sp,
+                                    color = Color.White,
+                                    letterSpacing = (-0.01).em,
+                                )
+                                Text(
+                                    "SKILLEDGE  /  EXECUTIVE CONSOLE",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 0.09.em,
+                                    color = Color(0xFF93C5FD),
                                 )
                             }
                         }
-                    }
-                },
-                // Transparent over the aurora — the teal band is gone entirely.
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.skill.surface1,
-                    scrolledContainerColor = MaterialTheme.skill.surface1,
-                ),
-            )
+                    },
+                    actions = {
+                        // Quick refresh
+                        IconButton(onClick = {
+                            viewModel.refresh(email, context)
+                            if (tab == HomeTab.DEMAND) allocationViewModel.refresh(email, context)
+                        }) {
+                            Box(
+                                Modifier
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(10.dp)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    painterResource(R.drawable.ic_trend),
+                                    contentDescription = "Refresh",
+                                    tint = Color(0xFF38BDF8),
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                        }
+                        IconButton(onClick = { showLogoutConfirm = true }) {
+                            Box(contentAlignment = Alignment.BottomEnd) {
+                                Surface(
+                                    color = Color(0xFF1E293B),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x6638BDF8)),
+                                ) {
+                                    Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                                        Text(
+                                            profile?.str("name").orEmpty().trim().take(1).uppercase().ifBlank { "M" },
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                        )
+                                    }
+                                }
+                                Box(
+                                    Modifier
+                                        .size(9.dp)
+                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(Color(0xFF10B981))
+                                        .border(1.5.dp, Color(0xFF0F172A), androidx.compose.foundation.shape.CircleShape)
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = Color(0xF0090F1C),
+                    ),
+                )
         },
         bottomBar = { SkillSyncNavBar(tab, onTabChange) },
     ) { pv ->
@@ -546,6 +575,11 @@ fun MainScreen(
                                         onOpenAccounts = onOpenAccounts,
                                         onOpenCopilot = onOpenCopilot,
                                         onOpenDelivery = { onTabChange(HomeTab.DELIVERY) },
+                                        onOpenPipelineRadar = onOpenPipelineRadar,
+                                        onOpenDeliveryCompliance = onOpenDeliveryCompliance,
+                                        onOpenCapacityRunway = onOpenCapacityRunway,
+                                        onOpenViberAutomation = onOpenViberAutomation,
+                                        onOpenSkillRequests = onOpenSkillRequests,
                                         onBatchClick = onBatchClick,
                                         calendarReadiness = teamReadiness,
                                         fromCache = s.fromCache,
@@ -799,6 +833,11 @@ internal fun DashboardTab(
     onOpenAccounts: () -> Unit = {},
     onOpenCopilot: () -> Unit = {},
     onOpenDelivery: () -> Unit = {},
+    onOpenPipelineRadar: () -> Unit = {},
+    onOpenDeliveryCompliance: () -> Unit = {},
+    onOpenCapacityRunway: () -> Unit = {},
+    onOpenViberAutomation: () -> Unit = {},
+    onOpenSkillRequests: () -> Unit = {},
     onBatchClick: (String) -> Unit = {},
     calendarReadiness: Map<String, Map<String, Any>> = emptyMap(),
     /** Disk-write time of the payload, so the hero can state a real "as of". */
@@ -885,6 +924,11 @@ internal fun DashboardTab(
                     onOpenAccounts = onOpenAccounts,
                     onOpenCopilot = onOpenCopilot,
                     onOpenDelivery = onOpenDelivery,
+                    onOpenPipelineRadar = onOpenPipelineRadar,
+                    onOpenDeliveryCompliance = onOpenDeliveryCompliance,
+                    onOpenCapacityRunway = onOpenCapacityRunway,
+                    onOpenViberAutomation = onOpenViberAutomation,
+                    onOpenSkillRequests = onOpenSkillRequests,
                     onBatchClick = onBatchClick,
                     calendarReadiness = calendarReadiness,
                 )

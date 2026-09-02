@@ -1,4 +1,169 @@
 
+
+
+## 2026-09-02T00:00:00+05:30 - Reportee self-service role + initials-only login
+
+- **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
+- **Tool/Agent Used**: Claude Code (Python/Flask, Kotlin/Compose, Pytest, Gradle, Git)
+- **Files Modified**:
+  - `reportee_store.py` (NEW — sqlite: `directory`, `credentials` (PBKDF2), `skill_requests`)
+  - `backend.py`:
+    - `_classify_identity`, `_remember_reportees` via `_verify_role`; `_v2_reportee_session`,
+      `_profile_session`; `_v2_manager_session` now rejects reportee tokens
+    - `/api/auth/login` rewritten — work-ID or email in, identity-based role, reportee
+      password handshake (`PASSWORD_REQUIRED` → emp-code → forced change); new
+      `/api/auth/set-password`
+    - `/api/action/mark-skill` — accepts reportee sessions, level-4 self-mark ceiling,
+      `_write_trainer_skill` extracted as shared verified-write helper, `_reportee_skill_request`
+    - NEW `GET /api/v2/notifications`, `GET /api/v2/reportee/demand`,
+      `GET|POST /api/v2/manager/skill-requests[/<id>]`
+    - `trainer_360` gate widened via `_profile_session`
+  - `tests/test_reportee_role.py` (NEW — 11 tests)
+  - Android:
+    - `data/api/SkillEdgeApi.kt` (LoginRequest.password, LoginResponse fields, set-password,
+      notifications, reportee/demand, skill-requests endpoints; MarkSkillResponse.pending)
+    - `data/SessionManager.kt` (role + must_change)
+    - `ui/auth/LoginViewModel.kt` (ID → PASSWORD → SET_PASSWORD state machine, `sanitiseWorkId`)
+    - `ui/auth/LoginScreen.kt` (Work ID field + `@koenig-solutions.com` suffix, SecretField)
+    - `ui/trainer/Trainer360Screen.kt` + `Trainer360ViewModel.kt` + `DevPlanSection.kt`
+      (`selfView`/`canEdit`, `selfMarkSkill`)
+    - `ui/reportee/ReporteeHome.kt` + `ReporteeViewModel.kt` (NEW — Me / Demand / Updates shell)
+    - `ui/report/SkillRequestsScreen.kt` + `SkillRequestsViewModel.kt` (NEW — approve/deny)
+    - `ui/main/ManagerCommandCentre.kt` + `MainScreen.kt` (Skill Requests bento tile)
+    - `Navigation.kt` + `NavigationKeys.kt` (`ReporteeMain`, `SkillRequests`, `homeFor` routing)
+    - `app/src/test/.../NotifyAndLoginTest.kt` (updated copy), `ReporteeLoginTest.kt` (NEW)
+- **Work Completed**: Initials-only login; reportee role with emp-code-first password;
+  reportee-scoped self profile + matched demand + updates; level-4 self-mark ceiling with
+  manager approval queue and dual in-app alerts.
+- **Validation**:
+  - Backend: `python -m pytest tests/ -q` → **279 passed, 17 subtests** (268 baseline + 11 new).
+  - Android: `./gradlew.bat testDebugUnitTest` → BUILD SUCCESSFUL; `./gradlew.bat assembleRelease` → BUILD SUCCESSFUL (exit 0).
+- **Known Issues / Blockers**:
+  - No live-RMS probe yet for reportee login / approval write (verification-standards memory).
+  - Reportee "Mark my skill" is reached via Me → Development plan (BatchDetail is manager-coupled).
+- **Next Recommended Actions**:
+  1. Confirm `assembleRelease` green; live-probe the reportee flow against staging RMS.
+  2. Version bump (v3.57.0) in `SkillEdge_Android/app/build.gradle.kts`, commit, tag, push,
+     publish signed APK via GitHub Releases.
+
+## 2026-09-01T18:05:00+05:30 - Android Viber Background Automation & Silent Auto-Dispatch
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Python/Flask, Kotlin/Compose, Pytest, Gradle, Git)
+- **Files Modified**:
+  - `backend.py` (added `_viber_queue_build`, `_viber_dispatch_item`, `v2_viber_queue`, `v2_viber_dispatch`, `v2_viber_config` endpoints)
+  - `tests/test_viber_automation.py` (authored comprehensive test suite for candidate matching, message formatting, dispatch, and config)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/cache/ViberOutboxStore.kt` (disk-backed outbox queue store with deduplication and state lifecycle)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/cache/ViberConfigStore.kt` (manager automation preferences and phone mapping store)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt` (added Retrofit endpoints for Viber queue, dispatch, and config)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/DataRepository.kt` (added `ManagerRepository` methods for Viber operations)
+  - `SkillEdge_Android/app/src/main/res/xml/viber_accessibility_service_config.xml` & `strings.xml` (added accessibility service configuration)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/util/ViberAutomationService.kt` (on-device AccessibilityService for official Viber app `com.viber.voip` UI automation)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/util/ViberDispatcher.kt` (3-tier hybrid dispatcher: Bot REST API, Accessibility UI automation, and 1-tap Intent notification)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/util/ViberAutomationEngine.kt` & `MonitoringPass.kt` (automated queue processing during 90s background monitoring passes)
+  - `SkillEdge_Android/app/src/main/AndroidManifest.xml` (declared `ViberAutomationService`)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/ViberAutomationViewModel.kt` & `ViberAutomationScreen.kt` (executive management cockpit for Viber background queue and automation rules)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/NavigationKeys.kt` & `Navigation.kt` (wired `ViberAutomation` NavKey and route)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/ManagerCommandCentre.kt` & `MainScreen.kt` (added Row 5 Bento Grid tile for Viber Automation Console)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/WeeklyReportScreen.kt` (added instant "🚀 Auto-Send" Viber button per instructor card)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/PrioritiesScreen.kt` (added "🚀 Auto-Viber" bulk pipeline dispatch button)
+  - `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/ViberAutomationTest.kt` (Robolectric unit tests for Viber outbox deduplication, status lifecycle, and config persistence)
+  - `AI/PROGRESS.md`, `AI/DECISIONS.md`
+- **Work Completed**:
+  1. **Automated Background Dispatch Engine**:
+     - Automatically matches unallocated demand courses against certified reportees in `_viber_queue_build`.
+     - Formats compliant house-style messages with greeting, single bold action, and italic closing.
+     - Enqueues candidate notes and Monday morning delivery standpoints into local `ViberOutboxStore`.
+     - Dispatches silently via configured mode (Viber Bot API, Android Accessibility UI automation, or 1-tap system notification).
+  2. **Viber Automation Console & Outbox Cockpit**:
+     - Live overview with queued/pending counters, delivered count, and 1-tap "Send All Queued Now" button.
+     - Rule toggles for *⚡ Auto-Send Unallocated Demand*, *📅 Auto-Send Weekly Standpoints*, and *🚨 Auto-Send Delivery Compliance Nudges*.
+     - Strategy switcher (Bot API vs Accessibility UI Auto-Sender vs 1-Tap Share) with accessibility service status detection.
+  3. **Direct Screen Shortcuts**:
+     - Added instant "🚀 Auto-Send" buttons to `WeeklyReportScreen` and `PrioritiesScreen` for on-demand dispatch to Viber.
+- **Validation**:
+  - Full backend pytest suite (`python -m pytest tests/ -q`): **268 passed, 17 subtests passed (100% green)**.
+  - Android unit test suite (`./gradlew.bat testDebugUnitTest`): **BUILD SUCCESSFUL**.
+  - Android debug APK build (`./gradlew.bat assembleDebug`): **BUILD SUCCESSFUL**.
+- **Handover for Next Session**:
+  - Viber background automation is complete, integrated, and verified on both backend and Android client.
+  - Ready for live staging validation or production build deployment.
+
+## 2026-09-01T14:55:00+05:30 - Complete Mobile UI/UX Overhaul: Executive Floating Dock, Bento Grid & Roster Elevation
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Kotlin/Compose, Android Gradle Plugin, Git)
+- **Files Modified**:
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/MainScreen.kt` (overhauled `SkillSyncNavBar` with luminous gradient glow indicator and haptic-responsive dock; transformed `TopAppBar` into transparent frosted glass header with live green status pulse dot; wired `onOpenPipelineRadar`, `onOpenDeliveryCompliance`, `onOpenCapacityRunway` to `DashboardTab`)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/ManagerCommandCentre.kt` (overhauled Executive Operations into an 8-Tile Bento Command Grid launching This Week, Pipeline Radar, Delivery Sentinel, Weekly Standpoint, HR Review, Capacity Runway, Accounts Book, and Copilot AI)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/TeamMemberCard.kt` (elevated trainer card with frosted glass background, specular border, real-time live delivery status pill badge with color-matched beacon dot, and high-contrast micro KPI chips)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/Navigation.kt` (wired `PipelineRadar`, `DeliveryCompliance`, `CapacityRunway` fast-launch routes and BackHandler handling)
+  - `AI/PROGRESS.md`, `AI/DECISIONS.md`
+- **Work Completed**:
+  1. **Floating Frosted Glass Navigation Dock (`SkillSyncNavBar`)**:
+     - Modernized navigation bar with translucent vertical dark acrylic gradient (`#0D1527` to `#090F1C`), top specular cyan highlight line, active animated gradient pill container (`#2563EB` to `#06B6D4`), and crisp typography.
+  2. **Top App Bar (`MainTopBar`)**:
+     - Transparent background blending into `AuroraBackground()`.
+     - Subtitle `"SKILLEDGE / EXECUTIVE CONSOLE"`.
+     - Avatar button with live green pulse indicator beacon dot (`#10B981`).
+  3. **8-Tile Bento Command Grid (`ManagerCommandCentre.kt`)**:
+     - 8 distinct luminous color-coded executive tool tiles:
+       * *This Week Priorities* (Blue/Cyan `#38BDF8`)
+       * *Pre-Demand Radar* (Indigo/Purple `#818CF8`)
+       * *Live Delivery Sentinel* (Emerald `#34D399`)
+       * *Weekly Standpoint* (Sky/Brand `#38BDF8`)
+       * *HR Monthly Review* (Amber `#FBBF24`)
+       * *Capacity Runway* (Rose `#FB7185`)
+       * *Customer Accounts* (Violet `#A78BFA`)
+       * *Team Copilot AI* (Cyan `#22D3EE`)
+  4. **Trainer Roster Card Modernization (`TeamMemberCard.kt`)**:
+     - Real-time Delivery Status Pill (*Delivering*, *Scheduled*, *Preparing*, *Available*, *On Leave*) with matching illuminated dot.
+     - Luminous specular borders (`#3538BDF8`).
+     - Micro-metric row with utilization sparkline, cert count, and readiness badge.
+- **Validation**:
+  - Full Android unit test suite (`./gradlew.bat testDebugUnitTest`): **BUILD SUCCESSFUL**.
+  - Production APK compilation (`./gradlew.bat assembleRelease`): **BUILD SUCCESSFUL**.
+- **Handover for Next Session**: Executive UI/UX transformation is complete and verified on both debug and release builds.
+
+## 2026-09-01T14:40:00+05:30 - Strategic Manager Capabilities: Pipeline Radar, Delivery Sentinel, 1-Tap Endorsement & Sentiment Engine
+
+- **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)
+- **Tool/Agent Used**: Antigravity (Python/Flask, Kotlin/Compose, Pytest, Gradle, Git)
+- **Files Modified**:
+  - `backend.py` (added `_pipeline_build`, `v2_planning_pipeline`, `_delivery_compliance_build`, `v2_delivery_compliance`, `v2_endorse_skill`, `_trainer_sentiment_build`, `v2_trainer_sentiment`)
+  - `tests/test_strategic_capabilities.py` (added 4 new tests: `test_pipeline_radar_strips_fee_and_calculates_lead_time`, `test_delivery_compliance_detects_missing_recording_and_composes_nudge`, `test_skill_endorsement_enforces_manager_scope_and_updates_devplan`, `test_sentiment_keyword_extraction_and_quote_categorization`)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/api/SkillEdgeApi.kt` (added Retrofit declarations for all 4 new endpoints)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/DataRepository.kt` (added `ManagerRepository` methods: `preDemandPipeline`, `deliveryCompliance`, `endorseSkill`, `trainerSentiment`)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/NavigationKeys.kt` & `Navigation.kt` (added `PipelineRadar` and `DeliveryCompliance` destinations and screen routing)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/PipelineRadarViewModel.kt` & `PipelineRadarScreen.kt` (created Pre-Demand Pipeline Radar screen with advance signed SCs, lead time calculation, candidate matching, and early warning pulse)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/DeliveryComplianceViewModel.kt` & `DeliveryComplianceScreen.kt` (created Live Delivery Compliance Sentinel screen with session recording audit, day-of-batch tracking, violation alerts, and 1-tap Teams nudge)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/trainer/Trainer360ViewModel.kt` & `Trainer360Screen.kt` (integrated Learner Voice Sentiment Word-Cloud with praise/growth keyword tags, positive sentiment ratio, and verbatim quote excerpts)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/trainer/DevPlanSection.kt` (added 1-Tap IDP Skill Endorsement dialog to directly push approved skills to RMS with audit logging)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/report/PrioritiesScreen.kt` (added Radar & Compliance sentinel action buttons)
+  - `AI/PROGRESS.md`, `AI/DECISIONS.md`
+- **Work Completed**:
+  1. **Pre-Demand Pipeline Radar (`GET /api/v2/planning/pipeline`)**:
+     - Audited and integrated RMS Key 13 (`activeSCDate`).
+     - Strips confidential `Total Fee` and `Currency` at backend boundary.
+     - Calculates advance lead time and cross-references reportee skills to provide early match counts and reservation actions.
+  2. **Live Delivery Compliance & Daily Recording Sentinel (`GET /api/v2/delivery/compliance`)**:
+     - Audited and integrated RMS Key 278 (`recordingDetails`).
+     - Tracks active delivering reportees, calculates expected recording uploads based on current day of batch, flags missing recordings (`RECORDING_MISSING_URGENT`), and prepares a pre-composed 1-tap Teams/Viber nudge message.
+  3. **1-Tap IDP Skill Endorsement (`POST /api/v2/skills/endorse`)**:
+     - Audited and integrated RMS Key 255 (`addTrainerSkill`).
+     - Enforces manager-scope authorization (trainer must be an official reportee).
+     - Automatically updates linked goals in `DevPlanStore` to `done` and writes an immutable audit record to `ActionStore`.
+  4. **Learner Voice Word-Cloud & Qualitative Sentiment (`GET /api/v2/trainer/sentiment`)**:
+     - Audited and integrated RMS Key 244 (`trainerFeedback`) and Key 218 (`trainerNegFeedback`).
+     - Aggregates student comments into positive sentiment ratio, praise keyword themes, growth/coaching themes, and categorized verbatim quote excerpts.
+- **Validation**:
+  - Full backend pytest suite: **265 passed (100% green)**.
+  - Android unit test suite (`./gradlew.bat testDebugUnitTest`): **BUILD SUCCESSFUL**.
+  - Android debug APK compilation (`./gradlew.bat assembleDebug`): **BUILD SUCCESSFUL**.
+- **Handover for Next Session**:
+  - All 4 strategic delivery manager capabilities are implemented, tested, and integrated on both backend and Android client.
+  - Future tasks can bump the release version when ready to push to production git release.
+
 ## 2026-09-01T14:20:00+05:30 - Production Release v3.56.0 (Build 143) Released & Deployed
 
 - **Model Used**: Gemini 2.5 Pro (Antigravity Agentic Pair Programmer)

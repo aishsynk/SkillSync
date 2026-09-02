@@ -42,14 +42,17 @@ private val STATUS_LABEL = mapOf(
 @Composable
 internal fun DevPlanSection(
     devPlan: Map<String, Any>?,
+    canEdit: Boolean = true,
     onAddGoal: (title: String, kind: String, targetDate: String, note: String) -> Unit = { _, _, _, _ -> },
     onAdoptSuggestion: (Map<*, *>) -> Unit = {},
     onCycleStatus: (id: String, nextStatus: String) -> Unit = { _, _ -> },
+    onEndorseSkill: (courseId: String, courseName: String, skillLevel: Int, devPlanId: String) -> Unit = { _, _, _, _ -> },
 ) {
     val sk = MaterialTheme.skill
     val items = devPlan?.list("items").orEmpty()
     val suggested = devPlan?.list("suggested").orEmpty()
     var showAdd by remember { mutableStateOf(false) }
+    var endorseTarget by remember { mutableStateOf<Map<*, *>?>(null) }
 
     SkillCard(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -58,7 +61,7 @@ internal fun DevPlanSection(
                 if (items.isEmpty()) "No goals set yet" else "${items.size} goal${if (items.size == 1) "" else "s"} on the plan",
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = { showAdd = true }) { Text("+ Add goal") }
+            if (canEdit) TextButton(onClick = { showAdd = true }) { Text("+ Add goal") }
         }
 
         if (items.isEmpty()) {
@@ -77,12 +80,18 @@ internal fun DevPlanSection(
                     fontWeight = FontWeight.Bold,
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    group.forEach { item -> DevPlanRow(item, onCycleStatus) }
+                    group.forEach { item ->
+                        DevPlanRow(
+                            item = item,
+                            onCycleStatus = onCycleStatus,
+                            onEndorse = { endorseTarget = item },
+                        )
+                    }
                 }
             }
         }
 
-        if (suggested.isNotEmpty()) {
+        if (suggested.isNotEmpty() && canEdit) {
             HorizontalDivider(color = sk.cardBorder)
             Text(
                 "SUGGESTED", style = MaterialTheme.typography.labelSmall,
@@ -103,13 +112,29 @@ internal fun DevPlanSection(
             },
         )
     }
+
+    endorseTarget?.let { targetItem ->
+        EndorseSkillDialog(
+            goalTitle = targetItem.str("title"),
+            onDismiss = { endorseTarget = null },
+            onConfirm = { courseId, courseName, level ->
+                onEndorseSkill(courseId, courseName, level, targetItem.str("id"))
+                endorseTarget = null
+            },
+        )
+    }
 }
 
 @Composable
-private fun DevPlanRow(item: Map<*, *>, onCycleStatus: (String, String) -> Unit) {
+private fun DevPlanRow(
+    item: Map<*, *>,
+    onCycleStatus: (String, String) -> Unit,
+    onEndorse: () -> Unit = {},
+) {
     val sk = MaterialTheme.skill
     val status = item.str("status").ifBlank { "open" }
     val id = item.str("id")
+    val kind = item.str("kind")
     val done = status == "done"
     val tint = when (status) {
         "done" -> sk.green
@@ -139,7 +164,7 @@ private fun DevPlanRow(item: Map<*, *>, onCycleStatus: (String, String) -> Unit)
                 fontWeight = FontWeight.SemiBold,
             )
             val meta = listOfNotNull(
-                item.str("kind").takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() },
+                kind.takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() },
                 item.str("target_date").takeIf { it.isNotBlank() }?.let { "by $it" },
             ).joinToString(" · ")
             if (meta.isNotBlank()) Text(meta, style = MaterialTheme.typography.labelSmall, color = sk.subText)
@@ -147,6 +172,24 @@ private fun DevPlanRow(item: Map<*, *>, onCycleStatus: (String, String) -> Unit)
                 Text(it, style = MaterialTheme.typography.labelSmall, color = sk.subText)
             }
         }
+        
+        if (kind in listOf("certification", "portfolio") || done) {
+            Surface(
+                color = sk.brand.copy(alpha = 0.15f),
+                shape = RoundedCornerShape(6.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, sk.brand.copy(alpha = 0.35f)),
+                modifier = Modifier.clickable { onEndorse() }.padding(end = 6.dp),
+            ) {
+                Text(
+                    text = "Endorse RMS",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.cyan,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                )
+            }
+        }
+
         Text(
             (STATUS_LABEL[status] ?: status),
             style = MaterialTheme.typography.labelSmall,
@@ -222,12 +265,58 @@ private fun AddGoalDialog(
                     }
                 }
                 OutlinedTextField(
-                    value = target, onValueChange = { target = it },
-                    label = { Text("Target date (optional, YYYY-MM-DD)") }, singleLine = true,
-                )
-                OutlinedTextField(
                     value = note, onValueChange = { note = it },
                     label = { Text("Note (optional)") },
+                )
+            }
+        },
+    )
+}
+
+@Composable
+private fun EndorseSkillDialog(
+    goalTitle: String,
+    onDismiss: () -> Unit,
+    onConfirm: (courseId: String, courseName: String, level: Int) -> Unit,
+) {
+    var courseName by remember { mutableStateOf(goalTitle.removePrefix("Master ").removePrefix("Pass ").removeSuffix(" exam").trim()) }
+    var courseId by remember { mutableStateOf("") }
+    var level by remember { mutableIntStateOf(8) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(courseId.trim(), courseName.trim(), level) },
+                enabled = courseName.isNotBlank(),
+            ) { Text("Confirm & Push to RMS") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        title = { Text("Endorse Skill to RMS (IDP)") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                Text(
+                    "Officially approve this completed development goal in RMS. The skill rating will immediately count towards the Trainer Index and unlock delivery demand.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = courseName, onValueChange = { courseName = it },
+                    label = { Text("Course Name") }, singleLine = true,
+                )
+                OutlinedTextField(
+                    value = courseId, onValueChange = { courseId = it },
+                    label = { Text("Course ID (optional)") }, singleLine = true,
+                )
+                Text(
+                    "Proficiency Level: $level / 10",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Slider(
+                    value = level.toFloat(),
+                    onValueChange = { level = it.toInt() },
+                    valueRange = 1f..10f,
+                    steps = 8,
                 )
             }
         },

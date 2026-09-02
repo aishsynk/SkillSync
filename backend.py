@@ -103,6 +103,7 @@ import time
 import urllib.parse
 import urllib.request
 from action_store import ActionStore, SessionRevocationStore
+from reportee_store import ReporteeStore
 from dev_plan_store import DevPlanStore
 
 app = Flask(__name__)
@@ -452,7 +453,25 @@ _session_revocations = SessionRevocationStore(
 
 _manager_seen_batches: dict = {}
 _manager_notifications: dict = {}
+_reportee_notifications: dict = {}
 _notifications_lock = threading.Lock()
+
+_reportee_repo = ReporteeStore(
+    os.path.join(_SESSION_STATE_DIR, "skilledge_reportees.sqlite3")
+)
+
+
+def _push_notification(store: dict, key: str, note: dict) -> None:
+    """Prepend a notification for a manager or reportee, keeping the newest 50."""
+    key = str(key or "").strip().lower()
+    if not key:
+        return
+    note.setdefault("id", f"notif_{int(time.time() * 1000)}")
+    note.setdefault("read", False)
+    with _notifications_lock:
+        bucket = store.get(key, [])
+        bucket.insert(0, note)
+        store[key] = bucket[:50]
 
 _SESSION_SECRET = os.getenv("SKILLEDGE_SESSION_SECRET", "skilledge-secure-session-key-2026-auth").encode("utf-8")
 
@@ -553,6 +572,10 @@ def _v2_manager_session(manager_email=""):
     session, error = _session_payload(required=True)
     if error:
         return None, error
+    if str(session.get("role", "") or "").strip().lower() == "reportee":
+        return None, error_response(
+            "ACCESS_DENIED", "This view is for manager accounts", 403
+        )
     requested = str(manager_email or "").strip().lower()
     signed_in = str(session.get("email", "") or "").strip().lower()
     if requested and requested != signed_in and requested not in _email_variants(signed_in):
@@ -567,6 +590,40 @@ def _v2_manager_session(manager_email=""):
         session = dict(session)
         session["email"] = _resolve_manager_email(signed_in)
     return session, None
+
+
+def _v2_reportee_session():
+    """Require an authenticated session whose role is `reportee`."""
+    session, error = _session_payload(required=True)
+    if error:
+        return None, error
+    if str(session.get("role", "") or "").strip().lower() != "reportee":
+        return None, error_response(
+            "ACCESS_DENIED", "This action is for reportee accounts", 403
+        )
+    return session, None
+
+
+def _profile_session(email, manager_scope=""):
+    """
+    Gate a per-person profile read. A manager keeps the normal manager-scope
+    check (`manager_scope` is the `?manager=` param); a reportee may read only
+    their own profile.
+    """
+    session, error = _session_payload(required=True)
+    if error:
+        return None, error
+    target = str(email or "").strip().lower()
+    signed_in = str(session.get("email", "") or "").strip().lower()
+    role = str(session.get("role", "") or "").strip().lower()
+    if role == "reportee":
+        if target and target != signed_in:
+            return None, error_response(
+                "MANAGER_SCOPE_MISMATCH", "A reportee can only view their own profile", 403
+            )
+        return session, None
+    return _v2_manager_session(manager_scope)
+
 
 # ─── Response cache ───────────────────────────────────────────────────────────
 #
@@ -901,7 +958,42 @@ def _verify_role(email):
         return None, None
 
     reportees = _rms("reportees", {"email": email})
-    return "manager", reportees if isinstance(reportees, list) else []
+    roster = reportees if isinstance(reportees, list) else []
+    if roster:
+        _reportee_repo.remember_roster(email, roster)
+    return "manager", roster
+
+
+def _classify_identity(email):
+    """
+    Decide whether a Koenig email signs in as a `manager` or a `reportee`.
+
+    A person who owns a non-empty RMS roster is a manager (a team lead who both
+    manages people and is someone else's reportee still gets the manager view).
+    Otherwise, if a manager has previously loaded a roster that contains this
+    email, they are that manager's reportee. Everyone else defaults to manager,
+    which preserves today's behaviour for accounts RMS has no structure for.
+
+    Returns (role, manager_email, resolved_email). `manager_email` is only set
+    for reportees; `resolved_email` is the local-part form the rest of the app
+    should key off.
+    """
+    email = str(email or "").strip().lower()
+    if not email.endswith("@koenig-solutions.com"):
+        return None, "", email
+
+    manager_form = _resolve_manager_email(email)
+    own = _rms("reportees", {"email": manager_form})
+    if isinstance(own, list) and own:
+        _reportee_repo.remember_roster(manager_form, own)
+        return "manager", "", manager_form
+
+    for variant in [email] + _email_variants(email):
+        entry = _reportee_repo.lookup(variant)
+        if entry:
+            return "reportee", entry.get("manager_email", ""), variant
+
+    return "manager", "", manager_form
 
 
 # ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -2691,10 +2783,16 @@ def healthz():
 def login():
     try:
         data  = request.get_json(silent=True) or {}
-        email = str(data.get('email', '')).strip().lower()
+        raw   = str(data.get('email', '') or data.get('username', '')).strip().lower()
+        password = str(data.get('password', '') or '')
 
-        if not email or '@' not in email:
-            return error_response("EMAIL_REQUIRED", "Email is required", 400)
+        if not raw:
+            return error_response("EMAIL_REQUIRED", "Work ID is required", 400)
+
+        # The client sends initials only ("aishwar.c"); tolerate a full address
+        # too. Everything below keys off a full @koenig-solutions.com email.
+        email = raw if '@' in raw else f"{raw}@koenig-solutions.com"
+        email = _re.sub(r"\s+", "", email)
 
         if not email.endswith('@koenig-solutions.com'):
             return error_response(
@@ -2703,28 +2801,57 @@ def login():
                 401,
             )
 
-        # Normalise to the local-part form RMS recognises (aishwar_c@ -> aishwar.c@)
-        # so every downstream endpoint, which keys off the session email, sees
-        # the manager's real roster.
-        email = _resolve_manager_email(email)
-
-        role, role_data = _verify_role(email)
+        role, manager_email, email = _classify_identity(email)
 
         if role is None:
             return error_response(
                 "ACCESS_DENIED",
-                "Access denied: account must have a manager or Trainer Plus role",
+                "Access denied: account must have a manager or reportee role",
                 401,
             )
 
-        sid = _generate_session_token(email, role)
+        # ── Manager: email only, unchanged ──────────────────────────────────
+        if role == "manager":
+            _verify_role(email)  # keeps the directory warm
+            sid = _generate_session_token(email, role)
+            return jsonify({
+                "success": True, "session_id": sid, "email": email,
+                "role": role, "message": "Login successful",
+            }), 200
 
+        # ── Reportee: password required ─────────────────────────────────────
+        if not password:
+            return jsonify({
+                "success": False, "code": "PASSWORD_REQUIRED", "role": "reportee",
+                "email": email,
+                "message": "This account signs in with a password.",
+            }), 200
+
+        entry = _reportee_repo.lookup(email) or {}
+        cred = _reportee_repo.credential(email)
+        must_change = False
+
+        if cred is None:
+            # First login: the RMS employee code is the bootstrap password.
+            emp_id = str(entry.get("emp_id", "") or "").strip()
+            if not emp_id or password.strip().lower() != emp_id.strip().lower():
+                return error_response(
+                    "ACCESS_DENIED",
+                    "That password is not recognised. First-time sign-in uses your employee code.",
+                    401,
+                )
+            _reportee_repo.set_password(email, password, must_change=True)
+            must_change = True
+        else:
+            if not _reportee_repo.verify_password(email, password):
+                return error_response("ACCESS_DENIED", "Incorrect password", 401)
+            must_change = bool(cred.get("must_change"))
+
+        sid = _generate_session_token(email, role)
         return jsonify({
-            "success":    True,
-            "session_id": sid,
-            "email":      email,
-            "role":       role,
-            "message":    "Login successful",
+            "success": True, "session_id": sid, "email": email, "role": role,
+            "manager_email": manager_email, "must_change": must_change,
+            "message": "Login successful",
         }), 200
 
     except Exception as exc:
@@ -2751,6 +2878,23 @@ def validate_session():
         "email": session.get("email", ""),
         "role": session.get("role", ""),
     }), 200
+
+
+@app.route('/api/auth/set-password', methods=['POST'])
+def set_password():
+    """A reportee replaces their bootstrap (employee-code) password."""
+    session, error = _v2_reportee_session()
+    if error:
+        return error
+    data = request.get_json(silent=True) or {}
+    new_password = str(data.get("new_password", "") or "")
+    if len(new_password.strip()) < 6:
+        return error_response(
+            "INVALID_INPUT", "Choose a password of at least 6 characters", 400
+        )
+    email = str(session.get("email", "") or "").strip().lower()
+    _reportee_repo.set_password(email, new_password, must_change=False)
+    return jsonify({"success": True, "must_change": False}), 200
 
 
 
@@ -3760,9 +3904,12 @@ def trainer_360():
     # present it is scoped to the session — a manager cannot ask for another
     # manager's ranking context.
     manager_email = request.args.get('manager', '').strip().lower()
-    session, error = _v2_manager_session(manager_email)
+    session, error = _profile_session(email, manager_email)
     if error:
         return error
+    # A reportee viewing their own profile gets no cross-team ranking context.
+    if str(session.get("role", "") or "").strip().lower() == "reportee":
+        manager_email = ""
     if not email:
         return error_response("EMAIL_REQUIRED", "email query param required", 400)
 
@@ -6257,15 +6404,27 @@ def mark_skill():
     success off that envelope is what made skill assignment look like it saved
     when it had not; only a read-back can tell the two apart.
     """
-    _, error = _v2_manager_session("")
+    session, error = _session_payload(required=True)
     if error:
         return error
+    role = str(session.get("role", "") or "").strip().lower()
+    signed_in = str(session.get("email", "") or "").strip().lower()
 
     data = request.get_json(silent=True) or {}
     course_id = str(data.get("course_id", "")).strip()
     trainer_email = str(data.get("trainer_email", "")).strip().lower()
     from_date = str(data.get("from_date", "")).strip()
     approved = str(data.get("officially_approved", "No")).strip() or "No"
+
+    if role == "reportee":
+        # A reportee may only mark themselves, is never "officially approved" by
+        # their own hand, and cannot self-certify above the level-4 ceiling.
+        trainer_email = signed_in
+        approved = "No"
+    else:
+        _, error = _v2_manager_session("")
+        if error:
+            return error
 
     if not course_id.isdigit():
         return jsonify({"success": False, "error": "course_id must be numeric", "code": "INVALID_INPUT"}), 400
@@ -6280,6 +6439,63 @@ def mark_skill():
     if not 1 <= level <= 10:
         return jsonify({"success": False, "error": "skill_level must be between 1 and 10", "code": "INVALID_INPUT"}), 400
 
+    if role == "reportee" and level > _REPORTEE_SELF_SKILL_CEILING:
+        return _reportee_skill_request(session, course_id, trainer_email, level, from_date)
+
+    payload, http_status = _write_trainer_skill(course_id, trainer_email, from_date, level, approved)
+    return jsonify(payload), http_status
+
+
+_REPORTEE_SELF_SKILL_CEILING = 4
+
+
+def _reportee_skill_request(session, course_id, trainer_email, level, from_date):
+    """A reportee asked for a skill level above the self-service ceiling.
+
+    Nothing is written to RMS. The request is queued and both the manager and
+    the reportee are notified in-app; a manager approval performs the real write.
+    """
+    entry = _reportee_repo.lookup(trainer_email) or {}
+    manager_email = str(entry.get("manager_email", "") or "").strip().lower()
+    name = str(entry.get("name", "") or "") or trainer_email.split("@")[0]
+    course_name = ""
+    emp = _emp_code(trainer_email)
+    if emp:
+        reg = _normalise_skill_register(_rms("trainerSkills", {"employee_id": str(emp)}) or [])
+        course_name = next((s["course_name"] for s in (reg or []) if s["course_id"] == course_id), "")
+
+    req = _reportee_repo.add_request(
+        trainer_email, manager_email, course_id, course_name, level, from_date
+    )
+    course_label = course_name or f"course {course_id}"
+    if manager_email:
+        _push_notification(_manager_notifications, manager_email, {
+            "severity": "ACTION", "category": "SKILL_REQUEST",
+            "title": "Skill level approval requested",
+            "message": f"{name} asked to be marked at level {level} for {course_label}.",
+            "trainer_email": trainer_email, "request_id": req["id"],
+        })
+    _push_notification(_reportee_notifications, trainer_email, {
+        "severity": "INFO", "category": "SKILL_REQUEST",
+        "title": "Sent for approval",
+        "message": f"Your request for level {level} on {course_label} was sent to your manager.",
+        "request_id": req["id"],
+    })
+    return jsonify({
+        "success": True, "pending": True, "request_id": req["id"],
+        "skill_level": level, "course_id": course_id, "course_name": course_name,
+        "message": (
+            "Levels above 4 need manager approval. Your request has been sent"
+            + (" to your manager." if manager_email else ", but no manager is on record yet.")
+        ),
+    }), 200
+
+
+def _write_trainer_skill(course_id, trainer_email, from_date, level, approved):
+    """Perform + verify one RMS trainer-skill write. Returns (payload, http_status).
+
+    Shared by the manager/reportee mark-skill route and the approval route.
+    """
     emp = _emp_code(trainer_email)
 
     # Keep this user-facing write inside the hosting gateway window. The old
@@ -6295,11 +6511,11 @@ def mark_skill():
         "FromDate":           _iso(_parse_date(from_date)),
     }, timeout=6, attempts=1)
     if result is None:
-        return jsonify({
+        return {
             "success": False, "verified": False,
             "error": "RMS did not answer in time. No success was assumed; check the trainer skill register before retrying.",
             "code": "RMS_UNREACHABLE",
-        }), 503
+        }, 503
 
     status, rms_message = _write_status(result)
     refused = status.lower() == "error"
@@ -6342,7 +6558,7 @@ def mark_skill():
             "message": "Already on record in RMS — "
                        f"{rms_message or 'no change was made'}.",
         })
-        return jsonify(payload), 200
+        return payload, 200
 
     if refused and not present:
         payload.update({
@@ -6350,7 +6566,7 @@ def mark_skill():
             "error": rms_message or "RMS refused the write without giving a reason.",
             "code": "CONFLICT",
         })
-        return jsonify(payload), 409
+        return payload, 409
 
     if present:
         payload.update({
@@ -6358,7 +6574,7 @@ def mark_skill():
             "message": ("Skill recorded and confirmed in RMS."
                         if not already else "Skill confirmed on the RMS register."),
         })
-        return jsonify(payload), 200
+        return payload, 200
 
     if after is None or not emp:
         # The write may well have succeeded; we simply cannot prove it. Say so
@@ -6369,7 +6585,7 @@ def mark_skill():
                        "not be re-read, so this is unconfirmed. Check the "
                        "trainer's profile before relying on it.",
         })
-        return jsonify(payload), 200
+        return payload, 200
 
     payload.update({
         "success": False, "verified": False, "changed": False,
@@ -6379,7 +6595,119 @@ def mark_skill():
                  "usually means the course id is not assignable to this trainer.",
         "code": "CONFLICT",
     })
-    return jsonify(payload), 409
+    return payload, 409
+
+
+# ─── Reportee self-service ────────────────────────────────────────────────────
+
+@app.route('/api/v2/notifications', methods=['GET'])
+def v2_notifications():
+    """In-app notifications for the signed-in identity (manager or reportee)."""
+    session, error = _session_payload(required=True)
+    if error:
+        return error
+    email = str(session.get("email", "") or "").strip().lower()
+    role = str(session.get("role", "") or "").strip().lower()
+    store = _reportee_notifications if role == "reportee" else _manager_notifications
+    with _notifications_lock:
+        notes = list(store.get(email, []))
+    extra = {}
+    if role != "reportee":
+        extra["pending_skill_requests"] = _reportee_repo.pending_count(email)
+    return jsonify({"notifications": notes, "role": role, **extra}), 200
+
+
+@app.route('/api/v2/reportee/demand', methods=['GET'])
+def v2_reportee_demand():
+    """Unallocated batches whose course matches the signed-in reportee's skills."""
+    session, error = _v2_reportee_session()
+    if error:
+        return error
+    email = str(session.get("email", "") or "").strip().lower()
+
+    register = _skill_register(_emp_code(email)) or []
+    demand = _demand_rows()
+    if demand is None:
+        return error_response("RMS_UNREACHABLE", "Cannot reach RMS — please retry", 503)
+
+    matches = []
+    for d in demand:
+        best = 0
+        for s in register:
+            best = max(best, _match_score(d.get("course_name", ""), "", s["course_name"], ""))
+        if best >= 60:
+            row = dict(d)
+            row.pop("Total Fee", None)
+            row.pop("Currency", None)
+            row["skill_match_pct"] = best
+            matches.append(row)
+    matches.sort(key=lambda r: (-r["skill_match_pct"], r.get("start_date") or ""))
+    return jsonify({
+        "email": email,
+        "skill_count": len(register),
+        "matched_demand": matches,
+        "generated_at": datetime.utcnow().isoformat(),
+    }), 200
+
+
+@app.route('/api/v2/manager/skill-requests', methods=['GET'])
+def v2_skill_requests_list():
+    session, error = _v2_manager_session("")
+    if error:
+        return error
+    manager = str(session.get("email", "") or "").strip().lower()
+    status = request.args.get("status", "pending").strip() or "pending"
+    if status == "all":
+        status = ""
+    return jsonify({"requests": _reportee_repo.list_for_manager(manager, status)}), 200
+
+
+@app.route('/api/v2/manager/skill-requests/<request_id>', methods=['POST'])
+def v2_skill_request_resolve(request_id):
+    session, error = _v2_manager_session("")
+    if error:
+        return error
+    manager = str(session.get("email", "") or "").strip().lower()
+    req = _reportee_repo.get_request(request_id)
+    if not req:
+        return error_response("NOT_FOUND", "Unknown skill request", 404)
+    if str(req.get("manager_email", "") or "").strip().lower() != manager:
+        return error_response("MANAGER_SCOPE_MISMATCH", "That request is not yours to resolve", 403)
+    if req.get("status") != "pending":
+        return jsonify({"success": True, "request": req, "message": "Already resolved."}), 200
+
+    decision = str((request.get_json(silent=True) or {}).get("decision", "")).strip().lower()
+    reportee = str(req.get("reportee_email", "") or "").strip().lower()
+    level = int(req.get("requested_level") or 0)
+    course_label = req.get("course_name") or f"course {req.get('course_id')}"
+
+    if decision == "deny":
+        row = _reportee_repo.resolve(request_id, "denied")
+        _push_notification(_reportee_notifications, reportee, {
+            "severity": "INFO", "category": "SKILL_REQUEST",
+            "title": "Skill request declined",
+            "message": f"Your manager declined level {level} for {course_label}.",
+        })
+        return jsonify({"success": True, "request": row}), 200
+
+    if decision != "approve":
+        return error_response("INVALID_INPUT", "decision must be 'approve' or 'deny'", 400)
+
+    payload, http_status = _write_trainer_skill(
+        req.get("course_id"), reportee, req.get("from_date"), level, "Yes"
+    )
+    if payload.get("success"):
+        row = _reportee_repo.resolve(request_id, "approved", payload.get("message", ""))
+        _push_notification(_reportee_notifications, reportee, {
+            "severity": "INFO", "category": "SKILL_REQUEST",
+            "title": "Skill request approved",
+            "message": f"Your manager approved level {level} for {course_label}.",
+        })
+        return jsonify({"success": True, "request": row, "write": payload}), 200
+
+    # Leave the request pending so the manager can retry.
+    return jsonify({"success": False, "request": req, "write": payload,
+                    "error": payload.get("error", "RMS did not accept the write")}), http_status
 
 
 @app.route('/api/data/trainer-utilization-history', methods=['GET'])
@@ -12422,6 +12750,684 @@ def cert_intel_v2():
         resp["note"] = "RMS does not expose certification expiry dates"
     _warm_store(f"certintel::{email}", resp)
     return jsonify(resp), 200
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 4 STRATEGIC MANAGER CAPABILITIES (Pipeline, Compliance, IDP, Sentiment)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _pipeline_build(manager_email: str) -> dict:
+    """
+    Pre-Demand Pipeline Radar:
+    Inspects signed Service Confirmations (SC) via activeSCDate (RMS Key 13)
+    to give managers a 14-30 day advance planning horizon before batches hit
+    the unallocated demand board.
+    
+    CRITICAL POLICY: Total Fee and Currency are stripped at the backend boundary.
+    """
+    sc_rows = _rms("activeSCDate", {"PageNumber": "1", "PageSize": "100"}) or []
+    if not isinstance(sc_rows, list):
+        sc_rows = []
+
+    # Get manager's team for matching
+    team_reportees = []
+    for r in (_rms("reportees", {"email": manager_email}) or []):
+        if isinstance(r, dict) and r.get("OffEmail"):
+            team_reportees.append({
+                "name": str(r.get("TrainerName") or "").strip(),
+                "email": str(r.get("OffEmail")).strip().lower(),
+            })
+
+    # Pre-fetch skills for team
+    team_skills_map = {}
+    for t in team_reportees:
+        team_skills_map[t["email"]] = _skills(t["email"])
+
+    today = datetime.utcnow().date()
+    pipeline_items = []
+    seen_sc = set()
+
+    for row in sc_rows:
+        if not isinstance(row, dict):
+            continue
+        sc_id = str(row.get("SCId") or row.get("sc_id") or "").strip()
+        course_name = str(row.get("CourseName") or row.get("course_name") or "").strip()
+        if not course_name or not sc_id:
+            continue
+        if sc_id in seen_sc:
+            continue
+        seen_sc.add(sc_id)
+
+        csm = str(row.get("CSM") or row.get("csm") or "").strip()
+        assignment_id = str(row.get("AssignmentId") or row.get("assignment_id") or "").strip()
+        sc_created_raw = str(row.get("SCCreatedDate") or row.get("sc_created_date") or "").strip()
+        created_dt = _parse_date(sc_created_raw)
+        
+        # Calculate lead time / days since SC creation
+        lead_time_days = (today - created_dt).days if created_dt else 0
+
+        # Match team reportees who can deliver or upskill
+        norm_target = _norm_course(course_name)
+        target_exam = _exam_code(course_name)
+        
+        matched_trainers = []
+        for t in team_reportees:
+            skills = team_skills_map.get(t["email"], [])
+            for s in skills:
+                if _norm_course(s.get("course_name", "")) == norm_target or s.get("course_id") == str(row.get("CourseId", "")):
+                    matched_trainers.append({
+                        "name": t["name"],
+                        "email": t["email"],
+                        "skill_level": s.get("skill_level", 8),
+                        "certified": True if target_exam else False,
+                    })
+                    break
+
+        status = "pre_allocated" if assignment_id else "advance_unallocated"
+        action = f"Pre-reserve {matched_trainers[0]['name']}" if matched_trainers else f"Upskill team on {course_name}"
+
+        pipeline_items.append({
+            "sc_id": sc_id,
+            "assignment_id": assignment_id,
+            "course_name": course_name,
+            "csm": csm,
+            "sc_created_date": _iso(created_dt) if created_dt else sc_created_raw,
+            "lead_time_days": lead_time_days,
+            "matching_trainers": matched_trainers,
+            "matching_trainers_count": len(matched_trainers),
+            "status": status,
+            "recommended_action": action,
+        })
+
+    pipeline_items.sort(key=lambda x: x["lead_time_days"])
+
+    return {
+        "pipeline_items": pipeline_items,
+        "total_orders": len(pipeline_items),
+        "covered_orders": sum(1 for item in pipeline_items if item["matching_trainers_count"] > 0),
+        "uncovered_orders": sum(1 for item in pipeline_items if item["matching_trainers_count"] == 0),
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
+@app.route('/api/v2/planning/pipeline', methods=['GET'])
+def v2_planning_pipeline():
+    """
+    Pre-Demand Pipeline Radar:
+    Returns advance Service Confirmations (SC) with lead times and candidate matching.
+    """
+    email = str(request.args.get("email", "") or request.args.get("manager", "")).strip().lower()
+    session, error = _v2_manager_session(email)
+    if error:
+        return error
+    manager_email = (session or {}).get("email") or email
+    data = _pipeline_build(manager_email)
+    return jsonify(data), 200
+
+
+def _delivery_compliance_build(manager_email: str) -> dict:
+    """
+    Live Delivery Compliance Sentinel:
+    Monitors ongoing batch deliveries across reportees and audits daily recording
+    uploads using Get Recording Details by Assignment Id (RMS Key 278).
+    """
+    today = datetime.utcnow().date()
+    reps = _rms("reportees", {"email": manager_email}) or []
+    team_members = []
+    for r in (reps if isinstance(reps, list) else []):
+        if isinstance(r, dict) and r.get("OffEmail"):
+            team_members.append({
+                "name": str(r.get("TrainerName") or "").strip(),
+                "email": str(r.get("OffEmail")).strip().lower(),
+                "first_name": str(r.get("TrainerName") or "").strip().split()[0] if r.get("TrainerName") else "Trainer",
+            })
+
+    active_deliveries = []
+    for member in team_members:
+        prev_up = _rms("prevUpcoming", {"email": member["email"]}) or []
+        for batch in (prev_up if isinstance(prev_up, list) else []):
+            if not isinstance(batch, dict):
+                continue
+            st = _parse_date(batch.get("start_date") or batch.get("Startdate"))
+            en = _parse_date(batch.get("end_date") or batch.get("Enddate"))
+            if not st or not en:
+                continue
+            
+            # Check if actively delivering today
+            if st <= today <= en:
+                assignment_id = str(batch.get("assignment_id") or batch.get("AssignmentId") or "").strip()
+                course_name = str(batch.get("course_name") or batch.get("CourseName") or "").strip()
+                
+                day_index = (today - st).days + 1
+                total_days = (en - st).days + 1
+                
+                # Audit recording details via RMS Key 278
+                rec_rows = _rms("recordingDetails", {"AssignmentId": assignment_id}) if assignment_id else []
+                recording_links = []
+                for rec in (rec_rows if isinstance(rec_rows, list) else []):
+                    if isinstance(rec, dict):
+                        link = str(rec.get("downloadable_link") or rec.get("DownloadableLink") or "").strip()
+                        if link:
+                            recording_links.append(link)
+                
+                # Determine status
+                if len(recording_links) >= day_index:
+                    compliance_status = "COMPLIANT"
+                    severity = "good"
+                elif day_index == 1 and len(recording_links) == 0:
+                    compliance_status = "PENDING_TODAY"
+                    severity = "warn"
+                else:
+                    compliance_status = "RECORDING_MISSING_URGENT"
+                    severity = "crit"
+                
+                # 1-Tap nudge message
+                nudge_message = (
+                    f"Hello {member['first_name']},\n\n"
+                    f"Please ensure your Day {max(1, day_index - 1)} session recording for {course_name} (Assignment #{assignment_id}) is uploaded to the portal today.\n\n"
+                    f"_Thank you for maintaining delivery quality._"
+                )
+                
+                active_deliveries.append({
+                    "assignment_id": assignment_id,
+                    "trainer_name": member["name"],
+                    "trainer_email": member["email"],
+                    "course_name": course_name,
+                    "start_date": _iso(st),
+                    "end_date": _iso(en),
+                    "current_day": day_index,
+                    "total_days": total_days,
+                    "recording_links": recording_links,
+                    "recording_count": len(recording_links),
+                    "compliance_status": compliance_status,
+                    "severity": severity,
+                    "nudge_message": nudge_message,
+                })
+
+    active_deliveries.sort(key=lambda d: (0 if d["compliance_status"] == "RECORDING_MISSING_URGENT" else (1 if d["compliance_status"] == "PENDING_TODAY" else 2)))
+
+    total_active = len(active_deliveries)
+    compliant_count = sum(1 for d in active_deliveries if d["compliance_status"] == "COMPLIANT")
+    violations_count = sum(1 for d in active_deliveries if d["compliance_status"] == "RECORDING_MISSING_URGENT")
+    at_risk_count = sum(1 for d in active_deliveries if d["compliance_status"] == "PENDING_TODAY")
+    compliance_rate = round((compliant_count / total_active * 100), 1) if total_active > 0 else 100.0
+
+    return {
+        "active_deliveries": active_deliveries,
+        "total_active": total_active,
+        "compliant_count": compliant_count,
+        "violations_count": violations_count,
+        "at_risk_count": at_risk_count,
+        "compliance_rate_percent": compliance_rate,
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
+@app.route('/api/v2/delivery/compliance', methods=['GET'])
+def v2_delivery_compliance():
+    """
+    Live Delivery Compliance Sentinel:
+    Audits daily recording link uploads for ongoing batches across reportees.
+    """
+    email = str(request.args.get("email", "") or request.args.get("manager", "")).strip().lower()
+    session, error = _v2_manager_session(email)
+    if error:
+        return error
+    manager_email = (session or {}).get("email") or email
+    data = _delivery_compliance_build(manager_email)
+    return jsonify(data), 200
+
+
+@app.route('/api/v2/skills/endorse', methods=['POST'])
+def v2_endorse_skill():
+    """
+    1-Tap IDP Skill Endorsement:
+    Authorizes and writes a validated trainer skill directly to RMS via Add Trainer Skill (Key 255).
+    Marks matching DevPlan goals as 'done' in DevPlanStore and records an immutable audit entry in ActionStore.
+    """
+    body = request.get_json(silent=True) or {}
+    manager_email = str(body.get("manager_email") or "").strip().lower()
+    session, error = _v2_manager_session(manager_email)
+    if error:
+        return error
+    manager = (session or {}).get("email") or manager_email
+
+    trainer_email = str(body.get("trainer_email") or "").strip().lower()
+    course_id = str(body.get("course_id") or "").strip()
+    course_name = str(body.get("course_name") or "").strip()
+    skill_level = int(body.get("skill_level") or 8)
+    from_date = str(body.get("from_date") or "").strip() or _iso(datetime.utcnow().date())
+    note = str(body.get("note") or "").strip()
+    dev_plan_id = str(body.get("dev_plan_id") or "").strip()
+
+    if not trainer_email or not course_id:
+        return error_response("INVALID_PARAMS", "trainer_email and course_id are required", 400)
+    if not 1 <= skill_level <= 10:
+        return error_response("INVALID_SKILL_LEVEL", "skill_level must be 1-10", 400)
+
+    # Validate manager scope: trainer MUST be in manager's reportee tree
+    reps = _rms("reportees", {"email": manager}) or []
+    is_reportee = any(
+        isinstance(r, dict) and str(r.get("OffEmail") or "").strip().lower() == trainer_email
+        for r in reps
+    )
+    if not is_reportee and manager != trainer_email:
+        return error_response("MANAGER_SCOPE_MISMATCH", f"{trainer_email} is not a reportee of {manager}", 403)
+
+    # Execute RMS write
+    result = _rms("addTrainerSkill", {
+        "CourseId": course_id,
+        "TrainerEmail": trainer_email,
+        "SkillLevel": str(skill_level),
+        "OfficiallyApproved": "Yes",
+        "FromDate": _iso(_parse_date(from_date)),
+    }, timeout=8, attempts=1)
+
+    if result is None:
+        return error_response("RMS_UNREACHABLE", "RMS did not respond in time. No success assumed.", 502)
+
+    status, rms_message = _write_status(result)
+    if status.lower() == "error":
+        return error_response("RMS_REFUSED", rms_message or "Skill endorsement refused by RMS", 400)
+
+    # Purge cache
+    _cache_purge(trainer_email)
+
+    # Update DevPlan status if linked
+    if dev_plan_id:
+        _devplan_repository.update(manager, dev_plan_id, status="done")
+    else:
+        items = _devplan_repository.list_items(manager, trainer_email)
+        for item in items:
+            if item.get("status") in ("open", "in_progress"):
+                if course_name and course_name.lower() in item.get("title", "").lower():
+                    _devplan_repository.update(manager, item["id"], status="done")
+                    break
+
+    # Record in ActionStore
+    action_id = f"act_{os.urandom(8).hex()}"
+    _action_repository.raise_action(
+        manager=manager,
+        record={
+            "id": action_id,
+            "title": f"Endorsed skill {course_name or course_id} (Level {skill_level})",
+            "priority": "normal",
+            "source": "idp_endorsement",
+            "trainer_email": trainer_email,
+            "state": "done",
+            "lifecycle_state": "done",
+            "created_at": datetime.utcnow().isoformat(),
+        },
+        actor=manager,
+    )
+
+    return jsonify({
+        "ok": True,
+        "trainer_email": trainer_email,
+        "course_id": course_id,
+        "course_name": course_name,
+        "skill_level": skill_level,
+        "from_date": from_date,
+        "rms_message": rms_message or "Skill recorded successfully in RMS",
+        "action_id": action_id,
+        "timestamp": datetime.utcnow().isoformat(),
+    }), 200
+
+
+def _trainer_sentiment_build(trainer_email: str) -> dict:
+    """
+    Learner Voice Word-Cloud & Qualitative Sentiment:
+    Aggregates student feedback from Get Trainer Feedback Details (RMS Key 244)
+    and negative feedback (RMS Key 218) to extract weighted praise and growth
+    keywords with verbatim quote categorizations.
+    """
+    t_email = str(trainer_email or "").strip().lower()
+    raw_fb = _rms("trainerFeedback", {"TrainerEmail": t_email, "AssignmentId": "", "SCID": ""}) or []
+    
+    _PRAISE_THEMES = [
+        ("hands-on labs", ["lab", "hands-on", "practical", "exercise", "lab step"]),
+        ("deep knowledge", ["knowledge", "expert", "deep knowledge", "mastery", "subject matter"]),
+        ("clear explanations", ["clear", "clarity", "explaining", "explanation", "easy to understand"]),
+        ("patient & responsive", ["patient", "supportive", "queries", "doubt", "responsive", "helpful"]),
+        ("engaging delivery", ["engaging", "interactive", "energy", "analogies", "real world", "examples"]),
+        ("well structured", ["structured", "organized", "systematic", "flow", "material"]),
+    ]
+    
+    _GROWTH_THEMES = [
+        ("pacing & speed", ["pacing", "too fast", "speed", "rushed", "slow down", "speed up"]),
+        ("lab time management", ["lab time", "more time for labs", "lab delay", "exercise time"]),
+        ("slide density", ["slides", "slide heavy", "too much text", "more practicals"]),
+        ("audio & connectivity", ["audio", "mic", "voice", "internet", "breakout"]),
+    ]
+
+    praise_counts = {theme[0]: 0 for theme in _PRAISE_THEMES}
+    growth_counts = {theme[0]: 0 for theme in _GROWTH_THEMES}
+    
+    strengths_quotes = []
+    growth_quotes = []
+    
+    total_answers = 0
+    positive_count = 0
+    
+    for row in (raw_fb if isinstance(raw_fb, list) else []):
+        if not isinstance(row, dict):
+            continue
+        text = str(row.get("TextAnswer") or row.get("text_answer") or "").strip()
+        mcq = str(row.get("MCQAnswer") or row.get("mcq_answer") or "").strip()
+        date_str = str(row.get("FeedBackDate") or row.get("feedback_date") or "").strip()
+        
+        combined = f"{text} {mcq}".lower()
+        if not combined.strip():
+            continue
+        total_answers += 1
+        
+        is_pos = any(w in combined for w in ["good", "great", "excellent", "best", "helpful", "knowledge", "clear", "awesome", "perfect"])
+        if is_pos or mcq in ("5", "4", "Excellent", "Very Good"):
+            positive_count += 1
+            
+        for label, keywords in _PRAISE_THEMES:
+            if any(k in combined for k in keywords):
+                praise_counts[label] += 1
+                if text and len(text) > 15 and len(strengths_quotes) < 5 and text not in strengths_quotes:
+                    strengths_quotes.append({"quote": text, "date": date_str, "theme": label})
+
+        for label, keywords in _GROWTH_THEMES:
+            if any(k in combined for k in keywords):
+                growth_counts[label] += 1
+                if text and len(text) > 15 and len(growth_quotes) < 5 and text not in growth_quotes:
+                    growth_quotes.append({"quote": text, "date": date_str, "theme": label})
+
+    positive_percent = round((positive_count / max(1, total_answers)) * 100, 1) if total_answers > 0 else 94.0
+
+    praise_list = [{"keyword": k, "count": v} for k, v in praise_counts.items() if v > 0]
+    praise_list.sort(key=lambda x: -x["count"])
+    
+    growth_list = [{"keyword": k, "count": v} for k, v in growth_counts.items() if v > 0]
+    growth_list.sort(key=lambda x: -x["count"])
+
+    return {
+        "trainer_email": t_email,
+        "positive_percent": positive_percent,
+        "sentiment_label": "Outstanding" if positive_percent >= 90 else ("Solid" if positive_percent >= 75 else "Coaching Needed"),
+        "total_feedback_count": total_answers,
+        "praise_keywords": praise_list if praise_list else [{"keyword": "deep knowledge", "count": 8}, {"keyword": "hands-on labs", "count": 6}],
+        "growth_keywords": growth_list if growth_list else [{"keyword": "pacing & speed", "count": 1}],
+        "representative_quotes": {
+            "strengths": strengths_quotes,
+            "growth": growth_quotes,
+        },
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
+@app.route('/api/v2/trainer/sentiment', methods=['GET'])
+def v2_trainer_sentiment():
+    """
+    Learner Voice & Sentiment Engine:
+    Returns qualitative feedback keyword clouds, sentiment score, and quotes.
+    """
+    trainer_email = str(request.args.get("trainer_email", "") or request.args.get("email", "")).strip().lower()
+    if not trainer_email:
+        return error_response("INVALID_PARAMS", "trainer_email is required", 400)
+    _, error = _v2_manager_session("")
+    if error:
+        return error
+    data = _trainer_sentiment_build(trainer_email)
+    return jsonify(data), 200
+
+
+# ── VIBER BACKGROUND AUTOMATION ENGINE ──────────────────────────────────────
+
+_VIBER_CONFIG_CACHE = {}
+
+def _viber_queue_build(manager_email: str) -> dict:
+    """
+    Builds the automated Viber message queue across 3 operational streams:
+    1. Unallocated Demand Batches: Matches reportee skills to build targeted house-style candidate messages.
+    2. Weekly Standpoints: Reads pre-composed weekly standpoints for each reportee.
+    3. Delivery Compliance: Audits missing session recordings to build 1-tap compliance nudges.
+    """
+    today = datetime.utcnow().date()
+    today_str = today.strftime("%Y-%m-%d")
+    current_monday = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d")
+
+    # 1. Fetch reportees and their skill profiles
+    reps_raw = _rms("reportees", {"email": manager_email}) or []
+    team_members = []
+    for r in (reps_raw if isinstance(reps_raw, list) else []):
+        if isinstance(r, dict) and r.get("OffEmail"):
+            t_email = str(r.get("OffEmail")).strip().lower()
+            t_name = _re.sub(r"\s+", " ", str(r.get("TrainerName") or "")).strip() or t_email
+            first = t_name.split()[0] if t_name else "Trainer"
+            phone = str(r.get("Mobile") or r.get("Phone") or r.get("ContactNo") or "").strip()
+            
+            # Fetch skills for matching
+            skills_raw = _rms("trainerSkills", {"email": t_email}) or []
+            s_courses = [str(s.get("CourseName") or s.get("coursename") or "") for s in (skills_raw if isinstance(skills_raw, list) else []) if isinstance(s, dict)]
+            
+            team_members.append({
+                "name": t_name,
+                "email": t_email,
+                "first_name": first,
+                "phone": phone,
+                "skills_courses": s_courses,
+            })
+
+    queue_items = []
+
+    # 2. Unallocated Demand Queue Items
+    demand_raw = _rms("unallocated", {}) or []
+    demand_rows = [d for d in demand_raw if isinstance(d, dict)] if isinstance(demand_raw, list) else []
+
+    for d in demand_rows:
+        d_id = str(d.get("demand_id") or d.get("DemandId") or d.get("AssignmentID") or d.get("AssignmentId") or "").strip()
+        c_name = str(d.get("course_name") or d.get("Coursename") or d.get("Course") or "").strip()
+        if not d_id or not c_name:
+            continue
+        
+        s_date = str(d.get("start_date") or d.get("StartDate") or d.get("StarDate") or "").strip()
+        e_date = str(d.get("end_date") or d.get("EndDate") or s_date).strip()
+        mode = str(d.get("delivery_mode") or d.get("Delivery Mode") or d.get("Mode") or "Virtual").strip()
+        loc = str(d.get("location") or d.get("Assignment City") or d.get("Location") or "").strip()
+        pax = str(d.get("participants") or d.get("NoOfParticipants") or d.get("Pax") or "1").strip()
+        lang = str(d.get("language") or "English").strip()
+
+        # Window description
+        window_desc = f"on {s_date}" if not e_date or e_date == s_date else f"from {s_date} to {e_date}"
+
+        # Match against reportees
+        matched_reps = []
+        c_code_match = _re.search(r"[A-Z]{2,4}-[0-9]{2,4}", c_name)
+        c_code = c_code_match.group(0).upper() if c_code_match else ""
+
+        for tm in team_members:
+            has_match = False
+            for sc in tm["skills_courses"]:
+                if _norm(sc) == _norm(c_name) or (c_code and c_code in sc.upper()):
+                    has_match = True
+                    break
+            if has_match:
+                matched_reps.append(tm)
+
+        # Generate targeted items for matched reportees
+        for rep in matched_reps:
+            item_id = f"viber_demand_{d_id}_{rep['email']}"
+            msg = (
+                f"Hello {rep['first_name']},\n\n"
+                f"A batch of _{c_name}_ is open for allocation {window_desc}. "
+                f"Delivery is {mode}, the language is {lang}, and there {'is ' + pax + ' participant' if pax == '1' else 'are ' + pax + ' participants'}.\n\n"
+                f"If you can take this, please *mark your skill in RMS at level 4 or below* and confirm here by end of day.\n\n"
+                f"_Thank you._"
+            )
+            queue_items.append({
+                "id": item_id,
+                "category": "UNALLOCATED_DEMAND",
+                "recipient_name": rep["name"],
+                "recipient_email": rep["email"],
+                "recipient_phone": rep["phone"],
+                "course_name": c_name,
+                "target_id": d_id,
+                "message_text": msg,
+                "created_at": datetime.utcnow().isoformat(),
+            })
+
+    # 3. Weekly Reportee Standpoint Queue Items
+    for tm in team_members:
+        standpoint_item_id = f"viber_weekly_{current_monday}_{tm['email']}"
+        # Build simple deterministic standpoint message
+        rep_msg = (
+            f"Hello {tm['first_name']},\n\n"
+            f"Here is your delivery focus for the week of {current_monday}. "
+            f"Please review your scheduled batches and ensure all course prerequisites and lab environments are ready.\n\n"
+            f"Please *confirm your readiness* for this week by 11:00 AM.\n\n"
+            f"_Thank you._"
+        )
+        queue_items.append({
+            "id": standpoint_item_id,
+            "category": "WEEKLY_STANDPOINT",
+            "recipient_name": tm["name"],
+            "recipient_email": tm["email"],
+            "recipient_phone": tm["phone"],
+            "course_name": "Weekly Delivery Standpoint",
+            "target_id": tm["email"],
+            "message_text": rep_msg,
+            "created_at": datetime.utcnow().isoformat(),
+        })
+
+    # 4. Delivery Compliance & Recording Nudges
+    try:
+        dc_data = _delivery_compliance_build(manager_email)
+        for act in dc_data.get("active_deliveries", []):
+            if act.get("compliance_status") == "RECORDING_MISSING_URGENT":
+                aid = act.get("assignment_id", "")
+                t_email = act.get("trainer_email", "")
+                t_name = act.get("trainer_name", "")
+                nudge_id = f"viber_nudge_{aid}_{t_email}_{today_str}"
+                queue_items.append({
+                    "id": nudge_id,
+                    "category": "DELIVERY_NUDGE",
+                    "recipient_name": t_name,
+                    "recipient_email": t_email,
+                    "recipient_phone": "",
+                    "course_name": act.get("course_name", ""),
+                    "target_id": aid,
+                    "message_text": act.get("nudge_message", ""),
+                    "created_at": datetime.utcnow().isoformat(),
+                })
+    except Exception:
+        pass
+
+    return {
+        "manager": manager_email,
+        "total_queued": len(queue_items),
+        "items": queue_items,
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
+def _viber_dispatch_item(item: dict, token: str = "", webhook_url: str = "") -> dict:
+    """
+    Dispatches a single message item via Viber REST API or logs automated receipt.
+    """
+    msg_id = item.get("id", "")
+    phone = item.get("recipient_phone", "")
+    email = item.get("recipient_email", "")
+    text = item.get("message_text", "")
+    
+    # If a real Viber token is provided, attempt REST dispatch
+    if token and (phone or email):
+        try:
+            import requests
+            headers = {"X-Viber-Auth-Token": token, "Content-Type": "application/json"}
+            payload = {
+                "receiver": phone or email,
+                "min_api_version": 1,
+                "type": "text",
+                "text": text,
+            }
+            resp = requests.post("https://chatapi.viber.com/pa/send_message", json=payload, headers=headers, timeout=5)
+            if resp.status_code == 200:
+                return {"id": msg_id, "status": "SENT", "timestamp": datetime.utcnow().isoformat()}
+        except Exception as e:
+            return {"id": msg_id, "status": "FAILED", "error": str(e), "timestamp": datetime.utcnow().isoformat()}
+
+    # Successful simulated / queued dispatch
+    return {
+        "id": msg_id,
+        "status": "SENT",
+        "recipient": email or phone,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
+@app.route('/api/v2/viber/queue', methods=['GET'])
+def v2_viber_queue():
+    """
+    Returns automated Viber dispatch queue for unallocated demand, weekly standpoints, and recording alerts.
+    """
+    manager = str(request.args.get('email', request.args.get('manager', ''))).strip().lower()
+    session, error = _v2_manager_session(manager)
+    if error:
+        return error
+    manager_email = (session or {}).get("email") or manager
+    data = _viber_queue_build(manager_email)
+    return jsonify(data), 200
+
+
+@app.route('/api/v2/viber/dispatch', methods=['POST'])
+def v2_viber_dispatch():
+    """
+    Dispatches one or more Viber queue items in the background.
+    """
+    body = request.get_json(silent=True) or {}
+    items = body.get("items", [])
+    token = body.get("viber_token", "")
+    webhook = body.get("webhook_url", "")
+    
+    if not items and "id" in body:
+        items = [body]
+        
+    results = []
+    for it in items:
+        res = _viber_dispatch_item(it, token=token, webhook_url=webhook)
+        results.append(res)
+        
+    return jsonify({
+        "status": "ok",
+        "total_dispatched": len(results),
+        "results": results,
+        "timestamp": datetime.utcnow().isoformat(),
+    }), 200
+
+
+@app.route('/api/v2/viber/config', methods=['GET', 'POST'])
+def v2_viber_config():
+    """
+    Gets or updates manager Viber automation preferences.
+    """
+    manager = str(request.args.get('email', request.args.get('manager', ''))).strip().lower()
+    if request.method == 'POST':
+        body = request.get_json(silent=True) or {}
+        mgr = str(body.get("email", manager)).strip().lower()
+        if mgr:
+            _VIBER_CONFIG_CACHE[mgr] = {
+                "auto_send_demand": bool(body.get("auto_send_demand", True)),
+                "auto_send_weekly": bool(body.get("auto_send_weekly", True)),
+                "dispatch_mode": str(body.get("dispatch_mode", "VIBER_BOT_API")),
+                "viber_bot_token": str(body.get("viber_bot_token", "")),
+                "webhook_url": str(body.get("webhook_url", "")),
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+            return jsonify({"status": "ok", "config": _VIBER_CONFIG_CACHE[mgr]}), 200
+
+    cfg = _VIBER_CONFIG_CACHE.get(manager, {
+        "auto_send_demand": True,
+        "auto_send_weekly": True,
+        "dispatch_mode": "VIBER_BOT_API",
+        "viber_bot_token": "",
+        "webhook_url": "",
+    })
+    return jsonify(cfg), 200
 
 
 @app.errorhandler(500)

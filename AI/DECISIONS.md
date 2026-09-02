@@ -2,6 +2,62 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-09-02 - Reportee self-service role + initials-only login
+
+- **Decision:** Add a second role. Login takes the work-ID local part only; the client
+  appends `@koenig-solutions.com`. The backend classifies the identity: roster owner (or
+  unknown) → `manager` (unchanged, no password); an email inside some manager's roster with
+  no roster of its own → `reportee`, authenticated by password. First reportee password is
+  the RMS employee code, then a forced change; PBKDF2 hashes in a new
+  `reportee_store.py` sqlite DB, never plaintext, never written to RMS.
+- **Decision:** A reportee sees only their own Trainer 360, their skill-matched unallocated
+  demand, and an updates feed. `_v2_manager_session` hard-rejects reportee tokens;
+  `_profile_session` widens per-person reads to "self or manager-in-scope".
+- **Decision:** A reportee may self-certify a skill only up to **level 4**. Anything higher
+  is blocked from RMS and raised as a `skill_requests` row that notifies the manager and the
+  reportee; the manager approves (performing the real verified write at the requested level,
+  `OfficiallyApproved=Yes`) or denies. Rationale: keeps self-service useful for low-stakes
+  skills while a human owns every senior-level claim, and preserves the existing
+  "only a manager writes an official skill" guarantee.
+- **Decision:** The reportee→manager mapping is derived from manager roster loads only (no
+  reverse RMS lookup exists). A reportee therefore cannot sign in until their manager has
+  used the app once. Accepted because the manager is the primary user.
+
+## 2026-09-01 - Android Viber Background Automation & Silent Auto-Dispatch
+- **Decision:** Implement a 3-tier background automation architecture to automatically generate candidate-matched unallocated demand messages, Monday weekly standpoint notes, and compliance recording nudges, and dispatch them to Viber without manual manager copy-paste:
+  1. *Backend Queue Builder (`GET /api/v2/viber/queue`)*: Automatically cross-references certified reportees against unallocated batches and evaluates weekly standpoint notes, generating candidate-specific house-style Viber messages.
+  2. *Hybrid Multi-Strategy Dispatcher (`ViberDispatcher`)*:
+     - **Tier 1 (Bot REST API / Webhook)**: Silent background HTTP dispatch (`POST /api/v2/viber/dispatch` or direct to Viber Public Account API).
+     - **Tier 2 (On-Device Accessibility UI Automation)**: Android `AccessibilityService` (`ViberAutomationService`) targeting `com.viber.voip` to automatically populate input fields and click send.
+     - **Tier 3 (1-Tap Fast Intent Share)**: High-priority heads-up action button and dialog for rapid review and dispatch.
+  3. *Background Monitoring Loop (`ViberAutomationEngine`)*: Evaluates queue items and processes auto-send rules every 90 seconds in `MonitoringPass.run()`.
+  4. *Manager Cockpit & Direct Action Shortcuts*: Dedicated `ViberAutomationScreen` in the Bento Grid, with 1-tap **"🚀 Auto-Send"** buttons embedded directly into `WeeklyReportScreen` and `PrioritiesScreen`.
+- **Rationale:** Removes the tedious, error-prone manual copy-and-pasting friction for delivery managers, ensuring open batches and weekly standpoint updates reach instructors immediately across Viber.
+
+## 2026-09-01 - Executive Mobile UI/UX Overhaul: Floating Dock, Bento Grid & Roster Elevation
+- **Decision:** Transform the main app shell, navigation bar, command dashboard, and trainer roster into an executive-grade glass console:
+  1. *Floating Frosted Glass Dock (`SkillSyncNavBar`)*: Replace the flat bottom bar with a floating dark acrylic dock with top specular cyan highlight, active animated gradient pill container (`#2563EB` to `#06B6D4`), and high-contrast typography.
+  2. *Transparent Top App Bar*: Remove opaque background to seamlessly blend into `AuroraBackground()`, adding an online green pulse beacon dot (`#10B981`) to the manager profile avatar.
+  3. *8-Tile Bento Command Grid (`ManagerCommandCentre.kt`)*: Overhaul executive operations into an 8-tile Bento Grid launching all manager consoles: This Week Priorities, Pre-Demand Radar, Live Delivery Sentinel, Weekly Standpoint, HR Review, Capacity Runway, Customer Accounts, and Copilot AI.
+  4. *Trainer Roster Card Modernization (`TeamMemberCard.kt`)*: Add a live real-time Delivery Status Pill (*Delivering*, *Scheduled*, *Preparing*, *Available*, *On Leave*) with matching illuminated dot, translucent specular borders, and high-contrast micro KPI metrics.
+- **Rationale:** Delivers a modern, executive-grade mobile interface with immediate operational clarity, frictionless navigation, and direct access to all strategic manager capabilities.
+- **Decision:** Implement 4 high-value managerial capabilities leveraging untapped RMS APIs:
+  1. *Pre-Demand Pipeline Radar (`activeSCDate` - Key 13)*:
+     - Provide early sight into signed Service Confirmations (14–30 day lead time).
+     - **Confidentiality boundary**: `Total Fee` and `Currency` are strictly stripped at the backend boundary and never exposed to the client.
+     - Automatically matches reportee certified skills to compute candidate counts and actionable reservation recommendations.
+  2. *Live Delivery Compliance & Daily Recording Sentinel (`recordingDetails` - Key 278)*:
+     - Monitor active delivering reportees in real-time.
+     - Calculates expected session recordings based on elapsed days of the batch.
+     - Flags missing uploads (`RECORDING_MISSING_URGENT`) and prepares a pre-composed 1-tap Teams/Viber nudge message for the manager.
+  3. *1-Tap IDP Skill Endorsement (`addTrainerSkill` - Key 255)*:
+     - Allow managers to officially endorse completed development goals/certifications directly into RMS.
+     - Enforces strict manager-scope authorization (trainer must be an official reportee).
+     - Automatically marks linked `DevPlanStore` goals as `done` and logs an immutable audit event in `ActionStore`.
+  4. *Learner Voice Word-Cloud & Sentiment Engine (`trainerFeedback` - Key 244 & `trainerNegFeedback` - Key 218)*:
+     - Extracts positive sentiment ratio (praise %), top praise keyword themes (e.g. "hands-on labs", "deep knowledge"), growth coaching themes (e.g. "pacing & speed"), and categorized verbatim student quotes.
+- **Rationale:** Empowers delivery managers to shift from reactive escalations to proactive advance planning, real-time quality assurance, seamless skill progression, and deep qualitative learner insight.
+
 ## 2026-09-01 - "Enterprise Intelligence Glass" UI/UX Modernization & Polish
 - **Decision:** Elevate the entire visual system and screen ergonomics into an executive-grade "Enterprise Intelligence Glass" console:
   1. *Aurora Mesh Ground*: Deploy multi-point radial aurora lighting (`AuroraBackground()`) across all core screens (`PrioritiesScreen`, `WeeklyReportScreen`, `HrMonthlyReportScreen`, `Trainer360Screen`, `BatchDetailScreen`), creating a luminous, deep midnight cobalt canvas.

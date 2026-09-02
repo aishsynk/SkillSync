@@ -727,21 +727,45 @@ private fun WeeklyReporteeLiveCard(
                         color = sk.bodyText,
                     )
                 }
-                FilledTonalButton(
-                    onClick = {
-                        copyToClipboard(context, rep.name, activeText)
-                        notify.success("Copied ${rep.name.substringBefore(" ")}'s message")
-                    },
-                    shape = RoundedCornerShape(Radii.chip),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = sk.brand.copy(alpha = 0.85f),
-                        contentColor = Color.White,
-                    ),
-                ) {
-                    Text(
-                        if (style == MessageStyle.TEAMS) "Copy for Teams" else "Copy for Viber",
-                        style = MaterialTheme.typography.labelMedium,
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(
+                        onClick = {
+                            copyToClipboard(context, rep.name, activeText)
+                            notify.success("Copied ${rep.name.substringBefore(" ")}'s message")
+                        },
+                        shape = RoundedCornerShape(Radii.chip),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = sk.brand.copy(alpha = 0.85f),
+                            contentColor = Color.White,
+                        ),
+                    ) {
+                        Text(
+                            if (style == MessageStyle.TEAMS) "Copy for Teams" else "Copy for Viber",
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            val outboxItem = com.example.skillsync.data.cache.ViberOutboxItem(
+                                id = "viber_weekly_${rep.email}_${System.currentTimeMillis()}",
+                                category = com.example.skillsync.data.cache.ViberOutboxItem.CAT_WEEKLY,
+                                recipientName = rep.name,
+                                recipientEmail = rep.email,
+                                courseName = rep.currentBatch?.course ?: "Weekly Delivery Standpoint",
+                                messageText = activeText,
+                            )
+                            com.example.skillsync.data.cache.ViberOutboxStore.enqueue(managerEmail, listOf(outboxItem))
+                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                                com.example.skillsync.util.ViberDispatcher.dispatchBatch(context, managerEmail, listOf(outboxItem))
+                            }
+                            notify.success("Auto-sending ${rep.name.substringBefore(" ")}'s message to Viber...")
+                        },
+                        shape = RoundedCornerShape(Radii.chip),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66818CF8)),
+                    ) {
+                        Text("🚀 Auto-Send", style = MaterialTheme.typography.labelMedium, color = Color(0xFF818CF8))
+                    }
                 }
             }
 

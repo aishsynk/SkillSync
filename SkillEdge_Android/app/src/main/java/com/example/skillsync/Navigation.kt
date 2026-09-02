@@ -45,11 +45,14 @@ fun MainNavigation() {
     // SessionManager.loginState is nullable: null = init() not yet called (app
     // cold start, prefs not read). We start with Login only if we KNOW the user
     // is not logged in (i.e. state is false), never while it is still null.
+    fun homeFor(email: String): NavKey =
+        if (com.example.skillsync.data.SessionManager.isReportee()) ReporteeMain(email) else Main(email)
+
     var current by remember {
         mutableStateOf<NavKey>(
             when {
                 com.example.skillsync.data.SessionManager.isLoggedIn() ->
-                    Main(com.example.skillsync.data.SessionManager.getEmail()!!)
+                    homeFor(com.example.skillsync.data.SessionManager.getEmail()!!)
                 else -> Login
             }
         )
@@ -75,7 +78,7 @@ fun MainNavigation() {
             false -> if (current !is Login) current = Login
             true  -> if (current is Login) {
                 val email = com.example.skillsync.data.SessionManager.getEmail()
-                if (!email.isNullOrBlank()) current = Main(email)
+                if (!email.isNullOrBlank()) current = homeFor(email)
             }
             null  -> Unit // still initialising, hold position
         }
@@ -99,18 +102,22 @@ fun MainNavigation() {
     }
 
     // Hardware/gesture back returns from a pushed detail screen to the shell.
-    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot || current is HrReport || current is Priorities || current is CapacityRunway || current is Ramp || current is Accounts || current is Benchmark) {
+    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot || current is HrReport || current is Priorities || current is CapacityRunway || current is Ramp || current is Accounts || current is Benchmark || current is PipelineRadar || current is DeliveryCompliance || current is ViberAutomation || current is SkillRequests) {
         current = when (val c = current) {
             is Trainer360 -> Main(c.email, HomeTab.TEAM)
-            is BatchDetail -> Main(c.email, HomeTab.DEMAND)
+            is SkillRequests -> Main(c.email, HomeTab.DASHBOARD)
+            is BatchDetail -> if (com.example.skillsync.data.SessionManager.isReportee()) ReporteeMain(c.email, ReporteeTab.DEMAND) else Main(c.email, HomeTab.DEMAND)
             is WeeklyReport -> Main(c.email, HomeTab.DASHBOARD)
             is Copilot -> Main(c.email, HomeTab.DASHBOARD)
             is HrReport -> Main(c.email, HomeTab.TEAM)
             is Priorities -> Main(c.email, HomeTab.DASHBOARD)
-            is CapacityRunway -> Priorities(c.email)
+            is CapacityRunway -> Main(c.email, HomeTab.DASHBOARD)
             is Ramp -> Priorities(c.email)
             is Accounts -> Main(c.email, HomeTab.DASHBOARD)
             is Benchmark -> Main(c.email, HomeTab.TEAM)
+            is PipelineRadar -> Main(c.email, HomeTab.DASHBOARD)
+            is DeliveryCompliance -> Main(c.email, HomeTab.DASHBOARD)
+            is ViberAutomation -> Main(c.email, HomeTab.DASHBOARD)
             else -> c
         }
     }
@@ -174,7 +181,22 @@ fun MainNavigation() {
     ) { screen ->
         when (screen) {
             is Login -> LoginScreen(
-                onLoginSuccess = { email -> current = Main(email) },
+                onLoginSuccess = { email -> current = homeFor(email) },
+            )
+
+            is ReporteeMain -> com.example.skillsync.ui.reportee.ReporteeHome(
+                email = screen.email,
+                tab = screen.tab,
+                onTabChange = { t -> current = ReporteeMain(screen.email, t) },
+                onLogout = {
+                    com.example.skillsync.data.SessionManager.clearSession()
+                    current = Login
+                },
+            )
+
+            is SkillRequests -> com.example.skillsync.ui.report.SkillRequestsScreen(
+                managerEmail = screen.email,
+                onBack = { current = Main(screen.email, HomeTab.DASHBOARD) },
             )
 
             is Main -> MainScreen(
@@ -190,6 +212,11 @@ fun MainNavigation() {
                 onOpenPriorities = { current = Priorities(screen.email) },
                 onOpenAccounts = { current = Accounts(screen.email) },
                 onOpenCopilot = { current = Copilot(screen.email) },
+                onOpenPipelineRadar = { current = PipelineRadar(screen.email) },
+                onOpenDeliveryCompliance = { current = DeliveryCompliance(screen.email) },
+                onOpenCapacityRunway = { current = CapacityRunway(screen.email) },
+                onOpenViberAutomation = { current = ViberAutomation(screen.email) },
+                onOpenSkillRequests = { current = SkillRequests(screen.email) },
                 onLogout = { current = Login },
                 modifier = Modifier,
                 viewModel = mainViewModel,
@@ -257,6 +284,25 @@ fun MainNavigation() {
                 onOpenActions = { current = Main(screen.email, HomeTab.ACTIONS) },
                 onOpenRunway = { current = CapacityRunway(screen.email) },
                 onOpenRamp = { current = Ramp(screen.email) },
+                onOpenPipelineRadar = { current = PipelineRadar(screen.email) },
+                onOpenDeliveryCompliance = { current = DeliveryCompliance(screen.email) },
+                onBack = { current = Main(screen.email, HomeTab.DASHBOARD) },
+            )
+
+            is PipelineRadar -> com.example.skillsync.ui.report.PipelineRadarScreen(
+                managerEmail = screen.email,
+                onOpenTrainer = { email, name -> current = Trainer360(screen.email, email, name) },
+                onBack = { current = Priorities(screen.email) },
+            )
+
+            is DeliveryCompliance -> com.example.skillsync.ui.report.DeliveryComplianceScreen(
+                managerEmail = screen.email,
+                onOpenTrainer = { email, name -> current = Trainer360(screen.email, email, name) },
+                onBack = { current = Priorities(screen.email) },
+            )
+
+            is ViberAutomation -> com.example.skillsync.ui.report.ViberAutomationScreen(
+                managerEmail = screen.email,
                 onBack = { current = Main(screen.email, HomeTab.DASHBOARD) },
             )
 
