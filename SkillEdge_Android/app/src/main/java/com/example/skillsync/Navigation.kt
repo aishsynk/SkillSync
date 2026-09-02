@@ -45,8 +45,10 @@ fun MainNavigation() {
     // SessionManager.loginState is nullable: null = init() not yet called (app
     // cold start, prefs not read). We start with Login only if we KNOW the user
     // is not logged in (i.e. state is false), never while it is still null.
-    fun homeFor(email: String): NavKey =
-        if (com.example.skillsync.data.SessionManager.isReportee()) ReporteeMain(email) else Main(email)
+    // A trainer (reportee) now gets the full manager shell — the backend scopes
+    // every "team" figure to a team of one (themselves), so Today / People /
+    // Plan / Work all render as a personal view.
+    fun homeFor(email: String): NavKey = Main(email)
 
     var current by remember {
         mutableStateOf<NavKey>(

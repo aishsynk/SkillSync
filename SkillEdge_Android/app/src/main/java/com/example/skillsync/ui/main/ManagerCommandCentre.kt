@@ -244,6 +244,10 @@ fun ManagerCommandCentre(
         )
 
         // ── Executive Command Deck (8-Tile Bento Grid) ─────────────────────
+        // Manager-only. A trainer (reportee) sees the personal briefing above
+        // and the roster/demand below, but not the strategic consoles.
+        val hideExecDeck = com.example.skillsync.data.SessionManager.isReportee()
+        if (!hideExecDeck) {
         SectionHeading("Executive Operations", "Real-time intelligence dispatch & strategic consoles")
         Column(
             Modifier.fillMaxWidth(),
@@ -661,6 +665,7 @@ fun ManagerCommandCentre(
                 Spacer(Modifier.weight(1f))
             }
         }
+        } // hideExecDeck
 
         // ── 5b · Who is carrying the work ───────────────────────────────────
         TopPerformersPanel(ops, capTrainers, onTrainerClick)

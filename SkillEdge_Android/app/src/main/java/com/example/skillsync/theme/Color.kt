@@ -17,29 +17,36 @@ import androidx.compose.ui.graphics.Color
  */
 
 // ── Primary ramp ─────────────────────────────────────────────────────────────
-val DeepNavy   = Color(0xFF111827)
-val RoyalBlue  = Color(0xFF1D4ED8)
-val AzureBlue  = Color(0xFF2563EB)
-val BrandBlue  = Color(0xFF3B82F6)
-val SkyBlue    = Color(0xFF60A5FA)
-val Cyan       = Color(0xFF22D3EE)
-val Aqua       = Color(0xFF34D399)
-val LightAzure = Color(0xFF93C5FD)
-val IceBlue    = Color(0xFFBFDBFE)
-val SoftBlue   = Color(0xFFDBEAFE)
-val FrostWhite = Color(0xFFF8FAFC)
+// Blue still carries structure and "healthy". It reads louder now because the
+// ground beneath it went warm graphite instead of blue-black.
+val DeepNavy   = Color(0xFF16131C)
+val RoyalBlue  = Color(0xFF2B4CC8)
+val AzureBlue  = Color(0xFF3661E4)
+val BrandBlue  = Color(0xFF5B8DEF)
+val SkyBlue    = Color(0xFF8FB4F6)
+val Cyan       = Color(0xFF4CD6D0)
+val Aqua       = Color(0xFF56D6A0)
+val LightAzure = Color(0xFFB7CBF3)
+val IceBlue    = Color(0xFFDCE6FA)
+val SoftBlue   = Color(0xFFE7EDFB)
+val FrostWhite = Color(0xFFF7F5F1)   // warm paper white
 
-// ── Dark surfaces (elevation steps, not drop shadows) ────────────────────────
-// Held just off pure black: a true #000 smears on OLED as dark UI scrolls.
-val Surface0 = Color(0xFF0A0D14)
-val Surface1 = Color(0xFF111725)
-val Surface2 = Color(0xFF161F2E)
-val Surface3 = Color(0xFF1E2A3B)
+// ── The V3 signature accent — champagne brass. Premium moments only:
+//    hero figure underline, international demand, the login lockup. ───────────
+val Brass      = Color(0xFFD8B26A)
+val BrassDeep  = Color(0xFF9A7B3E)
+val Plum       = Color(0xFF8A73C4)
+
+// ── Dark surfaces — warm violet-graphite, not blue-black. OLED-safe. ─────────
+val Surface0 = Color(0xFF0C0A11)
+val Surface1 = Color(0xFF141119)
+val Surface2 = Color(0xFF1B1722)
+val Surface3 = Color(0xFF261F30)
 
 // ── Semantic status ──────────────────────────────────────────────────────────
 val StatusGood = Aqua
-val StatusWarn = Color(0xFFFBBF24)
-val StatusCrit = Color(0xFFFB7185)
+val StatusWarn = Color(0xFFE6B450)
+val StatusCrit = Color(0xFFEF6F7B)
 
 // Names kept from the previous palette so existing call sites keep compiling;
 // the values now resolve into the command-centre ramp.
@@ -116,6 +123,9 @@ data class SkillColors(
     val warn: Color,
     val crit: Color,
     val labelText: Color,
+    /** V3 signature accent — champagne brass, premium moments only. */
+    val brass: Color,
+    val plum: Color,
 )
 
 /**
@@ -136,15 +146,15 @@ val CommandSkillColors = SkillColors(
 
     pageBg      = Surface0,
     cardBg      = Surface2,
-    cardBorder  = Color(0xFF263345),
+    cardBorder  = Color(0xFF2E2838),
     heroBg      = DeepNavy,
     heroBgAlt   = BrandBlue,
     heroText    = FrostWhite,
-    heroMuted   = Color(0xFFA8B3C5),
+    heroMuted   = Color(0xFFB6ADBE),
     bodyText    = FrostWhite,
-    subText     = Color(0xFFA8B3C5),
-    track       = Color(0xFF263345),
-    shimmer     = Color(0xFF202C3C),
+    subText     = Color(0xFFB0A7BA),
+    track       = Color(0xFF2E2838),
+    shimmer     = Color(0xFF272130),
 
     navy        = DeepNavy,
     royal       = RoyalBlue,
@@ -159,14 +169,14 @@ val CommandSkillColors = SkillColors(
     surface2    = Surface2,
     surface3    = Surface3,
     glass       = Surface2,
-    glassBorder = Color(0xFF263345),
-    glow        = Color(0x333B82F6),
+    glassBorder = Color(0x33C9B79A),
+    glow        = Color(0x33D8B26A),
     good        = StatusGood,
     warn        = StatusWarn,
     crit        = StatusCrit,
-    // Raised from #7F8CA3, which sat at ~4.0:1 on Surface0 — under AA for the
-    // small caps labels it is used for. #9AA8BF clears 4.5:1.
-    labelText   = Color(0xFF9AA8BF),
+    labelText   = Color(0xFF9E93AC),
+    brass       = Brass,
+    plum        = Plum,
 )
 
 // Both entry points resolve to the command scheme; the app has one identity.

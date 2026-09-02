@@ -1,6 +1,36 @@
 
 
 
+## 2026-09-02T09:00:00+05:30 - Trainer = manager app scoped to self + warm graphite palette (v3.61.0, Build 149)
+
+- **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
+- **Tool/Agent Used**: Claude Code (Python/Flask, Kotlin/Compose, Pytest, Gradle, Git)
+- **Feedback acted on**: (1) the V3 type change wasn't visible enough — needs a real
+  colour/look shift; (2) drop the stripped 3-tab trainer app — a trainer should see the
+  **manager dashboard / calendar / unallocated demand**, just scoped to their own data.
+- **Backend (`backend.py`)**:
+  - `_reportees(email)` — new central roster resolver. Manager -> real RMS roster; trainer
+    -> a team of exactly one (themselves, from the directory row). ~26 `_rms("reportees",…)`
+    call sites swapped to it (auth resolvers kept on raw `_rms`).
+  - `_v2_manager_session(manager_email="", manager_only=False)` — trainers now pass (scoped
+    to self via the scope check + team-of-one). `manager_only=True` added to the ~12
+    cross-person write routes (bulk-assign, skill-request approve, actions raise/state/note,
+    devplan create/update, endorse, copilot, message-rewrite, agent-ask, viber dispatch/queue).
+- **Android**:
+  - `Navigation.kt` — `homeFor()` now always routes to the manager `Main` shell.
+  - `ui/main/ManagerCommandCentre.kt` — the "Executive Operations" bento deck is hidden for
+    trainers (`SessionManager.isReportee()`); they keep the briefing, roster (of one) and demand.
+  - `ReporteeHome` retired from routing (file kept).
+  - **Palette shift** — `theme/Color.kt` + `theme/Surfaces.kt` + `theme/Theme.kt`:
+    warm violet-graphite surfaces (`#0C0A11`…) instead of blue-black; new **champagne brass**
+    signature accent (`Brass #D8B26A`) for premium moments; `AuroraBackground` redrawn — plum
+    bloom + brass ember + a cool-blue counter-glow so blue still reads as "signal"; glass and
+    hero surfaces re-tinted warm; Material outline colours warmed.
+- **Validation**: backend `pytest tests/ -q` -> **289 passed** (+4 reportee-scope tests);
+  Android `testDebugUnitTest` green; `assembleRelease` building.
+- **Next**: gate the remaining manager-only affordances that a trainer can still tap
+  (Allocate on demand, Trainer 360 raise-action) — currently they 403 with a toast.
+
 ## 2026-09-02T07:00:00+05:30 - V3 Editorial design system + trainer app + shell (v3.60.0, Build 148)
 
 - **Model Used**: Claude Sonnet 5 (claude-sonnet-5)

@@ -567,28 +567,38 @@ def _session_payload(required=False):
     return session, None
 
 
-def _v2_manager_session(manager_email=""):
-    """Require an authenticated v2 session and keep manager data in scope."""
+def _v2_manager_session(manager_email="", manager_only=False):
+    """
+    Require an authenticated v2 session and keep data in scope.
+
+    A trainer (reportee) passes this too — they are a manager of themselves, and
+    `_reportees()` gives them a team of one, so every read view renders scoped to
+    their own data. `manager_only=True` on a route that genuinely acts on other
+    people (allocate, approve, broadcast) keeps trainers out.
+    """
     session, error = _session_payload(required=True)
     if error:
         return None, error
-    if str(session.get("role", "") or "").strip().lower() == "reportee":
+    role = str(session.get("role", "") or "").strip().lower()
+    is_reportee = role == "reportee"
+    if is_reportee and manager_only:
         return None, error_response(
-            "ACCESS_DENIED", "This view is for manager accounts", 403
+            "ACCESS_DENIED", "This action is for manager accounts", 403
         )
     requested = str(manager_email or "").strip().lower()
     signed_in = str(session.get("email", "") or "").strip().lower()
     if requested and requested != signed_in and requested not in _email_variants(signed_in):
         return None, error_response(
             "MANAGER_SCOPE_MISMATCH",
-            "The requested manager is outside this session",
+            "The requested account is outside this session",
             403,
         )
-    # Resolve to the local-part form RMS actually answers for, so a session
-    # minted before the resolver existed (aishwar_c@) still sees its real roster.
     if signed_in:
         session = dict(session)
-        session["email"] = _resolve_manager_email(signed_in)
+        # A trainer keeps their own address; a manager resolves to the local-part
+        # form RMS answers `reportees` for.
+        session["email"] = signed_in if is_reportee else _resolve_manager_email(signed_in)
+        session["self_scope"] = is_reportee
     return session, None
 
 
@@ -962,6 +972,35 @@ def _verify_role(email):
     if roster:
         _reportee_repo.remember_roster(email, roster)
     return "manager", roster
+
+
+def _reportees(email):
+    """
+    The scoped roster for `email`.
+
+    A manager gets their real RMS `reportees` roster. A trainer (reportee) gets a
+    team of exactly one — themselves — built from the directory row their manager
+    stored. That is what lets every manager screen (dashboard, calendar, demand
+    coverage, capability) render for a trainer with no special-casing: they are a
+    manager of themselves, and every "team" figure becomes a personal figure.
+    This is not invented data — the single row is the signed-in person.
+    """
+    e = str(email or "").strip().lower()
+    rows = _rms("reportees", {"email": e})
+    if isinstance(rows, list) and rows:
+        return rows
+    entry = _reportee_repo.lookup(e)
+    if entry:
+        return [{
+            "OffEmail":          entry["reportee_email"],
+            "Email":             entry["reportee_email"],
+            "TrainerName":       entry.get("name", "") or e.split("@")[0].replace(".", " ").title(),
+            "EmpId":             entry.get("emp_id", ""),
+            "TrainerPlus":       "Yes" if entry.get("trainer_plus") else "No",
+            "IsdirectReportee":  "Yes",
+            "Designation":       entry.get("designation", ""),
+        }]
+    return rows if isinstance(rows, list) else []
 
 
 # Roles that sign in on the email alone. Only `reportee` is challenged for a
@@ -3093,7 +3132,7 @@ def unified_intelligence():
     today = datetime.utcnow().date()
 
     # ── Step 1: reportees ────────────────────────────────────────────────
-    reportees    = _rms("reportees", {"email": email}) or []
+    reportees    = _reportees(email) or []
     # Complete manager scope. The previous [:20] silently removed every trainer
     # after the twentieth from Team, KPIs, risks and action counts.
     trainer_rows = [r for r in (reportees if isinstance(reportees, list) else [])
@@ -3517,7 +3556,7 @@ def _dashboard_fast_payload(email):
 
 
 def _dashboard_fast_payload_inner(email):
-    reportees = _rms("reportees", {"email": email}) or []
+    reportees = _reportees(email) or []
     rows = [r for r in (reportees if isinstance(reportees, list) else []) if isinstance(r, dict)]
     demand = _rms("unallocated", {}) or []
     demand_n = len([d for d in (demand if isinstance(demand, list) else []) if isinstance(d, dict)])
@@ -3858,7 +3897,7 @@ def team_capability():
     if _wants_fresh():
         _cache_purge(email)
 
-    reps = _rms("reportees", {"email": email}) or []
+    reps = _reportees(email) or []
     rows = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)]
     if not rows:
         rows = []  # no synthetic team; empty roster renders an honest empty state
@@ -3958,7 +3997,7 @@ def _capability_fast_payload(email):
     """Roster-only capability skeleton served while the per-trainer credential
     fan-out warms. No courses/KPIs yet — the client keeps its last snapshot."""
     try:
-        reps = _rms("reportees", {"email": email}) or []
+        reps = _reportees(email) or []
     except Exception:
         reps = []
     rows = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)]
@@ -4636,7 +4675,7 @@ def allocation_desk():
     if demand is None:
         return error_response("RMS_UNREACHABLE", "Cannot reach RMS — please retry", 503)
 
-    reportees = _rms("reportees", {"email": email}) or []
+    reportees = _reportees(email) or []
     manager_name = str(_util_row(email).get("TrainerName", "") or "").strip()
     team = _team_capability(reportees, manager_email=email, manager_name=manager_name)
 
@@ -5744,7 +5783,7 @@ def _evaluate_team_against_batch(manager, course, start, end, country="", custom
 
     # The reportee roster is the scope: a manager evaluates their own team.
     roster = {}
-    for r in (_rms("reportees", {"email": manager}) or []):
+    for r in (_reportees(manager) or []):
         if isinstance(r, dict) and r.get("TrainerName"):
             roster[str(r["TrainerName"]).strip().lower()] = str(r.get("OffEmail") or "").strip()
 
@@ -5944,7 +5983,7 @@ def v2_bulk_assign_skill():
     There is no remove or update endpoint anywhere in the RMS estate, so this
     route deliberately only adds. See `AI/DECISIONS.md`.
     """
-    session, error = _v2_manager_session("")
+    session, error = _v2_manager_session("", manager_only=True)
     if error:
         return error
 
@@ -6050,7 +6089,7 @@ def v2_team_readiness():
     fri_next = mon_next + timedelta(days=4)
 
     roster = []
-    for r in (_rms("reportees", {"email": manager}) or []):
+    for r in (_reportees(manager) or []):
         if isinstance(r, dict) and r.get("OffEmail"):
             roster.append({
                 "email": str(r["OffEmail"]).strip().lower(),
@@ -6169,7 +6208,7 @@ def v2_trainer_readiness():
     profile = None
     profile_note = "no course could be resolved to look up travel readiness"
     name_by_email = {}
-    for r in (_rms("reportees", {"email": manager}) or []):
+    for r in (_reportees(manager) or []):
         if isinstance(r, dict) and r.get("OffEmail"):
             name_by_email[str(r["OffEmail"]).strip().lower()] = str(r.get("TrainerName") or "").strip()
     trainer_name = name_by_email.get(email, "")
@@ -6821,7 +6860,7 @@ def v2_reportee_message():
 
 @app.route('/api/v2/manager/skill-requests', methods=['GET'])
 def v2_skill_requests_list():
-    session, error = _v2_manager_session("")
+    session, error = _v2_manager_session("", manager_only=True)
     if error:
         return error
     manager = str(session.get("email", "") or "").strip().lower()
@@ -6833,7 +6872,7 @@ def v2_skill_requests_list():
 
 @app.route('/api/v2/manager/skill-requests/<request_id>', methods=['POST'])
 def v2_skill_request_resolve(request_id):
-    session, error = _v2_manager_session("")
+    session, error = _v2_manager_session("", manager_only=True)
     if error:
         return error
     manager = str(session.get("email", "") or "").strip().lower()
@@ -7309,7 +7348,7 @@ def get_actions():
         return error
     email = session["email"]
 
-    reportees = _rms("reportees", {"email": email}) or []
+    reportees = _reportees(email) or []
     # Action coverage must match the complete Team roster; otherwise trainers
     # after the twentieth can never surface manager-attention items.
     rows = [r for r in reportees if isinstance(r, dict)]
@@ -7351,7 +7390,7 @@ def raise_action():
     body = request.get_json(silent=True) or {}
     title = str(body.get("title", "")).strip()
     requested = str(body.get("manager_email", "")).strip().lower()
-    session, error = _v2_manager_session(requested)
+    session, error = _v2_manager_session(requested, manager_only=True)
     if error:
         return error
     manager_email = (session or {}).get("email") or manager_email
@@ -7388,7 +7427,7 @@ def set_action_state(action_id):
         return error_response("INVALID_INPUT", "state must be one of %s" % (VALID_ACTION_STATES,), 400)
 
     requested = str(body.get("manager_email", "")).strip().lower()
-    session, error = _v2_manager_session(requested)
+    session, error = _v2_manager_session(requested, manager_only=True)
     if error:
         return error
     manager_email = (session or {}).get("email") or manager_email
@@ -7413,7 +7452,7 @@ def add_action_note(action_id):
     if not text:
         return error_response("INVALID_INPUT", "note is required", 400)
     requested = str(body.get("manager_email", "")).strip().lower()
-    session, error = _v2_manager_session(requested)
+    session, error = _v2_manager_session(requested, manager_only=True)
     if error:
         return error
     manager_email = (session or {}).get("email") or manager_email
@@ -7456,7 +7495,7 @@ _DEVPLAN_STATUSES = ("open", "in_progress", "done", "dropped")
 
 def _devplan_reportee_emails(manager_email):
     """Lowercased OffEmail set for the manager's own reportees."""
-    reps = _rms("reportees", {"email": manager_email}) or []
+    reps = _reportees(manager_email) or []
     out = set()
     for r in (reps if isinstance(reps, list) else []):
         if isinstance(r, dict):
@@ -7591,7 +7630,7 @@ def create_dev_plan_item():
     """Create a manager-authored plan item for one reportee."""
     body = request.get_json(silent=True) or {}
     manager = str(body.get("manager", "")).strip().lower()
-    session, error = _v2_manager_session(manager)
+    session, error = _v2_manager_session(manager, manager_only=True)
     if error:
         return error
     manager_email = (session or {}).get("email") or manager
@@ -7624,7 +7663,7 @@ def update_dev_plan_item():
     """Update status / note / target date of one of the manager's own items."""
     body = request.get_json(silent=True) or {}
     manager = str(body.get("manager", "")).strip().lower()
-    session, error = _v2_manager_session(manager)
+    session, error = _v2_manager_session(manager, manager_only=True)
     if error:
         return error
     manager_email = (session or {}).get("email") or manager
@@ -7856,7 +7895,7 @@ def agent_ask():
     Returns: { answer, evidence, source, confidence, decisionVersion, error }
     Reads only from in-memory session cache — no extra RMS calls.
     """
-    session, error = _v2_manager_session("")
+    session, error = _v2_manager_session("", manager_only=True)
     if error:
         return error
 
@@ -8010,7 +8049,7 @@ def _team_facts(manager_email):
     Utilisation, capability and feedback all route through `_rms`, so tests can
     drive the whole endpoint with a single `_rms` side-effect.
     """
-    rows = _rms("reportees", {"email": manager_email}) or []
+    rows = _reportees(manager_email) or []
     out = []
     for r in (rows if isinstance(rows, list) else []):
         if not isinstance(r, dict):
@@ -8211,7 +8250,7 @@ def copilot_team_v2():
     """
     body = request.get_json(force=True, silent=True) or {}
     manager = str(body.get("manager", "") or body.get("manager_email", "")).strip().lower()
-    session, error = _v2_manager_session(manager)
+    session, error = _v2_manager_session(manager, manager_only=True)
     if error:
         return error
     manager_email = (session or {}).get("email") or manager
@@ -8246,7 +8285,7 @@ def message_rewrite():
     body = request.get_json(force=True, silent=True) or {}
     manager_email = str(body.get("manager_email", "") or body.get("manager", "") or "").strip().lower()
     # Auth gate — same as other v2 routes
-    _, error = _v2_manager_session(manager_email)
+    _, error = _v2_manager_session(manager_email, manager_only=True)
     if error:
         return error
     user_message = str(body.get("user_message", "") or body.get("User Message", "") or "")
@@ -10214,7 +10253,7 @@ def hr_monthly_report():
             fast_payload={"loading": True, "month": month_label, "month_key": _mkey, "reportees": []},
         )
 
-    reportees_raw = _rms("reportees", {"email": manager_email}) or []
+    reportees_raw = _reportees(manager_email) or []
     targets = [
         {
             "email":       str(r.get("OffEmail", "")).strip().lower(),
@@ -10484,7 +10523,7 @@ def _priorities_build(manager):
     """The real per-manager worklist fan-out. Runs inside `_warm_run`."""
     today = datetime.utcnow().date()
 
-    reps = _rms("reportees", {"email": manager}) or []
+    reps = _reportees(manager) or []
     rows = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)]
     team = []
     for r in rows:
@@ -10766,7 +10805,7 @@ def _capacity_runway_build(manager):
         weeks.append((ws, ws + timedelta(days=6)))
     horizon_start, horizon_end = weeks[0][0], weeks[-1][1]
 
-    reps = _rms("reportees", {"email": manager}) or []
+    reps = _reportees(manager) or []
     team = []
     for r in (reps if isinstance(reps, list) else []):
         if not isinstance(r, dict):
@@ -10983,7 +11022,7 @@ def _ramp_build(manager):
     """New-trainer ramp fan-out. Runs inside `_warm_run`."""
     today = datetime.utcnow().date()
 
-    reps = _rms("reportees", {"email": manager}) or []
+    reps = _reportees(manager) or []
     team = []
     for r in (reps if isinstance(reps, list) else []):
         if not isinstance(r, dict):
@@ -11190,7 +11229,7 @@ def _accounts_build(manager):
     past_start = today - timedelta(days=_ACCOUNTS_PAST_DAYS)
     forward_end = today + timedelta(days=_ACCOUNTS_FORWARD_DAYS)
 
-    reps = _rms("reportees", {"email": manager}) or []
+    reps = _reportees(manager) or []
     team = []
     for r in (reps if isinstance(reps, list) else []):
         if not isinstance(r, dict):
@@ -11499,7 +11538,7 @@ def _benchmark_score(metric):
 
 def _benchmark_build(manager):
     """Team-vs-baseline fan-out. Runs inside `_warm_run`."""
-    reps = _rms("reportees", {"email": manager}) or []
+    reps = _reportees(manager) or []
     team = []
     for r in (reps if isinstance(reps, list) else []):
         if not isinstance(r, dict):
@@ -11728,7 +11767,7 @@ def weekly_report_v2():
             },
         )
 
-    reportees_raw = _rms("reportees", {"email": manager_email}) or []
+    reportees_raw = _reportees(manager_email) or []
     targets = [
         {
             "email":       str(r.get("OffEmail", "")).strip().lower(),
@@ -12320,7 +12359,7 @@ def team_calendar_v2():
         )
 
     # Fetch reportees and their assignments
-    reps_raw = _rms("reportees", {"email": manager}) or []
+    reps_raw = _reportees(manager) or []
     reportees = [r for r in reps_raw if isinstance(r, dict)] if isinstance(reps_raw, list) else []
 
     def _fetch_rep_data(r):
@@ -12705,7 +12744,7 @@ def v2_upskilling_demand_opportunities():
 
     manager_email = (session or {}).get("email") or manager
     team = []
-    for r in (_rms("reportees", {"email": manager_email}) or []):
+    for r in (_reportees(manager_email) or []):
         if isinstance(r, dict) and r.get("OffEmail"):
             team.append((str(r.get("TrainerName") or "").strip(),
                          str(r.get("OffEmail")).strip().lower()))
@@ -12848,7 +12887,7 @@ def cert_intel_v2():
             fast_payload={"expiring": [], "demand_led": [], "loading": True},
         )
 
-    reps = _rms("reportees", {"email": email}) or []
+    reps = _reportees(email) or []
     rows = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)]
     policy = _exam_policy()
     taxonomy = _course_taxonomy()
@@ -12940,7 +12979,7 @@ def _pipeline_build(manager_email: str) -> dict:
 
     # Get manager's team for matching
     team_reportees = []
-    for r in (_rms("reportees", {"email": manager_email}) or []):
+    for r in (_reportees(manager_email) or []):
         if isinstance(r, dict) and r.get("OffEmail"):
             team_reportees.append({
                 "name": str(r.get("TrainerName") or "").strip(),
@@ -13041,7 +13080,7 @@ def _delivery_compliance_build(manager_email: str) -> dict:
     uploads using Get Recording Details by Assignment Id (RMS Key 278).
     """
     today = datetime.utcnow().date()
-    reps = _rms("reportees", {"email": manager_email}) or []
+    reps = _reportees(manager_email) or []
     team_members = []
     for r in (reps if isinstance(reps, list) else []):
         if isinstance(r, dict) and r.get("OffEmail"):
@@ -13156,7 +13195,7 @@ def v2_endorse_skill():
     """
     body = request.get_json(silent=True) or {}
     manager_email = str(body.get("manager_email") or "").strip().lower()
-    session, error = _v2_manager_session(manager_email)
+    session, error = _v2_manager_session(manager_email, manager_only=True)
     if error:
         return error
     manager = (session or {}).get("email") or manager_email
@@ -13175,7 +13214,7 @@ def v2_endorse_skill():
         return error_response("INVALID_SKILL_LEVEL", "skill_level must be 1-10", 400)
 
     # Validate manager scope: trainer MUST be in manager's reportee tree
-    reps = _rms("reportees", {"email": manager}) or []
+    reps = _reportees(manager) or []
     is_reportee = any(
         isinstance(r, dict) and str(r.get("OffEmail") or "").strip().lower() == trainer_email
         for r in reps
@@ -13361,7 +13400,7 @@ def _viber_queue_build(manager_email: str) -> dict:
     current_monday = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d")
 
     # 1. Fetch reportees and their skill profiles
-    reps_raw = _rms("reportees", {"email": manager_email}) or []
+    reps_raw = _reportees(manager_email) or []
     team_members = []
     for r in (reps_raw if isinstance(reps_raw, list) else []):
         if isinstance(r, dict) and r.get("OffEmail"):
@@ -13535,7 +13574,7 @@ def v2_viber_queue():
     Returns automated Viber dispatch queue for unallocated demand, weekly standpoints, and recording alerts.
     """
     manager = str(request.args.get('email', request.args.get('manager', ''))).strip().lower()
-    session, error = _v2_manager_session(manager)
+    session, error = _v2_manager_session(manager, manager_only=True)
     if error:
         return error
     manager_email = (session or {}).get("email") or manager

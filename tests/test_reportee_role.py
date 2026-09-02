@@ -138,8 +138,30 @@ class ReporteeRoleTests(unittest.TestCase):
         backend._sessions["rp"] = {"email": REPORTEE, "role": "reportee"}
         return {"Authorization": "Bearer rp"}
 
-    def test_reportee_cannot_call_manager_route(self):
+    def test_reportee_cannot_call_manager_only_route(self):
+        # skill-requests approval acts on other people -> manager_only
         r = self.client.get("/api/v2/manager/skill-requests", headers=self._reportee_headers())
+        self.assertEqual(r.status_code, 403)
+
+    def test_reportees_helper_gives_a_trainer_a_team_of_one(self):
+        self._seed_directory()
+        roster = backend._reportees(REPORTEE)
+        self.assertEqual(len(roster), 1)
+        self.assertEqual(roster[0]["OffEmail"], REPORTEE)
+
+    def test_reportee_reaches_the_manager_dashboard_scoped_to_self(self):
+        self._seed_directory()
+        r = self.client.get(
+            f"/api/data/unified-manager-intelligence?email={REPORTEE}",
+            headers=self._reportee_headers(),
+        )
+        self.assertEqual(r.status_code, 200)
+
+    def test_reportee_dashboard_request_for_another_email_is_rejected(self):
+        r = self.client.get(
+            "/api/data/unified-manager-intelligence?email=someone.else@koenig-solutions.com",
+            headers=self._reportee_headers(),
+        )
         self.assertEqual(r.status_code, 403)
 
     def test_reportee_demand_only_returns_skill_matches(self):

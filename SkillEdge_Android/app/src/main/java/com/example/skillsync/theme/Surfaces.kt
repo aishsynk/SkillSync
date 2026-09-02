@@ -58,47 +58,43 @@ object Space {
 @Composable
 fun AuroraBackground(modifier: Modifier = Modifier) {
     Canvas(modifier.fillMaxSize()) {
-        // Deep luxury Midnight-Cobalt base
+        // Warm graphite base — a violet-ink cast, not blue-black.
         drawRect(
             Brush.linearGradient(
-                colors = listOf(
-                    Color(0xFF070B12),
-                    Color(0xFF0C1322),
-                    Color(0xFF090E18),
-                ),
+                colors = listOf(Color(0xFF0B0910), Color(0xFF100D16), Color(0xFF0A0810)),
                 start = Offset(0f, 0f),
                 end = Offset(size.width, size.height),
             )
         )
-        // Vibrant Royal Blue bloom, upper left — primary identity anchor
+        // Plum bloom, upper left — the warm identity anchor.
         drawRect(
             Brush.radialGradient(
-                colors = listOf(BrandBlue.copy(alpha = 0.18f), Color.Transparent),
-                center = Offset(size.width * 0.15f, -size.height * 0.05f),
-                radius = size.width * 1.2f,
+                colors = listOf(Color(0xFF8A73C4).copy(alpha = 0.16f), Color.Transparent),
+                center = Offset(size.width * 0.12f, -size.height * 0.04f),
+                radius = size.width * 1.25f,
             )
         )
-        // Electric Cyan bloom, upper right — provides vibrant executive glow
+        // Champagne brass ember, upper right — the premium glow.
         drawRect(
             Brush.radialGradient(
-                colors = listOf(Cyan.copy(alpha = 0.10f), Color.Transparent),
-                center = Offset(size.width * 0.95f, size.height * 0.08f),
+                colors = listOf(Color(0xFFD8B26A).copy(alpha = 0.09f), Color.Transparent),
+                center = Offset(size.width * 0.96f, size.height * 0.06f),
+                radius = size.width * 0.95f,
+            )
+        )
+        // Cool blue counter-glow, low-left — keeps blue reading as "signal".
+        drawRect(
+            Brush.radialGradient(
+                colors = listOf(BrandBlue.copy(alpha = 0.07f), Color.Transparent),
+                center = Offset(size.width * 0.02f, size.height * 0.62f),
                 radius = size.width * 0.9f,
             )
         )
-        // Subtle Amethyst / Violet ambient light mid-screen for depth
-        drawRect(
-            Brush.radialGradient(
-                colors = listOf(Color(0xFF8B5CF6).copy(alpha = 0.06f), Color.Transparent),
-                center = Offset(size.width * 0.05f, size.height * 0.55f),
-                radius = size.width * 0.85f,
-            )
-        )
-        // Crisp grounded vignette at the bottom for flawless contrast
+        // Grounded vignette at the bottom for contrast under content.
         drawRect(
             Brush.verticalGradient(
-                colors = listOf(Color.Transparent, Surface0.copy(alpha = 0.85f)),
-                startY = size.height * 0.60f,
+                colors = listOf(Color.Transparent, Color(0xFF0A0810).copy(alpha = 0.88f)),
+                startY = size.height * 0.58f,
                 endY = size.height,
             )
         )
@@ -114,8 +110,8 @@ fun Modifier.glassSurface(
     .background(
         Brush.verticalGradient(
             listOf(
-                Color(0xFF1E293B).copy(alpha = 0.82f),
-                Color(0xFF0F172A).copy(alpha = 0.94f),
+                Color(0xFF201A29).copy(alpha = 0.86f),
+                Color(0xFF141019).copy(alpha = 0.95f),
             )
         )
     )
@@ -124,9 +120,9 @@ fun Modifier.glassSurface(
         1.dp,
         Brush.verticalGradient(
             listOf(
-                Color(0x5293C5FD), // glowing ice highlight on top edge
-                Color(0x1F38BDF8),
-                Color(0x121E293B),
+                Color(0x3ED8B26A), // warm champagne highlight on the top edge
+                Color(0x14C9B79A),
+                Color(0x10201A29),
             )
         ),
         shape
@@ -169,10 +165,10 @@ fun Modifier.heroSurface(shape: Shape = RoundedCornerShape(Radii.hero)): Modifie
     .background(
         Brush.linearGradient(
             colors = listOf(
-                Color(0xFF0F265C),
-                Color(0xFF1E3A8A),
-                Color(0xFF1E40AF),
-                Color(0xFF172554),
+                Color(0xFF241C33),
+                Color(0xFF2E2340),
+                Color(0xFF1C2A55),
+                Color(0xFF171430),
             ),
             start = Offset(0f, 0f),
             end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
@@ -182,9 +178,9 @@ fun Modifier.heroSurface(shape: Shape = RoundedCornerShape(Radii.hero)): Modifie
         1.dp,
         Brush.linearGradient(
             listOf(
-                Color(0x8060A5FA),
-                Color(0x3338BDF8),
-                Color(0x101D4ED8),
+                Color(0x66D8B26A),
+                Color(0x338FB4F6),
+                Color(0x10241C33),
             )
         ),
         shape
