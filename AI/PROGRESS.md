@@ -41,10 +41,16 @@
 - **Known Issues / Blockers**:
   - No live-RMS probe yet for reportee login / approval write (verification-standards memory).
   - Reportee "Mark my skill" is reached via Me → Development plan (BatchDetail is manager-coupled).
+- **Release**: committed `e4dcd19` and pushed to `main`. CI run 33606229537 **success** →
+  signed `SkillEdge-v3.57.0.144.apk` published at
+  https://github.com/aishsynk/SkillSync/releases/tag/v3.57.0.144 . Backend auto-deploys to Render.
+  Note: this commit also folded in the previously uncommitted Antigravity waves
+  (strategic capabilities, UI overhaul, Viber automation).
 - **Next Recommended Actions**:
-  1. Confirm `assembleRelease` green; live-probe the reportee flow against staging RMS.
-  2. Version bump (v3.57.0) in `SkillEdge_Android/app/build.gradle.kts`, commit, tag, push,
-     publish signed APK via GitHub Releases.
+  1. Live-probe against staging/prod RMS: manager login (email only), reportee login
+     (emp-code → forced change), reportee `GET /api/v2/reportee/demand`, self-mark ≤4 write,
+     self-mark >4 → pending + manager approve performs verified write.
+  2. Confirm Render picked up the backend deploy (`/healthz`).
 
 ## 2026-09-01T18:05:00+05:30 - Android Viber Background Automation & Silent Auto-Dispatch
 
