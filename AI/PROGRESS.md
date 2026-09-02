@@ -1,6 +1,34 @@
 
 
 
+## 2026-09-02T15:30:00+05:30 - Trainer app split from the manager app: four dedicated pages (v3.65.0, Build 153)
+
+- **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
+- **Tool/Agent Used**: Claude Code (Python/Flask, Kotlin/Compose, Pytest, Gradle, Git)
+- **Change**: a trainer (reportee) no longer runs the manager `Main` shell scoped to self —
+  they get their **own four-page app**, distinct screens, editorial style, per the original
+  brief (self data · unallocated batches · level-4 self-mark ceiling with manager alert ·
+  message-manager-only).
+  | Page | Content |
+  |---|---|
+  | **Today** | greeting · my utilisation (hero figure) · next batch · updates feed · my skill requests · my skills (tap → mark) · Message my manager |
+  | **Demand** | `GET /api/v2/reportee/demand` — only skill-matched open batches, each → "Mark my skill" (≤4 writes, >4 → manager request) |
+  | **Calendar** | NEW `GET /api/v2/reportee/calendar` — my current/upcoming assignments + the shift bands RMS has me marked off for (`_off_dates`, key 75) |
+  | **Practice** | opens the `TrainerPractice` screen — my learner-feedback log + recordings |
+- **Backend**: NEW `/api/v2/reportee/calendar` (self-scoped: assignments key 16, off-bands
+  key 75, utilisation series).
+- **Android**:
+  - `ui/reportee/ReporteeHome.kt` rebuilt as the 4-tab `ReporteeHome` shell + dock.
+  - `ReporteeViewModel` — `loadCalendar`, kept demand / home / message / markSkill.
+  - `data/api/SkillEdgeApi.kt` — `reporteeCalendar`.
+  - `NavigationKeys.kt` — `ReporteeTab.{TODAY,DEMAND,CALENDAR,PRACTICE}`.
+  - `Navigation.kt` — `homeFor()` routes reportees to `ReporteeMain` again; `TrainerPractice`
+    back goes to the reportee shell for a trainer, Trainer 360 for a manager.
+  - `ui/main/ManagerCommandCentre.kt` reportee-hide guard is now dead for the shell but kept.
+  - `app/build.gradle.kts` — 3.64.0/152 -> **3.65.0/153**.
+- **Validation**: backend `pytest tests/ -q` → **292 passed** (+1 calendar); Android
+  `testDebugUnitTest` + `assembleRelease` running.
+
 ## 2026-09-02T14:00:00+05:30 - API opportunity tier 1: learner-feedback log + recordings library (v3.64.0, Build 152)
 
 - **Model Used**: Claude Sonnet 5 (claude-sonnet-5)

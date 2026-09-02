@@ -10,67 +10,61 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /**
- * Backs the trainer (reportee) shell — Today, Demand, Updates. Every read is
- * self-scoped on the backend; this holds the three payloads and the two write
- * actions a trainer is allowed (mark own skill, message own manager).
+ * Backs the trainer (reportee) shell — Today / Demand / Calendar / Practice.
+ * Every read is self-scoped on the backend. The only writes a trainer can make:
+ * mark own skill (capped at level 4) and message own manager.
  */
 class ReporteeViewModel : ViewModel() {
 
     private val _home = MutableStateFlow<Map<String, Any>?>(null)
     val home: StateFlow<Map<String, Any>?> = _home
-
     private val _homeLoading = MutableStateFlow(true)
     val homeLoading: StateFlow<Boolean> = _homeLoading
 
     private val _demand = MutableStateFlow<List<Map<*, *>>>(emptyList())
     val demand: StateFlow<List<Map<*, *>>> = _demand
-
     private val _demandLoading = MutableStateFlow(true)
     val demandLoading: StateFlow<Boolean> = _demandLoading
-
     private val _demandError = MutableStateFlow<String?>(null)
     val demandError: StateFlow<String?> = _demandError
+
+    private val _calendar = MutableStateFlow<Map<String, Any>?>(null)
+    val calendar: StateFlow<Map<String, Any>?> = _calendar
+    private val _calendarLoading = MutableStateFlow(true)
+    val calendarLoading: StateFlow<Boolean> = _calendarLoading
 
     private val _updates = MutableStateFlow<List<Map<*, *>>>(emptyList())
     val updates: StateFlow<List<Map<*, *>>> = _updates
 
     fun load() {
-        loadHome(); loadDemand(); loadUpdates()
+        loadHome(); loadDemand(); loadCalendar(); loadUpdates()
     }
 
-    fun loadHome() {
-        viewModelScope.launch {
-            _homeLoading.value = true
-            try {
-                _home.value = RetrofitClient.instance.reporteeHome()
-            } catch (_: Exception) {
-            } finally {
-                _homeLoading.value = false
-            }
-        }
+    fun loadHome() = viewModelScope.launch {
+        _homeLoading.value = true
+        try { _home.value = RetrofitClient.instance.reporteeHome() } catch (_: Exception) {}
+        _homeLoading.value = false
     }
 
-    fun loadDemand() {
-        viewModelScope.launch {
-            _demandLoading.value = true
-            _demandError.value = null
-            try {
-                _demand.value = RetrofitClient.instance.reporteeDemand().rows("matched_demand")
-            } catch (e: Exception) {
-                _demandError.value = e.localizedMessage ?: "Could not load matched demand"
-            } finally {
-                _demandLoading.value = false
-            }
+    fun loadDemand() = viewModelScope.launch {
+        _demandLoading.value = true; _demandError.value = null
+        try {
+            _demand.value = RetrofitClient.instance.reporteeDemand().rows("matched_demand")
+        } catch (e: Exception) {
+            _demandError.value = e.localizedMessage ?: "Could not load matched demand"
         }
+        _demandLoading.value = false
     }
 
-    fun loadUpdates() {
-        viewModelScope.launch {
-            try {
-                _updates.value = RetrofitClient.instance.notifications().rows("notifications")
-            } catch (_: Exception) {
-            }
-        }
+    fun loadCalendar() = viewModelScope.launch {
+        _calendarLoading.value = true
+        try { _calendar.value = RetrofitClient.instance.reporteeCalendar() } catch (_: Exception) {}
+        _calendarLoading.value = false
+    }
+
+    fun loadUpdates() = viewModelScope.launch {
+        try { _updates.value = RetrofitClient.instance.notifications().rows("notifications") }
+        catch (_: Exception) {}
     }
 
     /** Mark own skill. Backend caps at level 4; higher becomes a manager request. */
@@ -80,10 +74,8 @@ class ReporteeViewModel : ViewModel() {
                 val today = java.time.LocalDate.now().toString()
                 val res = RetrofitClient.instance.markSkill(
                     MarkSkillRequest(
-                        course_id = courseId,
-                        trainer_email = "",   // backend forces it to the session identity
-                        skill_level = level,
-                        from_date = today,
+                        course_id = courseId, trainer_email = "",
+                        skill_level = level, from_date = today,
                     ),
                 )
                 val body = res.body()

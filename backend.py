@@ -6822,6 +6822,54 @@ def v2_reportee_demand():
     }), 200
 
 
+@app.route('/api/v2/reportee/calendar', methods=['GET'])
+def v2_reportee_calendar():
+    """The signed-in trainer's own schedule — assignments, and the shift bands
+    RMS has them marked off for."""
+    session, error = _v2_reportee_session()
+    if error:
+        return error
+    email = str(session.get("email", "") or "").strip().lower()
+    today = datetime.utcnow().date()
+
+    raw = _rms("prevUpcoming", {
+        "Startdate": (today - timedelta(days=120)).strftime("%Y-%m-%d"),
+        "Enddate":   (today + timedelta(days=150)).strftime("%Y-%m-%d"),
+        "Email":     email,
+    }) or []
+    assignments = []
+    for a in (raw if isinstance(raw, list) else []):
+        if not isinstance(a, dict):
+            continue
+        st = _parse_date(a.get("StarDate") or a.get("StartDate") or "")
+        en = _parse_date(a.get("EndDate") or "")
+        if not st:
+            continue
+        assignments.append({
+            "course": str(a.get("Course") or "").strip(),
+            "vendor": str(a.get("Vendor") or "").strip(),
+            "mode": str(a.get("Mode") or "").strip(),
+            "participants": a.get("NoOfParticipants"),
+            "start_date": _iso(st),
+            "end_date": _iso(en),
+            "location": str(a.get("Location") or "").strip(),
+            "state": "current" if (st <= today <= (en or st)) else ("upcoming" if st > today else "past"),
+        })
+    assignments.sort(key=lambda x: x["start_date"])
+
+    series = _util_series(_util_row(email))
+
+    return jsonify({
+        "email": email,
+        "assignments": assignments,
+        "current": [a for a in assignments if a["state"] == "current"],
+        "upcoming": [a for a in assignments if a["state"] == "upcoming"],
+        "off_bands": _off_dates(email),
+        "utilisation_series": series,
+        "generated_at": datetime.utcnow().isoformat(),
+    }), 200
+
+
 @app.route('/api/v2/reportee/message', methods=['POST'])
 def v2_reportee_message():
     """A reportee sends a short note. It goes to their manager only — never a

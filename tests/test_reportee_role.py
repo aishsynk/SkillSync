@@ -240,6 +240,13 @@ class ReporteeRoleTests(unittest.TestCase):
                             headers=self._reportee_headers())
         self.assertEqual(r.status_code, 403)
 
+    def test_reportee_calendar_lists_own_assignments_and_off_bands(self):
+        r = self.client.get("/api/v2/reportee/calendar", headers=self._reportee_headers())
+        body = r.get_json()
+        self.assertEqual(body["email"], REPORTEE)
+        self.assertIn("assignments", body)
+        self.assertIn("off_bands", body)
+
     def test_recordings_returns_own_session_links(self):
         r = self.client.get("/api/v2/trainer/recordings?email=" + REPORTEE,
                             headers=self._reportee_headers())

@@ -60,6 +60,9 @@ interface SkillEdgeApi {
     @GET("api/v2/reportee/demand")
     suspend fun reporteeDemand(): Map<String, Any>
 
+    @GET("api/v2/reportee/calendar")
+    suspend fun reporteeCalendar(): Map<String, Any>
+
     @POST("api/v2/reportee/message")
     suspend fun reporteeMessage(@Body body: Map<String, String>): Map<String, Any>
 

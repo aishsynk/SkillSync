@@ -45,10 +45,10 @@ fun MainNavigation() {
     // SessionManager.loginState is nullable: null = init() not yet called (app
     // cold start, prefs not read). We start with Login only if we KNOW the user
     // is not logged in (i.e. state is false), never while it is still null.
-    // A trainer (reportee) now gets the full manager shell — the backend scopes
-    // every "team" figure to a team of one (themselves), so Today / People /
-    // Plan / Work all render as a personal view.
-    fun homeFor(email: String): NavKey = Main(email)
+    // A trainer (reportee) gets their own four-page shell — Today / Demand /
+    // Calendar / Practice — distinct from the manager app, scoped to themselves.
+    fun homeFor(email: String): NavKey =
+        if (com.example.skillsync.data.SessionManager.isReportee()) ReporteeMain(email) else Main(email)
 
     var current by remember {
         mutableStateOf<NavKey>(
@@ -189,6 +189,9 @@ fun MainNavigation() {
                 email = screen.email,
                 tab = screen.tab,
                 onTabChange = { t -> current = ReporteeMain(screen.email, t) },
+                onOpenPractice = {
+                    current = TrainerPractice(screen.email, "My practice record")
+                },
                 onLogout = {
                     com.example.skillsync.data.SessionManager.clearSession()
                     current = Login
@@ -339,10 +342,10 @@ fun MainNavigation() {
                 email = screen.email,
                 title = screen.name.ifBlank { "Practice record" },
                 onBack = {
-                    current = Trainer360(
-                        com.example.skillsync.data.SessionManager.getEmail().orEmpty(),
-                        screen.email, screen.name,
-                    )
+                    val me = com.example.skillsync.data.SessionManager.getEmail().orEmpty()
+                    current = if (com.example.skillsync.data.SessionManager.isReportee())
+                        ReporteeMain(me, ReporteeTab.PRACTICE)
+                    else Trainer360(me, screen.email, screen.name)
                 },
             )
 
