@@ -51,6 +51,7 @@ fun Trainer360Screen(
     /** True when a reportee is viewing their own profile: no cross-team ranking,
      *  no manager-only endorsement action. */
     selfView: Boolean = false,
+    onOpenPractice: () -> Unit = {},
     onBack: () -> Unit,
     viewModel: Trainer360ViewModel = viewModel(),
 ) {
@@ -187,6 +188,7 @@ fun Trainer360Screen(
                                 onCourseTap = { viewModel.fetchSyllabus(it) },
                                 devPlan = devPlan,
                                 sentiment = sentiment,
+                                onOpenPractice = onOpenPractice,
                                 canEdit = !selfView,
                                 onAddGoal = { title, kind, target, note ->
                                     if (selfView) toast(context, "Your manager owns your development plan.")
@@ -251,6 +253,7 @@ internal fun Trainer360Content(
     onAdoptSuggestion: (Map<*, *>) -> Unit = {},
     onCycleGoalStatus: (id: String, nextStatus: String) -> Unit = { _, _ -> },
     onEndorseSkill: (courseId: String, courseName: String, skillLevel: Int, devPlanId: String) -> Unit = { _, _, _, _ -> },
+    onOpenPractice: () -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
     val identity = data.obj("identity")
@@ -337,7 +340,18 @@ internal fun Trainer360Content(
                     item { Appear(3) { CapabilityMetrics(metrics) } }
                     item { Appear(4) { RiskSection(metrics, feedback) } }
                     item { Appear(5) { FeedbackSection(feedback) } }
-                    item { Appear(6) { LearnerSentimentWordCloudSection(sentiment) } }
+                    item {
+                        Appear(6) {
+                            androidx.compose.material3.TextButton(onClick = onOpenPractice) {
+                                androidx.compose.material3.Text(
+                                    "See every learner comment & session recording  →",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = sk.brand,
+                                )
+                            }
+                        }
+                    }
+                    item { Appear(7) { LearnerSentimentWordCloudSection(sentiment) } }
                 }
                 3 -> {
                     item {

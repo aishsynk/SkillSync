@@ -1,6 +1,39 @@
 
 
 
+## 2026-09-02T14:00:00+05:30 - API opportunity tier 1: learner-feedback log + recordings library (v3.64.0, Build 152)
+
+- **Model Used**: Claude Sonnet 5 (claude-sonnet-5)
+- **Tool/Agent Used**: Claude Code (Python/Flask, Kotlin/Compose, Pytest, Gradle, Git)
+- **Context**: `AI/API_OPPORTUNITY_ANALYSIS_2026_09_02.md`. All 37 RMS endpoints were already
+  wired; the value is in unused fields/combinations. This ships the two most-certain "quick"
+  items (both use documented schemas).
+- **Backend (`backend.py`)**:
+  - `_feedback_log_build(email)` + `GET /api/v2/trainer/feedback-log` — every learner comment
+    as a dated log (key 244) merged with negative-feedback detail (key 218), newest first,
+    with the question each answered. `_profile_session` gate → self for a trainer, in-scope
+    for a manager.
+  - `_recordings_build(email)` + `GET /api/v2/trainer/recordings` — walks the trainer's last
+    year of assignments (key 16), pulls `recordingDetails` (key 278) per assignment,
+    returns dated download links (`downloadable_link` + fallbacks).
+  - `/api/v2/trainer/sentiment` gate widened to `_profile_session` too (trainer sees own).
+- **Android**:
+  - `data/api/SkillEdgeApi.kt` — `trainerFeedbackLog`, `trainerRecordings`.
+  - `ui/trainer/TrainerPracticeScreen.kt` (NEW) + `TrainerPracticeViewModel` — two tabs
+    (Learner comments / Recordings), editorial rows, recording links open in the browser.
+  - `NavigationKeys.kt` / `Navigation.kt` — `TrainerPractice(email, name)` route.
+  - `ui/trainer/Trainer360Screen.kt` — "See every learner comment & session recording →"
+    in the Performance tab (manager per-trainer, trainer for self).
+  - `app/build.gradle.kts` — 3.63.0/151 -> **3.64.0/152**.
+- **Validation**: backend `pytest tests/ -q` → **291 passed** (+3); Android
+  `testDebugUnitTest` + `assembleRelease` running.
+- **Caveat**: `recordingDetails` link field name is documented as `downloadable_link` but the
+  older in-app usage guessed `RecordingURL` — probe live and drop the fallbacks once confirmed.
+- **Next (from the analysis)**: exam roadmap (215), shift-band availability (75 dropped
+  fields), class roster (209), courseware-version currency (172), global bench (157),
+  course market schedule (246). The six need live RMS response shapes confirmed first —
+  their docs show only `[...results...]`.
+
 ## 2026-09-02T12:30:00+05:30 - V4 Phase 1b + 3 + 6a: collapsing brief, haptic vocabulary, score literacy (v3.63.0, Build 151)
 
 - **Model Used**: Claude Sonnet 5 (claude-sonnet-5)

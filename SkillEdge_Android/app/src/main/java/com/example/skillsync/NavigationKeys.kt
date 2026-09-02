@@ -48,6 +48,9 @@ import kotlinx.serialization.Serializable
 /** "Skill Requests" — pending reportee skill-level elevation requests for a manager to approve/deny. */
 @Serializable data class SkillRequests(val email: String) : NavKey
 
+/** A trainer's practice record — learner comment log + session recordings. */
+@Serializable data class TrainerPractice(val email: String, val name: String) : NavKey
+
 /** Reportee self-service shell: their own profile, matched demand, and updates. */
 @Serializable data class ReporteeMain(val email: String, val tab: String = ReporteeTab.TODAY) : NavKey
 

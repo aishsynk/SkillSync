@@ -13377,11 +13377,149 @@ def v2_trainer_sentiment():
     trainer_email = str(request.args.get("trainer_email", "") or request.args.get("email", "")).strip().lower()
     if not trainer_email:
         return error_response("INVALID_PARAMS", "trainer_email is required", 400)
-    _, error = _v2_manager_session("")
+    session, error = _profile_session(trainer_email)
     if error:
         return error
     data = _trainer_sentiment_build(trainer_email)
     return jsonify(data), 200
+
+
+def _feedback_log_build(email):
+    """
+    A trainer's learner feedback as a raw, dated log — not clustered, not
+    summarised. Every comment with the question it answered, newest first.
+    Merges the session feedback register (key 244) with the negative-feedback
+    detail (key 218) so a coaching flag and its praise sit in one stream.
+    """
+    email = str(email or "").strip().lower()
+    emp = _emp_code(email)
+
+    fb = _rms("trainerFeedback", {"TrainerEmail": email, "AssignmentId": "", "SCID": ""}) or []
+    neg = (_rms("trainerNegFeedback", {"employee_id": str(emp)}) or []) if emp else []
+
+    entries = []
+    for r in (fb if isinstance(fb, list) else []):
+        if not isinstance(r, dict):
+            continue
+        text = str(r.get("TextAnswer") or "").strip()
+        mcq = str(r.get("MCQAnswer") or "").strip()
+        if not text and not mcq:
+            continue
+        entries.append({
+            "date": str(r.get("FeedBackDate") or "").strip(),
+            "question": str(r.get("Question") or "").strip(),
+            "answer": text or mcq,
+            "rating": mcq if mcq and mcq.isdigit() else "",
+            "assignment_id": str(r.get("AssignmentId") or "").strip(),
+            "kind": "comment",
+        })
+    for r in (neg if isinstance(neg, list) else []):
+        if not isinstance(r, dict):
+            continue
+        entries.append({
+            "date": str(r.get("feedback_date") or "").strip(),
+            "question": str(r.get("feedback_question") or "").strip(),
+            "answer": str(r.get("feedback_answer") or "").strip(),
+            "rating": "",
+            "assignment_id": str(r.get("assignment_id") or "").strip(),
+            "client": str(r.get("client_name") or "").strip(),
+            "csm": str(r.get("csm_name") or "").strip(),
+            "kind": "concern",
+        })
+
+    def _key(e):
+        return _parse_date(e.get("date")) or date(1970, 1, 1)
+    entries.sort(key=_key, reverse=True)
+
+    return {
+        "email": email,
+        "count": len(entries),
+        "concern_count": sum(1 for e in entries if e["kind"] == "concern"),
+        "entries": entries[:120],
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
+@app.route('/api/v2/trainer/feedback-log', methods=['GET'])
+def v2_trainer_feedback_log():
+    """Raw, dated learner-feedback log for one trainer. Self or manager-in-scope."""
+    email = str(request.args.get("email", "") or request.args.get("trainer_email", "")).strip().lower()
+    session, error = _profile_session(email)
+    if error:
+        return error
+    if not email:
+        return error_response("EMAIL_REQUIRED", "email is required", 400)
+    return jsonify(_feedback_log_build(email)), 200
+
+
+def _recordings_build(email):
+    """
+    A trainer's own session recordings. Walks their assignments (key 16) over the
+    last year, pulls recordingDetails (key 278) per assignment, and returns a
+    dated list of download links. Bounded to keep the RMS fan-out sane.
+    """
+    email = str(email or "").strip().lower()
+    today = datetime.utcnow().date()
+    assigns = _rms("prevUpcoming", {
+        "Startdate": (today - timedelta(days=365)).strftime("%Y-%m-%d"),
+        "Enddate":   today.strftime("%Y-%m-%d"),
+        "Email":     email,
+    }) or []
+    rows = [a for a in (assigns if isinstance(assigns, list) else []) if isinstance(a, dict)]
+    rows.sort(key=lambda a: _parse_date(a.get("EndDate") or a.get("StarDate") or "") or date(1970, 1, 1),
+              reverse=True)
+    rows = rows[:24]
+
+    def _probe(a):
+        aid = str(a.get("AssignmentId", "") or "")
+        if not aid:
+            return None
+        raw = _rms("recordingDetails", {"AssignmentId": aid})
+        links = []
+        for r in (raw or []):
+            if not isinstance(r, dict):
+                continue
+            link = str(
+                r.get("downloadable_link") or r.get("RecordingURL")
+                or r.get("Url") or r.get("url") or ""
+            ).strip()
+            if link:
+                links.append(link)
+        if not links:
+            return None
+        return {
+            "assignment_id": aid,
+            "course": str(a.get("Course") or "").strip(),
+            "start_date": _iso(_parse_date(a.get("StarDate") or "")),
+            "end_date": _iso(_parse_date(a.get("EndDate") or "")),
+            "vendor": str(a.get("Vendor") or "").strip(),
+            "links": links,
+        }
+
+    out = []
+    if rows:
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            for res in pool.map(_probe, rows):
+                if res:
+                    out.append(res)
+    return {
+        "email": email,
+        "count": len(out),
+        "recordings": out,
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
+@app.route('/api/v2/trainer/recordings', methods=['GET'])
+def v2_trainer_recordings():
+    """A trainer's own delivered-session recordings, newest first. Self or manager-in-scope."""
+    email = str(request.args.get("email", "") or request.args.get("trainer_email", "")).strip().lower()
+    session, error = _profile_session(email)
+    if error:
+        return error
+    if not email:
+        return error_response("EMAIL_REQUIRED", "email is required", 400)
+    return jsonify(_recordings_build(email)), 200
 
 
 # ── VIBER BACKGROUND AUTOMATION ENGINE ──────────────────────────────────────

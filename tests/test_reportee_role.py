@@ -19,6 +19,22 @@ def _rms_stub(api, body, *a, **k):
     email = str((body or {}).get("email", "")).lower()
     if api == "reportees":
         return ROSTER if email == MANAGER else []
+    if api == "trainerFeedback":
+        return [
+            {"FeedBackDate": "2026-08-20", "Question": "What went well?",
+             "TextAnswer": "Great hands-on labs", "MCQAnswer": "5", "AssignmentId": "77"},
+            {"FeedBackDate": "2026-08-01", "Question": "Anything to improve?",
+             "TextAnswer": "Pacing a touch fast", "MCQAnswer": "", "AssignmentId": "70"},
+        ]
+    if api == "trainerNegFeedback":
+        return [{"feedback_date": "2026-07-15", "feedback_question": "Concern",
+                 "feedback_answer": "Audio dropped", "assignment_id": "60",
+                 "client_name": "Acme", "csm_name": "R. Sharma"}]
+    if api == "prevUpcoming":
+        return [{"AssignmentId": "77", "Course": "AZ-104", "StarDate": "01-Aug-2026",
+                 "EndDate": "05-Aug-2026", "Vendor": "Microsoft"}]
+    if api == "recordingDetails":
+        return [{"downloadable_link": "https://rec.example/77.mp4"}]
     if api == "unallocated":
         return [
             {"AssignmentID": "1", "CourseId": "11", "Coursename": "AZ-104: Microsoft Azure Administrator",
@@ -209,6 +225,27 @@ class ReporteeRoleTests(unittest.TestCase):
         self.assertTrue(r.get_json()["success"])
         self.assertEqual(w.call_args[0][3], 7)
         self.assertEqual(backend._reportee_repo.get_request(req_id)["status"], "approved")
+
+    def test_feedback_log_merges_comments_and_concerns_newest_first(self):
+        r = self.client.get("/api/v2/trainer/feedback-log?email=" + REPORTEE,
+                            headers=self._reportee_headers())
+        body = r.get_json()
+        self.assertEqual(body["count"], 3)
+        self.assertEqual(body["concern_count"], 1)
+        self.assertEqual(body["entries"][0]["date"], "2026-08-20")   # newest first
+        self.assertEqual(body["entries"][-1]["kind"], "concern")
+
+    def test_feedback_log_rejects_another_email_for_a_reportee(self):
+        r = self.client.get("/api/v2/trainer/feedback-log?email=other@koenig-solutions.com",
+                            headers=self._reportee_headers())
+        self.assertEqual(r.status_code, 403)
+
+    def test_recordings_returns_own_session_links(self):
+        r = self.client.get("/api/v2/trainer/recordings?email=" + REPORTEE,
+                            headers=self._reportee_headers())
+        body = r.get_json()
+        self.assertEqual(body["count"], 1)
+        self.assertEqual(body["recordings"][0]["links"], ["https://rec.example/77.mp4"])
 
     def test_reportee_home_is_self_scoped(self):
         r = self.client.get("/api/v2/reportee/home", headers=self._reportee_headers())

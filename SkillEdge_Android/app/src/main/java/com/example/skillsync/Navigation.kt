@@ -329,7 +329,21 @@ fun MainNavigation() {
                 trainerEmail = screen.trainerEmail,
                 trainerName = screen.trainerName,
                 managerEmail = screen.email,
+                onOpenPractice = {
+                    current = TrainerPractice(screen.trainerEmail, screen.trainerName)
+                },
                 onBack = { current = Main(screen.email, HomeTab.TEAM) },
+            )
+
+            is TrainerPractice -> com.example.skillsync.ui.trainer.TrainerPracticeScreen(
+                email = screen.email,
+                title = screen.name.ifBlank { "Practice record" },
+                onBack = {
+                    current = Trainer360(
+                        com.example.skillsync.data.SessionManager.getEmail().orEmpty(),
+                        screen.email, screen.name,
+                    )
+                },
             )
 
             is BatchDetail -> {
