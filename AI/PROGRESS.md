@@ -19,6 +19,32 @@
 - **Next roadmap builds**: Today dashboard (top performers + KPI strip) → Trainer 360 layout
   → Calendar week/month → Search-as-Copilot.
 
+### HANDOVER 2026-09-04T18:20 (Claude Sonnet 5)
+
+Shipped today, all CI-green + backend live-verified: **163** (reportee tier withdrawn, login
+fail-open, RMS creds hardened — fixed the "everyone is reportee / all dummy data" outage),
+**164** (calendar synthetic events removed), **165** (`assignment_sl` → assignment level
+end-to-end), **166** (Demand team-skill panel + skill-vs-required + per-reportee Mark),
+**167** (clean blue theme restored, server-composed allocation message, Wider Trainer Network
+made real via `globalTrainers` Inhouse/FL), **168** (Grow-the-team upskilling card + Ask).
+
+Repo clean on `main`. Backend `_compose_batch_message` / `upskill-message` /
+`alternative-trainers` / `upskilling/demand-opportunities` all live-verified against RMS.
+
+**Remaining user asks are visual reworks that need the user's screenshots to do at 100%
+accuracy — do NOT attempt them blind:**
+- Trainer 360 "complete makeover" — user reports wide empty bands in the header/sections.
+  `Trainer360Content` @ `ui/trainer/Trainer360Screen.kt:245`; hero @ line ~485
+  (`heroSurface().padding(Space.lg)`, `spacedBy(Space.md)`). Spacing scale itself is
+  standard (Space 4/8/12/16/24/32). Need a screenshot of the current render.
+- Today: extend (not rebuild) — user likes it. `TopPerformers` already exists @
+  `MainScreen.kt:1262`. Wants a team-KPI strip + the Grow-the-team card mirrored here.
+- Calendar: add a real week view + tidy month grid. `TeamCalendarScreen.kt`.
+- Search tab: make it the Copilot Q&A (`CopilotScreen.kt` exists; `/api/agent/ask` +
+  `/api/v2/copilot/team` backends work). `UniversalCommandSearch` @ `Version2Workspaces.kt:85`
+  is currently a local entity filter.
+- Wider-network fuzzy (≥70%) sibling-course expansion — backend-only, deferrable.
+
 ## 2026-09-04T17:15:00+05:30 - Build 167 shipped; backend polish; upskilling days-to-ready
 
 - **Model**: Claude Sonnet 5 · **Tool**: Claude Code
