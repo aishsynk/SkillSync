@@ -285,15 +285,16 @@ internal fun Trainer360Content(
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val tabs = listOf("Now", "Capability", "Performance", "Growth & Peer", "Actions")
 
-    Column(Modifier.fillMaxSize()) {
-        Column(Modifier.padding(horizontal = Layout.gutter, vertical = Space.md)) {
+    com.example.skillsync.theme.ReadableColumn(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.padding(horizontal = Layout.gutter, vertical = Space.sm),
+            verticalArrangement = Arrangement.spacedBy(Space.sm),
+        ) {
             IdentityCard(identity, util, cap, certs)
-            Spacer(Modifier.height(Space.md))
             // The verdict leads, before the score grid: this screen exists to
             // answer "can they take work" and "what needs doing", not to list
             // attributes.
             TrainerVerdictBar(readiness, actions.size)
-            Spacer(Modifier.height(Space.md))
             ProfileOverview(metrics, util, delivery, certs, avail, actions)
         }
 
@@ -321,9 +322,9 @@ internal fun Trainer360Content(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = Layout.gutter, end = Layout.gutter,
-                top = Space.md, bottom = Space.xxl,
+                top = Space.sm, bottom = Space.xxl,
             ),
-            verticalArrangement = Arrangement.spacedBy(Layout.section),
+            verticalArrangement = Arrangement.spacedBy(Space.md),
         ) {
             when (tab) {
                 0 -> {
@@ -453,10 +454,10 @@ private fun OverviewMetric(label: String, value: String, tint: Color) {
 @Composable
 private fun ProfileGroupHeader(title: String, subtitle: String, tint: Color) {
     Row(
-        Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp),
+        Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(4.dp).height(32.dp).clip(RoundedCornerShape(2.dp)).background(tint))
+        Box(Modifier.width(3.dp).height(26.dp).clip(RoundedCornerShape(2.dp)).background(tint))
         Spacer(Modifier.width(10.dp))
         Column {
             Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.skill.frost, fontWeight = FontWeight.Bold)

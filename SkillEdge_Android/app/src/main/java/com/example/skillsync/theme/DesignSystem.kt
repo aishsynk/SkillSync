@@ -16,7 +16,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -256,6 +259,34 @@ fun StateNote(
 object Layout {
     val gutter = Space.lg
     val section = Space.lg
+
+    /**
+     * Maximum content width. On a phone this is wider than the screen and does
+     * nothing; on a tablet it stops every card and row from stretching across
+     * the whole panel, which is what leaves the big empty bands between a label
+     * and its value. Pair with `Alignment.TopCenter` so the column is centred.
+     */
+    val readableMax = 760.dp
+}
+
+/**
+ * Centres its content and caps it at [Layout.readableMax]. A no-op on phones,
+ * the fix for tablet sprawl everywhere else. Wrap a screen's root scroll in it.
+ */
+@Composable
+fun ReadableColumn(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Box(modifier, contentAlignment = Alignment.TopCenter) {
+        Column(
+            Modifier
+                .widthIn(max = Layout.readableMax)
+                .fillMaxWidth()
+                .fillMaxHeight(),
+            content = content,
+        )
+    }
 }
 
 // ── Motion ──────────────────────────────────────────────────────────────────
