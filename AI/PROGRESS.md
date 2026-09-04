@@ -1,3 +1,24 @@
+## 2026-09-04T19:10:00+05:30 - Trainer 360 layout: readable-width cap + tighter header (v3.75.0, Build 170)
+
+- **Model**: Claude Sonnet 5 · **Tool**: Claude Code
+- **Files**: `theme/DesignSystem.kt` (`ReadableColumn`, `Layout.readableMax = 760.dp`),
+  `ui/trainer/Trainer360Screen.kt`, `app/build.gradle.kts`.
+- **Diagnosis**: the "wide empty bands" on Trainer 360 were **tablet sprawl** — every card/row
+  is `fillMaxWidth`, so on a ~1000dp+ panel a 112dp label + short value leaves 500dp of empty
+  row, and the 4-metric `SpaceBetween` rows spread far apart.
+- **Fix (blind — no device; verified by compile + Robolectric ScreenRenderTest)**:
+  - `ReadableColumn` centres content and caps it at 760dp. No-op on phones. Applied to
+    `Trainer360Content`. **This is the reusable fix — apply to the Main tabs next.**
+  - Header: 3× `Spacer(Space.md)` → one `spacedBy(Space.sm)` Column; header v-pad 12→8;
+    LazyColumn top pad 12→8; section gap `Layout.section` 16 → `Space.md` 12.
+  - `ProfileGroupHeader` accent bar 4×32 → 3×26, top pad 10→4.
+- **Validation**: backend 300 pass; Android compile + `testDebugUnitTest` green.
+- **Status**: pushed; CI cutting Build 170.
+- **Next**: apply `ReadableColumn` to `MainScreen.kt` tab content (the `Box(Modifier.weight(1f))`
+  at ~line 443 — brace structure there is oddly indented, edit carefully). Then Calendar
+  week-view, Search-as-Copilot. Still want a device screenshot to confirm the Trainer 360
+  spacing lands right.
+
 ## 2026-09-04T18:35:00+05:30 - Wider network: related-course expansion (v3.74.1, Build 169)
 
 - **Model**: Claude Sonnet 5 · **Tool**: Claude Code
