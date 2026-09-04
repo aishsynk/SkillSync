@@ -190,6 +190,13 @@ fun NetworkStaffingSheet(
                                         }
                                     }
 
+                                    if (trainer.str("match") == "related") {
+                                        Text(
+                                            "Holds a related course: ${trainer.str("via_course").ifBlank { trainer.str("course") }}",
+                                            style = MaterialTheme.typography.labelSmall, color = sk.warn,
+                                        )
+                                    }
+
                                     if (location.isNotBlank()) {
                                         Text("Base Location: $location", style = MaterialTheme.typography.bodySmall, color = sk.subText)
                                     }

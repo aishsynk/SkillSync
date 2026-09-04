@@ -7562,43 +7562,88 @@ def get_alternative_trainers():
 
     override = str(request.args.get("trainerType", "")).strip()
     types = [override] if override else ["Inhouse", "FL"]
+    # Related-course expansion: also surface trainers who hold a course whose
+    # title shares ≥ this fraction of tokens (Jaccard) with the target. 0
+    # disables it. 0.55 captures true siblings (variants, exam-prep, adjacent
+    # levels) without dragging in loosely-worded neighbours.
+    try:
+        threshold = float(request.args.get("related", "0.55") or 0)
+    except (TypeError, ValueError):
+        threshold = 0.55
 
-    seen, trainers = set(), []
-    for tt in types:
-        rows = _rms("globalTrainers", {"Course": course, "TrainerType": tt}) or []
-        for r in rows:
-            if not isinstance(r, dict) or "Column1" in r:
-                continue
-            name = str(r.get("InhouseTrainer") or r.get("FL") or r.get("TrainerName") or "").strip()
-            tid = str(r.get("TrainerId") or r.get("TrainerID") or "").strip()
-            key = (name.lower(), tid)
-            if not name or key in seen:
-                continue
-            seen.add(key)
-            trainers.append({
-                "name": name,
-                "trainer_id": tid,
-                "source": "in-house" if tt.lower().startswith("inhouse") else "freelance",
-                "course": str(r.get("Course") or course).strip(),
-            })
+    seen = set()
+
+    def _collect(course_name, relation):
+        found = []
+        for tt in types:
+            rows = _rms("globalTrainers", {"Course": course_name, "TrainerType": tt}) or []
+            for r in rows:
+                if not isinstance(r, dict) or "Column1" in r:
+                    continue
+                name = str(r.get("InhouseTrainer") or r.get("FL") or r.get("TrainerName") or "").strip()
+                tid = str(r.get("TrainerId") or r.get("TrainerID") or "").strip()
+                dedupe = (name.lower(), tid)
+                if not name or dedupe in seen:
+                    continue
+                seen.add(dedupe)
+                found.append({
+                    "name": name,
+                    "trainer_id": tid,
+                    "source": "in-house" if tt.lower().startswith("inhouse") else "freelance",
+                    "course": str(r.get("Course") or course_name).strip(),
+                    "match": relation,   # "exact" | "related"
+                    "via_course": "" if relation == "exact" else course_name,
+                })
+        return found
+
+    trainers = _collect(course, "exact")
+    exact_count = len(trainers)
+
+    related_courses = []
+    if threshold and 0 < threshold <= 1:
+        target_tokens = set(_norm_course(course).split())
+        if target_tokens:
+            scored = []
+            for meta in (_course_catalogue_index() or {}).values():
+                cname = meta.get("course_name", "")
+                toks = set(_norm_course(cname).split())
+                if not toks or _norm_course(cname) == _norm_course(course):
+                    continue
+                sim = len(target_tokens & toks) / len(target_tokens | toks)
+                if sim >= threshold:
+                    scored.append((sim, cname))
+            related_courses = [c for _, c in sorted(scored, reverse=True)[:3]]
+            for rc in related_courses:
+                trainers.extend(_collect(rc, "related"))
 
     if not trainers:
         return jsonify({
             "course": course, "trainers": [], "available": False,
-            "counts": {"in_house": 0, "freelance": 0, "total": 0},
+            "counts": {"in_house": 0, "freelance": 0, "total": 0, "exact": 0, "related": 0},
+            "related_courses": related_courses,
             "note": "RMS returned no in-house or freelance trainers for this "
-                    "exact course name. Try a shorter course title.",
+                    "course or any closely related one.",
         }), 200
 
     in_house = sum(1 for t in trainers if t["source"] == "in-house")
     freelance = len(trainers) - in_house
-    trainers.sort(key=lambda t: (t["source"] != "in-house", t["name"].lower()))
+    related_count = len(trainers) - exact_count
+    trainers.sort(key=lambda t: (
+        t["match"] != "exact", t["source"] != "in-house", t["name"].lower(),
+    ))
+    note = f"{exact_count} trainer(s) hold this exact course"
+    if related_count:
+        note += f"; {related_count} more hold a closely related course"
     return jsonify({
         "course": course,
         "available": True,
-        "counts": {"in_house": in_house, "freelance": freelance, "total": len(trainers)},
+        "counts": {
+            "in_house": in_house, "freelance": freelance, "total": len(trainers),
+            "exact": exact_count, "related": related_count,
+        },
+        "related_courses": related_courses,
         "trainers": trainers,
-        "note": f"{in_house} in-house and {freelance} freelance trainer(s) hold this course in RMS.",
+        "note": note + ".",
     }), 200
 
 
