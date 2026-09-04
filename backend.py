@@ -13127,6 +13127,7 @@ def v2_upskilling_demand_opportunities():
         return error
 
     manager_email = (session or {}).get("email") or manager
+    today = datetime.utcnow().date()
     team = []
     for r in (_reportees(manager_email) or []):
         if isinstance(r, dict) and r.get("OffEmail"):
@@ -13179,27 +13180,46 @@ def v2_upskilling_demand_opportunities():
 
             best_adj_score = 0
             best_adj_course = ""
+            best_adj_level = ""
             for s in trainer_skills:
                 m = _fuzzy_match(norm_target, _norm_course(s.get("course_name", "")))
                 if m > best_adj_score:
                     best_adj_score = m
                     best_adj_course = s.get("course_name", "")
+                    best_adj_level = str(s.get("skill_level", "") or "")
+
+            readiness = best_adj_score if best_adj_score > 0 else 50
+            # Days-to-ready estimate: a strong adjacent skill (and spare capacity)
+            # ramps fast; a weak one needs a full prep cycle. Bounded 5-25 days.
+            util = _safe_util(email)
+            prep_days = max(5, min(25, round(25 - (readiness / 100) * 16)))
+            if util is not None and util < 40:
+                prep_days = max(5, prep_days - 3)   # bench time to prepare
+            elif util is not None and util > 85:
+                prep_days += 4                       # little room to prepare
+            ready_by = (today + timedelta(days=prep_days)).isoformat()
+            start = _parse_date(c["earliest_start"])
+            in_time = bool(start and (today + timedelta(days=prep_days)) <= start)
 
             suggested.append({
                 "trainer_name": name,
                 "trainer_email": email,
                 "adjacent_skill": best_adj_course or (trainer_skills[0].get("course_name", "") if trainer_skills else "Core Domain"),
-                "readiness_score": best_adj_score if best_adj_score > 0 else 50,
+                "adjacent_skill_level": best_adj_level,
+                "readiness_score": readiness,
+                "prep_days": prep_days,
+                "ready_by": ready_by,
+                "ready_before_earliest_batch": in_time,
             })
 
-        suggested.sort(key=lambda x: -x["readiness_score"])
+        suggested.sort(key=lambda x: (not x["ready_before_earliest_batch"], -x["readiness_score"], x["prep_days"]))
         opportunities.append({
             "course_name": c["course_name"],
             "course_id": c["course_id"],
             "vendor": c["vendor"],
             "delivery_mode": c["delivery_mode"],
             "unallocated_batch_count": c["batch_count"],
-            "earliest_start_date": _iso(c["earliest_start"]),
+            "earliest_start_date": c["earliest_start"] or "",
             "suggested_trainers": suggested[:3],
         })
 
