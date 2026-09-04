@@ -201,6 +201,16 @@ class CandidateRoute(unittest.TestCase):
             r = self.client.get("/api/v2/allocation/candidates?manager=m@koenig-solutions.com")
         self.assertEqual(400, r.status_code)
 
+    def test_empty_free_schedule_is_unknown_not_an_empty_skill_pool(self):
+        with mock.patch.object(backend, "_v2_manager_session", return_value=({}, None)), \
+             mock.patch.object(backend, "_free_schedule", return_value=({}, "")):
+            r = self.client.get("/api/v2/allocation/candidates"
+                                "?manager=m@koenig-solutions.com&course=X&start=2026-09-01")
+        self.assertEqual(422, r.status_code)
+        body = r.get_json()
+        self.assertEqual("AVAILABILITY_UNAVAILABLE", body["code"])
+        self.assertIn("not proof of an empty skill pool", body["note"])
+
     def test_eligible_candidates_are_ranked_and_blocked_ones_are_kept(self):
         start = date(2026, 9, 1)
         pool = {
@@ -273,11 +283,11 @@ class DemandOverlay(unittest.TestCase):
         self.assertEqual("unresolved", b["availability_intelligence"]["source"])
         self.assertEqual("unknown", b["candidates"][0]["real_availability"]["status"])
 
-    def test_no_skilled_trainers_is_distinct_from_could_not_check(self):
-        # Opposite facts for a manager: one needs a catalogue fix, the other
-        # needs hiring or training. Collapsing them hides which.
+    def test_empty_free_schedule_never_claims_that_no_trainer_has_the_skill(self):
         checked = self._board({})[0]["availability_intelligence"]
-        self.assertEqual("no_skilled_trainers", checked["source"])
+        self.assertEqual("availability_unknown", checked["source"])
+        self.assertIn("course-matched trainer", checked["note"])
+        self.assertNotIn("no trainer", checked["note"].lower())
         unchecked = self._board({}, why="not found")[0]["availability_intelligence"]
         self.assertEqual("unresolved", unchecked["source"])
 

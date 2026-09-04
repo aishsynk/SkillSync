@@ -49,13 +49,20 @@ object NotificationEngine {
             val state = b.str("engagement_state")
             val trainer = b.str("trainer_name").ifBlank { "A trainer" }
             val course = b.str("course_name").ifBlank { "a course" }
+            val trainerSkillLevel = b.str("skill_level")
 
             if (state == "current" || state == "upcoming") {
                 if (id !in seenAllocation) {
                     events += NotifyEvent(
                         id = id, bucket = BUCKET_ALLOCATION,
                         title = "New Batch Assigned",
-                        message = "$trainer has been allocated to $course.",
+                        message = buildString {
+                            append("$trainer has been allocated to $course")
+                            if (trainerSkillLevel.isNotBlank()) {
+                                append(" · Trainer skill level: L$trainerSkillLevel")
+                            }
+                            append(".")
+                        },
                         targetType = "trainer", targetId = b.str("trainer_email"), targetLabel = trainer,
                     )
                 }
@@ -83,7 +90,7 @@ object NotificationEngine {
             )
         }
 
-        // Delivery-quality early warnings: recording gaps, roster drops, and
+        // Delivery-quality early warnings: recording gaps, roster shortfalls, and
         // batches about to start with nobody on them. Dedup key folds in the
         // alert kind so a batch can raise more than one distinct warning.
         data.rows("delivery_alerts").forEach { a ->
@@ -97,7 +104,10 @@ object NotificationEngine {
             val who = if (trainer.isNotBlank()) "$trainer — " else ""
             val title = when (kind) {
                 "recording_gap" -> "Recording Missing"
-                "pax_drop" -> "Roster Dropped"
+                "roster_gap" -> "Roster Below Expected"
+                // Compatibility for a cached response produced before the
+                // backend corrected the unsupported "dropped" claim.
+                "pax_drop" -> "Roster Below Expected"
                 "starts_soon_unstaffed" -> "Batch Starts Soon"
                 else -> "Delivery Alert"
             }
@@ -105,7 +115,7 @@ object NotificationEngine {
                 id = key, bucket = BUCKET_DELIVERY,
                 title = title,
                 message = "$who$course: ${a.str("detail")}",
-                targetType = "demand", targetId = aid,
+                targetType = "delivery_list", targetId = aid,
             )
         }
 
@@ -132,7 +142,7 @@ object NotificationEngine {
                 val targetType = when (bucket) {
                     BUCKET_DEMAND -> "demand_list"
                     BUCKET_ALLOCATION -> "trainer_list"
-                    BUCKET_DELIVERY -> "demand_list"
+                    BUCKET_DELIVERY -> "delivery_list"
                     else -> "actions"
                 }
                 listOf(NotifyEvent(

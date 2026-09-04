@@ -4,8 +4,8 @@ Steps to access API
 2. Use above access token & device token to access next API
 
 -------------------------------------------------------
-username : AISHWAR_GetNegativeFeed
-password : #9u7@@hAHWUg
+username : <see SKILLEDGE_RMS_*_USER>
+password : <set SKILLEDGE_RMS_*_PASS secret>
 role     : Get Negative Feedback Count
 
 API Base URL : https://api.koenig-solutions.com
@@ -20,7 +20,7 @@ json request :
 
 {
   "userName": "<username>",
-  "userPassword": "<password>",
+  "userPassword": "<redacted>",
   "userRole": "<role>"
 }
 
@@ -43,7 +43,7 @@ Example Request for Get Token API:
 
 {
   "userName": "AISHWAR_GetNegativeFeed",
-  "userPassword": "#9u7@@hAHWUg",
+  "userPassword": "<redacted>",
   "userRole": "Get Negative Feedback Count"
 }
 

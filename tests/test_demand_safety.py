@@ -125,6 +125,51 @@ class CompleteTeamTests(unittest.TestCase):
         self.assertEqual(state["next_batch"], {})
         self.assertEqual(calls.count("assignment"), 1)
 
+    def test_assigned_batch_joins_real_trainer_course_skill_level(self):
+        reportee = {
+            "OffEmail": "trainer@koenig-solutions.com", "TrainerName": "Trainer One",
+            "EmpId": "1", "TrainerId": "T1", "IsdirectReportee": "Yes",
+        }
+        def rms(name, body, *args, **kwargs):
+            if name == "prevUpcoming":
+                return [{
+                    "AssignmentId": "A1", "Course": "AI-102: Azure AI Engineer",
+                    "StarDate": "09-Aug-2026", "EndDate": "12-Aug-2026",
+                }]
+            if name == "trainerDetails":
+                return [{
+                    "CourseName": "AI-102: Azure AI Engineer", "SkillLevel": "7",
+                    "QubitsScore": "90", "OfficiallyApproved": "Yes",
+                }]
+            if name == "negFeedbackCount": return []
+            return []
+        with patch.object(backend, "_rms", side_effect=rms), patch.object(backend, "_util_row", return_value={}):
+            built = backend._build_trainer(reportee, date(2026, 8, 9))
+        batch = built[1]["current_batch"]
+        self.assertEqual("7", batch["skill_level"])
+        self.assertEqual("trainer_details", batch["skill_level_source"])
+
+    def test_assigned_batch_does_not_guess_skill_level_without_course_match(self):
+        reportee = {
+            "OffEmail": "trainer@koenig-solutions.com", "TrainerName": "Trainer One",
+            "EmpId": "1", "TrainerId": "T1", "IsdirectReportee": "Yes",
+        }
+        def rms(name, body, *args, **kwargs):
+            if name == "prevUpcoming":
+                return [{
+                    "AssignmentId": "A1", "Course": "AI-102",
+                    "StarDate": "09-Aug-2026", "EndDate": "12-Aug-2026",
+                }]
+            if name == "trainerDetails":
+                return [{"CourseName": "AZ-104", "SkillLevel": "9", "QubitsScore": "90"}]
+            if name == "negFeedbackCount": return []
+            return []
+        with patch.object(backend, "_rms", side_effect=rms), patch.object(backend, "_util_row", return_value={}):
+            built = backend._build_trainer(reportee, date(2026, 8, 9))
+        batch = built[1]["current_batch"]
+        self.assertEqual("", batch["skill_level"])
+        self.assertEqual("unavailable", batch["skill_level_source"])
+
     def test_team_capability_does_not_truncate_after_twenty(self):
         reportees = [
             {"OffEmail": f"trainer{i}@koenig-solutions.com", "TrainerName": f"Trainer {i}"}

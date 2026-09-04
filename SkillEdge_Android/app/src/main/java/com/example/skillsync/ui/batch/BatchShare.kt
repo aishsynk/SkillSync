@@ -9,16 +9,15 @@ import android.widget.Toast
 import androidx.core.net.toUri
 
 /**
- * Builds the trainer-facing message for an unallocated batch.
+ * Builds the trainer-facing broadcast for an unallocated assignment.
  *
- * House style, applied literally:
- *  - greeting on its own line, message on a new line, closing on a new line
- *  - complete sentences and full word forms; no contractions
- *  - no emojis, bullets, decorative symbols or dashes as separators
- *  - italics only for a name where clarity needs it (the course)
- *  - bold only for the action being asked for
- *  - underline only for dates, times and deadlines
- *  - emphasis used sparingly and never stacked
+ * Format (the RMS allocation broadcast, applied literally):
+ *  - "Hi Team," on its own line, then a one-line summary
+ *  - one labelled fact per line ("Course : ...", "Schedule : ..."), and a
+ *    label is printed only when RMS actually returned that field
+ *  - dates and the daily time window are underlined on every line that carries them
+ *  - the skill-marking instruction is bold; the certification-preference note is italic
+ *  - no emojis, no bullet glyphs, no dashes as separators
  *
  * No sender signature: these go to the manager's own team inside a chat where
  * the sender is already on screen, so naming themselves reads as boilerplate.
@@ -31,7 +30,7 @@ import androidx.core.net.toUri
  */
 object BatchShare {
 
-    private const val MAX_CHARS = 1000
+    private const val MAX_CHARS = 1200
 
     /** Everything the message needs, so no caller can accidentally omit a field. */
     data class Batch(
@@ -46,99 +45,80 @@ object BatchShare {
         val location: String = "",
         val vendor: String = "",
         val reference: String = "",
+        val assignmentLevel: String = "",
         val tocUrl: String = "",
     )
 
-    /** One sentence of delivery facts, only for the fields RMS actually returned. */
-    private fun facts(b: Batch): String {
-        val parts = listOfNotNull(
-            b.deliveryMode.ifBlank { null }?.let { "delivery is $it" },
-            b.language.ifBlank { null }?.let { "the language is $it" },
-            b.participants.takeIf { it.isNotBlank() && it != "0" }
-                ?.let { "there ${if (it == "1") "is" else "are"} $it participant${if (it == "1") "" else "s"}" },
-            b.location.ifBlank { null }?.let { "the location is $it" },
-        )
-        if (parts.isEmpty()) return ""
-        val joined = when (parts.size) {
-            1 -> parts[0]
-            else -> parts.dropLast(1).joinToString(", ") + " and " + parts.last()
-        }
-        return joined.replaceFirstChar { it.uppercase() } + "."
-    }
-
-    private fun window(b: Batch): String = when {
-        b.startDate.isBlank() -> "on dates still to be confirmed"
-        b.endDate.isBlank() || b.endDate == b.startDate -> "on ${b.startDate}"
-        else -> "from ${b.startDate} to ${b.endDate}"
+    private fun schedule(b: Batch): String = when {
+        b.startDate.isBlank() -> "dates still to be confirmed"
+        b.endDate.isBlank() || b.endDate == b.startDate -> b.startDate
+        else -> "${b.startDate} to ${b.endDate}"
     }
 
     private fun greetingName(recipient: String): String =
         recipient.split(" ").firstOrNull { it.isNotBlank() } ?: "Team"
 
-    /**
-     * Viber and WhatsApp read `*bold*` and `_italic_`; neither has underline, so
-     * time references are left plain rather than wrapped in markers that would
-     * show up as literal punctuation.
-     */
+    /** Viber and WhatsApp read `*bold*` and `_italic_`; neither has underline. */
     fun composeMessage(
         batch: Batch,
         recipient: String = "Team",
-        maxSkillLevel: Int = 4,
-        respondBy: String = "end of day",
-    ): String = build(batch, recipient, maxSkillLevel, respondBy,
+    ): String = build(batch, recipient,
         bold = { "*$it*" }, italic = { "_${it}_" }, underline = { it })
 
     /** Plain text with no markers at all, for anywhere emphasis would be noise. */
     fun plainMessage(
         batch: Batch,
         recipient: String = "Team",
-        maxSkillLevel: Int = 4,
-        respondBy: String = "end of day",
-    ): String = build(batch, recipient, maxSkillLevel, respondBy,
+    ): String = build(batch, recipient,
         bold = { it }, italic = { it }, underline = { it })
 
     /** HTML for the clipboard, so Teams and Outlook keep all three styles. */
     fun htmlMessage(
         batch: Batch,
         recipient: String = "Team",
-        maxSkillLevel: Int = 4,
-        respondBy: String = "end of day",
-    ): String = build(batch, recipient, maxSkillLevel, respondBy,
+    ): String = build(batch, recipient,
         bold = { "<b>$it</b>" }, italic = { "<i>$it</i>" }, underline = { "<u>$it</u>" })
         .replace("\n", "<br>")
 
     private fun build(
         b: Batch,
         recipient: String,
-        maxSkillLevel: Int,
-        respondBy: String,
         bold: (String) -> String,
         italic: (String) -> String,
         underline: (String) -> String,
     ): String = buildString {
-        appendLine("Hello ${greetingName(recipient)},")
+        appendLine("Hi ${greetingName(recipient)},")
+        appendLine("New assignment open for allocation.")
         appendLine()
 
-        append("A batch of ${italic(b.courseName.ifBlank { "an unnamed course" })} is open for allocation ")
-        append(underline(window(b)))
-        if (b.sessionTime.isNotBlank()) append(", ${underline(b.sessionTime)}")
-        append(".")
-        facts(b).ifBlank { null }?.let { append(" $it") }
-        b.reference.ifBlank { null }?.let { append(" The reference is $it.") }
-        // Evidence-only TOC link — generic, data-driven, manager-view. The URL is held verbatim (not sanitised) so the reportee can tap it; it is the only field that may legally contain hyphens/slashes in the house style.
-        if (b.tocUrl.isNotBlank()) {
-            append(" The course outline is at ${b.tocUrl} . Please review it and confirm whether you can cover the content and prerequisites.")
-        }
-        appendLine()
+        appendLine("Course : ${b.courseName.ifBlank { "To be confirmed" }}")
+        if (b.reference.isNotBlank()) appendLine("Assignment ID : ${b.reference}")
+        appendLine("Schedule : ${underline(schedule(b))}")
+        if (b.sessionTime.isNotBlank()) appendLine("Daily Time : ${underline(b.sessionTime)}")
+        if (b.deliveryMode.isNotBlank()) appendLine("Delivery Mode : ${b.deliveryMode}")
+        if (b.location.isNotBlank()) appendLine("Location : ${b.location}")
+        if (b.vendor.isNotBlank()) appendLine("Customer : ${b.vendor}")
+        if (b.language.isNotBlank()) appendLine("Language : ${b.language}")
+        if (b.participants.isNotBlank() && b.participants != "0") appendLine("Pax Count : ${b.participants}")
+        if (b.assignmentLevel.isNotBlank()) appendLine("Assignment Level : ${b.assignmentLevel}")
+        // The URL is held verbatim (not sanitised) so the trainer can tap it.
+        if (b.tocUrl.isNotBlank()) appendLine("TOC : ${b.tocUrl}")
         appendLine()
 
-        append("If you can take this, please ")
-        append(bold("mark your skill in RMS at level $maxSkillLevel or below"))
-        append(" and confirm here by ${underline(respondBy)}. ")
-        append("If you are not available on these dates, please let me know so it can be offered to someone else.")
+        val levelPhrase =
+            if (b.assignmentLevel.isNotBlank()) "at level ${b.assignmentLevel} or above"
+            else "at the assignment level or above"
+        appendLine(
+            "If you do not hold this skill but can prepare and deliver with quality, " +
+                bold("mark your skill in RMS $levelPhrase, with a live date before the assignment start date") + "."
+        )
         appendLine()
-        appendLine()
-        append(italic("Thank you."))
+        append(
+            italic(
+                "Preference is given to certified trainers where certification exists, " +
+                    "and otherwise to a mock delivery completed with quality."
+            )
+        )
     }.trim().take(MAX_CHARS)
 
     // ── Delivery ──────────────────────────────────────────────────────────────

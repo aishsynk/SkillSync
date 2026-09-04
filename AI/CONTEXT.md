@@ -1,5 +1,50 @@
 # SkillEdge / Manager OS — Project Context
 
+## Secrets, capability matrix & canonical routes (effective 2026-09-04)
+
+- RMS service-account fallback credentials live only in `rms_service_credentials.py`
+  (`FALLBACKS` dict). `backend.py` `_ev(name)` reads the env var, then that map. No plaintext
+  secrets in `backend.py` or `trainer_portal_api_details/*.txt`. `.env.example` lists every
+  `SKILLEDGE_RMS_*` var. Set `SKILLEDGE_REQUIRE_SECRET_CREDS=1` to make `_validate_credentials()`
+  hard-fail on any unset var; unset, it only warns. Render secret provisioning + RMS password
+  rotation are still pending operator actions.
+- `SessionManager.canManageTeam()` (manager / assistant_manager / trainer_plus) is the single
+  client predicate gating every cross-person write control; backend routes gate via
+  `_v2_manager_session(manager_only=True)`.
+- Canonical API routes are `/api/v2/data/*` and `/api/v2/action/*`. `/api/data/*` and
+  `/api/action/*` persist only as deprecated aliases; the Android client uses v2 exclusively.
+
+## Evidence-only manager analytics (effective v3.69.3)
+
+- Trainer 360 renders the server Trainer Index response and never calculates a substitute score from UI defaults. The current RMS-backed index measures 7 of 20 criteria and is labelled partial/floor-level with the server confidence note visible.
+- With no learner feedback, sentiment percentage, classification, praise themes, and growth themes stay unavailable/empty; production responses and UI fallbacks contain no demonstration values.
+- Company benchmark ratings and feedback-incident baselines stay unknown when the company feedback API is unavailable; no fallback constant or zero baseline is permitted.
+- Delivery alerts navigate to Work/Delivery. Assignment IDs are not demand IDs and must not be opened as Demand detail identifiers.
+
+## Demand evidence reconciliation (effective v3.69.4)
+
+- RMS key 171 is a course-specific free-schedule source, not the authoritative trainer-skill inventory. An empty key-171 response means course/date availability is unknown; it never proves that nobody holds the course.
+- Course-matched trainers come from the capability/candidate path (including key 75). A demand card must not display an absence-of-skill warning when it contains matched candidates. Empty availability data is labelled “Course availability not verified” and the batch-detail check is recommended.
+
+## Delivery roster and action-queue semantics (effective v3.69.1)
+
+- `assignmentPax` is a current roster snapshot. Comparing it with an assignment's expected
+  participant count proves only a roster shortfall; it does not prove that participants
+  dropped because RMS supplies no previous roster snapshot in this flow.
+- Action `Start`, `Close`, `Escalate`, `Reassign`, and `Reopen` operations update the durable,
+  audited SkillEdge action queue only. They do not allocate trainers, update RMS source
+  records, send messages, book exams, or otherwise execute the underlying operational work.
+- Action mutations are manager-only. A reportee using the shared shell may read their scoped
+  queue, but mutation controls must not be presented.
+
+## Assigned trainer skill level (effective v3.69.2)
+
+- Neither unallocated demand (RMS 190) nor previous/upcoming assignments (RMS 16) returns a
+  skill-level field in live responses. Do not describe a skill level as an assignment requirement.
+- Auto Tall's trainer/course level comes from `trainerDetails.SkillLevel` (RMS 75). Assigned-batch
+  messages may show `Trainer skill level: Lx` only after an exact normalised trainer-course match;
+  otherwise omit it and mark the source unavailable.
+
 Stable, high-level knowledge about the project. Update only for durable facts.
 
 ## Manager-first product contract
@@ -630,4 +675,3 @@ Official Koenig HR scoring formula implemented in `_calculate_trainer_index` acr
 - **Tier 3: Gold (TI 600–899)**: 🔷 Core Delivery / Steady Anchor
 - **Tier 4: Silver (TI 300–599)**: 🔶 Developing / Upskilling Focus
 - **Tier 5: Bronze (TI < 300)**: ⚠️ At Risk / Quality & Util Recovery
-

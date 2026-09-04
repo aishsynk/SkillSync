@@ -86,14 +86,14 @@ interface SkillEdgeApi {
      * cache before rebuilding. Sent on pull-to-refresh only: a first load should
      * take the cached answer, otherwise the cache never helps anyone.
      */
-    @GET("api/data/unified-manager-intelligence")
+    @GET("api/v2/data/unified-manager-intelligence")
     suspend fun getTrainerIntelligence(
         @Query("email") email: String,
         @Query("refresh") refresh: Int? = null,
     ): Map<String, Any>
 
     /** The signed-in user's own identity — small and fast, gates the header paint. */
-    @GET("api/data/manager-profile")
+    @GET("api/v2/data/manager-profile")
     suspend fun getManagerProfile(
         @Query("email") email: String,
         @Query("refresh") refresh: Int? = null,
@@ -103,7 +103,7 @@ interface SkillEdgeApi {
      * Deep single-trainer profile. [manager] is optional and only used to rank
      * the trainer within their own team.
      */
-    @GET("api/data/trainer-360")
+    @GET("api/v2/data/trainer-360")
     suspend fun getTrainer360(
         @Query("email") email: String,
         @Query("manager") manager: String? = null,
@@ -126,7 +126,7 @@ interface SkillEdgeApi {
     suspend fun getCertIntel(@Query("email") m: String): Map<String, Any>
 
     /** Unallocated batches ranked against this manager's team capability. */
-    @GET("api/data/allocation-desk")
+    @GET("api/v2/data/allocation-desk")
     suspend fun getAllocationDesk(
         @Query("email") email: String,
         @Query("refresh") refresh: Int? = null,
@@ -197,31 +197,31 @@ interface SkillEdgeApi {
      * a rejected-but-well-formed write answers 409 with a body worth showing; the
      * plain suspend form would throw that away as an HttpException.
      */
-    @POST("api/action/mark-skill")
+    @POST("api/v2/action/mark-skill")
     suspend fun markSkill(@Body request: MarkSkillRequest): retrofit2.Response<MarkSkillResponse>
 
     /** Authoritative 3-month utilisation history (RMS key 39). Returns an
      *  object: { months: [{month, utilization}], available, emp_code }. */
-    @GET("api/data/trainer-utilization-history")
+    @GET("api/v2/data/trainer-utilization-history")
     suspend fun getTrainerUtilizationHistory(@Query("email") email: String): Map<String, Any>
 
     /** Syllabus lookup for one course. Returns { found, syllabus_url, ... }.
      *  RMS holds a link to a syllabus PDF, not table-of-contents content. */
-    @GET("api/data/course-syllabus")
+    @GET("api/v2/data/course-syllabus")
     suspend fun getCourseSyllabus(@Query("courseName") courseName: String): Map<String, Any>
 
     /** Full RMS catalogue search, including courses not mapped to this team. */
-    @GET("api/data/course-search")
+    @GET("api/v2/data/course-search")
     suspend fun searchCourses(@Query("q") query: String): Map<String, Any>
 
     /** Verified catalogue metadata plus future public schedule dates. */
-    @GET("api/data/course-intelligence")
+    @GET("api/v2/data/course-intelligence")
     suspend fun getCourseIntelligence(@Query("courseName") courseName: String): Map<String, Any>
 
     /** Wider trainer network for a course. Returns { available, trainers }.
      *  `available` is false while RMS rejects every TrainerType value — that
      *  is "cannot ask", not "nobody found". */
-    @GET("api/data/alternative-trainers")
+    @GET("api/v2/data/alternative-trainers")
     suspend fun getAlternativeTrainers(@Query("course") course: String): Map<String, Any>
 
     /** V2 Course Curriculum: Modules, lab URLs, TOC, public schedules (Keys 206, 156, 246, 248) */
@@ -650,6 +650,10 @@ data class TrainerIndexDto(
     val knowledge_sharing_pts: Double = 0.0,
     val deductions_pts: Double = 0.0,
     val criteria: List<TrainerIndexCriteriaDto> = emptyList(),
+    val measured_criteria: List<Int> = emptyList(),
+    val estimated_criteria: List<Int> = emptyList(),
+    val confidence: String = "",
+    val confidence_note: String = "",
 )
 
 data class TrainerIndexResponseDto(

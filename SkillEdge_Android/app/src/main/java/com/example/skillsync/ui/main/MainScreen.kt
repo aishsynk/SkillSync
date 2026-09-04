@@ -258,6 +258,7 @@ fun MainScreen(
                                                 else onTabChange(HomeTab.DEMAND)
                                             }
                                             "demand_list" -> onTabChange(HomeTab.DEMAND)
+                                            "delivery_list" -> onTabChange(HomeTab.DELIVERY)
                                             "trainer" -> {
                                                 if (ev.targetId.isNotBlank()) onTrainerClick(ev.targetId, ev.targetLabel)
                                                 else onTabChange(HomeTab.TEAM)

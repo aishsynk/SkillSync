@@ -1,6 +1,39 @@
 # SkillEdge / Manager OS — Decisions
 
+## 2026-09-04 - Publication block lifted for v3.70.0 / Build 162
+
+- **Decision:** The operator explicitly authorised "build and publish like always on git a/c".
+  v3.70.0 / Build 162 was cut: full validated tree committed and pushed to `main`, CI release +
+  Render backend deploy proceed as normal.
+- **Superseded:** the earlier same-day block below. Residual items (RMS password rotation, Render
+  secret provisioning, notification/freshness pass, capability sweep) move to normal backlog and
+  no longer gate releases unless the operator reinstates a block.
+
+## 2026-09-04 - Publication was blocked until review points resolved (superseded same day)
+
+- **Decision:** Do not publish or deploy any package to Development or Production while review
+  points remain open. Publication requires all identified points to be resolved, validation to
+  complete, and an explicit final confirmation with the operator.
+- **Rationale:** The current review is iterative and the operator wants one fully reviewed,
+  confirmed package rather than partial releases between fixes.
+
 Important decisions and their rationale. Add new entries at the top (newest first).
+
+## 2026-09-04 - RMS credentials isolated to one file; opt-in enforcement; single capability predicate
+
+- **Decision:** All RMS service-account fallback credentials live only in
+  `rms_service_credentials.py` (`FALLBACKS` map), never in `backend.py`. The file stays tracked
+  so Render still boots before secrets are provisioned; production is expected to set every
+  `SKILLEDGE_RMS_*` env var (see `.env.example`). `_validate_credentials()` hard-fails only when
+  `SKILLEDGE_REQUIRE_SECRET_CREDS` is set — an explicit switch the operator flips once secrets
+  are in place — otherwise it warns. Rationale: removes plaintext secrets from the main module
+  and shrinks rotation to one file without handing the operator a broken deploy.
+- **Decision:** `SessionManager.canManageTeam()` (manager / assistant_manager / trainer_plus) is
+  the only client-side predicate for "may act on other people". Every cross-person write
+  affordance must gate on it; the backend gates the matching routes via
+  `_v2_manager_session(manager_only=True)`.
+- **Decision:** `/api/v2/data/*` and `/api/v2/action/*` are the canonical routes. Legacy
+  `/api/data/*` and `/api/action/*` remain only as deprecated aliases; new clients use v2.
 
 ## 2026-09-02 - Reportee self-service role + initials-only login
 

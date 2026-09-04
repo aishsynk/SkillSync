@@ -38,6 +38,7 @@ fun NotificationCenter(
     events: List<NotifyEvent> = emptyList(),
     onTrainerTap: (email: String, name: String) -> Unit = { _, _ -> },
     onDemandTap: (demandId: String) -> Unit = {},
+    onDeliveryTap: () -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
     val openActions = actions.filter {
@@ -104,6 +105,7 @@ fun NotificationCenter(
                             }
                             "demand" -> onDemandTap(event.targetId)
                             "demand_list" -> onDemandTap("")
+                            "delivery_list" -> onDeliveryTap()
                             else -> if (event.bucket == NotificationEngine.BUCKET_DEMAND) onDemandTap(event.targetId)
                         }
                     },
@@ -148,7 +150,7 @@ private fun NotifyEventRow(event: NotifyEvent, onTap: () -> Unit) {
     }
     val isTappable = event.targetType == "trainer" && event.targetId.isNotBlank()
         || event.bucket == NotificationEngine.BUCKET_DEMAND
-        || event.targetType in setOf("demand", "demand_list")
+        || event.targetType in setOf("demand", "demand_list", "delivery_list")
 
     Row(
         modifier = Modifier

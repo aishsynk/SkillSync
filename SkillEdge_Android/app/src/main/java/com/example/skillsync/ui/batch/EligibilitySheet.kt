@@ -140,7 +140,7 @@ fun EligibilitySheet(
 
                 ready.isEmpty() && blocked.isEmpty() -> SkillCard(Modifier.fillMaxWidth()) {
                     Text(
-                        note.ifBlank { "No trainer on your team maps to this course in RMS." },
+                        note.ifBlank { "Eligibility could not be verified from the available RMS response." },
                         style = MaterialTheme.typography.bodyMedium, color = sk.bodyText,
                     )
                 }

@@ -4,8 +4,8 @@ Steps to access API
 2. Use above access token & device token to access next API
 
 -------------------------------------------------------
-username : AISHWAR_CheckCourseAvai
-password : $3GapuDUF5XU
+username : <see SKILLEDGE_RMS_*_USER>
+password : <set SKILLEDGE_RMS_*_PASS secret>
 role     : Check Course Availability in RMS
 
 API Base URL : https://api.koenig-solutions.com
@@ -20,7 +20,7 @@ json request :
 
 {
   "userName": "<username>",
-  "userPassword": "<password>",
+  "userPassword": "<redacted>",
   "userRole": "<role>"
 }
 
@@ -43,7 +43,7 @@ Example Request for Get Token API:
 
 {
   "userName": "AISHWAR_CheckCourseAvai",
-  "userPassword": "$3GapuDUF5XU",
+  "userPassword": "<redacted>",
   "userRole": "Check Course Availability in RMS"
 }
 

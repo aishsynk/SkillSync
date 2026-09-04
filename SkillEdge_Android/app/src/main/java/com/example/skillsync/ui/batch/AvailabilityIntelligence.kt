@@ -56,9 +56,9 @@ import com.example.skillsync.ui.components.str
 /**
  * Whether this course could be checked at all, and what was found.
  *
- * "No trainer in RMS holds this course" is a capability finding a manager
- * needs — it means hire or train, not reallocate. Previously it was
- * indistinguishable from a lookup failure.
+ * A course-specific free-schedule response is availability evidence, not the
+ * authoritative skill inventory. Empty rows must never become a claim that no
+ * trainer holds the skill, especially when the card has matched candidates.
  */
 @Composable
 internal fun CoverageVerdictStrip(batch: Map<*, *>) {
@@ -68,10 +68,10 @@ internal fun CoverageVerdictStrip(batch: Map<*, *>) {
     if (source == "rms_free_schedule") return          // the normal case needs no strip
 
     val (tint, label, detail) = when (source) {
-        "no_skilled_trainers" -> Triple(
-            sk.crit,
-            "NO TRAINER HOLDS THIS COURSE",
-            "Nobody in RMS is skilled on it. This needs hiring or training, not reallocation.",
+        "availability_unknown" -> Triple(
+            sk.warn,
+            "COURSE AVAILABILITY NOT VERIFIED",
+            intel.str("note").ifBlank { "RMS returned no course-specific free-schedule rows. Open the batch to verify dates." },
         )
         else -> Triple(
             sk.warn,

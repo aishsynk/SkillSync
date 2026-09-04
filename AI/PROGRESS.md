@@ -1,5 +1,248 @@
+## 2026-09-04T13:29:18+05:30 - Release cut: v3.70.0 / Build 162 (operator-authorised publish)
 
+- **Model Used**: Claude Sonnet 5
+- **Tool/Agent Used**: Claude Code (Gradle, Git, GitHub Actions)
+- **Files Modified**: `SkillEdge_Android/app/build.gradle.kts` (162 / 3.70.0); committed the
+  previously local-only tree (v3.69.1–v3.69.4 Codex work + the publish-blocker remediation +
+  the `BatchShare` allocation-broadcast reformat + `rms_service_credentials.py`,
+  `.env.example`, `trainer_portal_api_details/*.txt` scrub, three new `AI/*_2026_09_04.md`
+  audit docs, `ActionTransitionExplanationTest.kt`).
+- **Work Completed**:
+  - The operator explicitly instructed "build and publish like always on git a/c" — this is the
+    final confirmation the 2026-09-04 publication block required. Bumped to v3.70.0 / Build 162,
+    committed the full validated tree, pushed to `main`.
+  - CI (`.github/workflows/android-release.yml`) builds the signed APK
+    (`skillsync-release.jks` via secrets, update-in-place) and cuts GitHub Release
+    `v3.70.0.162` on push. Backend auto-deploys to Render from `main`.
+- **Validation**: backend `pytest tests/ -q` **300 passed**; Android `compileDebugKotlin` clean;
+  Android `testDebugUnitTest` **exit 0** (full suite). Post-push: confirm the Actions run is
+  green and the Release + APK asset published.
+- **Current Status**: v3.70.0 / Build 162 released. Publication block lifted by operator for this
+  cut.
+- **Known Issues / Blockers**: RMS password rotation + Render `SKILLEDGE_RMS_*` secret
+  provisioning + `SKILLEDGE_REQUIRE_SECRET_CREDS=1` (operator/RMS-admin — credentials still live
+  in git history pre-scrub); deeper notification source/freshness pass; full screen-by-screen
+  sweep of remaining manager-only write affordances vs `canManageTeam()`; P2 fixed-date test
+  windows outside delivery-compliance; `assignment_level` not yet returned by the RMS
+  unallocated board (share message degrades gracefully).
+- **Next Recommended Actions**: Watch the `v3.70.0.162` Actions run to green; verify the APK
+  updates in place over Build 157 on a device; then operator to provision Render secrets and
+  rotate RMS passwords.
 
+## 2026-09-04T13:17:00+05:30 - Publish-blocker remediation: credentials, capability matrix, v2 routes (v3.69.4, Build 161 — unchanged)
+
+- **Model Used**: Claude Sonnet 5
+- **Tool/Agent Used**: Claude Code (Python/Flask, Kotlin/Compose, Pytest, Gradle, Git)
+- **Files Modified**: `backend.py`, `rms_service_credentials.py` (new), `.env.example` (new),
+  `trainer_portal_api_details/*.txt` (37, scrubbed),
+  `SkillEdge_Android/app/src/main/java/com/example/skillsync/data/SessionManager.kt`,
+  `.../ui/batch/BatchDetailScreen.kt`, `.../ui/trainer/Trainer360Screen.kt`,
+  `.../data/api/SkillEdgeApi.kt`, `.../ui/batch/BatchShare.kt`,
+  `app/src/test/java/com/example/skillsync/ui/BatchShareTest.kt`,
+  `AI/CONTEXT.md`, `AI/DECISIONS.md`, `AI/PROGRESS.md`.
+- **Work Completed**:
+  - **P0 credentials**: moved all 74 RMS service-account fallback literals out of `backend.py`
+    into a single tracked `rms_service_credentials.py` (`FALLBACKS` map); `_ev()` reads env first,
+    then that map. Scrubbed every password literal from `trainer_portal_api_details/*.txt`
+    (usernames/schemas kept). Added `.env.example` listing all `SKILLEDGE_RMS_*` vars. Added an
+    opt-in hard gate: `_validate_credentials()` raises when `SKILLEDGE_REQUIRE_SECRET_CREDS` is
+    set, otherwise warns loudly and (production) prints the unset var list. Rotation + Render
+    secret provisioning remain an operator/RMS-admin action.
+  - **P1 capability matrix**: added `SessionManager.canManageTeam()` as the single client-side
+    "may act on other people" predicate (manager / assistant_manager / trainer_plus). Gated the
+    Reportee skill-mark affordance in `BatchDetailScreen` (`listOfNotNull`) and the Trainer 360
+    endorse control (`canEdit`) on it; backend already gates the routes via
+    `_v2_manager_session(manager_only=True)`.
+  - **P1 legacy routes**: added 12 canonical `/api/v2/data/<name>` and `/api/v2/action/<name>`
+    aliases in `backend.py` (legacy `/api/data|action` kept as deprecated aliases); migrated all
+    10 Android endpoint strings in `SkillEdgeApi.kt` to `api/v2/...`.
+  - **P1 stale docs**: reconciled the `backend.py` auth header comment to the two-step
+    check/login flow and mandatory-password model.
+  - **Batch-detail share message**: reformatted `BatchShare` from house-style prose to the RMS
+    allocation-broadcast layout — `Hi Team,` + one labelled line per RMS-returned field
+    (Course / Assignment ID / Schedule / Daily Time / Delivery Mode / Location / Customer /
+    Language / Pax Count / Assignment Level / TOC), dates and daily time underlined, the
+    skill-mark instruction bold, the certification-preference note italic. Skill ask changed
+    from the reportee self-cert cap ("level N or below") to "at level N or above, live date
+    before the assignment start date"; degrades gracefully when RMS gives no level. Added
+    `assignmentLevel` to `BatchShare.Batch` (wired from `assignment_level`, blank-safe).
+    `BulkBatchShare` unchanged. `BatchShareTest.kt` rewritten.
+- **Validation**: backend `pytest tests/ -q` **300 passed** (17 subtests); Android
+  `compileDebugKotlin` clean; Android `testDebugUnitTest` **exit 0** (full suite, after the
+  BatchShare rewrite). No version bump, no release build, no commit, no deployment.
+- **Current Status**: P0 credential exposure closed in-repo; P1 capability/route/doc items
+  closed. Publication remains blocked by operator instruction.
+- **Known Issues / Blockers**: RMS password rotation + Render secret provisioning (operator);
+  deeper notification source/freshness pass; full screen-by-screen sweep of remaining
+  manager-only write affordances against `canManageTeam()`; P2 fixed-date test windows outside
+  delivery-compliance.
+- **Next Recommended Actions**: Operator to provision `SKILLEDGE_RMS_*` secrets on Render, set
+  `SKILLEDGE_REQUIRE_SECRET_CREDS=1`, rotate RMS passwords. Then complete remaining audit sweeps,
+  validate Build 161 on device, and obtain explicit publish confirmation.
+
+## 2026-09-04T12:58:05+05:30 - Demand evidence consistency repair (v3.69.4, Build 161)
+
+- **Model Used**: GPT-5.6
+- **Tool/Agent Used**: Codex (Python/Flask, Kotlin/Compose, Pytest, Gradle, Git)
+- **Files Modified**: `backend.py`, `tests/test_certification_and_allocation.py`,
+  `tests/test_copilot_team.py`, `SkillEdge_Android/app/build.gradle.kts`,
+  `AvailabilityIntelligence.kt`, `EligibilitySheet.kt`, `NetworkStaffingSheet.kt`,
+  `DemandIntelligenceTest.kt`, `AI/CONTEXT.md`,
+  `AI/APPLICATION_FLOW_API_AUDIT_2026_09_04.md`, `AI/PROGRESS.md`.
+- **Work Completed**:
+  - Fixed the contradictory demand card that said no trainer held a course while displaying
+    course-matched trainers. RMS key 171 is now treated strictly as course/date availability;
+    its empty response cannot override skill matches from the capability path.
+  - Replaced the false warning with `Course availability not verified`, including the number of
+    course-matched trainers and a direction to open the batch for date verification.
+  - Applied the same unknown-vs-empty contract to batch candidate and eligibility endpoints and
+    removed the eligibility sheet's unsupported “no trainer maps” fallback.
+  - Corrected Copilot so unknown utilisation is never described as “not overloaded,” and so it
+    distinguishes skilled-but-overloaded from no verified course match without recommending
+    upskilling when the skill already exists.
+  - Corrected Wider Trainer Network so `available=false` displays the RMS limitation note rather
+    than “no external trainers found”; matched trainers are not called date-available.
+  - Bumped the local-only candidate to v3.69.4 / Build 161.
+- **Validation**: complete backend suite **300 passed** (17 subtests); complete Android
+  `testDebugUnitTest` **BUILD SUCCESSFUL** after the final UI changes; `git diff --check` clean
+  apart from expected line-ending notices. No release build or deployment performed.
+- **Current Status**: Reported contradiction and its related demand/eligibility/Copilot/network
+  variants are repaired locally. Publication remains blocked by operator instruction.
+- **Known Issues / Blockers**: Security secret migration/rotation, centralized role-capability
+  review, legacy client-route migration, remaining API-field validation, and physical-device UX
+  review remain open. The current code has not been deployed to Development or Production.
+- **Next Recommended Actions**: Continue the cross-screen truth/absence/availability audit,
+  complete role and API-contract repair, then validate Build 161 on device. Do not publish until
+  all review points are resolved and the operator explicitly confirms.
+
+## 2026-09-04T12:40:43+05:30 - Evidence-only analytics and delivery routing (v3.69.3, Build 160)
+
+- **Model Used**: GPT-5.6
+- **Tool/Agent Used**: Codex (Kotlin/Compose, Python/Flask, Pytest, Gradle, Git)
+- **Files Modified**: `backend.py`, `tests/test_strategic_capabilities.py`,
+  `SkillEdge_Android/app/build.gradle.kts`, `SkillEdgeApi.kt`, `Trainer360ViewModel.kt`,
+  `Trainer360Screen.kt`, `NotificationEngine.kt`, `NotificationEngineTest.kt`,
+  `NotificationCenter.kt`, `ManagerCommandCentre.kt`, `MainScreen.kt`, `AI/CONTEXT.md`,
+  `AI/APPLICATION_FLOW_API_AUDIT_2026_09_04.md`, `AI/PROGRESS.md`.
+- **Work Completed**:
+  - Wired the existing Trainer Index API into Trainer 360 and removed UI-generated scores based
+    on hardcoded utilisation, AI, mobility, experience, and visa values. The card now shows the
+    backend evidence sheet, partial 7/20 coverage, and an explicit unavailable state.
+  - Removed the 94%/High Performer sentiment defaults and invented praise/growth themes. No
+    feedback now produces no ratio, no classification, and empty themes.
+  - Removed the 4.3 rating and zero incident-rate benchmark fallbacks. Missing company evidence
+    now yields unknown baselines and verdicts.
+  - Corrected delivery-alert navigation so recording/roster alerts open Work/Delivery instead of
+    sending an assignment ID to Demand detail.
+  - Added regression coverage and bumped the local-only candidate to v3.69.3 / Build 160.
+- **Validation**: backend syntax clean; complete backend suite **296 passed** before the added
+  regression, then focused strategic suite **5 passed** including the new test; Android
+  `testDebugUnitTest` **BUILD SUCCESSFUL**. `git diff --check` clean apart from expected line-ending
+  notices. No release build, development deployment, production deployment, or publishing done.
+- **Current Status**: Four audit gaps are fixed locally. The manager flow/API audit and complete
+  37-document map are available. Release remains deliberately blocked.
+- **Known Issues / Blockers**: Plaintext RMS credentials require secret provisioning and rotation;
+  manager/reportee capability gating needs a screen-by-screen pass; Android legacy `/api/data` and
+  `/api/action` calls need migration; source/freshness display and remaining rich API-field
+  integrations need validation. On-device UX is not yet completed for Build 160.
+- **Next Recommended Actions**: Complete centralized role/capability auditing and canonical V2
+  client migration, verify remaining supplied API schemas/fields, run the on-device manager flow,
+  then follow local -> development -> validation -> identical production package only after
+  explicit operator confirmation.
+
+## 2026-09-04T12:18:41+05:30 - Assigned trainer skill level + full flow/API audit (v3.69.2, Build 159)
+
+- **Model Used**: GPT-5.6
+- **Tool/Agent Used**: Codex (live read-only RMS probes, Python/Flask, Kotlin/Compose,
+  Pytest, Gradle, Git)
+- **Files Modified**: `backend.py`, `tests/test_demand_safety.py`,
+  `tests/test_strategic_capabilities.py`,
+  `SkillEdge_Android/app/src/main/java/com/example/skillsync/util/NotificationEngine.kt`,
+  `SkillEdge_Android/app/src/test/java/com/example/skillsync/util/NotificationEngineTest.kt`,
+  `SkillEdge_Android/app/build.gradle.kts`, `AI/CONTEXT.md`, `AI/PROGRESS.md`,
+  `AI/APPLICATION_FLOW_API_AUDIT_2026_09_04.md`.
+- **Work Completed**:
+  - Live probes confirmed that neither unallocated demand (RMS 190) nor previous/upcoming
+    assignments (RMS 16) exposes skill level. Implemented an exact course join to the assigned
+    trainer's real `trainerDetails.SkillLevel` (RMS 75), tagged the source, and omitted unknowns.
+  - New-assignment app and backend messages now include `Trainer skill level: Lx` when verified.
+  - Added positive and no-guess regression tests.
+  - Repaired the expired fixed-date delivery-compliance test fixture so it remains date-stable.
+  - Completed and documented the application-flow/API audit, including publish-blocking truth,
+    security, role, routing, legacy-contract, and unused-data gaps.
+  - Bumped the local candidate from v3.69.1/158 to v3.69.2/159.
+- **Validation**: complete backend suite **296 passed** (17 subtests); complete Android
+  `testDebugUnitTest` **BUILD SUCCESSFUL**. No release build or deployment performed.
+- **Current Status**: Skill-level message fix is complete locally. Release remains blocked because
+  the audit identifies unresolved P0/P1 items and the operator has not given final confirmation.
+- **Known Issues / Blockers**: See `AI/APPLICATION_FLOW_API_AUDIT_2026_09_04.md`. P0 items include
+  plaintext RMS credentials and fabricated Trainer Index/sentiment/benchmark fallbacks.
+- **Next Recommended Actions**: Resolve the P0 truth/security items first, then permission and
+  navigation mismatches, rerun full validation, perform on-device review, and wait for explicit
+  operator confirmation before publishing.
+
+## 2026-09-04T12:08:29+05:30 - Release hold confirmed
+
+- **Model Used**: GPT-5.6
+- **Tool/Agent Used**: Codex (documentation)
+- **Files Modified**: `AI/DECISIONS.md`, `AI/PROGRESS.md`
+- **Work Completed**: Recorded the operator's release gate: do not publish or deploy while any
+  review point remains unresolved, and do not proceed until final validation is explicitly
+  confirmed with the operator.
+- **Current Status**: v3.69.1 / Build 158 remains a local candidate only.
+- **Known Issues / Blockers**: Review is ongoing; publication is intentionally blocked.
+- **Next Recommended Actions**: Continue resolving review points, run complete validation, present
+  the final readiness result, and wait for explicit operator confirmation before any deployment.
+
+## 2026-09-04T12:01:49+05:30 - Truthful roster alerts and explicit action semantics (v3.69.1, Build 158)
+
+- **Model Used**: GPT-5.6
+- **Tool/Agent Used**: Codex (Python/Flask, Kotlin/Compose, Pytest, Gradle, Git)
+- **Files Modified**: `backend.py`, `tests/test_delivery_alerts.py`,
+  `SkillEdge_Android/app/src/main/java/com/example/skillsync/util/NotificationEngine.kt`,
+  `SkillEdge_Android/app/src/main/java/com/example/skillsync/ui/main/ActionsInbox.kt`,
+  `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/main/ActionTransitionExplanationTest.kt`,
+  `SkillEdge_Android/app/build.gradle.kts`, `AI/CONTEXT.md`, `AI/PROGRESS.md`.
+- **Work Completed**:
+  - Replaced the unsupported `Roster Dropped` claim with `Roster Below Expected`; the alert
+    now states enrolled, expected, and unfilled counts and handles a verified empty roster.
+  - Added confirmation and category-aware explanations before quick Start/Close/Escalate
+    transitions. Copy states plainly that these buttons update the audited SkillEdge queue
+    and do not perform the underlying RMS/external operation or send an escalation message.
+  - Aligned the shared trainer shell with server permissions: reportees see a labelled
+    read-only action queue; manager-only selection, state, note, and raise controls are hidden.
+  - Bumped Android from v3.69.0/157 to v3.69.1/158.
+- **Validation**: targeted backend alert/action tests **7 passed**; Android targeted unit test,
+  debug compilation, and signed `assembleRelease` **BUILD SUCCESSFUL** (APK generated at
+  2026-09-04T12:07:26+05:30). Full backend suite: **293 passed + 1
+  unrelated date-sensitive failure** (`test_delivery_compliance_detects_missing_recording...`
+  has a fixture ending 2026-09-03 and no longer represents an active batch on 2026-09-04).
+- **Current Status**: Fix is complete and packaged locally; no Development or Production
+  deployment made.
+- **Known Issues / Blockers**: The unrelated fixed-date delivery-compliance fixture requires
+  separate test maintenance. On-device confirmation-dialog and notification appearance remain
+  to be visually checked.
+- **Next Recommended Actions**: Visually validate manager and reportee action queues on-device,
+  deploy the generated package unchanged to Development, validate, then promote that same
+  package to Production.
+
+## 2026-09-04T11:47:21+05:30 - Session startup review and handover
+
+- **Model Used**: GPT-5.6
+- **Tool/Agent Used**: Codex (repository inspection and Git)
+- **Files Modified**: `AI/PROGRESS.md`
+- **Work Completed**: Read and followed `AGENTS.md`; reviewed the latest progress entry,
+  durable project context, architectural decisions, and working-tree status. Confirmed all
+  required `AI/*.md` tracking files exist. No application code or cloud resources changed.
+- **Current Status**: Latest implementation remains v3.69.0 (Build 157). Backend tests (293),
+  Android Kotlin compilation, and Android unit tests were recorded green; the release assembly
+  was still reported as building and requires confirmation. An unrelated untracked `.claude/`
+  directory remains untouched.
+- **Known Issues / Blockers**: No new blocker identified. Latest release-build outcome and
+  on-device trainer self-scope behavior have not yet been verified in this session.
+- **Next Recommended Actions**: Confirm `assembleRelease`; validate trainer navigation,
+  self-scoped data, and manager-only guards on-device; then continue the V4 roadmap
+  (container transforms, Demand redesign, light/adaptive layouts, and remaining haptic wiring).
 
 ## 2026-09-02T18:15:00+05:30 - Trainer runs the manager shell verbatim, scoped to self (v3.69.0, Build 157)
 

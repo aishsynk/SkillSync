@@ -4,8 +4,8 @@ Steps to access API
 2. Use above access token & device token to access next API
 
 -------------------------------------------------------
-username : AISHWAR_CourseWhitoutEx
-password : V9n82gfmC$$W
+username : <see SKILLEDGE_RMS_*_USER>
+password : <set SKILLEDGE_RMS_*_PASS secret>
 role     : Course Whitout Exam
 
 API Base URL : https://api.koenig-solutions.com
@@ -20,7 +20,7 @@ json request :
 
 {
   "userName": "<username>",
-  "userPassword": "<password>",
+  "userPassword": "<redacted>",
   "userRole": "<role>"
 }
 
@@ -43,7 +43,7 @@ Example Request for Get Token API:
 
 {
   "userName": "AISHWAR_CourseWhitoutEx",
-  "userPassword": "V9n82gfmC$$W",
+  "userPassword": "<redacted>",
   "userRole": "Course Whitout Exam"
 }
 

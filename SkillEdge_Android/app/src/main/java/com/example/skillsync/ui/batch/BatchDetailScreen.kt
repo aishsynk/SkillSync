@@ -89,6 +89,7 @@ fun BatchDetailScreen(
             location = batch.str("location"),
             vendor = batch.str("customer"),
             reference = batch.str("demand_id"),
+            assignmentLevel = batch.str("assignment_level"),
             tocUrl = effectiveToc,
         )
     }
@@ -573,10 +574,12 @@ fun BatchDetailScreen(
 
                 // Actions — compact row with primary tools
                 ActionBar(
-                    actions = listOf(
+                    actions = listOfNotNull(
                         ActionItem("Curriculum", R.drawable.ic_book, sk.blue) { showCurriculumSheet = true },
                         ActionItem("My skill", R.drawable.ic_check, sk.teal) { showMine = true },
-                        ActionItem("Reportee", R.drawable.ic_people, sk.indigo) { showReportee = true },
+                        if (com.example.skillsync.data.SessionManager.canManageTeam())
+                            ActionItem("Reportee", R.drawable.ic_people, sk.indigo) { showReportee = true }
+                        else null,
                         ActionItem("Message", R.drawable.ic_mail, sk.green) {
                             shareTarget = null
                             showMessagePreview = true

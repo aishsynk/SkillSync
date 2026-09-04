@@ -41,6 +41,7 @@ import com.example.skillsync.theme.StatusBarIcons
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
 import com.example.skillsync.ui.main.projectNextUtilization
+import com.example.skillsync.data.api.TrainerIndexDto
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,6 +73,7 @@ fun Trainer360Screen(
     val readiness by viewModel.readiness.collectAsState()
     val devPlan by viewModel.devPlan.collectAsState()
     val sentiment by viewModel.sentiment.collectAsState()
+    val trainerIndex by viewModel.trainerIndex.collectAsState()
     val online by com.example.skillsync.data.sync.SyncScheduler.online.collectAsState()
     StatusBarIcons(lightIcons = true)
 
@@ -188,8 +190,9 @@ fun Trainer360Screen(
                                 onCourseTap = { viewModel.fetchSyllabus(it) },
                                 devPlan = devPlan,
                                 sentiment = sentiment,
+                                trainerIndex = trainerIndex,
                                 onOpenPractice = onOpenPractice,
-                                canEdit = !selfView,
+                                canEdit = !selfView && com.example.skillsync.data.SessionManager.canManageTeam(),
                                 onAddGoal = { title, kind, target, note ->
                                     if (selfView) toast(context, "Your manager owns your development plan.")
                                     else viewModel.addDevPlanItem(managerEmail, trainerEmail, title, kind, target, note)
@@ -248,6 +251,7 @@ internal fun Trainer360Content(
     onCourseTap: (String) -> Unit = {},
     devPlan: Map<String, Any>? = null,
     sentiment: Map<String, Any>? = null,
+    trainerIndex: TrainerIndexDto? = null,
     canEdit: Boolean = true,
     onAddGoal: (title: String, kind: String, targetDate: String, note: String) -> Unit = { _, _, _, _ -> },
     onAdoptSuggestion: (Map<*, *>) -> Unit = {},
@@ -335,7 +339,7 @@ internal fun Trainer360Content(
                 }
                 2 -> {
                     item { Appear(0) { ManagerEvaluationCard(identity, managerEvaluation, feedback) } }
-                    item { Appear(1) { TrainerIndexCard(identity, util, cap, certs, feedback) } }
+                    item { Appear(1) { TrainerIndexCard(trainerIndex) } }
                     item { Appear(2) { DeliveryReadinessSection(deliveryReadiness, feedback) } }
                     item { Appear(3) { CapabilityMetrics(metrics) } }
                     item { Appear(4) { RiskSection(metrics, feedback) } }
@@ -1769,63 +1773,31 @@ private fun ManagerEvaluationCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TrainerIndexCard(
-    identity: Map<*, *>?,
-    util: Map<*, *>?,
-    cap: Map<*, *>?,
-    certs: Map<*, *>?,
-    feedback: Map<*, *>?,
+    index: TrainerIndexDto?,
 ) {
     val sk = MaterialTheme.skill
     var showSheet by remember { mutableStateOf(false) }
 
-    val name = identity?.str("name") ?: "Trainer"
-    val utilPct = (util?.intOrNull("current") ?: util?.intOrNull("month") ?: 65).toDouble()
-    val heldCerts = certs?.list("held").orEmpty()
-    val negCount = feedback?.intOrNull("negative_count") ?: 0
-    val hrPos = feedback?.intOrNull("hr_positive") ?: 1
-    val hrNeg = feedback?.intOrNull("hr_negative") ?: 0
-
-    // 20 Criteria Calculation
-    val utilBasePts = (utilPct - 60.0) * 10.0
-    val utilQuarterly = if (utilPct >= 60.0) 50.0 else -25.0
-    val utilPts = (utilBasePts + utilQuarterly).coerceIn(-200.0, 550.0)
-
-    val beastAiDeliveries = 4
-    val beastAiSaas = 1
-    val beastAiPts = (beastAiDeliveries * 10.0 + beastAiSaas * 20.0).coerceAtMost(200.0)
-
-    val qi = (100.0 - (negCount * 10.0) + (hrPos * 5.0)).coerceIn(60.0, 120.0)
-    val qiPts = (qi * 2.5).coerceIn(0.0, 300.0)
-
-    val ksPts = 45.0
-    val firstTimePts = (heldCerts.size.coerceAtMost(5) * 20.0).coerceAtMost(200.0)
-    val certPts = (heldCerts.size * 3.5).coerceAtMost(200.0)
-    val roamingPts = 60.0
-    val nightPts = 25.0
-    val hrIncidentPts = (hrPos * 10.0) - (hrNeg * 20.0)
-    val instructorPts = if (heldCerts.isNotEmpty()) 120.0 else 20.0
-    val devPts = 50.0
-    val custPts = 160.0
-    val solPts = 50.0
-    val takeoverPts = 20.0
-    val negFeedbackPts = -(negCount * 100.0)
-    val centrePts = 10.0
-    val techPts = 20.0
-    val tenurePts = 7.2
-    val priorExpPts = 4.8
-    val visaPts = 100.0
-
-    val totalScore = (utilPts + beastAiPts + qiPts + ksPts + firstTimePts + certPts + roamingPts + nightPts +
-            hrIncidentPts + instructorPts + devPts + custPts + solPts + takeoverPts + negFeedbackPts + centrePts +
-            techPts + tenurePts + priorExpPts + visaPts).coerceAtLeast(0.0)
-
-    val (tierBadge, tierColor, tierTitle) = when {
-        totalScore >= 1200.0 -> Triple("👑 Tier 1: Diamond", sk.good, "Elite Global Deployable Lead")
-        totalScore >= 900.0 -> Triple("⭐ Tier 2: Platinum", sk.sky, "Strong Performer / Multi-Domain Lead")
-        totalScore >= 600.0 -> Triple("🔷 Tier 3: Gold", sk.cyan, "Core Delivery / Steady Anchor")
-        totalScore >= 300.0 -> Triple("🔶 Tier 4: Silver", sk.amber, "Developing / Upskilling Focus")
-        else -> Triple("⚠️ Tier 5: Bronze", sk.crit, "At Risk / Quality & Util Recovery")
+    if (index == null) {
+        SectionCard("Koenig HR Trainer Index", "Verified score unavailable") {
+            Text("Trainer Index could not be loaded. No score or tier has been estimated.", style = MaterialTheme.typography.bodySmall, color = sk.subText)
+        }
+        return
     }
+
+    val byNumber = index.criteria.associateBy { it.s_no }
+    fun points(number: Int) = byNumber[number]?.points ?: 0.0
+    val utilPts = points(1); val beastAiPts = points(2); val qiPts = points(3)
+    val ksPts = points(4); val firstTimePts = points(5); val certPts = points(6)
+    val roamingPts = points(7); val nightPts = points(8); val hrIncidentPts = points(9)
+    val instructorPts = points(10); val devPts = points(11); val custPts = points(12)
+    val solPts = points(13); val takeoverPts = points(14); val negFeedbackPts = points(15)
+    val centrePts = points(16); val techPts = points(17); val tenurePts = points(18)
+    val priorExpPts = points(19); val visaPts = points(20)
+    val totalScore = index.total_score
+    val tierBadge = index.tier_badge.ifBlank { index.tier.ifBlank { "Tier unavailable" } }
+    val tierTitle = index.tier_description.ifBlank { "Partial RMS-backed assessment" }
+    val tierColor = when (index.tier_level) { 1 -> sk.good; 2 -> sk.sky; 3 -> sk.cyan; 4 -> sk.amber; else -> sk.crit }
 
     SkillCard(Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1843,7 +1815,7 @@ private fun TrainerIndexCard(
                         color = sk.bodyText,
                     )
                     Text(
-                        "Policy TI – 13/08/26 (20 Evaluation Criteria)",
+                        if (index.confidence == "partial") "Partial · ${index.measured_criteria.size}/20 RMS-backed criteria" else "20 evaluation criteria",
                         style = MaterialTheme.typography.labelSmall,
                         color = sk.subText,
                     )
@@ -1877,7 +1849,7 @@ private fun TrainerIndexCard(
                             color = Color.White,
                         )
                         Text(
-                            "Evaluated across all 20 Koenig HR scoring pillars",
+                            index.confidence_note.ifBlank { "Calculated by the server from available RMS evidence." },
                             style = MaterialTheme.typography.bodySmall,
                             color = sk.subText,
                             fontSize = 11.sp,
@@ -1889,7 +1861,7 @@ private fun TrainerIndexCard(
                         colors = ButtonDefaults.buttonColors(containerColor = tierColor),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                     ) {
-                        Text("20-Pillar Breakdown", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        Text("Evidence breakdown", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                     }
                 }
             }
@@ -1927,7 +1899,7 @@ private fun TrainerIndexCard(
                 ) {
                     Column {
                         Text(
-                            "HR Trainer Index — 20 Criteria Sheet",
+                            "HR Trainer Index — Evidence Sheet",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = sk.bodyText,
@@ -1944,29 +1916,10 @@ private fun TrainerIndexCard(
                 }
                 HorizontalDivider(color = sk.cardBorder)
 
-                // Render all 20 criteria rows
-                val criteriaList = listOf(
-                    Triple("1. Utilization", "10 pts/1% >60%, -10 <60%, +50 all Q >60% (Cap: 550)", "${utilPts.toInt()} pts"),
-                    Triple("2. Beast AI Delivery", "10 pts/delivery, 20 pts/SaaS (Cap: 200)", "${beastAiPts.toInt()} pts"),
-                    Triple("3. Quality Index (QI)", "2.5 pts per QI point (Cap: 300)", "${qiPts.toInt()} pts"),
-                    Triple("4. Knowledge Sharing", "5 pts TBT/Mock, 10 pts IT (Cap: 100)", "${ksPts.toInt()} pts"),
-                    Triple("5. 1st Time Course/Cert", "20 pts for 1st time delivery or cert (Cap: 200)", "${firstTimePts.toInt()} pts"),
-                    Triple("6. Auto-Resume Certs", "AI Difficulty: Easy=1, Mod=3, Hard=5 (Cap: 200)", "${certPts.toInt()} pts"),
-                    Triple("7. Roaming Hours L12M", "0.75 pts per hour (Cap: 100)", "${roamingPts.toInt()} pts"),
-                    Triple("8. Night ILO Hours L12M", "0.25 pts/hr (9:01PM - 6:59AM) (Cap: 100)", "${nightPts.toInt()} pts"),
-                    Triple("9. HR Incidents & Audits", "+10 pos, -20 neg incident", "${hrIncidentPts.toInt()} pts"),
-                    Triple("10. Instructor Certs", "100 premier (AAI/CCSI/VCI/RHCI), 20 other (Cap: 200)", "${instructorPts.toInt()} pts"),
-                    Triple("11. Trainer Developed", "50 pts per trainer developed (Cap: 500)", "${devPts.toInt()} pts"),
-                    Triple("12. Customer Orientation", "Sales rating score * 16 (Cap: 400)", "${custPts.toInt()} pts"),
-                    Triple("13. Solution Selling", "50 pts per solution designed (Cap: 100)", "${solPts.toInt()} pts"),
-                    Triple("14. Skill Takeover", "10 pts per skill taken over before LWD (Cap: 100)", "${takeoverPts.toInt()} pts"),
-                    Triple("15. -ve Feedback", "Minus 100 pts per assignment", "${negFeedbackPts.toInt()} pts"),
-                    Triple("16. Centre Improvements", "+10 pts per centre issue reported", "${centrePts.toInt()} pts"),
-                    Triple("17. Tech Call Conversion", "20 pts per call converted", "${techPts.toInt()} pts"),
-                    Triple("18. Tenure with Koenig", "0.2 pts per month (Cap: 50)", "${tenurePts} pts"),
-                    Triple("19. Prior Experience", "0.1 pts per month before Koenig (Cap: 50)", "${priorExpPts} pts"),
-                    Triple("20. Overseas Visa Commitment", "100 pts if commitment valid >= 3 mo", "${visaPts.toInt()} pts"),
-                )
+                val criteriaList = index.criteria.map { criterion ->
+                    val evidence = criterion.raw_value.ifBlank { criterion.remarks.ifBlank { "No RMS evidence available" } }
+                    Triple("${criterion.s_no}. ${criterion.criteria}", evidence, "${criterion.points.toInt()} pts")
+                }
 
                 criteriaList.forEach { (title, desc, pts) ->
                     Surface(
@@ -2191,27 +2144,27 @@ private fun SectionCard(title: String, subtitle: String?, body: @Composable Colu
 private fun LearnerSentimentWordCloudSection(sentiment: Map<String, Any>?) {
     val sk = MaterialTheme.skill
     if (sentiment == null) return
-    val positivePercent = (sentiment["positive_percent"] as? Number)?.toDouble() ?: 94.0
+    val positivePercent = (sentiment["positive_percent"] as? Number)?.toDouble()
     val praiseKeywords = sentiment.list("praise_keywords")
     val growthKeywords = sentiment.list("growth_keywords")
     val quotes = sentiment.obj("representative_quotes")
     val strengthsQuotes = quotes?.list("strengths").orEmpty()
     val growthQuotes = quotes?.list("growth").orEmpty()
 
-    SectionCard("Learner Voice & Sentiment", "${positivePercent}% positive sentiment ratio") {
+    SectionCard("Learner Voice & Sentiment", positivePercent?.let { "$it% positive sentiment ratio" } ?: "Sentiment ratio unavailable") {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text(
-                    text = "${positivePercent}% Positive",
+                    text = positivePercent?.let { "$it% Positive" } ?: "Ratio unavailable",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (positivePercent >= 90) sk.good else sk.warn,
+                    color = if (positivePercent != null && positivePercent >= 90) sk.good else sk.warn,
                 )
                 Text("Derived from RMS student feedback", style = MaterialTheme.typography.labelSmall, color = sk.subText)
             }
             ToneChip(
-                text = sentiment.str("sentiment_label").ifBlank { "High Performer" },
-                tint = if (positivePercent >= 90) sk.good else sk.sky,
+                text = sentiment.str("sentiment_label").ifBlank { "Not classified" },
+                tint = if (positivePercent != null && positivePercent >= 90) sk.good else sk.sky,
             )
         }
 

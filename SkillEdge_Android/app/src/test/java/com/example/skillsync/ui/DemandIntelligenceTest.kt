@@ -110,12 +110,13 @@ class DemandIntelligenceTest {
     }
 
     @Test
-    fun noSkilledTrainerIsNotTheSameAsAFailedLookup() {
-        render(batch(intelligence = mapOf(
-            "source" to "no_skilled_trainers", "note" to "no trainer in RMS holds this course",
+    fun emptyFreeScheduleDoesNotClaimThatNoTrainerHasTheSkill() {
+        render(batch(candidates = listOf(candidate()), intelligence = mapOf(
+            "source" to "availability_unknown", "note" to "2 course-matched trainers found, but date availability was not returned",
             "pool_size" to 0.0, "dnc_checked" to false, "leave_checked" to false,
         )))
-        compose.onNodeWithText("NO TRAINER HOLDS THIS COURSE").assertExists()
+        compose.onNodeWithText("COURSE AVAILABILITY NOT VERIFIED").assertExists()
+        compose.onAllNodesWithText("NO TRAINER HOLDS THIS COURSE").assertCountEquals(0)
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.example.skillsync.data.api.RetrofitClient
 import com.example.skillsync.data.ManagerRepository
 import com.example.skillsync.data.cache.LocalCache
 import com.example.skillsync.data.models.ActionRow
+import com.example.skillsync.data.api.TrainerIndexDto
 import com.example.skillsync.ui.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,6 +50,9 @@ class Trainer360ViewModel(
     /** Learner voice qualitative sentiment and keyword cloud. */
     val sentiment = MutableStateFlow<Map<String, Any>?>(null)
 
+    /** Server-calculated Trainer Index. Null means unavailable; the UI never fabricates it. */
+    val trainerIndex = MutableStateFlow<TrainerIndexDto?>(null)
+
     fun load(trainerEmail: String, managerEmail: String = "", context: android.content.Context) {
         if (loadedFor == trainerEmail && _state.value is Trainer360State.Success) return
         loadedFor = trainerEmail
@@ -60,6 +64,7 @@ class Trainer360ViewModel(
         fetchActions(managerEmail, trainerEmail)
         fetchDevPlan(managerEmail, trainerEmail, fresh = false)
         fetchSentiment(trainerEmail)
+        fetchTrainerIndex(trainerEmail)
     }
 
     fun fetchSentiment(trainerEmail: String) {
@@ -67,6 +72,15 @@ class Trainer360ViewModel(
         viewModelScope.launch {
             sentiment.value = runCatching {
                 com.example.skillsync.data.api.RetrofitClient.instance.getTrainerSentiment(trainerEmail)
+            }.getOrNull()
+        }
+    }
+
+    private fun fetchTrainerIndex(trainerEmail: String) {
+        if (trainerEmail.isBlank()) return
+        viewModelScope.launch {
+            trainerIndex.value = runCatching {
+                RetrofitClient.instance.getTrainerIndex(trainerEmail).trainer_index
             }.getOrNull()
         }
     }
@@ -109,6 +123,7 @@ class Trainer360ViewModel(
             fetchActions(managerEmail, trainerEmail)
             fetchDevPlan(managerEmail, trainerEmail, fresh = true)
             fetchSentiment(trainerEmail)
+            fetchTrainerIndex(trainerEmail)
             _refreshing.value = false
         }
     }
@@ -196,6 +211,7 @@ class Trainer360ViewModel(
             fetchUtilHistory(trainerEmail)
             fetchActions(managerEmail, trainerEmail)
             fetchSentiment(trainerEmail)
+            fetchTrainerIndex(trainerEmail)
         }
     }
 

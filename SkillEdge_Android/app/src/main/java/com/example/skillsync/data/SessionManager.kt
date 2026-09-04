@@ -64,6 +64,14 @@ object SessionManager {
 
     fun isReportee(): Boolean = getRole() == "reportee"
 
+    /**
+     * The single source of "may this account act on the team / other people".
+     * Every visible write control (allocate, approve, endorse, raise/transition
+     * an action, dispatch) must be gated on this — the backend gates the routes
+     * the same way, so a trainer never sees a button the server will reject.
+     */
+    fun canManageTeam(): Boolean = getRole() in setOf("manager", "assistant_manager", "trainer_plus")
+
     fun mustChangePassword(): Boolean =
         if (::prefs.isInitialized) prefs.getBoolean(KEY_MUST_CHANGE, false) else false
 

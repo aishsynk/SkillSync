@@ -113,13 +113,28 @@ fun NetworkStaffingSheet(
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             } else {
+                val lookupAvailable = networkData?.bool("available") == true
                 val rawTrainers = networkData?.list("trainers") ?: emptyList()
                 val trainers = rawTrainers.filter { t ->
                     if (selectedType == "All") true
                     else t.str("trainer_type").contains(selectedType, ignoreCase = true)
                 }
 
-                if (trainers.isEmpty()) {
+                if (!lookupAvailable) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Wider network search unavailable", style = MaterialTheme.typography.titleSmall, color = sk.warn)
+                            Text(
+                                networkData?.str("note").orEmpty().ifBlank { "RMS could not verify the wider trainer network for this course." },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = sk.subText,
+                            )
+                        }
+                    }
+                } else if (trainers.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -127,7 +142,7 @@ fun NetworkStaffingSheet(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            if (rawTrainers.isEmpty()) "No additional external trainers found for this course in RMS."
+                            if (rawTrainers.isEmpty()) "The verified wider-network search returned no matching trainers."
                             else "No trainers match the '$selectedType' filter.",
                             style = MaterialTheme.typography.bodySmall,
                             color = sk.subText,
@@ -135,7 +150,7 @@ fun NetworkStaffingSheet(
                     }
                 } else {
                     Text(
-                        "${trainers.size} trainer${if (trainers.size == 1) "" else "s"} available across Koenig network",
+                        "${trainers.size} trainer${if (trainers.size == 1) "" else "s"} matched across the Koenig network; verify dates before allocation.",
                         style = MaterialTheme.typography.labelSmall,
                         color = sk.subText,
                     )

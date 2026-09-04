@@ -88,6 +88,29 @@ class CopilotTeamTests(unittest.TestCase):
         self.assertNotIn("Sara Lee", names)       # holds AZ-104 but 92% utilised
         self.assertTrue(all({"name", "email", "note"} <= set(d) for d in j["data"]))
 
+    def test_free_for_course_does_not_call_unknown_capacity_not_overloaded(self):
+        team = [{"name": "Ravi", "email": "r@k.com", "skills": [
+            {"course_name": "AZ-104: Microsoft Azure Administrator"}
+        ], "util": None}]
+        result = backend._copilot_team_answer(
+            "free_for_course", "who is free for AZ-104", team, []
+        )
+        self.assertIn("capacity is unknown", result["answer"])
+        self.assertNotIn("not overloaded", result["answer"])
+        self.assertEqual("utilisation unknown", result["data"][0]["note"])
+        self.assertEqual("medium", result["confidence"])
+
+    def test_free_for_course_does_not_recommend_upskilling_when_skill_exists(self):
+        team = [{"name": "Sara", "email": "s@k.com", "skills": [
+            {"course_name": "AZ-104: Microsoft Azure Administrator"}
+        ], "util": 92}]
+        result = backend._copilot_team_answer(
+            "free_for_course", "who is free for AZ-104", team, []
+        )
+        self.assertIn("all have utilisation at or above 85%", result["answer"])
+        self.assertIn("upskilling is not the issue", result["answer"])
+        self.assertEqual("high", result["confidence"])
+
     def test_coverage_risk_routes_and_shapes_data(self):
         r = self._ask(question="what is our biggest coverage risk this month")
         j = r.get_json()

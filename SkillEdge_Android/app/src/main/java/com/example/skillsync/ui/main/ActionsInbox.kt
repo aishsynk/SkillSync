@@ -63,10 +63,14 @@ internal fun ActionsInbox(
     onDismissError: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
+    val canManageActions = !com.example.skillsync.data.SessionManager.isReportee()
     var filter by remember { mutableStateOf(ActionFilter.OPEN) }
     var category by remember { mutableStateOf<String?>(null) }
     var detailFor by remember { mutableStateOf<Map<String, Any>?>(null) }
     var showRaise by remember { mutableStateOf(false) }
+    var pendingTransition by remember {
+        mutableStateOf<Pair<Map<String, Any>, String>?>(null)
+    }
 
     val categories = remember(actions) {
         actions.mapNotNull { it.str("category").takeIf { c -> c.isNotBlank() } }.distinct().sorted()
@@ -141,6 +145,14 @@ internal fun ActionsInbox(
         ) {
             item {
                 Column {
+                    if (!canManageActions) {
+                        Text(
+                            "Read only · Your manager owns action status, follow-ups and escalation.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = sk.labelText,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                    }
                     Row(
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -201,7 +213,7 @@ internal fun ActionsInbox(
                     )
                 }
             } else {
-                if (selectedIds.isNotEmpty()) {
+                if (canManageActions && selectedIds.isNotEmpty()) {
                     item(key = "bulk-bar") {
                         BulkActionBar(
                             count = selectedIds.size,
@@ -229,6 +241,7 @@ internal fun ActionsInbox(
                     Appear(i) {
                         ActionCard(
                             action = a,
+                            canManageActions = canManageActions,
                             selected = a.str("id") in selectedIds,
                             onToggleSelect = {
                                 val id = a.str("id")
@@ -236,7 +249,7 @@ internal fun ActionsInbox(
                                               else selectedIds + id
                             },
                             onOpen = { detailFor = a },
-                            onQuickState = { st -> onSetState(a.str("id"), st, "") },
+                            onQuickState = { st -> pendingTransition = a to st },
                             onTrainer = {
                                 val em = a.str("trainer_email")
                                 if (em.isNotBlank()) onTrainerClick(em, a.str("trainer_name"))
@@ -248,21 +261,24 @@ internal fun ActionsInbox(
             }
         }
 
-        ExtendedFloatingActionButton(
-            onClick = { showRaise = true },
-            containerColor = sk.sky,
-            contentColor = Color.White,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
-        ) {
-            Icon(painterResource(R.drawable.ic_flag), null, modifier = Modifier.size(17.dp))
-            Spacer(Modifier.width(9.dp))
-            Text("Raise action", fontWeight = FontWeight.SemiBold)
+        if (canManageActions) {
+            ExtendedFloatingActionButton(
+                onClick = { showRaise = true },
+                containerColor = sk.sky,
+                contentColor = Color.White,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
+            ) {
+                Icon(painterResource(R.drawable.ic_flag), null, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(9.dp))
+                Text("Raise action", fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 
     detailFor?.let { a ->
         ActionDetailSheet(
             action = a,
+            canManageActions = canManageActions,
             onDismiss = { detailFor = null },
             onSetState = { st, note -> onSetState(a.str("id"), st, note); detailFor = null },
             onAddNote = { note -> onAddNote(a.str("id"), note) },
@@ -277,6 +293,18 @@ internal fun ActionsInbox(
         RaiseActionSheet(
             onDismiss = { showRaise = false },
             onRaise = { t, d, c, p -> onRaise(t, d, c, p); showRaise = false },
+        )
+    }
+
+    pendingTransition?.let { (action, state) ->
+        ActionTransitionDialog(
+            action = action,
+            state = state,
+            onDismiss = { pendingTransition = null },
+            onConfirm = {
+                onSetState(action.str("id"), state, "")
+                pendingTransition = null
+            },
         )
     }
 }
@@ -298,6 +326,7 @@ private fun stateTint(state: String): Color {
 @Composable
 private fun ActionCard(
     action: Map<String, Any>,
+    canManageActions: Boolean,
     selected: Boolean = false,
     onToggleSelect: () -> Unit = {},
     onOpen: () -> Unit,
@@ -327,27 +356,29 @@ private fun ActionCard(
                 // Selection control. Long-press-to-select is undiscoverable on a
                 // list a manager visits once a day, so the affordance is always
                 // visible and toggles independently of opening the item.
-                Box(
-                    Modifier
-                        .size(18.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (selected) sk.brand else Color.Transparent)
-                        .border(
-                            1.dp,
-                            if (selected) sk.brand else sk.glassBorder,
-                            RoundedCornerShape(4.dp),
-                        )
-                        .pressable(onToggleSelect),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (selected) {
-                        Icon(
-                            painterResource(R.drawable.ic_check), null,
-                            tint = sk.frost, modifier = Modifier.size(11.dp),
-                        )
+                if (canManageActions) {
+                    Box(
+                        Modifier
+                            .size(18.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (selected) sk.brand else Color.Transparent)
+                            .border(
+                                1.dp,
+                                if (selected) sk.brand else sk.glassBorder,
+                                RoundedCornerShape(4.dp),
+                            )
+                            .pressable(onToggleSelect),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (selected) {
+                            Icon(
+                                painterResource(R.drawable.ic_check), null,
+                                tint = sk.frost, modifier = Modifier.size(11.dp),
+                            )
+                        }
                     }
+                    Spacer(Modifier.width(Space.sm))
                 }
-                Spacer(Modifier.width(Space.sm))
                 Text(
                     action.str("category").uppercase(),
                     style = MaterialTheme.typography.labelSmall,
@@ -429,7 +460,7 @@ private fun ActionCard(
             }
 
             // Quick transitions — the two a manager reaches for most often.
-            if (state != "closed") {
+            if (canManageActions && state != "closed") {
                 Spacer(Modifier.height(9.dp))
                 HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f), thickness = 0.5.dp)
                 Row(Modifier.fillMaxWidth()) {
@@ -449,6 +480,64 @@ private fun QuickAction(label: String, tint: Color, modifier: Modifier = Modifie
     TextButton(onClick = onClick, modifier = modifier) {
         Text(label, color = tint, fontWeight = FontWeight.SemiBold)
     }
+}
+
+internal fun actionTransitionExplanation(state: String, category: String): String {
+    val queueEffect = when (state) {
+        "in_progress" -> "This moves the item to In progress and records the change in its audit trail."
+        "closed" -> "This marks the item Closed and removes it from the open queue."
+        "escalated" -> "This marks the item Escalated and moves it to the escalated queue."
+        else -> "This changes the item's queue status."
+    }
+    val systemLimit = when (category.lowercase()) {
+        "demand" -> "It does not assign a trainer or change the batch in RMS."
+        "allocation" -> "It does not allocate the trainer or change their schedule in RMS."
+        "feedback" -> "It does not reply to the learner or resolve the feedback record in RMS."
+        "certification" -> "It does not book an exam or change certification records."
+        "capacity" -> "It does not redistribute work or change assignments in RMS."
+        else -> "It does not perform an external action or notify another person."
+    }
+    val escalationLimit = if (state == "escalated") {
+        " No message is sent automatically; add a follow-up note with the owner and next step."
+    } else ""
+    return "$queueEffect $systemLimit$escalationLimit"
+}
+
+@Composable
+private fun ActionTransitionDialog(
+    action: Map<String, Any>,
+    state: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    val verb = when (state) {
+        "in_progress" -> "Start"
+        "closed" -> "Close"
+        "escalated" -> "Escalate"
+        else -> "Update"
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = sk.cardBg,
+        title = { Text("$verb this action?", color = sk.frost) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(action.str("title"), color = sk.frost, fontWeight = FontWeight.SemiBold)
+                Text(
+                    actionTransitionExplanation(state, action.str("category")),
+                    color = sk.subText,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(verb, color = stateTint(state), fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
@@ -523,6 +612,7 @@ private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) 
 @Composable
 private fun ActionDetailSheet(
     action: Map<String, Any>,
+    canManageActions: Boolean,
     onDismiss: () -> Unit,
     onSetState: (String, String) -> Unit,
     onAddNote: (String) -> Unit,
@@ -576,49 +666,51 @@ private fun ActionDetailSheet(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "MOVE THIS ACTION", style = MaterialTheme.typography.labelSmall,
-                color = sk.ice, fontWeight = FontWeight.Bold,
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                listOf(
-                    "in_progress" to "Start",
-                    "closed" to "Close",
-                    "escalated" to "Escalate",
-                    "reassigned" to "Reassign",
-                    "open" to "Reopen",
-                ).forEach { (st, label) ->
-                    OutlinedButton(
-                        onClick = { onSetState(st, note) },
-                        shape = RoundedCornerShape(Radii.chip),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, stateTint(st).copy(alpha = 0.5f)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = stateTint(st)),
-                    ) { Text(label, fontWeight = FontWeight.SemiBold) }
+            if (canManageActions) {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "MOVE THIS ACTION", style = MaterialTheme.typography.labelSmall,
+                    color = sk.ice, fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    listOf(
+                        "in_progress" to "Start",
+                        "closed" to "Close",
+                        "escalated" to "Escalate",
+                        "reassigned" to "Reassign",
+                        "open" to "Reopen",
+                    ).forEach { (st, label) ->
+                        OutlinedButton(
+                            onClick = { onSetState(st, note) },
+                            shape = RoundedCornerShape(Radii.chip),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, stateTint(st).copy(alpha = 0.5f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = stateTint(st)),
+                        ) { Text(label, fontWeight = FontWeight.SemiBold) }
+                    }
                 }
-            }
 
-            Spacer(Modifier.height(16.dp))
-            OutlinedTextField(
-                value = note,
-                onValueChange = { note = it },
-                label = { Text("Follow-up note") },
-                placeholder = { Text("What did you do, or what is next?") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                minLines = 2,
-            )
-            Spacer(Modifier.height(8.dp))
-            Button(
-                onClick = { onAddNote(note); note = "" },
-                enabled = note.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-            ) { Text("Add follow-up") }
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = { Text("Follow-up note") },
+                    placeholder = { Text("What did you do, or what is next?") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    minLines = 2,
+                )
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = { onAddNote(note); note = "" },
+                    enabled = note.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                ) { Text("Add follow-up") }
+            }
 
             if (notes.isNotEmpty()) {
                 Spacer(Modifier.height(18.dp))

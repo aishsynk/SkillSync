@@ -174,6 +174,7 @@ fun ManagerCommandCentre(
                     if (demandId.isNotBlank()) onBatchClick(demandId)
                     else onOpenDemand()
                 },
+                onDeliveryTap = onOpenDelivery,
             )
         }
 

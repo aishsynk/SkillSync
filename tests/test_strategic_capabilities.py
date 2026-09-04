@@ -1,6 +1,7 @@
 ﻿import os
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import backend
@@ -84,12 +85,13 @@ class StrategicCapabilitiesTests(unittest.TestCase):
 
     def test_delivery_compliance_detects_missing_recording_and_composes_nudge(self):
         """Test Live Delivery Compliance Sentinel identifies missing recordings and prepares nudge."""
+        today = datetime.utcnow().date()
         mock_prev_upcoming = [
             {
                 "assignment_id": "88001",
                 "course_name": "AZ-305: Azure Solutions Architect",
-                "Startdate": "2026-08-30",
-                "Enddate": "2026-09-03",
+                "Startdate": (today - timedelta(days=2)).isoformat(),
+                "Enddate": (today + timedelta(days=2)).isoformat(),
             }
         ]
 
@@ -196,6 +198,15 @@ class StrategicCapabilitiesTests(unittest.TestCase):
             
             self.assertTrue(len(data["representative_quotes"]["strengths"]) > 0)
             self.assertTrue(len(data["representative_quotes"]["growth"]) > 0)
+
+    def test_sentiment_without_feedback_does_not_invent_a_rating_or_themes(self):
+        with patch.object(backend, "_rms", return_value=[]):
+            data = backend._trainer_sentiment_build(T1)
+
+        self.assertIsNone(data["positive_percent"])
+        self.assertEqual(data["sentiment_label"], "Not classified")
+        self.assertEqual(data["praise_keywords"], [])
+        self.assertEqual(data["growth_keywords"], [])
 
 
 if __name__ == "__main__":

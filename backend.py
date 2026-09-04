@@ -13,7 +13,12 @@ CONTRACT (Task 6 — V2 is canonical):
   per capability, and the old `request.path.startswith("/api/v2/")` branch has
   been removed.
 
-Auth: POST /api/auth/login — @koenig-solutions.com only, manager or Trainer Plus role.
+Auth: POST /api/auth/check then POST /api/auth/login — @koenig-solutions.com only.
+Every account signs in with a password (bootstrap = RMS employee code, then set
+own). `_classify_identity` resolves the role: manager (owns an RMS roster),
+assistant_manager / trainer_plus / reportee (in a manager's roster). A trainer
+runs the same Main shell scoped to a team of one; `_v2_manager_session(..., manager_only=True)`
+gates the cross-person write routes.
       Every other route requires `Authorization: Bearer <session_id>` (issued by
       login) and enforces manager scope: a requested manager email that does not
       match the session email is rejected with 403 MANAGER_SCOPE_MISMATCH. This
@@ -117,17 +122,23 @@ _TIMEOUT   = 30
 
 _ev_fallbacks: set = set()
 
+try:
+    from rms_service_credentials import FALLBACKS as _RMS_FALLBACKS
+except Exception:  # pragma: no cover - the file is present in this repo
+    _RMS_FALLBACKS = {}
+
 
 def _ev(name, fallback=""):
-    """Read an environment variable, falling back to a dev-only default.
-    Tracks which env vars were absent so _validate_credentials() can warn
-    at startup when production is running on hardcoded credentials."""
+    """Read an environment variable. In its absence, fall back to the shared
+    `rms_service_credentials.FALLBACKS` map (dev only) and record the miss so
+    `_validate_credentials()` can hard-fail in production."""
     val = os.getenv(name, "").strip()
     if val:
         return val
-    if fallback:
+    fb = fallback or _RMS_FALLBACKS.get(name, "")
+    if fb:
         _ev_fallbacks.add(name)
-    return fallback
+    return fb
 
 _APIS = {
     # Credentials are read from environment variables (`SKILLEDGE_RMS_<NAME>_USER`
@@ -137,39 +148,39 @@ _APIS = {
     # intended ending state.
     # ── Core ────────────────────────────────────────────────────────────────
     "reportees": {
-        "user": _ev("SKILLEDGE_RMS_REPORTEES_USER", "AISHWAR_GetDirectIndire"),
-        "pass": _ev("SKILLEDGE_RMS_REPORTEES_PASS", "3R$Nc7ThBX64"),
+        "user": _ev("SKILLEDGE_RMS_REPORTEES_USER"),
+        "pass": _ev("SKILLEDGE_RMS_REPORTEES_PASS"),
         "role": "Get Direct Indirect Reportee",
         "key":  "82",
     },
     "trainerDetails": {
-        "user": _ev("SKILLEDGE_RMS_TRAINER_DETAILS_USER", "AISHWAR_GetTrainerDetai"),
-        "pass": _ev("SKILLEDGE_RMS_TRAINER_DETAILS_PASS", "7zCheFM$Cc$t"),
+        "user": _ev("SKILLEDGE_RMS_TRAINER_DETAILS_USER"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_DETAILS_PASS"),
         "role": "Get Trainer Details",
         "key":  "75",
     },
     "utilization": {
-        "user": _ev("SKILLEDGE_RMS_UTILIZATION_USER", "AISHWAR_GetUtilization"),
-        "pass": _ev("SKILLEDGE_RMS_UTILIZATION_PASS", "j4CakF7gEg#f"),
+        "user": _ev("SKILLEDGE_RMS_UTILIZATION_USER"),
+        "pass": _ev("SKILLEDGE_RMS_UTILIZATION_PASS"),
         "role": "Get Utilization",
         "key":  "55",
     },
     # ── Assignments ─────────────────────────────────────────────────────────
     "prevUpcoming": {
-        "user": _ev("SKILLEDGE_RMS_PREVUPCOMING_USER", "AISHWAR_PreviousUpcommi"),
-        "pass": _ev("SKILLEDGE_RMS_PREVUPCOMING_PASS", "J8LzP@HkW#Ve"),
+        "user": _ev("SKILLEDGE_RMS_PREVUPCOMING_USER"),
+        "pass": _ev("SKILLEDGE_RMS_PREVUPCOMING_PASS"),
         "role": "Previous & Upcomming Assignments",
         "key":  "16",
     },
     "upcomingAssignments": {
-        "user": _ev("SKILLEDGE_RMS_UPCOMING_ASSIGNMENTS_USER", "AISHWAR_UpcomingAssignm"),
-        "pass": _ev("SKILLEDGE_RMS_UPCOMING_ASSIGNMENTS_PASS", "nFY$g68zSaRD"),
+        "user": _ev("SKILLEDGE_RMS_UPCOMING_ASSIGNMENTS_USER"),
+        "pass": _ev("SKILLEDGE_RMS_UPCOMING_ASSIGNMENTS_PASS"),
         "role": "Upcoming Assignments",
         "key":  "93",
     },
     "unallocated": {
-        "user": _ev("SKILLEDGE_RMS_UNALLOCATED_USER", "AISHWAR_UnallocatedAssi"),
-        "pass": _ev("SKILLEDGE_RMS_UNALLOCATED_PASS", "$5djCU@w7eR3"),
+        "user": _ev("SKILLEDGE_RMS_UNALLOCATED_USER"),
+        "pass": _ev("SKILLEDGE_RMS_UNALLOCATED_PASS"),
         "role": "Unallocated Assignment",
         "key":  "190",
     },
@@ -190,8 +201,8 @@ _APIS = {
     # why _resolve_course_name exists and why a miss must read "cannot verify",
     # never "nobody available".
     "trainerFreeSchedule": {
-        "user": _ev("SKILLEDGE_RMS_TRAINER_FREE_SCHEDULE_USER", "AISHWAR_GetTrainerFreeS"),
-        "pass": _ev("SKILLEDGE_RMS_TRAINER_FREE_SCHEDULE_PASS", "J6FLKGx!exA7"),
+        "user": _ev("SKILLEDGE_RMS_TRAINER_FREE_SCHEDULE_USER"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_FREE_SCHEDULE_PASS"),
         "role": "Get Trainer Free Shedule and Details",
         "key":  "171",
     },
@@ -201,8 +212,8 @@ _APIS = {
     # DeliveryMode, QubitScore, Exam, and the two client-relationship fields
     # nothing else exposes — SpecifiedTrainer (preference) and DNC (exclusion).
     "trainerRCSchedule": {
-        "user": _ev("SKILLEDGE_RMS_TRAINER_RC_SCHEDULE_USER", "AISHWAR_TrainerRCSchedu"),
-        "pass": _ev("SKILLEDGE_RMS_TRAINER_RC_SCHEDULE_PASS", "jGErt8!Agr$a"),
+        "user": _ev("SKILLEDGE_RMS_TRAINER_RC_SCHEDULE_USER"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_RC_SCHEDULE_PASS"),
         "role": "Trainer RC Schedule",
         "key":  "111",
     },
@@ -212,113 +223,113 @@ _APIS = {
     # certification gap cover Cisco, AWS, RedHat, Oracle and the rest instead
     # of only the Microsoft codes in _CERT_CATALOG.
     "courseWithoutExam": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_WITHOUT_EXAM_USER", "AISHWAR_CourseWhitoutEx"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_WITHOUT_EXAM_PASS", "V9n82gfmC$$W"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_WITHOUT_EXAM_USER"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_WITHOUT_EXAM_PASS"),
         "role": "Course Whitout Exam",
         "key":  "213",
     },
     "assignment": {
-        "user": _ev("SKILLEDGE_RMS_ASSIGNMENT_USER", "AISHWAR_AssignmentAPI"),
-        "pass": _ev("SKILLEDGE_RMS_ASSIGNMENT_PASS", "4PV6aCe6Sc8!"),
+        "user": _ev("SKILLEDGE_RMS_ASSIGNMENT_USER"),
+        "pass": _ev("SKILLEDGE_RMS_ASSIGNMENT_PASS"),
         "role": "Assignment API",
         "key":  "15",
     },
     # ── Feedback & Incidents ─────────────────────────────────────────────────
     "negFeedbackCount": {
-        "user": _ev("SKILLEDGE_RMS_NEG_FEEDBACK_COUNT_USER", "AISHWAR_GetNegativeFeed"),
-        "pass": _ev("SKILLEDGE_RMS_NEG_FEEDBACK_COUNT_PASS", "#9u7@@hAHWUg"),
+        "user": _ev("SKILLEDGE_RMS_NEG_FEEDBACK_COUNT_USER"),
+        "pass": _ev("SKILLEDGE_RMS_NEG_FEEDBACK_COUNT_PASS"),
         "role": "Get Negative Feedback Count",
         "key":  "58",
     },
     "trainerFeedback": {
-        "user": _ev("SKILLEDGE_RMS_TRAINER_FEEDBACK_USER", "AISHWAR_GetTrainerFeedb"),
-        "pass": _ev("SKILLEDGE_RMS_TRAINER_FEEDBACK_PASS", "T9$jsBnSW7Rd"),
+        "user": _ev("SKILLEDGE_RMS_TRAINER_FEEDBACK_USER"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_FEEDBACK_PASS"),
         "role": "Get Trainer Feedback Details",
         "key":  "244",
     },
     "hrIncident": {
-        "user": _ev("SKILLEDGE_RMS_HR_INCIDENT_USER", "AISHWAR_GetHRIncidentPo"),
-        "pass": _ev("SKILLEDGE_RMS_HR_INCIDENT_PASS", "42nLmM!#weDk"),
+        "user": _ev("SKILLEDGE_RMS_HR_INCIDENT_USER"),
+        "pass": _ev("SKILLEDGE_RMS_HR_INCIDENT_PASS"),
         "role": "Get HR Incident Positive Negative",
         "key":  "59",
     },
     "trainerNegFeedback": {
-        "user": _ev("SKILLEDGE_RMS_TRAINER_NEG_FEEDBACK_USER", "AISHWAR_GetTrainerNegat"),
-        "pass": _ev("SKILLEDGE_RMS_TRAINER_NEG_FEEDBACK_PASS", "j34JFz$s9Um#"),
+        "user": _ev("SKILLEDGE_RMS_TRAINER_NEG_FEEDBACK_USER"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_NEG_FEEDBACK_PASS"),
         "role": "Get Trainer Negative Feedback",
         "key":  "218",
     },
     # ── Skills & Certs ───────────────────────────────────────────────────────
     "trainerSkills": {
-        "user": _ev("SKILLEDGE_RMS_TRAINER_SKILLS_USER", "AISHWAR_GetTrainerSkill"),
-        "pass": _ev("SKILLEDGE_RMS_TRAINER_SKILLS_PASS", "dpcwt4L5$@7U"),
+        "user": _ev("SKILLEDGE_RMS_TRAINER_SKILLS_USER"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_SKILLS_PASS"),
         "role": "Get Trainer Skills",
         "key":  "217",
     },
     "vendorCertCount": {
-        "user": _ev("SKILLEDGE_RMS_VENDOR_CERT_COUNT_USER", "AISHWAR_GettrainerVende"),
-        "pass": _ev("SKILLEDGE_RMS_VENDOR_CERT_COUNT_PASS", "!$R#gQuAs9Rw"),
+        "user": _ev("SKILLEDGE_RMS_VENDOR_CERT_COUNT_USER"),
+        "pass": _ev("SKILLEDGE_RMS_VENDOR_CERT_COUNT_PASS"),
         "role": "Get trainer Vender Certification Count",
         "key":  "57",
     },
     # ── Course & Scheduling ──────────────────────────────────────────────────
     "trainerAvailability": {
-        "user": _ev("SKILLEDGE_RMS_TRAINER_AVAILABILITY_USER", "AISHWAR_Traineravailabi"),
-        "pass": _ev("SKILLEDGE_RMS_TRAINER_AVAILABILITY_PASS", "c2yRDVdG#XCs"),
+        "user": _ev("SKILLEDGE_RMS_TRAINER_AVAILABILITY_USER"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_AVAILABILITY_PASS"),
         "role": "Trainer availability",
         "key":  "90",
     },
     "scid": {
-        "user": _ev("SKILLEDGE_RMS_SCID_USER", "AISHWAR_GetSCID"),
-        "pass": _ev("SKILLEDGE_RMS_SCID_PASS", "kLH#4T!Tfu6f"),
+        "user": _ev("SKILLEDGE_RMS_SCID_USER"),
+        "pass": _ev("SKILLEDGE_RMS_SCID_PASS"),
         "role": "Get SCID",
         "key":  "173",
     },
     "activeSCDate": {
-        "user": _ev("SKILLEDGE_RMS_ACTIVE_SC_DATE_USER", "AISHWAR_GetActiveSCDate"),
-        "pass": _ev("SKILLEDGE_RMS_ACTIVE_SC_DATE_PASS", "P2mbqrhB#t4F"),
+        "user": _ev("SKILLEDGE_RMS_ACTIVE_SC_DATE_USER"),
+        "pass": _ev("SKILLEDGE_RMS_ACTIVE_SC_DATE_PASS"),
         "role": "Get Active SC Date",
         "key":  "13",
     },
     "assignmentPax": {
-        "user": _ev("SKILLEDGE_RMS_ASSIGNMENT_PAX_USER", "AISHWAR_GetAssignmentpa"),
-        "pass": _ev("SKILLEDGE_RMS_ASSIGNMENT_PAX_PASS", "!zSgxaRdA9dC"),
+        "user": _ev("SKILLEDGE_RMS_ASSIGNMENT_PAX_USER"),
+        "pass": _ev("SKILLEDGE_RMS_ASSIGNMENT_PAX_PASS"),
         "role": "Get Assignment pax",
         "key":  "209",
     },
     "recordingDetails": {
-        "user": _ev("SKILLEDGE_RMS_RECORDING_DETAILS_USER", "AISHWAR_GetRecordingDet"),
-        "pass": _ev("SKILLEDGE_RMS_RECORDING_DETAILS_PASS", "RPtPvRq5nF$H"),
+        "user": _ev("SKILLEDGE_RMS_RECORDING_DETAILS_USER"),
+        "pass": _ev("SKILLEDGE_RMS_RECORDING_DETAILS_PASS"),
         "role": "Get Recording Details by Assignment Id",
         "key":  "278",
     },
     "last3MonthsUtil": {
-        "user": _ev("SKILLEDGE_RMS_LAST_3_MONTHS_UTIL_USER", "AISHWAR_TrainerLast3Mon"),
-        "pass": _ev("SKILLEDGE_RMS_LAST_3_MONTHS_UTIL_PASS", "TmSe!9A!@GfL"),
+        "user": _ev("SKILLEDGE_RMS_LAST_3_MONTHS_UTIL_USER"),
+        "pass": _ev("SKILLEDGE_RMS_LAST_3_MONTHS_UTIL_PASS"),
         "role": "Trainer_Last_3_Months_Utilization",
         "key":  "39",
     },
     "courseSyllabus": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_SYLLABUS_USER", "AISHWAR_GetCourseSyllab"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_SYLLABUS_PASS", "W@PFkUQt$Ek3"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_SYLLABUS_USER"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_SYLLABUS_PASS"),
         "role": "Get Course Syllabus TOC",
         "key":  "248",
     },
     "courseCatalogue": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_CATALOGUE_USER", "AISHWAR_GetCourseName"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_CATALOGUE_PASS", "H7GnTdC@ECvC"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_CATALOGUE_USER"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_CATALOGUE_PASS"),
         "role": "Get Course Name",
         "key":  "70",
     },
     "courseSchedule": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_SCHEDULE_USER", "AISHWAR_GetCourseSchedu"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_SCHEDULE_PASS", "tFEy8T6JLT!J"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_SCHEDULE_USER"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_SCHEDULE_PASS"),
         "role": "Get Course Schedule",
         "key":  "246",
     },
     "globalTrainers": {
-        "user": _ev("SKILLEDGE_RMS_GLOBAL_TRAINERS_USER", "AISHWAR_GetInhouseandFL"),
-        "pass": _ev("SKILLEDGE_RMS_GLOBAL_TRAINERS_PASS", "2XC!2LBpsTJh"),
+        "user": _ev("SKILLEDGE_RMS_GLOBAL_TRAINERS_USER"),
+        "pass": _ev("SKILLEDGE_RMS_GLOBAL_TRAINERS_PASS"),
         "role": "Get Inhouse and FL Trainers Of Courses",
         "key":  "157",
     },
@@ -326,70 +337,70 @@ _APIS = {
     # The only endpoint that returns a person rather than a list of their
     # courses: photo, exam certifications, languages, experience, clients.
     "trainerResume": {
-        "user": _ev("SKILLEDGE_RMS_RESUME_USER", "AISHWAR_TrainerResumeDe"),
-        "pass": _ev("SKILLEDGE_RMS_RESUME_PASS", "nw@dL3xQD#BL"),
+        "user": _ev("SKILLEDGE_RMS_RESUME_USER"),
+        "pass": _ev("SKILLEDGE_RMS_RESUME_PASS"),
         "role": "Trainer Resume Details",
         "key":  "87",
     },
     # ── Write endpoint — mutates production RMS ──────────────────────────────
     "addTrainerSkill": {
-        "user": _ev("SKILLEDGE_RMS_ADD_TRAINER_SKILL_USER", "AISHWAR_AddTrainerSkill"),
-        "pass": _ev("SKILLEDGE_RMS_ADD_TRAINER_SKILL_PASS", "2bd6UhV#PJ#T"),
+        "user": _ev("SKILLEDGE_RMS_ADD_TRAINER_SKILL_USER"),
+        "pass": _ev("SKILLEDGE_RMS_ADD_TRAINER_SKILL_PASS"),
         "role": "Add Trainer Skill (IDP)",
         "key":  "255",
     },
     "courseAvailability": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_AVAILABILITY_USER", "AISHWAR_CheckCourseAvai"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_AVAILABILITY_PASS", "$3GapuDUF5XU"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_AVAILABILITY_USER"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_AVAILABILITY_PASS"),
         "role": "Check Course Availability in RMS",
         "key":  "104",
     },
     # ── Extended Course, Technology & Exam Catalogue (Audited 2026-08-22) ───
     "courseTechnology": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_TECHNOLOGY_USER", "AISHWAR_CourseTechnolog"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_TECHNOLOGY_PASS", "L5PMuN!wKE4j"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_TECHNOLOGY_USER"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_TECHNOLOGY_PASS"),
         "role": "Course & Technology List",
         "key":  "114",
     },
     "courseList": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_LIST_USER", "AISHWAR_CourseList"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_LIST_PASS", "@56Crxj#Yc@5"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_LIST_USER"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_LIST_PASS"),
         "role": "Course List",
         "key":  "164",
     },
     "examCourseLinked": {
-        "user": _ev("SKILLEDGE_RMS_EXAM_COURSE_LINKED_USER", "AISHWAR_ExamCourseLinke"),
-        "pass": _ev("SKILLEDGE_RMS_EXAM_COURSE_LINKED_PASS", "K7!k@n3dA$w2"),
+        "user": _ev("SKILLEDGE_RMS_EXAM_COURSE_LINKED_USER"),
+        "pass": _ev("SKILLEDGE_RMS_EXAM_COURSE_LINKED_PASS"),
         "role": "Exam Course Linked API",
         "key":  "215",
     },
     "courseContentUrl": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_CONTENT_URL_USER", "AISHWAR_GetCourseConten"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_CONTENT_URL_PASS", "3!SDHwJvBn2w"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_CONTENT_URL_USER"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_CONTENT_URL_PASS"),
         "role": "Get Course Content URL",
         "key":  "156",
     },
     "courseModule": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_MODULE_USER", "AISHWAR_GetCourseModule"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_MODULE_PASS", "NpT5tqde@TZ2"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_MODULE_USER"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_MODULE_PASS"),
         "role": "Get Course Module",
         "key":  "206",
     },
     "courseDomain": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_DOMAIN_USER", "AISHWAR_GetCourseandDom"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_DOMAIN_PASS", "HcUAr7!5zALS"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_DOMAIN_USER"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_DOMAIN_PASS"),
         "role": "Get Course and Domain",
         "key":  "205",
     },
     "latestCourseVersion": {
-        "user": _ev("SKILLEDGE_RMS_LATEST_COURSE_VERSION_USER", "AISHWAR_GetLatestVersio"),
-        "pass": _ev("SKILLEDGE_RMS_LATEST_COURSE_VERSION_PASS", "M@bXLcQ4h!@$"),
+        "user": _ev("SKILLEDGE_RMS_LATEST_COURSE_VERSION_USER"),
+        "pass": _ev("SKILLEDGE_RMS_LATEST_COURSE_VERSION_PASS"),
         "role": "Get Latest Version Of Courses",
         "key":  "172",
     },
     "uniqueCertsCount": {
-        "user": _ev("SKILLEDGE_RMS_UNIQUE_CERTS_COUNT_USER", "AISHWAR_GetUniqueCertif"),
-        "pass": _ev("SKILLEDGE_RMS_UNIQUE_CERTS_COUNT_PASS", "G8!9P@$m3t25"),
+        "user": _ev("SKILLEDGE_RMS_UNIQUE_CERTS_COUNT_USER"),
+        "pass": _ev("SKILLEDGE_RMS_UNIQUE_CERTS_COUNT_PASS"),
         "role": "Get Unique Certifications Count Value",
         "key":  "72",
     },
@@ -421,19 +432,22 @@ def _validate_credentials():
         return
     names = sorted(_ev_fallbacks)
     msg = (
-        "SECURITY: %d RMS credential env var(s) unset; falling back to "
-        "hardcoded values in _APIS: %s. Set SKILLEDGE_RMS_*_USER / _PASS "
-        "environment variables to remove plaintext credentials from source."
+        "SECURITY: %d RMS credential env var(s) unset; falling back to the "
+        "shared rms_service_credentials map: %s. Set SKILLEDGE_RMS_*_USER / "
+        "_PASS as deployment secrets."
         % (len(names), ", ".join(names))
     )
     import logging
     logging.warning(msg)
+    # Opt-in hard gate: once the secrets are provisioned, set
+    # SKILLEDGE_REQUIRE_SECRET_CREDS=1 so any regression to fallbacks fails fast.
+    if os.getenv("SKILLEDGE_REQUIRE_SECRET_CREDS", "").strip().lower() in ("1", "true", "yes"):
+        raise RuntimeError(msg + " (SKILLEDGE_REQUIRE_SECRET_CREDS is set)")
     if env == "production":
         import sys
         print("=" * 72, file=sys.stderr)
-        print("  [SECURITY WARNING] — hardcoded RMS credentials in use", file=sys.stderr)
-        print("  Set the environment variables below on the host to", file=sys.stderr)
-        print("  remove plaintext credentials from source:", file=sys.stderr)
+        print("  [SECURITY] production running on fallback RMS credentials.", file=sys.stderr)
+        print("  Provision these as secrets, then set SKILLEDGE_REQUIRE_SECRET_CREDS=1:", file=sys.stderr)
         for n in names:
             print("    " + n, file=sys.stderr)
         print("=" * 72, file=sys.stderr)
@@ -2715,8 +2729,20 @@ def _build_trainer(r, today):
     def _batch(a):
         st = _parse_date(a.get("StarDate", a.get("StartDate", "")))
         en = _parse_date(a.get("EndDate", ""))
+        course_name = str(a.get("Course", "") or "").strip()
+        # The assignment APIs do not return a skill level (verified against
+        # their supplied schemas and live responses on 2026-09-04). Auto Tall
+        # shows the assigned trainer's level for that course, which comes from
+        # trainerDetails. Join by the same normalised course identity and omit
+        # the level when RMS has no exact capability match; never guess.
+        course_skill = next(
+            (str(c.get("skill_level", "") or "").strip() for c in caps
+             if _norm_course(c.get("course_name") or c.get("course")) == _norm_course(course_name)
+             and str(c.get("skill_level", "") or "").strip()),
+            "",
+        )
         return {
-            "course_name":   str(a.get("Course", "") or "").strip(),
+            "course_name":   course_name,
             "delivery_mode": str(a.get("Mode", "") or "").strip(),
             "location":      str(a.get("Location", "") or "").strip(),
             "vendor":        str(a.get("Vendor", "") or "").strip(),
@@ -2726,6 +2752,8 @@ def _build_trainer(r, today):
             "end_at":        _iso(en),
             "start_time":    str(a.get("StartTime", "") or ""),
             "end_time":      str(a.get("EndTime", "") or ""),
+            "skill_level":   course_skill,
+            "skill_level_source": "trainer_details" if course_skill else "unavailable",
             "days_left":     (en - today).days if en else None,
             "days_until":    (st - today).days if st else None,
         }
@@ -3038,8 +3066,10 @@ def _delivery_alerts_build(all_batches, demand_df, today):
     Two per-batch probes on the current/upcoming batches (bounded to 10 to keep
     the RMS fan-out sane):
       - recording_gap: an in-flight batch with nothing in recordingDetails yet.
-      - pax_drop:      assignmentPax roster count below the demand's expected
+      - roster_gap:    assignmentPax roster count below the demand's expected
                        NoOfParticipants (carried on the batch row as `participants`).
+                       This is a point-in-time shortfall, not proof that anyone
+                       dropped; RMS supplies no previous roster snapshot here.
     Plus a roster-free scan of open demand for batches that start within 7 days
     and still have no trainer (starts_soon_unstaffed).
     """
@@ -3060,7 +3090,7 @@ def _delivery_alerts_build(all_batches, demand_df, today):
             if rec is not None and not rows:
                 found.append(("recording_gap", "high",
                               "No session recording submitted yet for %s."
-                              % (b.get("course_name") or "this batch")))
+                              % (b.get("course_name") or "this batch"), None, None))
         try:
             expected = int(b.get("participants") or 0)
         except (TypeError, ValueError):
@@ -3068,28 +3098,37 @@ def _delivery_alerts_build(all_batches, demand_df, today):
         if expected > 0:
             pax = _rms("assignmentPax", {"AssignmentId": aid})
             prows = [r for r in (pax or []) if isinstance(r, dict)]
-            if pax is not None and prows:
+            if pax is not None:
                 got = len(prows)
                 if got < expected:
-                    drop = expected - got
-                    sev = "high" if drop * 2 >= expected else "medium"
-                    found.append(("pax_drop", sev,
-                                  "Roster is %d of %d expected participants (%d dropped)."
-                                  % (got, expected, drop)))
-        return [(aid, b, k, s, d) for (k, s, d) in found]
+                    gap = expected - got
+                    sev = "high" if gap * 2 >= expected else "medium"
+                    found.append(("roster_gap", sev,
+                                  "%d of %d expected participants are currently enrolled; "
+                                  "%d place%s remain unfilled."
+                                  % (got, expected, gap, "" if gap == 1 else "s"), got, expected))
+        return [(aid, b, k, s, d, enrolled, expected)
+                for (k, s, d, enrolled, expected) in found]
 
     if active:
         with ThreadPoolExecutor(max_workers=6) as pool:
             for group in pool.map(_probe, active):
-                for aid, b, kind, sev, detail in group:
-                    alerts.append({
+                for aid, b, kind, sev, detail, enrolled, expected in group:
+                    alert = {
                         "assignment_id": aid,
                         "trainer_name":  b.get("trainer_name", ""),
                         "course":        b.get("course_name", ""),
                         "kind":          kind,
                         "detail":        detail,
                         "severity":      sev,
-                    })
+                    }
+                    if kind == "roster_gap":
+                        alert.update({
+                            "enrolled_participants": enrolled,
+                            "expected_participants": expected,
+                            "unfilled_places": expected - enrolled,
+                        })
+                    alerts.append(alert)
 
     for d in (demand_df or []):
         if not isinstance(d, dict):
@@ -3112,6 +3151,7 @@ def _delivery_alerts_build(all_batches, demand_df, today):
     return alerts
 
 
+@app.route('/api/v2/data/unified-manager-intelligence', methods=['GET'])
 @app.route('/api/data/unified-manager-intelligence', methods=['GET'])
 @app.route('/data/unified-manager-intelligence', methods=['GET'])
 def unified_intelligence():
@@ -3267,7 +3307,10 @@ def unified_intelligence():
                     "id": f"notif_{aid}_{int(time.time())}",
                     "severity": "INFO", "category": "ASSIGNMENT",
                     "title": "New Batch Assigned",
-                    "message": f"{trainer_name} was assigned to {course_name} starting {s_date.split('T')[0]}.",
+                    "message": (
+                        f"{trainer_name} was assigned to {course_name} starting {s_date.split('T')[0]}"
+                        f"{' · Trainer skill level: L' + str(b.get('skill_level')) if b.get('skill_level') else ''}."
+                    ),
                     "trainer_email": str(b.get("trainer_email", "")),
                     "read": False,
                 })
@@ -3600,6 +3643,7 @@ def _dashboard_fast_payload_inner(email):
     }
 
 
+@app.route('/api/v2/data/manager-profile', methods=['GET'])
 @app.route('/api/data/manager-profile', methods=['GET'])
 def manager_profile():
     """
@@ -3873,6 +3917,7 @@ def _capability_portfolio(team, courses, taxonomy=None):
     }
 
 
+@app.route('/api/v2/data/team-capability', methods=['GET'])
 @app.route('/api/data/team-capability', methods=['GET'])
 @app.route('/api/v2/capability/portfolio', methods=['GET'])
 def team_capability():
@@ -4020,6 +4065,7 @@ def _capability_fast_payload(email):
     }
 
 
+@app.route('/api/v2/data/trainer-360', methods=['GET'])
 @app.route('/api/data/trainer-360', methods=['GET'])
 def trainer_360():
     """
@@ -4625,6 +4671,7 @@ def _warm_allocation(email, fresh, auth_header):
             _allocation_building.discard(email)
 
 
+@app.route('/api/v2/data/allocation-desk', methods=['GET'])
 @app.route('/api/data/allocation-desk', methods=['GET'])
 def allocation_desk():
     """
@@ -5066,10 +5113,12 @@ def _parse_skill_level(value):
 
 def _free_schedule(course_name):
     """
-    The candidate pool for a course, keyed by lowercase trainer name.
+    The course-specific free-schedule rows, keyed by lowercase trainer name.
 
     Returns ({}, reason) when the pool cannot be established, so callers can
-    distinguish "no trainer is free" from "we could not check".
+    distinguish an empty valid response from "we could not check". This API is
+    not the authoritative skill inventory: zero rows must never be described as
+    proof that no trainer holds the course.
     """
     exact, confidence = _resolve_course_name(course_name)
     if not exact:
@@ -5520,19 +5569,32 @@ def enrich_demand_with_availability(demand):
         country = b.get("country") or b.get("location") or ""
         is_intl = bool(b.get("is_international"))
 
-        # Three outcomes, not two. "Could not check the course" and "checked,
-        # and no trainer holds this skill" are opposite facts for a manager:
-        # the first needs a catalogue fix, the second needs hiring or training.
+        # Key 171 is a course-specific *free schedule*, not the authoritative
+        # skill inventory. An empty response therefore proves neither that the
+        # course has no skilled trainers nor that hiring/training is required.
+        # Candidate matching may still find qualified trainers from key 75.
         if why:
             source = "unresolved"
         elif pool:
             source = "rms_free_schedule"
         else:
-            source = "no_skilled_trainers"
+            source = "availability_unknown"
+
+        matched_candidates = [
+            c for c in (b.get("candidates") or [])
+            if isinstance(c, dict) and (c.get("match") or 0) >= 60
+        ]
+        empty_note = (
+            f"{len(matched_candidates)} course-matched trainer(s) found, but RMS returned no "
+            "course-specific free-schedule rows. Open the batch to verify dates."
+            if matched_candidates else
+            "RMS returned no course-specific free-schedule rows. Skill coverage and date "
+            "availability cannot be concluded from this response."
+        )
 
         b["availability_intelligence"] = {
             "source": source,
-            "note": why or ("no trainer in RMS holds this course" if not pool else ""),
+            "note": why or (empty_note if not pool else ""),
             "pool_size": len(pool),
             "dnc_checked": False,
             "leave_checked": False,
@@ -5545,7 +5607,7 @@ def enrich_demand_with_availability(demand):
             row = pool.get(name)
             if not row:
                 cand["real_availability"] = {"status": "unknown",
-                                             "reason": why or "trainer not in the RMS pool for this course"}
+                                             "reason": why or "course-specific date availability was not returned for this trainer"}
                 continue
             verdict = availability_verdict(row.get("free_dates"), {}, days)
             cand["real_availability"] = verdict
@@ -5782,6 +5844,15 @@ def _evaluate_team_against_batch(manager, course, start, end, country="", custom
     pool, why = _free_schedule(course)
     if why:
         return {"ready": False, "code": "COURSE_UNRESOLVED", "message": why}
+    if not pool:
+        return {
+            "ready": False,
+            "code": "AVAILABILITY_UNAVAILABLE",
+            "message": (
+                "RMS returned no course-specific free-schedule rows. This does not prove "
+                "that the team lacks the skill or that nobody is available."
+            ),
+        }
 
     batch = {
         "start_date": start, "end_date": end,
@@ -6335,7 +6406,7 @@ def v2_allocation_candidates():
         return jsonify({
             "schema_version": "2.0", "ready": False,
             "code": core["code"], "message": core["message"],
-            "candidates": [], "note": "Could not verify availability; this is not an empty pool.",
+            "candidates": [], "note": "Could not verify course-date availability; this is not an empty pool and not proof of an empty skill pool.",
         }), 422
 
     pool = core["pool"]
@@ -6478,6 +6549,7 @@ def batch_eligibility_v2():
     return jsonify(result), 200
 
 
+@app.route('/api/v2/data/trainer-skills', methods=['GET'])
 @app.route('/api/data/trainer-skills', methods=['GET'])
 def trainer_skills():
     """
@@ -6517,6 +6589,7 @@ def trainer_skills():
     }), 200
 
 
+@app.route('/api/v2/action/mark-skill', methods=['POST'])
 @app.route('/api/action/mark-skill', methods=['POST'])
 def mark_skill():
     """
@@ -6993,6 +7066,7 @@ def v2_skill_request_resolve(request_id):
                     "error": payload.get("error", "RMS did not accept the write")}), http_status
 
 
+@app.route('/api/v2/data/trainer-utilization-history', methods=['GET'])
 @app.route('/api/data/trainer-utilization-history', methods=['GET'])
 def get_trainer_utilization_history():
     """
@@ -7132,6 +7206,7 @@ def _course_schedule(course_name):
     }
 
 
+@app.route('/api/v2/data/course-syllabus', methods=['GET'])
 @app.route('/api/data/course-syllabus', methods=['GET'])
 def get_course_syllabus():
     """Syllabus PDF link for one course, matched by name against RMS key 248."""
@@ -7162,6 +7237,7 @@ def get_course_syllabus():
     }), 200
 
 
+@app.route('/api/v2/data/course-search', methods=['GET'])
 @app.route('/api/data/course-search', methods=['GET'])
 def search_courses():
     """Search the full RMS catalogue, including courses no trainer owns."""
@@ -7193,6 +7269,7 @@ def search_courses():
     return jsonify({"query": query, "courses": hits, "count": len(hits), "available": True}), 200
 
 
+@app.route('/api/v2/data/course-intelligence', methods=['GET'])
 @app.route('/api/data/course-intelligence', methods=['GET'])
 def get_course_intelligence():
     """Verified course metadata and future public schedules for manager planning."""
@@ -7220,6 +7297,7 @@ def get_course_intelligence():
     }), 200
 
 
+@app.route('/api/v2/data/alternative-trainers', methods=['GET'])
 @app.route('/api/data/alternative-trainers', methods=['GET'])
 def get_alternative_trainers():
     """
@@ -8186,19 +8264,34 @@ def _copilot_team_answer(intent, question, team, demand):
     if intent == "free_for_course":
         course = _team_extract_course(question) or "that course"
         tgt = _norm_course(course)
-        ready = [t for t in team if _team_covers(t["skills"], tgt)
-                 and (t["util"] is None or t["util"] < 85)]
+        skilled = [t for t in team if _team_covers(t["skills"], tgt)]
+        ready = [t for t in skilled if t["util"] is not None and t["util"] < 85]
+        capacity_unknown = [t for t in skilled if t["util"] is None]
         ready.sort(key=lambda t: (t["util"] is None, t["util"] or 0))
-        data = [{"name": t["name"], "email": t["email"], "note": _util_note(t)} for t in ready]
+        capacity_unknown.sort(key=lambda t: t["name"])
+        data = [{"name": t["name"], "email": t["email"], "note": _util_note(t)}
+                for t in ready + capacity_unknown]
         if data:
-            names = ", ".join(d["name"] for d in data[:5])
-            answer = (f"{len(data)} trainer(s) on your team can teach {course} and are not "
-                      f"overloaded: {names}. Least-loaded first, so start at the top of that "
-                      f"list. Confirm their calendar in RMS before you commit the batch.")
-            conf = "high" if any(t["util"] is not None for t in ready) else "medium"
+            if ready:
+                names = ", ".join(t["name"] for t in ready[:5])
+                answer = (f"{len(ready)} trainer(s) on your team can teach {course} and have "
+                          f"verified utilisation below 85%: {names}. Confirm their calendar "
+                          f"in RMS before you commit the batch.")
+                if capacity_unknown:
+                    answer += f" Capacity is unknown for {len(capacity_unknown)} additional course-matched trainer(s)."
+                conf = "high"
+            else:
+                answer = (f"{len(capacity_unknown)} trainer(s) on your team hold {course}, but "
+                          "their capacity is unknown. Check their calendar before deciding.")
+                conf = "medium"
+        elif skilled:
+            answer = (f"{len(skilled)} trainer(s) on your team hold {course}, but all have "
+                      "utilisation at or above 85%. Consider cross-team cover; upskilling is "
+                      "not the issue shown by this evidence.")
+            conf = "high"
         else:
-            answer = (f"No trainer on your team currently holds {course} with spare capacity. "
-                      f"Either upskill someone or raise a cross-team request for this demand.")
+            answer = (f"No verified course match for {course} was found in the loaded team skill "
+                      "records. Verify the course mapping before choosing upskilling or cross-team cover.")
             conf = "low"
         evidence = base_ev
     elif intent == "coverage_risk":
@@ -11544,7 +11637,6 @@ def accounts_v2():
 _BENCH_UTIL_BASELINE   = 60.0     # documented "bench line" (util >= 60 is on-target)
 _BENCH_UNDERUTIL_LINE  = 40.0     # `_derive_actions`: util < 40 == on the bench
 _BENCH_BENCHRATE_BASE  = 20.0     # planning norm: up to ~1 in 5 between assignments
-_BENCH_RATING_FALLBACK = 4.3      # the "strong" learner-rating constant used elsewhere
 _BENCH_COVERAGE_BASE   = 100.0    # target is to cover every open-demand course
 _BENCH_TOL             = 0.05     # within 5% of baseline == "on_par"
 
@@ -11693,11 +11785,9 @@ def _benchmark_build(manager):
             pass
     team_incident_rate = round(team_incidents / len(team), 2) if team else None
 
+    # Do not manufacture a company baseline when RMS feedback is unavailable.
+    # The verdict helper deliberately returns `unknown` for a missing baseline.
     base_rating, base_incident_rate = _benchmark_company_feedback()
-    if base_rating is None:
-        base_rating = _BENCH_RATING_FALLBACK
-    if base_incident_rate is None:
-        base_incident_rate = 0.0
 
     specs = [
         ("team_utilization", "Team utilisation", team_util,
@@ -13420,7 +13510,7 @@ def _trainer_sentiment_build(trainer_email: str) -> dict:
                 if text and len(text) > 15 and len(growth_quotes) < 5 and text not in growth_quotes:
                     growth_quotes.append({"quote": text, "date": date_str, "theme": label})
 
-    positive_percent = round((positive_count / max(1, total_answers)) * 100, 1) if total_answers > 0 else 94.0
+    positive_percent = round((positive_count / total_answers) * 100, 1) if total_answers > 0 else None
 
     praise_list = [{"keyword": k, "count": v} for k, v in praise_counts.items() if v > 0]
     praise_list.sort(key=lambda x: -x["count"])
@@ -13431,10 +13521,15 @@ def _trainer_sentiment_build(trainer_email: str) -> dict:
     return {
         "trainer_email": t_email,
         "positive_percent": positive_percent,
-        "sentiment_label": "Outstanding" if positive_percent >= 90 else ("Solid" if positive_percent >= 75 else "Coaching Needed"),
+        "sentiment_label": (
+            "Outstanding" if positive_percent is not None and positive_percent >= 90
+            else "Solid" if positive_percent is not None and positive_percent >= 75
+            else "Coaching Needed" if positive_percent is not None
+            else "Not classified"
+        ),
         "total_feedback_count": total_answers,
-        "praise_keywords": praise_list if praise_list else [{"keyword": "deep knowledge", "count": 8}, {"keyword": "hands-on labs", "count": 6}],
-        "growth_keywords": growth_list if growth_list else [{"keyword": "pacing & speed", "count": 1}],
+        "praise_keywords": praise_list,
+        "growth_keywords": growth_list,
         "representative_quotes": {
             "strengths": strengths_quotes,
             "growth": growth_quotes,
