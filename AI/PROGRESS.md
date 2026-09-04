@@ -1,3 +1,17 @@
+## 2026-09-04T19:30:00+05:30 - ReadableColumn on every Main tab (v3.75.1, Build 171)
+
+- **Model**: Claude Sonnet 5 · **Tool**: Claude Code
+- **Files**: `ui/main/MainScreen.kt` (wrap the tab-content `Box(Modifier.weight(1f))` body in
+  `com.example.skillsync.theme.ReadableColumn`), `app/build.gradle.kts`.
+- Today / Demand / People / Work / Search now share the same 760dp centred width cap as
+  Trainer 360 — the app stops stretching cards/rows across a tablet panel, consistently.
+  No-op on phones.
+- **Validation**: Android compile + `testDebugUnitTest` green.
+- **Status**: pushed (supersedes the in-flight Build 170 CI via concurrency; 170's changes are
+  included). CI cutting Build 171.
+- **Still open**: device screenshot to confirm the cap looks right; Calendar week-view;
+  Search→Copilot wiring; Today KPI strip.
+
 ## 2026-09-04T19:10:00+05:30 - Trainer 360 layout: readable-width cap + tighter header (v3.75.0, Build 170)
 
 - **Model**: Claude Sonnet 5 · **Tool**: Claude Code
