@@ -23,7 +23,15 @@
   - Recommended-allocation rows now show "Holds level N · needs M ✓ / below level".
   - `MarkSkillDialog` gained `initialLevel`.
 - **assignment_sl → assignment_level** (from Build 165) feeds all of the above.
-- **Validation**: backend 300 pass; Android compile clean; unit tests running.
+- **Validation**: backend 300 pass; Android compile + unit tests green. **Live-verified**
+  `allocation-desk` warm payload for `aishwar.c@`: `assignment_level` per batch (1/6/6/5),
+  `team_skill` populated with real RMS held levels — AI-103T00 (needs L6): Aishwar L10 ✓,
+  Abhinav L7 ✓, Niharika no-skill; PL-300 (needs L1): all three eligible; Copilot SMCT /
+  SC-300: nobody holds → all "No skill on file". This is the exact batch that used to show
+  "NO TRAINER HOLDS THIS COURSE".
+- **Released**: v3.72.0 / Build 166 — https://github.com/aishsynk/SkillSync/releases/tag/v3.72.0.166
+  (CI green). Backend deployed. HANDOVER: repo clean on `main` after the docs commit; nothing
+  in flight.
 
 ## 2026-09-04T15:05:00+05:30 - Assignment skill level surfaced end-to-end (v3.71.2, Build 165)
 
