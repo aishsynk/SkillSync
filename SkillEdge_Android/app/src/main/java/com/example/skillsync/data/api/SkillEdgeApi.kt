@@ -140,6 +140,16 @@ interface SkillEdgeApi {
         @Query("recipient") recipient: String? = null,
     ): Map<String, Any>
 
+    /** Server-composed "please build this skill" ask for one trainer: { plain, html }. */
+    @GET("api/data/upskill-message")
+    suspend fun getUpskillMessage(
+        @Query("course") course: String,
+        @Query("trainer_name") trainerName: String? = null,
+        @Query("level") level: String? = null,
+        @Query("ready_by") readyBy: String? = null,
+        @Query("batches") batches: String? = null,
+    ): Map<String, Any>
+
     /** Demand-led upskilling opportunities correlated against team competency. */
     @GET("api/v2/upskilling/demand-opportunities")
     suspend fun getDemandUpskillingOpportunities(

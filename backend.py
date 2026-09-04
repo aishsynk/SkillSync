@@ -7405,6 +7405,52 @@ def batch_message():
     }), 200
 
 
+@app.route('/api/v2/data/upskill-message', methods=['GET'])
+@app.route('/api/data/upskill-message', methods=['GET'])
+def upskill_message():
+    """A manager's 'please build this skill' ask for one trainer and one
+    in-demand course. Server-composed so the wording is editable without an
+    app release. Same house style as the allocation broadcast."""
+    session, error = _v2_manager_session()
+    if error:
+        return error
+    course = str(request.args.get("course", "") or "").strip()
+    trainer = str(request.args.get("trainer_name", "") or "Team").strip() or "Team"
+    level = str(request.args.get("level", "") or "").strip()
+    by = str(request.args.get("ready_by", "") or "").strip()
+    batches = str(request.args.get("batches", "") or "").strip()
+    if not course:
+        return error_response("INVALID_INPUT", "course is required", 400)
+
+    first = (trainer.split() or ["Team"])[0]
+    dt = _parse_date(by)
+    by_txt = dt.strftime("%d %b %Y") if dt else by
+    demand_line = (
+        f"There {'is' if batches == '1' else 'are'} {batches} unallocated "
+        f"{'batch' if batches == '1' else 'batches'} for it right now"
+        if batches and batches != "0" else "It is in active demand"
+    )
+    plain = (
+        f"Hi {first},\n\n"
+        f"{course} is a skill I would like you to pick up. {demand_line}, and you are "
+        f"the closest fit on the team. Please prepare the course and "
+        + (f"mark your skill in RMS at level {level} or above" if level
+           else "mark your skill in RMS at the assignment level or above")
+        + (f", with a live date on or before {by_txt}" if by_txt else "")
+        + ".\n\n"
+        "Preference is given to certified trainers where certification exists, and "
+        "otherwise to trainers who have completed a quality mock. Tell me if you need "
+        "lab access, a mock slot, or time blocked to prepare.\n\n"
+        "Regards"
+    )
+    return jsonify({
+        "course": course, "trainer_name": trainer,
+        "plain": plain,
+        "html": plain.replace("\n", "<br>"),
+        "viber": plain,
+    }), 200
+
+
 @app.route('/api/v2/data/course-syllabus', methods=['GET'])
 @app.route('/api/data/course-syllabus', methods=['GET'])
 def get_course_syllabus():

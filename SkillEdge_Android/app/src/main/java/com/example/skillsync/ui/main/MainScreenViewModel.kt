@@ -159,6 +159,27 @@ class MainScreenViewModel(
 
     private fun certIntelCacheKey(email: String) = "certintel_$email"
 
+    // ── Demand-led upskilling ("Grow the team") ──────────────────────────────
+    private val _upskilling = MutableStateFlow<Map<String, Any>?>(null)
+    val upskilling: StateFlow<Map<String, Any>?> = _upskilling
+    private var upskillingFor: String? = null
+
+    fun ensureUpskilling(email: String, context: android.content.Context) {
+        if (upskillingFor == email && _upskilling.value != null) return
+        upskillingFor = email
+        viewModelScope.launch {
+            if (!RetrofitClient.isNetworkAvailable(context)) {
+                if (_upskilling.value == null) _upskilling.value = LocalCache.loadMap("upskilling_$email")
+                return@launch
+            }
+            runCatching { RetrofitClient.instance.getDemandUpskillingOpportunities(email) }
+                .onSuccess { body ->
+                    _upskilling.value = body
+                    LocalCache.saveMap("upskilling_$email", body)
+                }
+        }
+    }
+
     /** Team requires capability and real action counts immediately on entry. */
     fun ensureTeamIntelligence(email: String, context: android.content.Context) {
         if (_capabilityLoading.value) return

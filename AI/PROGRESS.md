@@ -1,3 +1,24 @@
+## 2026-09-04T18:00:00+05:30 - "Grow the team" — demand-led upskilling card + Ask action (v3.74.0, Build 168)
+
+- **Model**: Claude Sonnet 5 · **Tool**: Claude Code
+- **Files**: `backend.py` (`/api/(v2/)data/upskill-message`),
+  `SkillEdgeApi.kt`, `MainScreenViewModel.kt` (`ensureUpskilling`), `MainScreen.kt`,
+  `AllocationDeskScreen.kt` (`upskilling` param + `GrowTeamCard` item),
+  `ui/batch/GrowTeamCard.kt` (new), `app/build.gradle.kts`.
+- **What**: the Demand (Plan) tab now carries a **Grow the team** card under Capacity
+  Planning: for each in-demand course the team can't cover, the reportee closest to being
+  able to — adjacent skill + held level, readiness score, **ready in ~N days**, and whether
+  that beats the batch's start. One tap **Ask** composes a server-side "please build this
+  skill" message (course, target level, your deadline, offer of lab/mock/prep time) addressed
+  to that trainer → Send / Copy.
+- **Backend**: `_compose_batch_message` date/plural polish + `upskill-message` endpoint.
+  `demand-opportunities` already carries `prep_days` / `ready_by` /
+  `ready_before_earliest_batch` (from Build 167 follow-up).
+- **Validation**: backend 300 pass; Android compile clean; unit tests running; upskilling
+  endpoint live-verified (AI-901T00-A → Niharika via DP-900T00-A L8, ready in 16d, in time).
+- **Next roadmap builds**: Today dashboard (top performers + KPI strip) → Trainer 360 layout
+  → Calendar week/month → Search-as-Copilot.
+
 ## 2026-09-04T17:15:00+05:30 - Build 167 shipped; backend polish; upskilling days-to-ready
 
 - **Model**: Claude Sonnet 5 · **Tool**: Claude Code

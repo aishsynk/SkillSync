@@ -88,6 +88,7 @@ internal fun AllocationDeskContent(
     onBatchClick: (Map<*, *>) -> Unit,
     capacityPlan: com.example.skillsync.data.api.CapacityPlanResponse? = null,
     capacityPlanLoading: Boolean = false,
+    upskilling: Map<String, Any>? = null,
 ) {
     val sk = MaterialTheme.skill
     val batches = data.rows("batches")
@@ -217,6 +218,7 @@ internal fun AllocationDeskContent(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item { CapacityPlanningCard(capacityPlan, capacityPlanLoading) }
+        item { GrowTeamCard(upskilling) }
 
         item {
             Column {
