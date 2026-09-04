@@ -9,8 +9,35 @@
 - **Validation**: Android compile + `testDebugUnitTest` green.
 - **Status**: pushed (supersedes the in-flight Build 170 CI via concurrency; 170's changes are
   included). CI cutting Build 171.
-- **Still open**: device screenshot to confirm the cap looks right; Calendar week-view;
-  Search→Copilot wiring; Today KPI strip.
+- **Still open**: device screenshot to confirm the cap looks right; Search→Copilot wiring;
+  Today KPI strip.
+
+### HANDOVER 2026-09-04T19:35 (Claude Sonnet 5)
+
+Session continued from Build 168. Shipped this session: **169** (wider-network related-course
+expansion, backend live-verified), **170** (Trainer 360 tablet-width cap + header tightening),
+**171** (`ReadableColumn` on every Main tab). Builds 170+171: Android compile + unit tests
+green; CI cutting 171 (170 superseded via concurrency, its changes are in 171).
+
+Repo clean on `main`. Backend unchanged since Build 169's `alternative-trainers` rewrite.
+
+**Findings for the next model:**
+- **Calendar already has Month / Week / Day / Timeline views** (`TeamCalendarScreen.kt`:
+  `SpanningMonthCalendarGrid`, `WeekScheduleView`, `DayScheduleView`, `TimelineQueueView`;
+  segmented toggle @ ~line 377). The user's "add week + month" ask is likely an old-build
+  artefact — do NOT rebuild; at most enlarge the toggle (currently 11sp) and confirm on device.
+- **Copilot already exists** as its own screen (`ui/ai/CopilotScreen.kt`, reachable from the
+  dashboard) but is local-recommender-based. Search tab (`UniversalCommandSearch` @
+  `Version2Workspaces.kt:85`) is a local entity filter. To satisfy "Search must answer
+  questions for me / my team / any trainer": wire a question box in the Search tab to
+  `POST /api/agent/ask` (`agentAsk`, one trainer) and `POST /api/v2/copilot/team`
+  (`askCopilotTeam`, team) — both backends are live and tested.
+- **Today**: `TopPerformers` @ `MainScreen.kt:1262` already exists. Add a team-KPI strip
+  (live batches / open demand / avg util / at-risk — all in `unified-manager-intelligence`
+  `manager_kpis` + `trainer_operations_df`) and mirror the Grow-the-team card.
+- **Trainer 360**: structural width cause is fixed (`ReadableColumn`). If the user's
+  screenshot still shows gaps, look at `IdentityCard` bottom `Figure` row (weight 1f : 1.4f)
+  and `ProfileOverview` `OverviewMetric` `SpaceBetween` row — both still spread at 760dp.
 
 ## 2026-09-04T19:10:00+05:30 - Trainer 360 layout: readable-width cap + tighter header (v3.75.0, Build 170)
 
