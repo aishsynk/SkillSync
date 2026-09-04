@@ -1,3 +1,25 @@
+## 2026-09-04T14:35:00+05:30 - Calendar: remove the synthetic sample schedule (v3.71.1, Build 164)
+
+- **Model Used**: Claude Sonnet 5
+- **Tool/Agent Used**: Claude Code
+- **Files Modified**: `SkillEdge_Android/.../ui/main/TeamCalendarScreen.kt`,
+  `SkillEdge_Android/app/build.gradle.kts`, `AI/*`.
+- **Symptom**: the Calendar / Delivery Operations page showed invented events
+  (`sample_delivery_1`, `sample_mock_1`, `sample_webinar_1`, `sample_leave_1` "Neha Sharma",
+  `sample_upskill_1`, all with fabricated trainers / customers / dates).
+- **Cause**: `TeamCalendarScreen` injected ~100 lines of "curated sample operational
+  schedule" whenever the real event list came back empty.
+- **Fix**: deleted that fallback entirely. An empty calendar now just renders empty; the
+  day panel already says "No team deliveries, mocks, webinars or leaves on this day."
+- **Real sources confirmed against the live host**: `/api/v2/team/readiness` returns real
+  `next_leave` dates per trainer (e.g. Niharika 2026-09-12/13, 10-10); the calendar ingests
+  those plus `batch_engagement_df` from `unified-manager-intelligence` (real RMS assignments,
+  categorised MOCK / WEBINAR / LEAVE / UPSKILLING / DELIVERY from course name + remarks +
+  mode). Empty for `aishwar.c@` today because the two reportees have no current/upcoming
+  batches — that is real, not a bug.
+- **Validation**: `compileDebugKotlin` clean; `testDebugUnitTest` running at write time.
+- **Status**: staged for v3.71.1 / Build 164.
+
 ## 2026-09-04T14:11:39+05:30 - Withdraw the reportee tier; fail-open to the manager app (v3.71.0, Build 163)
 
 - **Model Used**: Claude Sonnet 5
