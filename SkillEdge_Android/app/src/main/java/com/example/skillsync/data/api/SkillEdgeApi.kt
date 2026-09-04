@@ -132,6 +132,14 @@ interface SkillEdgeApi {
         @Query("refresh") refresh: Int? = null,
     ): Map<String, Any>
 
+    /** Server-composed allocation broadcast for one batch: { plain, html, viber }.
+     *  Kept server-side so the wording can change without an app release. */
+    @GET("api/data/batch-message")
+    suspend fun getBatchMessage(
+        @Query("demand_id") demandId: String,
+        @Query("recipient") recipient: String? = null,
+    ): Map<String, Any>
+
     /** Demand-led upskilling opportunities correlated against team competency. */
     @GET("api/v2/upskilling/demand-opportunities")
     suspend fun getDemandUpskillingOpportunities(

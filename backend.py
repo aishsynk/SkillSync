@@ -7311,6 +7311,96 @@ def _course_schedule(course_name):
     }
 
 
+def _compose_batch_message(batch, recipient="Team", emph="plain"):
+    """The trainer-facing allocation broadcast for one unallocated batch.
+
+    House style (MS Teams / Viber): greeting line, one prose body paragraph of
+    facts, one bold action sentence, one italic preference note, closing line.
+    No labelled lists, no bullets, no emojis. Dates carry bold+underline.
+    Edited server-side so the wording can change without an app release.
+    """
+    def b(s):
+        return {"plain": s, "html": f"<b>{s}</b>", "viber": f"*{s}*"}[emph]
+    def i(s):
+        return {"plain": s, "html": f"<i>{s}</i>", "viber": f"_{s}_"}[emph]
+    def u(s):  # dates: bold + underline together
+        return {"plain": s, "html": f"<u><b>{s}</b></u>", "viber": f"*{s}*"}[emph]
+
+    name = (str(recipient or "Team").split() or ["Team"])[0]
+    course = str(batch.get("course_name") or "the course").strip()
+    aid = str(batch.get("demand_id") or "").strip()
+    sd = str(batch.get("start_date") or "").strip()
+    ed = str(batch.get("end_date") or "").strip()
+    when = (f"{sd} to {ed}" if sd and ed and ed != sd else sd or "dates to be confirmed")
+    time = str(batch.get("session_time") or "").strip()
+    mode = str(batch.get("delivery_mode") or "").strip()
+    loc = str(batch.get("location") or "").strip()
+    cust = str(batch.get("customer") or "").strip()
+    lang = str(batch.get("language") or "").strip()
+    pax = str(batch.get("participants") or "").strip()
+    lvl = str(batch.get("assignment_level") or "").strip()
+    toc = str(batch.get("toc_url") or batch.get("course_url") or "").strip()
+
+    facts = [f"{course}" + (f" (Assignment {aid})" if aid else "")]
+    tail = [f"runs {u(when)}"]
+    if time:
+        tail.append(f"{u(time)}")
+    if mode:
+        seg = f"delivered {mode}"
+        if loc:
+            seg += f" in {loc}"
+        tail.append(seg)
+    if cust:
+        tail.append(f"for {cust}")
+    if lang:
+        tail.append(f"in {lang}")
+    if pax and pax not in ("0", ""):
+        tail.append(f"for {pax} participants")
+    if lvl:
+        tail.append(f"at assignment level {lvl}")
+    body = f"A new assignment is open for allocation: {facts[0]}. It " + ", ".join(tail) + "."
+    if toc:
+        body += f" Syllabus: {toc}"
+
+    level_phrase = (f"at level {lvl} or above" if lvl else "at the assignment level or above")
+    action = (
+        "If you do not hold this skill but can prepare and deliver it with quality, "
+        + b(f"mark your skill in RMS {level_phrase}, with a live date before the start date")
+        + "."
+    )
+    pref = i(
+        "Preference is given to certified trainers where certification exists, "
+        "and otherwise to trainers who have completed a quality mock."
+    )
+    close = i("Regards")
+    return f"Hi {name},\n\n{body}\n\n{action}\n\n{pref}\n\n{close}"[:1200]
+
+
+@app.route('/api/v2/data/batch-message', methods=['GET'])
+@app.route('/api/data/batch-message', methods=['GET'])
+def batch_message():
+    """Server-composed allocation broadcast for one batch. The app renders this
+    verbatim, so the wording is editable without shipping a new APK."""
+    session, error = _v2_manager_session()
+    if error:
+        return error
+    demand_id = str(request.args.get("demand_id", "") or "").strip()
+    recipient = str(request.args.get("recipient", "") or "Team").strip() or "Team"
+    if not demand_id:
+        return error_response("INVALID_INPUT", "demand_id is required", 400)
+    rows = _demand_rows() or []
+    batch = next((b for b in rows if str(b.get("demand_id", "")) == demand_id), None)
+    if batch is None:
+        return error_response("NOT_FOUND", "No unallocated batch with that id", 404)
+    return jsonify({
+        "demand_id": demand_id,
+        "recipient": recipient,
+        "plain": _compose_batch_message(batch, recipient, "plain"),
+        "html":  _compose_batch_message(batch, recipient, "html").replace("\n", "<br>"),
+        "viber": _compose_batch_message(batch, recipient, "viber"),
+    }), 200
+
+
 @app.route('/api/v2/data/course-syllabus', methods=['GET'])
 @app.route('/api/data/course-syllabus', methods=['GET'])
 def get_course_syllabus():
@@ -7406,18 +7496,12 @@ def get_course_intelligence():
 @app.route('/api/data/alternative-trainers', methods=['GET'])
 def get_alternative_trainers():
     """
-    Trainers outside the manager's own team who can deliver a course (key 157).
+    Every trainer in the organisation who holds this course — in-house and
+    freelance — outside the manager's own team (key 157, "Get Inhouse and FL
+    Trainers Of Courses").
 
-    UNAVAILABLE. RMS rejects every `TrainerType` value tried — "Internal",
-    "Inhouse", "In-house", "FL", "Freelancer", "Freelance" and "All" all
-    return an empty list, and an empty string returns the guidance row
-    "Please enter Trainer Type.". The accepted enum is not documented in
-    trainer_portal_api_details and cannot be guessed.
-
-    This returns `available: false` rather than an empty trainer list on
-    purpose: "we cannot ask the question" and "nobody can teach this course"
-    are different answers, and rendering the second when the first is true
-    would be a wrong claim about the company's bench.
+    RMS accepts TrainerType "Inhouse" and "FL" (verified live 2026-09-04; the
+    earlier "no accepted value" note was wrong). Both are queried and merged.
     """
     course = str(request.args.get("course", "")).strip()
     _, error = _v2_manager_session("")
@@ -7426,20 +7510,46 @@ def get_alternative_trainers():
     if not course:
         return error_response("INVALID_COURSE_NAME", "course query param required", 400)
 
-    trainer_type = str(request.args.get("trainerType", "")).strip()
-    rows = _rms("globalTrainers", {"Course": course, "TrainerType": trainer_type}) if trainer_type else None
-    usable = [r for r in (rows or []) if isinstance(r, dict) and "Column1" not in r]
+    override = str(request.args.get("trainerType", "")).strip()
+    types = [override] if override else ["Inhouse", "FL"]
 
-    if not usable:
+    seen, trainers = set(), []
+    for tt in types:
+        rows = _rms("globalTrainers", {"Course": course, "TrainerType": tt}) or []
+        for r in rows:
+            if not isinstance(r, dict) or "Column1" in r:
+                continue
+            name = str(r.get("InhouseTrainer") or r.get("FL") or r.get("TrainerName") or "").strip()
+            tid = str(r.get("TrainerId") or r.get("TrainerID") or "").strip()
+            key = (name.lower(), tid)
+            if not name or key in seen:
+                continue
+            seen.add(key)
+            trainers.append({
+                "name": name,
+                "trainer_id": tid,
+                "source": "in-house" if tt.lower().startswith("inhouse") else "freelance",
+                "course": str(r.get("Course") or course).strip(),
+            })
+
+    if not trainers:
         return jsonify({
             "course": course, "trainers": [], "available": False,
-            "note": "RMS has not accepted any TrainerType value for this "
-                    "endpoint, so the wider trainer network cannot be "
-                    "searched yet. This is a missing API parameter, not an "
-                    "empty result.",
+            "counts": {"in_house": 0, "freelance": 0, "total": 0},
+            "note": "RMS returned no in-house or freelance trainers for this "
+                    "exact course name. Try a shorter course title.",
         }), 200
 
-    return jsonify({"course": course, "trainers": usable, "available": True}), 200
+    in_house = sum(1 for t in trainers if t["source"] == "in-house")
+    freelance = len(trainers) - in_house
+    trainers.sort(key=lambda t: (t["source"] != "in-house", t["name"].lower()))
+    return jsonify({
+        "course": course,
+        "available": True,
+        "counts": {"in_house": in_house, "freelance": freelance, "total": len(trainers)},
+        "trainers": trainers,
+        "note": f"{in_house} in-house and {freelance} freelance trainer(s) hold this course in RMS.",
+    }), 200
 
 
 # ─── Manager action lifecycle ─────────────────────────────────────────────────

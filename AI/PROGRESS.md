@@ -1,3 +1,34 @@
+## 2026-09-04T16:30:00+05:30 - Theme reverted to clean blue; server-side message; wider network is real (v3.73.0, Build 167)
+
+- **Model**: Claude Sonnet 5 · **Tool**: Claude Code
+- **Files**: `theme/Color.kt`, `theme/Type.kt`, `backend.py` (`_compose_batch_message` +
+  `/api/(v2/)data/batch-message`, rewrote `get_alternative_trainers`),
+  `SkillEdgeApi.kt`, `BatchDetailScreen.kt`, `NetworkStaffingSheet.kt`, `app/build.gradle.kts`.
+- **Theme**: the V3/V4 "warm graphite + brass + Fraunces serif" scheme is **retired**. Token
+  *values* in `Color.kt` / `Type.kt` reverted to the pre-V3 clean blue console
+  (Tailwind blue ramp, web-standard status hues: info-blue / success-green / warning-amber /
+  danger-rose; system sans, whole-sp scale). Token *names* (`skill.brand`, `skill.good`,
+  `Display`, `NumericInline`, `brass`, `plum`, …) all kept, so none of the 51 consumer files
+  changed. `brass`/`plum` now resolve to blues.
+- **Allocation broadcast is server-composed**: `_compose_batch_message()` builds the
+  MS-Teams/Viber prose message (greeting, one fact paragraph, bold action, italic preference
+  note, "Regards"; dates bold+underline; no lists/emojis; ≤1200 chars) per the operator's
+  rewrite prompt. `GET /api/(v2/)data/batch-message?demand_id=&recipient=` → `{plain, html,
+  viber}`. `BatchDetailScreen` fetches this when the preview opens (per recipient, cached),
+  `BatchShare` is the offline fallback only. **After Build 167 the wording changes
+  server-side with no APK.**
+- **Wider Trainer Network is REAL now**: RMS `globalTrainers` (key 157) DOES work —
+  `TrainerType` "Inhouse" and "FL" both return data (the old "no accepted value" note was
+  wrong). `get_alternative_trainers` queries both and merges: e.g. AI-103T00 → 57 in-house +
+  10 freelance = 67; PL-300T00 → 67 + 102 = 169. Returns `{available, counts:{in_house,
+  freelance,total}, trainers:[{name, trainer_id, source, course}]}`. `NetworkStaffingSheet`
+  updated to the new shape.
+- **Validation**: backend 300 pass; Android compile clean; unit tests running; wider-network
+  live-verified from a dev machine.
+- **Deferred (user asked mid-turn, not in this build)**: Calendar week+month views; Search
+  page purpose/scope (answer questions for me / my team / any trainer); wider-network fuzzy
+  (≥70%) course expansion beyond the exact course name.
+
 ## 2026-09-04T15:45:00+05:30 - Demand detail: team-skill panel + skill-vs-assignment-level (v3.72.0, Build 166)
 
 - **Model**: Claude Sonnet 5 · **Tool**: Claude Code

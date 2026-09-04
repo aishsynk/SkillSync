@@ -12,44 +12,47 @@ import androidx.compose.ui.graphics.Color
  * strategy: if a screen reads mostly blue, the delivery org is healthy, so
  * colour itself is the top-level status signal before any number is read.
  *
- * Status hues are deliberately held apart from the blue ramp — a status colour
- * that doubles as branding stops meaning anything.
+ * Status hues follow the familiar web convention (info blue, success green,
+ * warning amber, danger rose) so a colour reads the same here as it does in a
+ * Bootstrap alert. Status hues are held apart from the blue ramp — a status
+ * colour that doubles as branding stops meaning anything.
+ *
+ * The warm-graphite / brass "editorial" experiment (V3–V3.72) is retired: it
+ * washed the blue out and muddied every status colour. This is the clean blue
+ * console scheme restored, with the token names kept intact.
  */
 
-// ── Primary ramp ─────────────────────────────────────────────────────────────
-// Blue still carries structure and "healthy". It reads louder now because the
-// ground beneath it went warm graphite instead of blue-black.
-val DeepNavy   = Color(0xFF16131C)
-val RoyalBlue  = Color(0xFF2B4CC8)
-val AzureBlue  = Color(0xFF3661E4)
-val BrandBlue  = Color(0xFF5B8DEF)
-val SkyBlue    = Color(0xFF8FB4F6)
-val Cyan       = Color(0xFF4CD6D0)
-val Aqua       = Color(0xFF56D6A0)
-val LightAzure = Color(0xFFB7CBF3)
-val IceBlue    = Color(0xFFDCE6FA)
-val SoftBlue   = Color(0xFFE7EDFB)
-val FrostWhite = Color(0xFFF7F5F1)   // warm paper white
+// ── Primary ramp (Tailwind blue) ─────────────────────────────────────────────
+val DeepNavy   = Color(0xFF111827)
+val RoyalBlue  = Color(0xFF1D4ED8)
+val AzureBlue  = Color(0xFF2563EB)
+val BrandBlue  = Color(0xFF3B82F6)
+val SkyBlue    = Color(0xFF60A5FA)
+val Cyan       = Color(0xFF22D3EE)
+val Aqua       = Color(0xFF34D399)
+val LightAzure = Color(0xFF93C5FD)
+val IceBlue    = Color(0xFFBFDBFE)
+val SoftBlue   = Color(0xFFDBEAFE)
+val FrostWhite = Color(0xFFF8FAFC)
 
-// ── The V3 signature accent — champagne brass. Premium moments only:
-//    hero figure underline, international demand, the login lockup. ───────────
-val Brass      = Color(0xFFD8B26A)
-val BrassDeep  = Color(0xFF9A7B3E)
-val Plum       = Color(0xFF8A73C4)
+// Retired accents — kept as names only so call sites compile. They resolve
+// into the blue ramp now; nothing renders "brass" or "plum" any more.
+val Brass      = SkyBlue
+val BrassDeep  = AzureBlue
+val Plum       = LightAzure
 
-// ── Dark surfaces — warm violet-graphite, not blue-black. OLED-safe. ─────────
-val Surface0 = Color(0xFF0C0A11)
-val Surface1 = Color(0xFF141119)
-val Surface2 = Color(0xFF1B1722)
-val Surface3 = Color(0xFF261F30)
+// ── Dark surfaces (elevation steps, not drop shadows) ────────────────────────
+val Surface0 = Color(0xFF0B0F17)
+val Surface1 = Color(0xFF101722)
+val Surface2 = Color(0xFF151E2B)
+val Surface3 = Color(0xFF1C2736)
 
-// ── Semantic status ──────────────────────────────────────────────────────────
+// ── Semantic status (web-standard hues) ──────────────────────────────────────
 val StatusGood = Aqua
-val StatusWarn = Color(0xFFE6B450)
-val StatusCrit = Color(0xFFEF6F7B)
+val StatusWarn = Color(0xFFFBBF24)
+val StatusCrit = Color(0xFFFB7185)
 
-// Names kept from the previous palette so existing call sites keep compiling;
-// the values now resolve into the command-centre ramp.
+// Names kept from the previous palette so existing call sites keep compiling.
 val BrandCyan = Cyan
 val BrandDeep = DeepNavy
 val BrandNavy = DeepNavy
@@ -61,10 +64,10 @@ val Red    = StatusCrit
 val Indigo = LightAzure
 
 // ── Gradients ────────────────────────────────────────────────────────────────
-val GradientHero     = listOf(DeepNavy, BrandBlue)              // Deep Navy → Brand Blue
-val GradientRoyalSky = listOf(RoyalBlue, SkyBlue)               // Royal Blue → Sky Blue
-val GradientAzureCyan = listOf(AzureBlue, Cyan)                 // Azure Blue → Cyan
-val GradientBrandIce = listOf(BrandBlue, IceBlue)               // Brand Blue → Ice Blue
+val GradientHero     = listOf(DeepNavy, BrandBlue)
+val GradientRoyalSky = listOf(RoyalBlue, SkyBlue)
+val GradientAzureCyan = listOf(AzureBlue, Cyan)
+val GradientBrandIce = listOf(BrandBlue, IceBlue)
 val GradientAurora   = listOf(Surface0, Surface0, Surface1)
 
 /** Blue ramp used for chart series; index 0 is the oldest period. */
@@ -123,18 +126,13 @@ data class SkillColors(
     val warn: Color,
     val crit: Color,
     val labelText: Color,
-    /** V3 signature accent — champagne brass, premium moments only. */
+    /** Retired brass/plum accents — resolve to the blue ramp. */
     val brass: Color,
     val plum: Color,
 )
 
 /**
- * The single command-centre scheme.
- *
- * The app deliberately commits to one dark identity rather than shipping a light
- * variant: on the aurora mesh ground a light theme halves the contrast of every
- * status colour, and an operations console that reads like a spreadsheet loses
- * the at-a-glance triage the whole layout is built around.
+ * The single command-centre scheme — one dark blue identity in both system modes.
  */
 val CommandSkillColors = SkillColors(
     teal        = Cyan,
@@ -146,15 +144,15 @@ val CommandSkillColors = SkillColors(
 
     pageBg      = Surface0,
     cardBg      = Surface2,
-    cardBorder  = Color(0xFF2E2838),
+    cardBorder  = Color(0xFF263345),
     heroBg      = DeepNavy,
     heroBgAlt   = BrandBlue,
     heroText    = FrostWhite,
-    heroMuted   = Color(0xFFB6ADBE),
+    heroMuted   = Color(0xFFA8B3C5),
     bodyText    = FrostWhite,
-    subText     = Color(0xFFB0A7BA),
-    track       = Color(0xFF2E2838),
-    shimmer     = Color(0xFF272130),
+    subText     = Color(0xFFA8B3C5),
+    track       = Color(0xFF263345),
+    shimmer     = Color(0xFF202C3C),
 
     navy        = DeepNavy,
     royal       = RoyalBlue,
@@ -169,14 +167,14 @@ val CommandSkillColors = SkillColors(
     surface2    = Surface2,
     surface3    = Surface3,
     glass       = Surface2,
-    glassBorder = Color(0x33C9B79A),
-    glow        = Color(0x33D8B26A),
+    glassBorder = Color(0xFF263345),
+    glow        = Color(0x333B82F6),
     good        = StatusGood,
     warn        = StatusWarn,
     crit        = StatusCrit,
-    labelText   = Color(0xFF9E93AC),
-    brass       = Brass,
-    plum        = Plum,
+    labelText   = Color(0xFF9AA8BF),
+    brass       = SkyBlue,
+    plum        = LightAzure,
 )
 
 // Both entry points resolve to the command scheme; the app has one identity.

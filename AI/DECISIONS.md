@@ -19,6 +19,21 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-09-04 - Retire the V3/V4 editorial theme; compose the allocation message server-side
+
+- **Decision:** The warm-graphite + brass + Fraunces-serif design (V3.60–V3.72) is reverted to
+  the pre-V3 clean blue console. Only token *values* in `Color.kt`/`Type.kt` change; every
+  token name is kept so no screen file is touched. Status hues follow the web convention
+  (info-blue / success-green / warning-amber / danger-rose). Operator instruction 2026-09-04.
+- **Decision:** The unallocated-batch broadcast is composed by the backend
+  (`_compose_batch_message` / `GET /api/data/batch-message`), not the Android `BatchShare`
+  class. The app renders it verbatim with `BatchShare` as offline fallback. Rationale: the
+  wording has changed repeatedly and each change needed a full APK release; server-side ends
+  that loop.
+- **Correction:** RMS `globalTrainers` (key 157, "Get Inhouse and FL Trainers Of Courses")
+  **works** with `TrainerType` = "Inhouse" or "FL". The prior CONTEXT/audit note that no value
+  was accepted was wrong. The Wider Trainer Network feature is now real.
+
 ## 2026-09-04 - Reportee self-service tier withdrawn; login fails open to the manager app
 
 - **Decision:** No account is classified `reportee` any more. A recognised

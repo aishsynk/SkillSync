@@ -117,7 +117,7 @@ fun NetworkStaffingSheet(
                 val rawTrainers = networkData?.list("trainers") ?: emptyList()
                 val trainers = rawTrainers.filter { t ->
                     if (selectedType == "All") true
-                    else t.str("trainer_type").contains(selectedType, ignoreCase = true)
+                    else t.str("source").contains(if (selectedType == "In-House") "in-house" else "freelance", ignoreCase = true)
                 }
 
                 if (!lookupAvailable) {
@@ -150,7 +150,7 @@ fun NetworkStaffingSheet(
                     }
                 } else {
                     Text(
-                        "${trainers.size} trainer${if (trainers.size == 1) "" else "s"} matched across the Koenig network; verify dates before allocation.",
+                        networkData?.str("note").orEmpty().ifBlank { "${trainers.size} trainers hold this course across the Koenig network; verify dates before allocation." },
                         style = MaterialTheme.typography.labelSmall,
                         color = sk.subText,
                     )
@@ -164,7 +164,7 @@ fun NetworkStaffingSheet(
                         items(trainers) { trainer ->
                             val name = trainer.str("name").ifBlank { "Trainer" }
                             val email = trainer.str("email")
-                            val type = trainer.str("trainer_type").ifBlank { "In-House" }
+                            val type = if (trainer.str("source").startsWith("in", ignoreCase = true)) "In-House" else "Freelance"
                             val location = trainer.str("location")
                             val phone = trainer.str("phone")
 

@@ -32,6 +32,7 @@ import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.ui.components.*
 import com.example.skillsync.ui.main.CourseCurriculumSheet
+import kotlinx.coroutines.launch
 
 /**
  * Everything known about one unallocated batch, plus the four actions a manager
@@ -100,11 +101,34 @@ fun BatchDetailScreen(
         )
     }
 
+    // The broadcast wording is composed server-side (api/data/batch-message) so
+    // it can change without an app release. Fetched lazily per recipient; the
+    // local BatchShare builder is the offline fallback only.
+    val scope = rememberCoroutineScope()
+    val serverMsg = remember { mutableStateMapOf<String, Pair<String, String>>() }
+    fun recipientKey(target: Pair<String, String>?) = target?.first ?: "Team"
+    fun ensureServerMessage(target: Pair<String, String>?) {
+        val key = recipientKey(target)
+        val demandId = batch.str("demand_id")
+        if (demandId.isBlank() || serverMsg.containsKey(key)) return
+        scope.launch {
+            try {
+                val r = com.example.skillsync.data.api.RetrofitClient.instance
+                    .getBatchMessage(demandId, if (key == "Team") null else key)
+                val plain = (r["plain"] as? String).orEmpty()
+                val html = (r["html"] as? String).orEmpty()
+                if (plain.isNotBlank()) serverMsg[key] = plain to html
+            } catch (_: Exception) { /* fall back to local */ }
+        }
+    }
+
     fun messageFor(target: Pair<String, String>?): String =
-        BatchShare.composeMessage(shareBatch, recipient = target?.first ?: "Team")
+        serverMsg[recipientKey(target)]?.first
+            ?: BatchShare.composeMessage(shareBatch, recipient = recipientKey(target))
 
     fun htmlFor(target: Pair<String, String>?): String =
-        BatchShare.htmlMessage(shareBatch, recipient = target?.first ?: "Team")
+        serverMsg[recipientKey(target)]?.second
+            ?: BatchShare.htmlMessage(shareBatch, recipient = recipientKey(target))
 
     // Confirm or explain the RMS write, then reset so the dialog can reopen.
     // Material's default snackbar was the only surface in the app that did not
@@ -668,6 +692,10 @@ fun BatchDetailScreen(
             onMarkSkill = onMarkSkill,
             onDismiss = { showEligibilitySheet = false },
         )
+    }
+
+    LaunchedEffect(showMessagePreview, shareTarget) {
+        if (showMessagePreview) ensureServerMessage(shareTarget)
     }
 
     if (showMessagePreview) {
