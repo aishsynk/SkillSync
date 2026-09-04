@@ -7326,11 +7326,15 @@ def _compose_batch_message(batch, recipient="Team", emph="plain"):
     def u(s):  # dates: bold + underline together
         return {"plain": s, "html": f"<u><b>{s}</b></u>", "viber": f"*{s}*"}[emph]
 
+    def _d(s):  # "2026-10-01" -> "01 Oct 2026"; pass anything else through
+        dt = _parse_date(s)
+        return dt.strftime("%d %b %Y") if dt else str(s or "").strip()
+
     name = (str(recipient or "Team").split() or ["Team"])[0]
     course = str(batch.get("course_name") or "the course").strip()
     aid = str(batch.get("demand_id") or "").strip()
-    sd = str(batch.get("start_date") or "").strip()
-    ed = str(batch.get("end_date") or "").strip()
+    sd = _d(batch.get("start_date"))
+    ed = _d(batch.get("end_date"))
     when = (f"{sd} to {ed}" if sd and ed and ed != sd else sd or "dates to be confirmed")
     time = str(batch.get("session_time") or "").strip()
     mode = str(batch.get("delivery_mode") or "").strip()
@@ -7355,7 +7359,7 @@ def _compose_batch_message(batch, recipient="Team", emph="plain"):
     if lang:
         tail.append(f"in {lang}")
     if pax and pax not in ("0", ""):
-        tail.append(f"for {pax} participants")
+        tail.append(f"for {pax} participant" + ("" if pax == "1" else "s"))
     if lvl:
         tail.append(f"at assignment level {lvl}")
     body = f"A new assignment is open for allocation: {facts[0]}. It " + ", ".join(tail) + "."
