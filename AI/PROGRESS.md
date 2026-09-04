@@ -15,10 +15,13 @@
     (`skillsync-release.jks` via secrets, update-in-place) and cuts GitHub Release
     `v3.70.0.162` on push. Backend auto-deploys to Render from `main`.
 - **Validation**: backend `pytest tests/ -q` **300 passed**; Android `compileDebugKotlin` clean;
-  Android `testDebugUnitTest` **exit 0** (full suite). Post-push: confirm the Actions run is
-  green and the Release + APK asset published.
+  Android `testDebugUnitTest` **exit 0** (full suite). CI run `33851297792` **green**; GitHub
+  Release `v3.70.0.162` published with `SkillEdge-v3.70.0.162.apk`
+  (https://github.com/aishsynk/SkillSync/releases/tag/v3.70.0.162). Backend auto-deploys to
+  Render from the same push.
 - **Current Status**: v3.70.0 / Build 162 released. Publication block lifted by operator for this
-  cut.
+  cut. HANDOVER: repo is clean on `main` at `39e059b`; nothing in flight. Next model can start a
+  fresh task from the "Next Recommended Actions" below.
 - **Known Issues / Blockers**: RMS password rotation + Render `SKILLEDGE_RMS_*` secret
   provisioning + `SKILLEDGE_REQUIRE_SECRET_CREDS=1` (operator/RMS-admin — credentials still live
   in git history pre-scrub); deeper notification source/freshness pass; full screen-by-screen
