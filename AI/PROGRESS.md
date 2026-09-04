@@ -1,3 +1,22 @@
+## 2026-09-04T17:15:00+05:30 - Build 167 shipped; backend polish; upskilling days-to-ready
+
+- **Model**: Claude Sonnet 5 · **Tool**: Claude Code
+- **Build 167 / v3.73.0 RELEASED** (CI green, https://github.com/aishsynk/SkillSync/releases/tag/v3.73.0.167).
+- **Backend-only follow-ups** (deployed via push, no APK):
+  - `_compose_batch_message`: format ISO dates → "01 Oct 2026", pluralise "participant(s)".
+  - `/api/v2/upskilling/demand-opportunities`: each suggested trainer now carries `prep_days`
+    (5–25, from adjacency strength + utilisation), `ready_by`, `ready_before_earliest_batch`.
+- **Live-verified**: `batch-message` and `alternative-trainers` return correct data on the host.
+- **Open roadmap (user asks 2026-09-04, prioritised, one build each)**:
+  1. Surface demand-upskilling (endpoint ready) — a "Grow the team" card on Plan/Today with
+     per-trainer "ready in Nd" + an "Ask <trainer> to upskill" message action.
+  2. Today page → richer dashboard: top-performing reportee list, team KPI row.
+  3. Trainer 360 layout makeover — kill header/section whitespace, tighten to the token grid.
+  4. Calendar: real week + month views.
+  5. Search/Copilot: make the Search tab the agentic Q&A surface (backend `/api/agent/ask` +
+     `/api/v2/copilot/team` already exist) — answer for me / my team / any trainer.
+  6. Wider-network fuzzy (≥70%) course expansion.
+
 ## 2026-09-04T16:30:00+05:30 - Theme reverted to clean blue; server-side message; wider network is real (v3.73.0, Build 167)
 
 - **Model**: Claude Sonnet 5 · **Tool**: Claude Code
