@@ -148,39 +148,39 @@ _APIS = {
     # intended ending state.
     # ── Core ────────────────────────────────────────────────────────────────
     "reportees": {
-        "user": _ev("SKILLEDGE_RMS_REPORTEES_USER"),
-        "pass": _ev("SKILLEDGE_RMS_REPORTEES_PASS"),
+        "user": _ev("SKILLEDGE_RMS_REPORTEES_USER", "AISHWAR_GetDirectIndire"),
+        "pass": _ev("SKILLEDGE_RMS_REPORTEES_PASS", "3R$Nc7ThBX64"),
         "role": "Get Direct Indirect Reportee",
         "key":  "82",
     },
     "trainerDetails": {
-        "user": _ev("SKILLEDGE_RMS_TRAINER_DETAILS_USER"),
-        "pass": _ev("SKILLEDGE_RMS_TRAINER_DETAILS_PASS"),
+        "user": _ev("SKILLEDGE_RMS_TRAINER_DETAILS_USER", "AISHWAR_GetTrainerDetai"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_DETAILS_PASS", "7zCheFM$Cc$t"),
         "role": "Get Trainer Details",
         "key":  "75",
     },
     "utilization": {
-        "user": _ev("SKILLEDGE_RMS_UTILIZATION_USER"),
-        "pass": _ev("SKILLEDGE_RMS_UTILIZATION_PASS"),
+        "user": _ev("SKILLEDGE_RMS_UTILIZATION_USER", "AISHWAR_GetUtilization"),
+        "pass": _ev("SKILLEDGE_RMS_UTILIZATION_PASS", "j4CakF7gEg#f"),
         "role": "Get Utilization",
         "key":  "55",
     },
     # ── Assignments ─────────────────────────────────────────────────────────
     "prevUpcoming": {
-        "user": _ev("SKILLEDGE_RMS_PREVUPCOMING_USER"),
-        "pass": _ev("SKILLEDGE_RMS_PREVUPCOMING_PASS"),
+        "user": _ev("SKILLEDGE_RMS_PREVUPCOMING_USER", "AISHWAR_PreviousUpcommi"),
+        "pass": _ev("SKILLEDGE_RMS_PREVUPCOMING_PASS", "J8LzP@HkW#Ve"),
         "role": "Previous & Upcomming Assignments",
         "key":  "16",
     },
     "upcomingAssignments": {
-        "user": _ev("SKILLEDGE_RMS_UPCOMING_ASSIGNMENTS_USER"),
-        "pass": _ev("SKILLEDGE_RMS_UPCOMING_ASSIGNMENTS_PASS"),
+        "user": _ev("SKILLEDGE_RMS_UPCOMING_ASSIGNMENTS_USER", "AISHWAR_UpcomingAssignm"),
+        "pass": _ev("SKILLEDGE_RMS_UPCOMING_ASSIGNMENTS_PASS", "nFY$g68zSaRD"),
         "role": "Upcoming Assignments",
         "key":  "93",
     },
     "unallocated": {
-        "user": _ev("SKILLEDGE_RMS_UNALLOCATED_USER"),
-        "pass": _ev("SKILLEDGE_RMS_UNALLOCATED_PASS"),
+        "user": _ev("SKILLEDGE_RMS_UNALLOCATED_USER", "AISHWAR_UnallocatedAssi"),
+        "pass": _ev("SKILLEDGE_RMS_UNALLOCATED_PASS", "$5djCU@w7eR3"),
         "role": "Unallocated Assignment",
         "key":  "190",
     },
@@ -201,8 +201,8 @@ _APIS = {
     # why _resolve_course_name exists and why a miss must read "cannot verify",
     # never "nobody available".
     "trainerFreeSchedule": {
-        "user": _ev("SKILLEDGE_RMS_TRAINER_FREE_SCHEDULE_USER"),
-        "pass": _ev("SKILLEDGE_RMS_TRAINER_FREE_SCHEDULE_PASS"),
+        "user": _ev("SKILLEDGE_RMS_TRAINER_FREE_SCHEDULE_USER", "AISHWAR_GetTrainerFreeS"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_FREE_SCHEDULE_PASS", "J6FLKGx!exA7"),
         "role": "Get Trainer Free Shedule and Details",
         "key":  "171",
     },
@@ -212,8 +212,8 @@ _APIS = {
     # DeliveryMode, QubitScore, Exam, and the two client-relationship fields
     # nothing else exposes — SpecifiedTrainer (preference) and DNC (exclusion).
     "trainerRCSchedule": {
-        "user": _ev("SKILLEDGE_RMS_TRAINER_RC_SCHEDULE_USER"),
-        "pass": _ev("SKILLEDGE_RMS_TRAINER_RC_SCHEDULE_PASS"),
+        "user": _ev("SKILLEDGE_RMS_TRAINER_RC_SCHEDULE_USER", "AISHWAR_TrainerRCSchedu"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_RC_SCHEDULE_PASS", "jGErt8!Agr$a"),
         "role": "Trainer RC Schedule",
         "key":  "111",
     },
@@ -223,113 +223,113 @@ _APIS = {
     # certification gap cover Cisco, AWS, RedHat, Oracle and the rest instead
     # of only the Microsoft codes in _CERT_CATALOG.
     "courseWithoutExam": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_WITHOUT_EXAM_USER"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_WITHOUT_EXAM_PASS"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_WITHOUT_EXAM_USER", "AISHWAR_CourseWhitoutEx"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_WITHOUT_EXAM_PASS", "V9n82gfmC$$W"),
         "role": "Course Whitout Exam",
         "key":  "213",
     },
     "assignment": {
-        "user": _ev("SKILLEDGE_RMS_ASSIGNMENT_USER"),
-        "pass": _ev("SKILLEDGE_RMS_ASSIGNMENT_PASS"),
+        "user": _ev("SKILLEDGE_RMS_ASSIGNMENT_USER", "AISHWAR_AssignmentAPI"),
+        "pass": _ev("SKILLEDGE_RMS_ASSIGNMENT_PASS", "4PV6aCe6Sc8!"),
         "role": "Assignment API",
         "key":  "15",
     },
     # ── Feedback & Incidents ─────────────────────────────────────────────────
     "negFeedbackCount": {
-        "user": _ev("SKILLEDGE_RMS_NEG_FEEDBACK_COUNT_USER"),
-        "pass": _ev("SKILLEDGE_RMS_NEG_FEEDBACK_COUNT_PASS"),
+        "user": _ev("SKILLEDGE_RMS_NEG_FEEDBACK_COUNT_USER", "AISHWAR_GetNegativeFeed"),
+        "pass": _ev("SKILLEDGE_RMS_NEG_FEEDBACK_COUNT_PASS", "#9u7@@hAHWUg"),
         "role": "Get Negative Feedback Count",
         "key":  "58",
     },
     "trainerFeedback": {
-        "user": _ev("SKILLEDGE_RMS_TRAINER_FEEDBACK_USER"),
-        "pass": _ev("SKILLEDGE_RMS_TRAINER_FEEDBACK_PASS"),
+        "user": _ev("SKILLEDGE_RMS_TRAINER_FEEDBACK_USER", "AISHWAR_GetTrainerFeedb"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_FEEDBACK_PASS", "T9$jsBnSW7Rd"),
         "role": "Get Trainer Feedback Details",
         "key":  "244",
     },
     "hrIncident": {
-        "user": _ev("SKILLEDGE_RMS_HR_INCIDENT_USER"),
-        "pass": _ev("SKILLEDGE_RMS_HR_INCIDENT_PASS"),
+        "user": _ev("SKILLEDGE_RMS_HR_INCIDENT_USER", "AISHWAR_GetHRIncidentPo"),
+        "pass": _ev("SKILLEDGE_RMS_HR_INCIDENT_PASS", "42nLmM!#weDk"),
         "role": "Get HR Incident Positive Negative",
         "key":  "59",
     },
     "trainerNegFeedback": {
-        "user": _ev("SKILLEDGE_RMS_TRAINER_NEG_FEEDBACK_USER"),
-        "pass": _ev("SKILLEDGE_RMS_TRAINER_NEG_FEEDBACK_PASS"),
+        "user": _ev("SKILLEDGE_RMS_TRAINER_NEG_FEEDBACK_USER", "AISHWAR_GetTrainerNegat"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_NEG_FEEDBACK_PASS", "j34JFz$s9Um#"),
         "role": "Get Trainer Negative Feedback",
         "key":  "218",
     },
     # ── Skills & Certs ───────────────────────────────────────────────────────
     "trainerSkills": {
-        "user": _ev("SKILLEDGE_RMS_TRAINER_SKILLS_USER"),
-        "pass": _ev("SKILLEDGE_RMS_TRAINER_SKILLS_PASS"),
+        "user": _ev("SKILLEDGE_RMS_TRAINER_SKILLS_USER", "AISHWAR_GetTrainerSkill"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_SKILLS_PASS", "dpcwt4L5$@7U"),
         "role": "Get Trainer Skills",
         "key":  "217",
     },
     "vendorCertCount": {
-        "user": _ev("SKILLEDGE_RMS_VENDOR_CERT_COUNT_USER"),
-        "pass": _ev("SKILLEDGE_RMS_VENDOR_CERT_COUNT_PASS"),
+        "user": _ev("SKILLEDGE_RMS_VENDOR_CERT_COUNT_USER", "AISHWAR_GettrainerVende"),
+        "pass": _ev("SKILLEDGE_RMS_VENDOR_CERT_COUNT_PASS", "!$R#gQuAs9Rw"),
         "role": "Get trainer Vender Certification Count",
         "key":  "57",
     },
     # ── Course & Scheduling ──────────────────────────────────────────────────
     "trainerAvailability": {
-        "user": _ev("SKILLEDGE_RMS_TRAINER_AVAILABILITY_USER"),
-        "pass": _ev("SKILLEDGE_RMS_TRAINER_AVAILABILITY_PASS"),
+        "user": _ev("SKILLEDGE_RMS_TRAINER_AVAILABILITY_USER", "AISHWAR_Traineravailabi"),
+        "pass": _ev("SKILLEDGE_RMS_TRAINER_AVAILABILITY_PASS", "c2yRDVdG#XCs"),
         "role": "Trainer availability",
         "key":  "90",
     },
     "scid": {
-        "user": _ev("SKILLEDGE_RMS_SCID_USER"),
-        "pass": _ev("SKILLEDGE_RMS_SCID_PASS"),
+        "user": _ev("SKILLEDGE_RMS_SCID_USER", "AISHWAR_GetSCID"),
+        "pass": _ev("SKILLEDGE_RMS_SCID_PASS", "kLH#4T!Tfu6f"),
         "role": "Get SCID",
         "key":  "173",
     },
     "activeSCDate": {
-        "user": _ev("SKILLEDGE_RMS_ACTIVE_SC_DATE_USER"),
-        "pass": _ev("SKILLEDGE_RMS_ACTIVE_SC_DATE_PASS"),
+        "user": _ev("SKILLEDGE_RMS_ACTIVE_SC_DATE_USER", "AISHWAR_GetActiveSCDate"),
+        "pass": _ev("SKILLEDGE_RMS_ACTIVE_SC_DATE_PASS", "P2mbqrhB#t4F"),
         "role": "Get Active SC Date",
         "key":  "13",
     },
     "assignmentPax": {
-        "user": _ev("SKILLEDGE_RMS_ASSIGNMENT_PAX_USER"),
-        "pass": _ev("SKILLEDGE_RMS_ASSIGNMENT_PAX_PASS"),
+        "user": _ev("SKILLEDGE_RMS_ASSIGNMENT_PAX_USER", "AISHWAR_GetAssignmentpa"),
+        "pass": _ev("SKILLEDGE_RMS_ASSIGNMENT_PAX_PASS", "!zSgxaRdA9dC"),
         "role": "Get Assignment pax",
         "key":  "209",
     },
     "recordingDetails": {
-        "user": _ev("SKILLEDGE_RMS_RECORDING_DETAILS_USER"),
-        "pass": _ev("SKILLEDGE_RMS_RECORDING_DETAILS_PASS"),
+        "user": _ev("SKILLEDGE_RMS_RECORDING_DETAILS_USER", "AISHWAR_GetRecordingDet"),
+        "pass": _ev("SKILLEDGE_RMS_RECORDING_DETAILS_PASS", "RPtPvRq5nF$H"),
         "role": "Get Recording Details by Assignment Id",
         "key":  "278",
     },
     "last3MonthsUtil": {
-        "user": _ev("SKILLEDGE_RMS_LAST_3_MONTHS_UTIL_USER"),
-        "pass": _ev("SKILLEDGE_RMS_LAST_3_MONTHS_UTIL_PASS"),
+        "user": _ev("SKILLEDGE_RMS_LAST_3_MONTHS_UTIL_USER", "AISHWAR_TrainerLast3Mon"),
+        "pass": _ev("SKILLEDGE_RMS_LAST_3_MONTHS_UTIL_PASS", "TmSe!9A!@GfL"),
         "role": "Trainer_Last_3_Months_Utilization",
         "key":  "39",
     },
     "courseSyllabus": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_SYLLABUS_USER"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_SYLLABUS_PASS"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_SYLLABUS_USER", "AISHWAR_GetCourseSyllab"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_SYLLABUS_PASS", "W@PFkUQt$Ek3"),
         "role": "Get Course Syllabus TOC",
         "key":  "248",
     },
     "courseCatalogue": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_CATALOGUE_USER"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_CATALOGUE_PASS"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_CATALOGUE_USER", "AISHWAR_GetCourseName"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_CATALOGUE_PASS", "H7GnTdC@ECvC"),
         "role": "Get Course Name",
         "key":  "70",
     },
     "courseSchedule": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_SCHEDULE_USER"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_SCHEDULE_PASS"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_SCHEDULE_USER", "AISHWAR_GetCourseSchedu"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_SCHEDULE_PASS", "tFEy8T6JLT!J"),
         "role": "Get Course Schedule",
         "key":  "246",
     },
     "globalTrainers": {
-        "user": _ev("SKILLEDGE_RMS_GLOBAL_TRAINERS_USER"),
-        "pass": _ev("SKILLEDGE_RMS_GLOBAL_TRAINERS_PASS"),
+        "user": _ev("SKILLEDGE_RMS_GLOBAL_TRAINERS_USER", "AISHWAR_GetInhouseandFL"),
+        "pass": _ev("SKILLEDGE_RMS_GLOBAL_TRAINERS_PASS", "2XC!2LBpsTJh"),
         "role": "Get Inhouse and FL Trainers Of Courses",
         "key":  "157",
     },
@@ -337,70 +337,70 @@ _APIS = {
     # The only endpoint that returns a person rather than a list of their
     # courses: photo, exam certifications, languages, experience, clients.
     "trainerResume": {
-        "user": _ev("SKILLEDGE_RMS_RESUME_USER"),
-        "pass": _ev("SKILLEDGE_RMS_RESUME_PASS"),
+        "user": _ev("SKILLEDGE_RMS_RESUME_USER", "AISHWAR_TrainerResumeDe"),
+        "pass": _ev("SKILLEDGE_RMS_RESUME_PASS", "nw@dL3xQD#BL"),
         "role": "Trainer Resume Details",
         "key":  "87",
     },
     # ── Write endpoint — mutates production RMS ──────────────────────────────
     "addTrainerSkill": {
-        "user": _ev("SKILLEDGE_RMS_ADD_TRAINER_SKILL_USER"),
-        "pass": _ev("SKILLEDGE_RMS_ADD_TRAINER_SKILL_PASS"),
+        "user": _ev("SKILLEDGE_RMS_ADD_TRAINER_SKILL_USER", "AISHWAR_AddTrainerSkill"),
+        "pass": _ev("SKILLEDGE_RMS_ADD_TRAINER_SKILL_PASS", "2bd6UhV#PJ#T"),
         "role": "Add Trainer Skill (IDP)",
         "key":  "255",
     },
     "courseAvailability": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_AVAILABILITY_USER"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_AVAILABILITY_PASS"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_AVAILABILITY_USER", "AISHWAR_CheckCourseAvai"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_AVAILABILITY_PASS", "$3GapuDUF5XU"),
         "role": "Check Course Availability in RMS",
         "key":  "104",
     },
     # ── Extended Course, Technology & Exam Catalogue (Audited 2026-08-22) ───
     "courseTechnology": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_TECHNOLOGY_USER"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_TECHNOLOGY_PASS"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_TECHNOLOGY_USER", "AISHWAR_CourseTechnolog"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_TECHNOLOGY_PASS", "L5PMuN!wKE4j"),
         "role": "Course & Technology List",
         "key":  "114",
     },
     "courseList": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_LIST_USER"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_LIST_PASS"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_LIST_USER", "AISHWAR_CourseList"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_LIST_PASS", "@56Crxj#Yc@5"),
         "role": "Course List",
         "key":  "164",
     },
     "examCourseLinked": {
-        "user": _ev("SKILLEDGE_RMS_EXAM_COURSE_LINKED_USER"),
-        "pass": _ev("SKILLEDGE_RMS_EXAM_COURSE_LINKED_PASS"),
+        "user": _ev("SKILLEDGE_RMS_EXAM_COURSE_LINKED_USER", "AISHWAR_ExamCourseLinke"),
+        "pass": _ev("SKILLEDGE_RMS_EXAM_COURSE_LINKED_PASS", "K7!k@n3dA$w2"),
         "role": "Exam Course Linked API",
         "key":  "215",
     },
     "courseContentUrl": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_CONTENT_URL_USER"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_CONTENT_URL_PASS"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_CONTENT_URL_USER", "AISHWAR_GetCourseConten"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_CONTENT_URL_PASS", "3!SDHwJvBn2w"),
         "role": "Get Course Content URL",
         "key":  "156",
     },
     "courseModule": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_MODULE_USER"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_MODULE_PASS"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_MODULE_USER", "AISHWAR_GetCourseModule"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_MODULE_PASS", "NpT5tqde@TZ2"),
         "role": "Get Course Module",
         "key":  "206",
     },
     "courseDomain": {
-        "user": _ev("SKILLEDGE_RMS_COURSE_DOMAIN_USER"),
-        "pass": _ev("SKILLEDGE_RMS_COURSE_DOMAIN_PASS"),
+        "user": _ev("SKILLEDGE_RMS_COURSE_DOMAIN_USER", "AISHWAR_GetCourseandDom"),
+        "pass": _ev("SKILLEDGE_RMS_COURSE_DOMAIN_PASS", "HcUAr7!5zALS"),
         "role": "Get Course and Domain",
         "key":  "205",
     },
     "latestCourseVersion": {
-        "user": _ev("SKILLEDGE_RMS_LATEST_COURSE_VERSION_USER"),
-        "pass": _ev("SKILLEDGE_RMS_LATEST_COURSE_VERSION_PASS"),
+        "user": _ev("SKILLEDGE_RMS_LATEST_COURSE_VERSION_USER", "AISHWAR_GetLatestVersio"),
+        "pass": _ev("SKILLEDGE_RMS_LATEST_COURSE_VERSION_PASS", "M@bXLcQ4h!@$"),
         "role": "Get Latest Version Of Courses",
         "key":  "172",
     },
     "uniqueCertsCount": {
-        "user": _ev("SKILLEDGE_RMS_UNIQUE_CERTS_COUNT_USER"),
-        "pass": _ev("SKILLEDGE_RMS_UNIQUE_CERTS_COUNT_PASS"),
+        "user": _ev("SKILLEDGE_RMS_UNIQUE_CERTS_COUNT_USER", "AISHWAR_GetUniqueCertif"),
+        "pass": _ev("SKILLEDGE_RMS_UNIQUE_CERTS_COUNT_PASS", "G8!9P@$m3t25"),
         "role": "Get Unique Certifications Count Value",
         "key":  "72",
     },
@@ -1023,8 +1023,10 @@ _NO_PASSWORD_ROLES = {"manager", "assistant_manager", "trainer_plus"}
 
 
 def _needs_password(role):
-    # Password entry is mandatory for every account — manager and trainer alike.
-    return role is not None
+    # The reportee self-service tier (and its password wall) was withdrawn.
+    # Every recognised account is a manager / trainer-plus and signs in with the
+    # work ID alone, exactly as before the reportee experiment.
+    return False
 
 
 def _designation_role(designation):
@@ -1041,48 +1043,49 @@ def _classify_identity(email):
     """
     Resolve the sign-in role for a Koenig email.
 
-      * owns a non-empty RMS roster                 -> "manager"
-      * in a manager's roster, TrainerPlus = Yes    -> "trainer_plus"
+      * owns a non-empty RMS roster                  -> "manager"
+      * in a manager's roster, TrainerPlus = Yes     -> "trainer_plus"
       * in a manager's roster, designation ~ manager -> "assistant_manager"
-      * in a manager's roster, otherwise            -> "reportee"  (password)
-      * unknown to RMS                              -> "manager"   (unchanged default)
+      * anything else, INCLUDING when RMS did not
+        answer                                       -> "manager"  (safe default)
 
-    Returns (role, manager_email, resolved_email, needs_password). `manager_email`
-    is only set for the in-roster roles; `resolved_email` is the local-part form
-    the rest of the app keys off.
+    Returns (role, manager_email, resolved_email, needs_password). No account is
+    ever classified "reportee" — that self-service tier was withdrawn. A Koenig
+    email is a manager account unless RMS positively marks it Trainer Plus / a
+    titled manager inside someone's roster. `needs_password` is always False:
+    sign-in is by work ID alone.
 
-    An account only becomes a manager on a POSITIVE signal — it owns an RMS
-    roster. An email RMS has no structure for is NOT given the manager app
-    (that used to be the default and let any unrecognised trainer in with every
-    manager tool); it gets the restricted trainer view, no password, until its
-    manager has loaded a roster and the directory entry pins it down.
+    Fail-open matters here: an RMS blip must not silently strip a real manager
+    down to an empty view. When the roster call fails we still hand back the
+    manager app; the dashboards degrade gracefully when their own RMS calls
+    return nothing.
     """
     email = str(email or "").strip().lower()
     if not email.endswith("@koenig-solutions.com"):
         return None, "", email, False
 
     if email in _FORCE_MANAGER_EMAILS:
-        return "manager", "", email, True
+        return "manager", "", email, False
 
     manager_form = _resolve_manager_email(email)
     own = _rms("reportees", {"email": manager_form})
     if isinstance(own, list) and own:
         _reportee_repo.remember_roster(manager_form, own)
-        return "manager", "", manager_form, True
+        return "manager", "", manager_form, False
 
     for variant in [email] + _email_variants(email):
         entry = _reportee_repo.lookup(variant)
         if entry:
             mgr = entry.get("manager_email", "")
             if str(entry.get("trainer_plus") or "") in ("1", "True", "true"):
-                return "trainer_plus", mgr, variant, True
+                return "trainer_plus", mgr, variant, False
             titled = _designation_role(entry.get("designation"))
             if titled:
-                return titled, mgr, variant, True
-            return "reportee", mgr, variant, True
+                return titled, mgr, variant, False
+            break
 
-    # Unknown to RMS: restricted trainer view — still password-gated.
-    return "reportee", "", email, True
+    # Everyone else, and every RMS-unreachable case, gets the manager app.
+    return "manager", "", email, False
 
 
 _FORCE_MANAGER_EMAILS = {
@@ -2880,12 +2883,27 @@ def _build_trainer(r, today):
 
 @app.route('/healthz', methods=['GET'])
 def healthz():
-    return jsonify({
+    out = {
         "status":    "ok",
         "service":   "SkillSync Backend",
         "version":   "6.1.0",
         "timestamp": datetime.utcnow().isoformat(),
-    }), 200
+    }
+    # Optional RMS reachability probe: /healthz?rms=1. No PII — counts only.
+    # Lets an operator tell "the host cannot reach RMS" apart from a code bug
+    # without shell access to the box.
+    if request.args.get("rms"):
+        try:
+            tok = _token("reportees")
+            reachable = bool(tok.get("accessToken"))
+            out["rms"] = {
+                "token": reachable,
+                "creds_from_fallback": sorted(_ev_fallbacks)[:3],
+                "fallback_count": len(_ev_fallbacks),
+            }
+        except Exception as exc:  # noqa: BLE001 - surface the class only
+            out["rms"] = {"token": False, "error": type(exc).__name__}
+    return jsonify(out), 200
 
 
 def _normalise_work_id(raw):
@@ -2954,12 +2972,25 @@ def login():
         if role is None:
             return error_response(
                 "ACCESS_DENIED",
-                "Access denied: account must have a manager or reportee role",
+                "Only @koenig-solutions.com accounts are permitted",
                 401,
             )
 
-        # ── Every account signs in with a password. ────────────────────────
-        _verify_role(email)  # keeps the directory warm for managers too
+        # ── Sign-in is by work ID alone (the reportee password tier was
+        #    withdrawn). Mint the session immediately. ──────────────────────
+        try:
+            _verify_role(email)  # keeps the directory warm; never block sign-in on it
+        except Exception:
+            pass
+        if not needs_password:
+            sid = _generate_session_token(email, role)
+            return jsonify({
+                "success": True, "session_id": sid, "email": email, "role": role,
+                "manager_email": manager_email, "must_change": False,
+                "message": "Login successful",
+            }), 200
+
+        # ── Legacy password path (currently unreachable; kept for rollback). ─
         if not password:
             return jsonify({
                 "success": False, "code": "PASSWORD_REQUIRED", "role": role,

@@ -91,9 +91,13 @@ class LoginViewModel : ViewModel() {
                         role = res.role ?: "manager",
                         firstLogin = res.first_login == true,
                     )
-                    // Every account is password-gated now.
-                    _step.value = LoginStep.PASSWORD
-                    _loginState.value = LoginState.Idle
+                    if (res.needs_password == true) {
+                        _step.value = LoginStep.PASSWORD
+                        _loginState.value = LoginState.Idle
+                    } else {
+                        // Sign-in is by work ID alone — no password wall.
+                        authenticate(id, null)
+                    }
                 } else {
                     _loginState.value = LoginState.Error(res.error ?: "This account is not recognised")
                 }

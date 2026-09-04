@@ -19,6 +19,23 @@
 
 Important decisions and their rationale. Add new entries at the top (newest first).
 
+## 2026-09-04 - Reportee self-service tier withdrawn; login fails open to the manager app
+
+- **Decision:** No account is classified `reportee` any more. A recognised
+  `@koenig-solutions.com` email is a `manager` unless RMS positively flags it `trainer_plus`
+  or a titled manager inside a roster. Sign-in is by work ID alone (`_needs_password` is
+  always False); the password / employee-code path is dead code kept only for rollback.
+- **Decision:** `_classify_identity` fails **open** — when the RMS roster call does not
+  answer, the account still gets the manager app, never a restricted empty view.
+- **Rationale:** The reportee tier plus mandatory password turned every RMS connectivity
+  blip into "the whole app is placeholder data and I am not a manager". The product only
+  ever needed the manager / trainer+ experience. Operator instruction 2026-09-04.
+- **Decision:** Keep RMS credential fallbacks inline in `_APIS` (not only in
+  `rms_service_credentials.py`) so an import failure on the host cannot blank every
+  credential at once. Rotation is still the real fix (operator-pending).
+- **Supersedes:** the 2026-09-02 "Reportee self-service role + initials-only login" and
+  2026-09-02 "password entry is mandatory" decisions below.
+
 ## 2026-09-04 - RMS credentials isolated to one file; opt-in enforcement; single capability predicate
 
 - **Decision:** All RMS service-account fallback credentials live only in

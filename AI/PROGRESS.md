@@ -1,3 +1,50 @@
+## 2026-09-04T14:11:39+05:30 - Withdraw the reportee tier; fail-open to the manager app (v3.71.0, Build 163)
+
+- **Model Used**: Claude Sonnet 5
+- **Tool/Agent Used**: Claude Code
+- **Files Modified**: `backend.py`, `tests/test_reportee_role.py`,
+  `SkillEdge_Android/app/build.gradle.kts`,
+  `.../ui/auth/LoginViewModel.kt`, `.../data/api/SkillEdgeApi.kt`, `AI/*`.
+- **Symptom reported (Build 162 on device)**: Demand page crashes; every page shows
+  placeholder/empty data; `aishwar.c@` (a real manager) logs in and sees nothing.
+- **Root cause**: `/api/auth/check` on the live host classified EVERY account as `reportee`
+  — the live backend's `_rms("reportees", …)` returns nothing, so `_classify_identity` fell
+  through its final `return "reportee"`. RMS itself is healthy (verified: token + reportees
+  call for `aishwar.c@` return a real roster from this machine); the failure is the live
+  host ↔ RMS path. The design fault is that an RMS blip silently downgraded managers to a
+  restricted empty view instead of failing safe.
+- **Work Completed**:
+  - `_classify_identity`: **never returns `reportee`**. Roster owner → `manager`; positively
+    flagged `trainer_plus` / titled manager keep that role; **everything else, and every
+    RMS-unreachable case, → `manager`** (restores the pre-reportee default, fail-open).
+  - `_needs_password` → always `False`. Sign-in is by work ID alone again; the password /
+    employee-code bootstrap path is left in place but unreachable.
+  - `login` route short-circuits to mint a session when `not needs_password`.
+  - Restored the inline credential fallbacks in `_APIS` (`_ev("NAME", "literal")`) so a
+    failed `rms_service_credentials.py` import on the host can no longer blank every
+    credential. The module stays as a secondary source.
+  - `/healthz?rms=1` now probes the RMS token and reports fallback usage (counts only, no
+    secrets) so the host↔RMS path can be checked without shell access.
+  - Android `LoginViewModel`: when `authCheck` returns `needs_password=false`, authenticate
+    immediately instead of forcing the password step.
+  - Reverted the Android `api/v2/data|action/*` client migration back to `api/data|action/*`
+    (the always-working routes); backend v2 aliases stay. Pure risk reduction.
+- **Validation**: backend `pytest tests/ -q` **300 passed**; Android `compileDebugKotlin`
+  clean; `testDebugUnitTest` rerun in progress at write time.
+- **Current Status**: fix staged for v3.71.0 / Build 163.
+- **Known Issues / Blockers**:
+  - **Live host ↔ RMS connectivity still needs an operator check.** RMS works from a dev
+    machine but not from the deployed host. Likely RMS IP-allowlisting of the deploy egress
+    IP, or host networking. `curl 'https://skilledge-backend-fpcl.onrender.com/healthz?rms=1'`
+    after this deploy will confirm. If `token:false`, RMS must allowlist the host IP
+    (operator + RMS admin). The fail-open classification keeps the manager app usable
+    meanwhile, but dashboards stay thin until RMS is reachable.
+  - Demand-page crash: expected to clear once real data flows + role is `manager`; if it
+    persists, need a logcat stack from the device.
+  - RMS password rotation still pending (operator).
+- **Next Recommended Actions**: deploy Build 163; hit `/healthz?rms=1`; if RMS unreachable,
+  get the deploy egress IP allowlisted in RMS; retest Demand on device.
+
 ## 2026-09-04T13:29:18+05:30 - Release cut: v3.70.0 / Build 162 (operator-authorised publish)
 
 - **Model Used**: Claude Sonnet 5

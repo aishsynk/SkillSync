@@ -64,32 +64,24 @@ All manager-to-reportee and team-level generated messages, standpoints, evaluati
 - **Group Broadcast Safety (Hard Rule)**: Team broadcasts must NEVER name an individual for negative signals (bench, feedback flags, cert gaps). Names appear ONLY for positive recognition.
 - **Teams/Viber Prose Formatting**: Greeting `Hello _First_,`, blank line, sanitised body with at most one `**bold**` action and one `__underlined__` time reference, blank line, italicized closing `_Thank you..._`, maximum 1000 characters, no hyphens, bullets, emojis, or dashes.
 
-## Reportee role & self-service contract (effective v3.57.0, two-step login v3.58.0)
+## Sign-in & roles (reportee tier withdrawn 2026-09-04)
 
-Sign-in is two steps: `POST /api/auth/check` validates the work ID (initials, e.g.
-`aishwar.c`; client appends `@koenig-solutions.com`) and returns the role + `needs_password`
-with no session; `POST /api/auth/login` then mints it. Roles come from `_classify_identity`:
-- **manager** — owns a non-empty RMS `reportees` roster (or unknown to RMS). No password.
-- **trainer_plus** — in a roster with `TrainerPlus=Yes`. No password.
-- **assistant_manager** — in a roster whose `Designation` reads as a manager title. No password.
-- **reportee** — in a roster, none of the above. Signs in with a **password**: first login is
-  the RMS employee code, then the app forces
-  a change (`/api/auth/set-password`). Hashes (PBKDF2) live in `skilledge_reportees.sqlite3`
-  via `reportee_store.py`; no plaintext, no RMS write. A reportee can only sign in after their
-  manager has loaded a roster at least once — that is the only source of the reportee→manager
-  mapping (`_reportee_repo.remember_roster`, called from `_verify_role` / `_classify_identity`).
+Sign-in is by **work ID alone** (initials, e.g. `aishwar.c`; client appends
+`@koenig-solutions.com`). `POST /api/auth/check` returns the role with
+`needs_password: false`; `POST /api/auth/login` with just the email mints the session.
+`_classify_identity`:
+- **manager** — owns a non-empty RMS `reportees` roster, OR anything not positively flagged
+  otherwise, OR any case where the RMS roster call did not answer (**fail-open** — an RMS
+  blip must never strip a manager to an empty view).
+- **trainer_plus** — positively flagged `TrainerPlus=Yes` in a roster.
+- **assistant_manager** — `Designation` in a roster reads as a manager title.
+- No account is ever `reportee`. The password / employee-code path and the
+  `reportee_store.py` credential table remain as dead code for rollback only.
 
-Reportee scope: their own Trainer 360 (`_profile_session` widens `trainer-360`), skill-matched
-unallocated demand (`GET /api/v2/reportee/demand`, ≥60 match score, fee/currency stripped),
-and an in-app updates feed (`GET /api/v2/notifications`, role-branched). No team roster, no
-other trainers, no manager consoles; `_v2_manager_session` rejects reportee tokens.
-
-**Self-mark skill ceiling = 4.** `/api/action/mark-skill` accepts reportee sessions but forces
-`trainer_email` to self and `OfficiallyApproved=No`. Level ≤ 4 writes to RMS via
-`_write_trainer_skill` (shared helper). Level > 4 writes **nothing** — it creates a pending
-row in `skill_requests`, notifies the manager (`SKILL_REQUEST`) and the reportee. The manager
-resolves at `POST /api/v2/manager/skill-requests/<id>` (`approve` runs the real verified write
-at the requested level with `OfficiallyApproved=Yes`; `deny` just closes it).
+The reportee-scoped routes (`/api/v2/reportee/*`, skill-request approval flow, self-mark
+ceiling) still exist but nothing routes to them — no session carries `role == "reportee"`.
+`reportee_store.py` is still used for its non-credential job: caching the RMS roster
+(`remember_roster`) so `_resolve_manager_email` / directory lookups stay warm.
 
 ## What it is
 
