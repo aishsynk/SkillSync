@@ -4533,6 +4533,9 @@ def _demand_rows():
             "location":      ", ".join(x for x in [str(d.get("Assignment City", "") or "").strip(),
                                                    str(d.get("Assignment Country", "") or "").strip()] if x),
             "participants":  d.get("NoOfParticipants", 0),
+            # assignment_sl = the RMS "assignment skill level" — the level a
+            # trainer must hold (or exceed) to be eligible for this batch.
+            "assignment_level": str(d.get("assignment_sl", "") or "").strip(),
             "language":      str(d.get("Assignmentid Language", "") or "").strip(),
             "courseware":    str(d.get("CoursewareType", "") or "").strip(),
             "allocation_for": str(d.get("Allocation Required For", "") or "").strip(),

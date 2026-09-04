@@ -1,3 +1,25 @@
+## 2026-09-04T15:05:00+05:30 - Assignment skill level surfaced end-to-end (v3.71.2, Build 165)
+
+- **Model Used**: Claude Sonnet 5 · **Tool**: Claude Code
+- **Files**: `backend.py` (`_demand_rows`), `AllocationDeskScreen.kt`, `BatchDetailScreen.kt`,
+  `app/build.gradle.kts`.
+- **Fix**: RMS `unallocated` returns `assignment_sl` (the required trainer skill level for the
+  batch). It was never mapped. Now `_demand_rows` emits it as `assignment_level`; the demand
+  card shows `Level N`, the batch-detail fact grid shows `Assignment level`, the skill-level
+  filter chips populate, and the `BatchShare` broadcast message carries `Assignment Level : N`
+  and "mark your skill at level N or above".
+- **Screenshots the user sent (ss1 "Roster Dropped", ss3/ss4 "NO TRAINER HOLDS THIS COURSE")
+  are from Build 162 or earlier.** Both strings were already corrected: `NotificationEngine`
+  maps `roster_gap` → "Roster Below Expected"; `CoverageVerdictStrip` shows an amber
+  "COURSE AVAILABILITY NOT VERIFIED" (not a red "no trainer holds this course"), and the
+  backend `availability_intelligence.source` is `availability_unknown`, never
+  `no_skilled_trainers`. These ship in 163/164/165 — the user needs to install a current build.
+- **Action-queue Start / Close / Escalate** (answered for the user, no change needed): they
+  only move the manager's action card through open → in_progress / closed / escalated with an
+  audit entry. They do NOT allocate a trainer, reply to a learner, touch RMS, or send any
+  message. `actionTransitionExplanation()` already states this per category.
+- **Validation**: backend 300 pass; Android compile + unit tests running.
+
 ## 2026-09-04T14:35:00+05:30 - Calendar: remove the synthetic sample schedule (v3.71.1, Build 164)
 
 - **Model Used**: Claude Sonnet 5

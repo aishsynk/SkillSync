@@ -280,6 +280,7 @@ fun BatchDetailScreen(
                             listOf(
                                 "Mode" to batch.str("delivery_mode"),
                                 "Vendor" to batch.str("customer"),
+                                "Assignment level" to batch.str("assignment_level"),
                                 "Participants" to (batch.intOrNull("participants")?.toString() ?: ""),
                                 "Daily time" to batch.str("session_time"),
                                 "Language" to batch.str("language"),

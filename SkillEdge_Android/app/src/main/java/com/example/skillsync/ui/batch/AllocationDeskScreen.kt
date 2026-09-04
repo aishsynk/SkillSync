@@ -111,7 +111,7 @@ internal fun AllocationDeskContent(
         batches.map { it.str("language") }.filter { it.isNotBlank() }.distinct().sorted()
     }
     val availableSkillLevels = remember(batches) {
-        batches.map { it.str("skill_level") }.filter { it.isNotBlank() }.distinct().sorted()
+        batches.map { it.str("assignment_level") }.filter { it.isNotBlank() }.distinct().sorted()
     }
 
     // Filtering narrows the set; it never reorders it. The list a manager sees
@@ -129,7 +129,7 @@ internal fun AllocationDeskContent(
             val matchesBand = matchBand == MatchBand.ALL || matchBandOf(b.int("relevance")) == matchBand
             val matchesMode = selectedModes.isEmpty() || b.str("delivery_mode") in selectedModes
             val matchesLang = selectedLanguages.isEmpty() || b.str("language") in selectedLanguages
-            val matchesSkill = selectedSkillLevels.isEmpty() || b.str("skill_level") in selectedSkillLevels
+            val matchesSkill = selectedSkillLevels.isEmpty() || b.str("assignment_level") in selectedSkillLevels
             val matchesLens = when (selectedLens) {
                 "Priority" -> b.bool("is_priority")
                 "At risk" -> b.bool("at_risk")
@@ -776,6 +776,7 @@ internal fun BatchCard(
                                     b.str("end_date").takeIf { it.isNotBlank() }?.shortDate(),
                                 ).joinToString(" → ").takeIf { it.isNotBlank() },
                                 b.intOrNull("participants")?.takeIf { it > 0 }?.let { "$it pax" },
+                                b.str("assignment_level").takeIf { it.isNotBlank() }?.let { "Level $it" },
                             ).joinToString(" · "),
                             style = MaterialTheme.typography.labelSmall, color = sk.subText,
                         )
