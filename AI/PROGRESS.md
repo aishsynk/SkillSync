@@ -1,3 +1,18 @@
+## 2026-09-04T19:50:00+05:30 - Calendar: real week grid + bigger view toggle (v3.75.2, Build 172)
+
+- **Model**: Claude Sonnet 5 · **Tool**: Claude Code
+- **Files**: `ui/main/TeamCalendarScreen.kt`, `app/build.gradle.kts`.
+- User clarified: **Month AND Week must render as a calendar grid** (not a list).
+  - `WeekScheduleView` rewritten from a vertical list of 7 day-cards to a **true 7-column
+    week grid** (Sun–Sat columns, day-of-week + date header per column, today/selected
+    highlighting, up to 4 event chips per column coloured by category, "+N" overflow, hairline
+    dividers) — same visual language as `SpanningMonthCalendarGrid`. `SelectedDayInspectionCard`
+    now renders under the week grid too, so tapping a day column shows its full event list.
+  - View-mode toggle (Month | Week | Day) enlarged: 11sp → `labelMedium`, padding 10/6 → 14/8.
+- Month view was already a proper spanning-bar grid — unchanged.
+- **Validation**: Android compile clean; unit tests running.
+- **Status**: staged for Build 172.
+
 ## 2026-09-04T19:30:00+05:30 - ReadableColumn on every Main tab (v3.75.1, Build 171)
 
 - **Model**: Claude Sonnet 5 · **Tool**: Claude Code

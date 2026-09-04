@@ -293,7 +293,12 @@ fun TeamCalendarScreen(
                     events = filteredEvents,
                     onDateSelected = { selectedDate = it },
                     onEventClick = { inspectedEvent = it },
+                )
+                SelectedDayInspectionCard(
+                    date = selectedDate,
+                    eventsOnDay = filteredEvents.filter { !selectedDate.isBefore(it.startDate) && !selectedDate.isAfter(it.endDate) },
                     onTrainerClick = onTrainerClick,
+                    onEventClick = { inspectedEvent = it },
                 )
             }
 
@@ -373,7 +378,7 @@ private fun CalendarTopHeader(
                 color = sk.cardBg,
                 border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
             ) {
-                Row(modifier = Modifier.padding(2.dp)) {
+                Row(modifier = Modifier.padding(3.dp)) {
                     CalendarViewMode.values().take(3).forEach { mode ->
                         val isSelected = viewMode == mode
                         Box(
@@ -381,15 +386,14 @@ private fun CalendarTopHeader(
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(if (isSelected) Color(0xFF0284C7) else Color.Transparent)
                                 .clickable { onViewModeChange(mode) }
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
                                 mode.label,
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelMedium,
                                 color = if (isSelected) Color.White else sk.subText,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 11.sp,
                             )
                         }
                     }
@@ -806,74 +810,87 @@ private fun WeekScheduleView(
     events: List<CalendarEventItem>,
     onDateSelected: (LocalDate) -> Unit,
     onEventClick: (CalendarEventItem) -> Unit,
-    onTrainerClick: (String, String) -> Unit,
 ) {
     val sk = MaterialTheme.skill
     val weekStart = selectedDate.with(DayOfWeek.SUNDAY)
+    val days = (0..6).map { weekStart.plusDays(it.toLong()) }
 
+    // A true 7-column calendar grid for the week — same visual language as the
+    // month grid, one column per day with the day's events stacked as chips.
     Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(Space.sm),
+        modifier = Modifier
+            .fillMaxWidth()
+            .glassSurface(RoundedCornerShape(Radii.card))
+            .padding(Space.sm),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        for (dayOffset in 0..6) {
-            val date = weekStart.plusDays(dayOffset.toLong())
-            val isSelected = date == selectedDate
-            val isToday = date == LocalDate.now()
-            val dayEvents = events.filter { !date.isBefore(it.startDate) && !date.isAfter(it.endDate) }
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            days.forEachIndexed { idx, date ->
+                val isToday = date == LocalDate.now()
+                val isSelected = date == selectedDate
+                val isWeekend = idx == 0 || idx == 6
+                val dayEvents = events.filter { !date.isBefore(it.startDate) && !date.isAfter(it.endDate) }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .glassSurface(RoundedCornerShape(Radii.card))
-                    .clickable { onDateSelected(date) }
-                    .padding(Space.sm),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Space.xs),
-                    ) {
-                        Text(
-                            date.format(DateTimeFormatter.ofPattern("EEE, d MMM", Locale.ENGLISH)),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = if (isToday) Color(0xFF38BDF8) else sk.bodyText,
-                            fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                        )
-                        if (isToday) {
-                            Surface(color = Color(0xFF0284C7), shape = RoundedCornerShape(4.dp)) {
-                                Text(
-                                    "TODAY",
-                                    color = Color.White,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(
+                            when {
+                                isSelected -> Color(0xFF0284C7).copy(alpha = 0.22f)
+                                isToday -> sk.cyan.copy(alpha = 0.12f)
+                                else -> Color.Transparent
                             }
+                        )
+                        .clickable { onDateSelected(date) }
+                        .padding(vertical = 4.dp, horizontal = 2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        date.format(DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH)).uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isWeekend) sk.subText.copy(alpha = 0.5f) else sk.labelText,
+                        fontWeight = FontWeight.Bold, fontSize = 10.sp,
+                    )
+                    Text(
+                        "${date.dayOfMonth}",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = when {
+                            isSelected -> Color.White
+                            isToday -> Color(0xFF38BDF8)
+                            isWeekend -> sk.subText.copy(alpha = 0.7f)
+                            else -> sk.bodyText
+                        },
+                        fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
+                    )
+                    Spacer(Modifier.height(1.dp))
+                    dayEvents.take(4).forEach { ev ->
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(ev.category.color)
+                                .clickable { onEventClick(ev) }
+                                .padding(horizontal = 3.dp, vertical = 2.dp),
+                        ) {
+                            Text(
+                                ev.title,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White, fontSize = 8.sp, lineHeight = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
-
-                    Text(
-                        "${dayEvents.size} events",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = sk.subText,
-                    )
-                }
-
-                if (dayEvents.isEmpty()) {
-                    Text(
-                        "Clear schedule",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = sk.subText.copy(alpha = 0.5f),
-                    )
-                } else {
-                    dayEvents.forEach { ev ->
-                        EventCardRow(event = ev, onTrainerClick = onTrainerClick, onEventClick = onEventClick)
+                    if (dayEvents.size > 4) {
+                        Text("+${dayEvents.size - 4}", style = MaterialTheme.typography.labelSmall,
+                            color = sk.cyan, fontSize = 9.sp)
                     }
+                }
+                if (idx < 6) {
+                    Box(Modifier.width(0.5.dp).fillMaxHeight().background(sk.cardBorder.copy(alpha = 0.3f)))
                 }
             }
         }
