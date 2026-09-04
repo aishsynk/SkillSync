@@ -32,7 +32,10 @@ Important decisions and their rationale. Add new entries at the top (newest firs
   that loop.
 - **Correction:** RMS `globalTrainers` (key 157, "Get Inhouse and FL Trainers Of Courses")
   **works** with `TrainerType` = "Inhouse" or "FL". The prior CONTEXT/audit note that no value
-  was accepted was wrong. The Wider Trainer Network feature is now real.
+  was accepted was wrong. The Wider Trainer Network feature is now real. `get_alternative_trainers`
+  queries both types then expands to the 3 closest sibling courses (title token-Jaccard ≥
+  `?related=`, default 0.55) from `_course_catalogue_index()`; trainers carry
+  `match: exact|related` + `via_course`.
 
 ## 2026-09-04 - Reportee self-service tier withdrawn; login fails open to the manager app
 

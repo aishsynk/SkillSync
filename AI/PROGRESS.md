@@ -1,3 +1,19 @@
+## 2026-09-04T18:35:00+05:30 - Wider network: related-course expansion (v3.74.1, Build 169)
+
+- **Model**: Claude Sonnet 5 · **Tool**: Claude Code
+- **Files**: `backend.py` (`get_alternative_trainers`), `NetworkStaffingSheet.kt`,
+  `app/build.gradle.kts`.
+- **What**: the wider trainer network now also returns trainers who hold a *related* course —
+  title token-Jaccard ≥ `?related=` (default **0.55**; `0` disables), bounded to the 3
+  closest siblings from `_course_catalogue_index()`. Each trainer carries
+  `match: "exact" | "related"` + `via_course`; response adds `counts.exact`,
+  `counts.related`, `related_courses[]`. `NetworkStaffingSheet` tags related rows amber.
+- **Live-verified**: AI-103T00 → 67 exact + 3 related ("AI-3026: Develop AI Agents on Azure").
+- **Validation**: backend 300 pass; Android compile clean.
+- **Status**: pushed; CI cutting Build 169. Backend already live via Render.
+- **Session start**: repo was clean on `main` @ `a66d4b0` (Build 168 released); backend
+  healthy, `aishwar.c@` → `role: manager` / `needs_password: false`.
+
 ## 2026-09-04T18:00:00+05:30 - "Grow the team" — demand-led upskilling card + Ask action (v3.74.0, Build 168)
 
 - **Model**: Claude Sonnet 5 · **Tool**: Claude Code
