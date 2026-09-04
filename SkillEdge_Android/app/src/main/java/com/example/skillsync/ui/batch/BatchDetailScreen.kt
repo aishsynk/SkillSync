@@ -66,11 +66,17 @@ fun BatchDetailScreen(
     var showEligibilitySheet by remember { mutableStateOf(false) }
     var shareTarget by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showMessagePreview by remember { mutableStateOf(false) }
+    // Per-row "Mark" from the team-skill panel: preselect that reportee and,
+    // where known, open the dialog at the assignment's required level.
+    var markFor by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var markForLevel by remember { mutableStateOf<Int?>(null) }
 
     val courseId = batch.str("course_id")
     val courseName = batch.str("course_name")
     val relevance = batch.int("relevance")
     val candidates = batch.list("candidates")
+    val teamSkill = batch.list("team_skill")
+    val requiredLevel = batch.str("assignment_level")
 
     val effectiveToc = operationalContext?.course?.contentUrl?.takeIf { it.isNotBlank() }
         ?: batch.str("toc_url").takeIf { it.isNotBlank() }
@@ -192,6 +198,19 @@ fun BatchDetailScreen(
                         }
                     }
                 }
+
+                // ── Team skill on this course ───────────────────────────────
+                // The heart of Demand: which of my reportees already hold this
+                // skill, at what level, and who is below the assignment level.
+                TeamSkillPanel(
+                    rows = teamSkill,
+                    requiredLevel = requiredLevel,
+                    onMark = { name, email ->
+                        markFor = name to email
+                        markForLevel = requiredLevel.toIntOrNull()
+                        showReportee = true
+                    },
+                )
 
                 // The full eligibility check — leave, client exclusions,
                 // confirmed bookings, skill floor and visa. The demand board
@@ -533,6 +552,26 @@ fun BatchDetailScreen(
                                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                                         )
                                         val coverage = c.str("coverage")
+                                        val heldLvl = c.str("held_skill_level")
+                                        val reqLvl = c.str("required_skill_level")
+                                        if (heldLvl.isNotBlank() || reqLvl.isNotBlank()) {
+                                            val meets = c["meets_required_level"]
+                                            Text(
+                                                buildString {
+                                                    if (heldLvl.isNotBlank()) append("Holds level $heldLvl")
+                                                    if (reqLvl.isNotBlank()) append(" · needs $reqLvl")
+                                                    when (meets) {
+                                                        true -> append(" ✓")
+                                                        false -> append(" — below level")
+                                                        else -> {}
+                                                    }
+                                                },
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = when (c["meets_required_level"]) {
+                                                    true -> sk.aqua; false -> sk.warn; else -> sk.subText
+                                                },
+                                            )
+                                        }
 
                                         Spacer(Modifier.height(2.dp))
                                         if (isDnc) {
@@ -668,16 +707,20 @@ fun BatchDetailScreen(
     if (showReportee) {
         MarkSkillDialog(
             title = "Mark reportee's skill",
-            subtitle = courseName,
-            people = reportees,
+            subtitle = listOfNotNull(
+                courseName.takeIf { it.isNotBlank() },
+                requiredLevel.takeIf { it.isNotBlank() }?.let { "Assignment needs level $it or above" },
+            ).joinToString(" · "),
+            people = markFor?.let { listOf(it) } ?: reportees,
             working = markState is MarkState.Working,
-            onDismiss = { showReportee = false },
+            initialLevel = markForLevel,
+            onDismiss = { showReportee = false; markFor = null; markForLevel = null },
             onConfirm = { who, level, date ->
                 val email = who?.second.orEmpty()
                 if (email.isNotBlank()) {
                     onMarkSkill(courseId, email, level, date, who?.first ?: email)
                 }
-                showReportee = false
+                showReportee = false; markFor = null; markForLevel = null
             },
         )
     }
@@ -741,6 +784,67 @@ private fun MessagePreviewDialog(
             )
         },
     )
+}
+
+/**
+ * "Who on my team holds this skill" — the panel a delivery manager opens Demand
+ * for. Every reportee, sorted eligible → holds-but-below-level → no skill, each
+ * with a one-tap Mark that pre-fills the assignment's required level.
+ */
+@Composable
+private fun TeamSkillPanel(
+    rows: List<Map<*, *>>,
+    requiredLevel: String,
+    onMark: (name: String, email: String) -> Unit,
+) {
+    if (rows.isEmpty()) return
+    val sk = MaterialTheme.skill
+    val reqN = requiredLevel.toIntOrNull()
+    val eligible = rows.count { it["meets_required"] == true }
+    Box(Modifier.fillMaxWidth().glassSurface()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Team skill on this course", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = sk.frost)
+                if (requiredLevel.isNotBlank()) Chip("Needs L$requiredLevel", sk.amber)
+            }
+            Text(
+                if (reqN != null) "$eligible of ${rows.size} meet level $reqN or above"
+                else "${rows.count { it["has_skill"] == true }} of ${rows.size} hold this course",
+                style = MaterialTheme.typography.labelSmall, color = sk.labelText,
+            )
+            Spacer(Modifier.height(2.dp))
+            rows.forEach { r ->
+                val name = r.str("trainer_name")
+                val email = r.str("trainer_email")
+                val held = r.str("held_skill_level")
+                val hasSkill = r["has_skill"] == true
+                val meets = r["meets_required"]
+                val (tint, tag) = when {
+                    meets == true -> sk.aqua to "Eligible · L$held"
+                    hasSkill && meets == false -> sk.warn to "Below level · L$held"
+                    hasSkill -> sk.sky to "Holds · L$held"
+                    else -> sk.subText to "No skill on file"
+                }
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(tint))
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(name, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, fontWeight = FontWeight.SemiBold)
+                        Text(tag, style = MaterialTheme.typography.labelSmall, color = tint)
+                    }
+                    if (meets != true) {
+                        TextButton(onClick = { onMark(name, email) }) {
+                            Text(if (hasSkill) "Raise" else "Mark", color = sk.sky)
+                        }
+                    }
+                }
+            }
+            Text(
+                "Marking writes a verified skill to RMS at the level you set. Preference still goes to certified trainers, then a quality mock.",
+                style = MaterialTheme.typography.labelSmall, color = sk.subText,
+            )
+        }
+    }
 }
 
 @Composable

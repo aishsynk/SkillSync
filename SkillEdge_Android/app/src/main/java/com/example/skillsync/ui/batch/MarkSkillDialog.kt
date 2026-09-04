@@ -33,11 +33,12 @@ fun MarkSkillDialog(
     working: Boolean,
     onDismiss: () -> Unit,
     onConfirm: (person: Pair<String, String>?, level: Int, date: String) -> Unit,
+    initialLevel: Int? = null,
 ) {
     val sk = MaterialTheme.skill
     var person by remember { mutableStateOf(people?.firstOrNull()) }
     var expanded by remember { mutableStateOf(false) }
-    var level by remember { mutableStateOf(4) }
+    var level by remember { mutableStateOf(initialLevel?.coerceIn(1, 10) ?: 4) }
     var showDatePicker by remember { mutableStateOf(false) }
 
     val today = remember { Calendar.getInstance() }

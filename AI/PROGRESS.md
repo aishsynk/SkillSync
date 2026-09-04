@@ -1,3 +1,30 @@
+## 2026-09-04T15:45:00+05:30 - Demand detail: team-skill panel + skill-vs-assignment-level (v3.72.0, Build 166)
+
+- **Model**: Claude Sonnet 5 · **Tool**: Claude Code
+- **Files**: `backend.py` (`_rank_batch`, new `_team_course_skill`, allocation-desk loop),
+  `BatchDetailScreen.kt`, `MarkSkillDialog.kt`, `app/build.gradle.kts`.
+- **Why**: Demand is the core screen. It never showed which reportees hold the course, at
+  what level, versus what the assignment requires; per-reportee skill marking was easy to
+  miss (and was hidden entirely in Build 162 when the manager was misclassified as reportee).
+- **Backend**:
+  - `_rank_batch` now tracks each matched trainer's held RMS `SkillLevel` on the matched
+    course (`level_by_email`) and adds `held_skill_level` / `required_skill_level` /
+    `meets_required_level` to every candidate. The skill gate is numeric now (was matching
+    the words "expert/advanced/intermediate" that RMS never sends) — an under-levelled
+    trainer is penalised, never hidden.
+  - New `_team_course_skill(team, course, vendor, required_level)` → every reportee (matched
+    or not), sorted eligible → holds-below-level → no-skill, each with held level and
+    `meets_required`. Attached to each demand row as `team_skill`.
+- **Android BatchDetailScreen**:
+  - New **Team skill on this course** panel near the top: "Needs L6" chip, "N of M meet
+    level 6", one row per reportee (green Eligible · L8 / amber Below level · L3 / blue
+    Holds · L5 / grey No skill on file) with a one-tap **Mark / Raise** that opens
+    `MarkSkillDialog` pre-selected to that person and pre-filled to the required level.
+  - Recommended-allocation rows now show "Holds level N · needs M ✓ / below level".
+  - `MarkSkillDialog` gained `initialLevel`.
+- **assignment_sl → assignment_level** (from Build 165) feeds all of the above.
+- **Validation**: backend 300 pass; Android compile clean; unit tests running.
+
 ## 2026-09-04T15:05:00+05:30 - Assignment skill level surfaced end-to-end (v3.71.2, Build 165)
 
 - **Model Used**: Claude Sonnet 5 · **Tool**: Claude Code

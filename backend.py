@@ -1710,6 +1710,49 @@ def _suitability_components(batch, skill_match, readiness, availability, utiliza
     }
 
 
+def _team_course_skill(team, course, vendor, required_level=""):
+    """Every reportee's held RMS skill level for one course — matched or not.
+
+    Powers the Demand page's "who on my team holds this skill" panel: the
+    manager needs to see, at a glance, which reportees are eligible, which
+    hold the course but below the assignment level, and which have no skill
+    on it at all (so they know who to develop or who cannot take it).
+    """
+    try:
+        req = int(float(str(required_level).strip())) if str(required_level or "").strip() else 0
+    except (TypeError, ValueError):
+        req = 0
+    rows = []
+    for name, email, caps, _feedback, is_self in team:
+        held = ""
+        for c in caps:
+            if _match_score(course, vendor, c["course"], c["vendor"]) >= 60:
+                lv = str(c.get("skill_level", "") or "").strip()
+                try:
+                    if lv and (not held or int(float(lv)) > int(float(held))):
+                        held = lv
+                except (TypeError, ValueError):
+                    held = held or lv
+        try:
+            held_n = int(float(held)) if held else 0
+        except (TypeError, ValueError):
+            held_n = 0
+        rows.append({
+            "trainer_name":  f"{name} (You)" if is_self else name,
+            "trainer_email": email,
+            "is_self":       is_self,
+            "held_skill_level": held,
+            "has_skill":     bool(held_n),
+            "meets_required": (held_n >= req) if (held_n and req) else None,
+        })
+    rows.sort(key=lambda r: (
+        0 if r["meets_required"] is True else (1 if r["has_skill"] else 2),
+        -(int(float(r["held_skill_level"])) if r["held_skill_level"] else 0),
+        r["trainer_name"].lower(),
+    ))
+    return rows
+
+
 def _rank_batch(batch, team, availability_sources=None, candidate_context=None):
     """
     Best team match for one unallocated batch, plus the ranked candidate list.
@@ -1724,14 +1767,17 @@ def _rank_batch(batch, team, availability_sources=None, candidate_context=None):
     """
     course, vendor = batch.get("course_name", ""), batch.get("customer", "")
     matched = []
+    level_by_email = {}   # matched trainer -> RMS SkillLevel held on the matched course
     for name, email, caps, feedback, is_self in team:
-        best, best_course, best_q = 0, "", 0
+        best, best_course, best_q, best_level = 0, "", 0, ""
         for c in caps:
             s = _match_score(course, vendor, c["course"], c["vendor"])
             if s > best:
                 best, best_course, best_q = s, c["course"], c["qubits_score"]
+                best_level = str(c.get("skill_level", "") or "").strip()
         if best > 0:
             matched.append((name, email, best, best_course, best_q, feedback, is_self))
+            level_by_email[email] = best_level
 
     if not matched:
         return 0, [], "No Coverage"
@@ -1759,7 +1805,13 @@ def _rank_batch(batch, team, availability_sources=None, candidate_context=None):
              for m, value in zip(matched, langs)]
 
     batch_lang = (batch.get("language") or "").strip().lower()
-    batch_skill = (batch.get("skill_level") or "").strip().lower()
+    # RMS assignment_sl (mapped to assignment_level) is a number 1-10: the skill
+    # level a trainer must hold for this batch. Old text buckets kept as a fallback.
+    batch_skill = (batch.get("assignment_level") or batch.get("skill_level") or "").strip().lower()
+    try:
+        required_level_n = int(float(batch_skill)) if batch_skill and batch_skill[0].isdigit() else 0
+    except (TypeError, ValueError):
+        required_level_n = 0
 
     candidates = []
     for (name, email, best, best_course, best_q, feedback, is_self), util, languages, availability_row in zip(matched, utils, langs, availability):
@@ -1777,8 +1829,20 @@ def _rank_batch(batch, team, availability_sources=None, candidate_context=None):
                 best = 0
                 best_q = 0
 
-        # 2. Skill Level Constraint: Penalise heavily if the trainer is not qualified enough
-        if best > 0 and batch_skill:
+        # 2. Skill Level Constraint: penalise (never hide) a trainer who holds
+        #    the course but below the level the assignment requires.
+        held_level_str = level_by_email.get(email, "")
+        try:
+            held_level_n = int(float(held_level_str)) if held_level_str else 0
+        except (TypeError, ValueError):
+            held_level_n = 0
+        meets_required_level = (
+            (held_level_n >= required_level_n) if (held_level_n and required_level_n)
+            else None
+        )
+        if best > 0 and required_level_n and held_level_n and held_level_n < required_level_n:
+            best = max(1, best - 40)   # under-levelled: still a candidate, ranked lower
+        elif best > 0 and batch_skill and not required_level_n:
             if "expert" in batch_skill and best_q < 75:
                 best = max(0, best - 50)
             elif "advanced" in batch_skill and best_q < 50:
@@ -1815,6 +1879,9 @@ def _rank_batch(batch, team, availability_sources=None, candidate_context=None):
             "via_course":    best_course,
             "qubits_score":  best_q,
             "readiness_score": best_q,
+            "held_skill_level":     held_level_str,
+            "required_skill_level": str(required_level_n) if required_level_n else "",
+            "meets_required_level": meets_required_level,
             "utilization":   util,
             "availability":  availability_row,
             "availability_status": availability_row["status"],
@@ -4813,6 +4880,10 @@ def allocation_desk():
         b["relevance"], b["candidates"], coverage = _rank_batch(
             b, team, availability_sources=availability_sources,
             candidate_context=candidate_context,
+        )
+        b["team_skill"] = _team_course_skill(
+            team, b.get("course_name", ""), b.get("customer", ""),
+            b.get("assignment_level", ""),
         )
         b["coverage_status"] = coverage
         b["relevance_band"] = (

@@ -1,5 +1,22 @@
 # SkillEdge / Manager OS — Project Context
 
+## Demand detail — assignment level & team-skill panel (effective v3.72.0)
+
+- RMS `unallocated` field **`assignment_sl`** (a number 1-10) = the skill level a trainer must
+  hold for the batch. `_demand_rows` maps it to **`assignment_level`**. Shown on the demand
+  card ("Level N"), the batch-detail fact grid, the skill-level filter, and the share message.
+- `_rank_batch` records each matched trainer's held RMS `SkillLevel` (from `trainerDetails`,
+  key 75) on the matched course. Each candidate carries `held_skill_level`,
+  `required_skill_level`, `meets_required_level`. Under-levelled trainers are penalised in
+  ranking, never hidden. The skill gate is numeric (old "expert/advanced" text buckets were
+  dead — RMS sends a number).
+- `_team_course_skill(team, course, vendor, required_level)` → per demand row as `team_skill`:
+  every reportee (matched or not), `{trainer_name, trainer_email, is_self, held_skill_level,
+  has_skill, meets_required}`, sorted eligible → holds-below-level → no-skill.
+- Android `BatchDetailScreen` renders this as the **Team skill on this course** panel with a
+  per-row Mark/Raise that opens `MarkSkillDialog` pre-selected + pre-filled to the required
+  level. `MarkSkillDialog(initialLevel=…)`.
+
 ## Secrets, capability matrix & canonical routes (effective 2026-09-04)
 
 - RMS service-account fallback credentials live only in `rms_service_credentials.py`
