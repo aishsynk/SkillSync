@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
+import kotlinx.coroutines.launch
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
@@ -89,11 +90,40 @@ internal fun UniversalCommandSearch(
     actions: List<Map<String, Any>>,
     onTrainer: (String, String) -> Unit,
     onDemand: (String) -> Unit,
+    managerEmail: String = "",
 ) {
     val sk = MaterialTheme.skill
     var query by remember { mutableStateOf("") }
     var selectedScope by remember { mutableStateOf("ALL") }
     val needle = query.trim().lowercase()
+
+    // Question-answering: any query that reads as a question routes to the team
+    // Copilot (RMS-grounded), and its answer sits above the entity matches.
+    val scope = rememberCoroutineScope()
+    var answer by remember { mutableStateOf<Map<String, Any>?>(null) }
+    var answering by remember { mutableStateOf(false) }
+    var answeredFor by remember { mutableStateOf("") }
+    val looksLikeQuestion = query.trim().let { q ->
+        q.endsWith("?") || q.split(" ").firstOrNull()?.lowercase() in setOf(
+            "who", "what", "when", "where", "which", "why", "how", "can", "is", "are", "does", "do", "should",
+        )
+    }
+    fun ask() {
+        val q = query.trim()
+        if (q.length < 4 || answering || managerEmail.isBlank()) return
+        answering = true; answeredFor = q
+        scope.launch {
+            try {
+                answer = com.example.skillsync.data.api.RetrofitClient.instance.askCopilotTeam(
+                    mapOf("manager" to managerEmail, "question" to q),
+                )
+            } catch (_: Exception) {
+                answer = mapOf("answer" to "Could not reach the Copilot. Try again in a moment.", "confidence" to "")
+            } finally {
+                answering = false
+            }
+        }
+    }
 
     val quickPrompts = listOf(
         "🔥 High Risk" to "high",
@@ -175,8 +205,8 @@ internal fun UniversalCommandSearch(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column {
-                Text("Universal Command Search", style = MaterialTheme.typography.titleMedium, color = sk.bodyText, fontWeight = FontWeight.Bold)
-                Text("Search across trainers, capability, demand and action queue", style = MaterialTheme.typography.bodySmall, color = sk.subText)
+                Text("Search & Ask", style = MaterialTheme.typography.titleMedium, color = sk.bodyText, fontWeight = FontWeight.Bold)
+                Text("Find a trainer, course, demand or action — or ask a question and the team Copilot answers from RMS", style = MaterialTheme.typography.bodySmall, color = sk.subText)
             }
             if (filteredResults.isNotEmpty()) {
                 Surface(color = sk.cardBg, shape = RoundedCornerShape(8.dp), border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder)) {
@@ -190,7 +220,7 @@ internal fun UniversalCommandSearch(
             onValueChange = { query = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            placeholder = { Text("Try “available Azure”, “FMAT” or a trainer name", color = sk.subText) },
+            placeholder = { Text("Search a name… or ask “who can take AI-103 in October?”", color = sk.subText) },
             shape = RoundedCornerShape(12.dp),
             leadingIcon = { Icon(painterResource(R.drawable.ic_search), null, tint = sk.cyan, modifier = Modifier.size(18.dp)) },
             trailingIcon = {
@@ -215,6 +245,66 @@ internal fun UniversalCommandSearch(
                     border = androidx.compose.foundation.BorderStroke(1.dp, if (query.contains(term, true)) sk.cyan else sk.cardBorder),
                 ) {
                     Text(label, style = MaterialTheme.typography.labelSmall, color = if (query.contains(term, true)) sk.cyan else sk.labelText, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                }
+            }
+        }
+
+        // ── Ask the Copilot ─────────────────────────────────────────────────
+        if (looksLikeQuestion && query.trim().length >= 4) {
+            Surface(
+                onClick = { ask() },
+                shape = RoundedCornerShape(10.dp),
+                color = sk.cyan.copy(alpha = 0.14f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, sk.cyan.copy(alpha = 0.4f)),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (answering) {
+                        CircularProgressIndicator(Modifier.size(16.dp), color = sk.cyan, strokeWidth = 2.dp)
+                    } else {
+                        Icon(painterResource(R.drawable.ic_alert), null, tint = sk.cyan, modifier = Modifier.size(16.dp))
+                    }
+                    Text(
+                        if (answering) "Asking the team Copilot…" else "Ask the team Copilot: “${query.trim()}”",
+                        style = MaterialTheme.typography.labelMedium, color = sk.cyan, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+
+        answer?.takeIf { answeredFor.isNotBlank() }?.let { a ->
+            val conf = (a["confidence"] as? String).orEmpty()
+            @Suppress("UNCHECKED_CAST")
+            val people = (a["data"] as? List<Map<String, Any>>).orEmpty()
+            Column(
+                Modifier.fillMaxWidth().glassSurface(RoundedCornerShape(12.dp)).padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("COPILOT", style = MaterialTheme.typography.labelSmall, color = sk.cyan, fontWeight = FontWeight.Bold)
+                    if (conf.isNotBlank()) Text("· $conf confidence", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                }
+                Text((a["answer"] as? String).orEmpty(), style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
+                people.forEach { p ->
+                    val nm = (p["name"] as? String).orEmpty().trim()
+                    val em = (p["email"] as? String).orEmpty()
+                    val nt = (p["note"] as? String).orEmpty()
+                    if (nm.isNotBlank()) Row(
+                        Modifier.fillMaxWidth().clickable(enabled = em.isNotBlank()) { onTrainer(em, nm) }
+                            .padding(vertical = 3.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(nm, style = MaterialTheme.typography.bodySmall, color = sk.sky, fontWeight = FontWeight.SemiBold)
+                        if (nt.isNotBlank()) Text(nt, style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                    }
+                }
+                (a["evidence"] as? String)?.takeIf { it.isNotBlank() }?.let {
+                    Text(it, style = MaterialTheme.typography.labelSmall, color = sk.labelText)
                 }
             }
         }

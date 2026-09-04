@@ -688,7 +688,7 @@ class ScreenRenderTest {
                 )
             }
         }
-        compose.onNodeWithText("Try “available Azure”, “FMAT” or a trainer name").performTextInput("Abhinav")
+        compose.onNodeWithText("Search a name… or ask “who can take AI-103 in October?”").performTextInput("Abhinav")
         compose.onNodeWithText("TRAINER").assertExists()
         compose.onNodeWithText("Abhinav Samant").assertExists()
     }

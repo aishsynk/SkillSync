@@ -545,6 +545,7 @@ fun MainScreen(
                                 onTrainer = onTrainerClick,
                             )
                             HomeTab.SEARCH -> UniversalCommandSearch(
+                                managerEmail = email,
                                 dashboard = d,
                                 capability = capability,
                                 allocation = (allocState as? AllocationState.Success)?.data,

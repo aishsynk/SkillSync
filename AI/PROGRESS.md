@@ -1,3 +1,22 @@
+## 2026-09-04T20:15:00+05:30 - Search tab answers questions via the team Copilot (v3.75.3, Build 173)
+
+- **Model**: Claude Sonnet 5 · **Tool**: Claude Code
+- **Files**: `ui/main/Version2Workspaces.kt` (`UniversalCommandSearch`), `ui/main/MainScreen.kt`
+  (pass `managerEmail`), `app/build.gradle.kts`.
+- The Search tab now **answers questions**, not just filters entities. When the query reads
+  like a question (`?` or a wh-/aux- first word), an "Ask the team Copilot" pill appears;
+  tapping it calls `POST /api/v2/copilot/team` and renders an answer card above the entity
+  matches: the prose answer, a confidence badge, tappable trainer rows from `data[]` (→ open
+  Trainer 360), and the evidence/provenance line. Local entity search unchanged for
+  non-question queries. Renamed the tab header to "Search & Ask".
+- Live backend verified: "who can take AI-103T00 in October?" → "1 trainer… Abhinav Samant…
+  19% utilised", confidence high, evidence "capability from trainerDetails, utilisation from
+  RMS key 55, demand from RMS key 190".
+- Scope for-me / any-trainer: team Copilot covers "my team"; a follow-up can route a
+  trainer-name question to `POST /api/agent/ask` (`agentAsk`, single trainer).
+- **Validation**: Android compile clean; unit tests running.
+- **Status**: staged for Build 173 (after Build 172 releases).
+
 ## 2026-09-04T19:50:00+05:30 - Calendar: real week grid + bigger view toggle (v3.75.2, Build 172)
 
 - **Model**: Claude Sonnet 5 · **Tool**: Claude Code
