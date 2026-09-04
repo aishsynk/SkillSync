@@ -1,3 +1,42 @@
+## 2026-09-04T20:35:00+05:30 - "Grow the team" card mirrored on Today (v3.75.4, Build 174)
+
+- **Model**: Claude Sonnet 5 · **Tool**: Claude Code
+- **Files**: `ui/main/MainScreen.kt` (`DashboardTab` gains `upskilling` param + renders
+  `GrowTeamCard` after `TopPerformers`), `app/build.gradle.kts`.
+- The demand-led upskilling card ("who on the team is closest to covering unallocated
+  demand", with the Ask action) now also appears at the bottom of the **Today** dashboard,
+  not just the Demand tab. `viewModel.ensureUpskilling` was already wired for the DASHBOARD
+  tab (Build 168), so no extra fetch.
+- **Validation**: Android compile + `testDebugUnitTest` green.
+- **Status**: staged for Build 174 (waiting for Build 173 CI to release first).
+
+### HANDOVER 2026-09-04T20:40 (Claude Sonnet 5)
+
+Continued a long autonomous run from Build 168. Shipped this session (all CI-green,
+backend live-verified where relevant):
+- **169** v3.74.1 — Wider Network related-course expansion (fuzzy sibling courses)
+- **171** v3.75.1 — Trainer 360 + every Main tab wrapped in `ReadableColumn` (760dp cap,
+  kills tablet sprawl); Trainer 360 header spacers tightened
+- **172** v3.75.2 — Calendar: real 7-column week grid (was a list), bigger view toggle
+- **173** v3.75.3 — Search tab answers questions via the team Copilot (`/api/v2/copilot/team`)
+- **174** v3.75.4 — Grow-the-team upskilling card mirrored onto Today (staged)
+
+Repo clean on `main` at the 173 commit + 174 staged in the working tree (bump to 173 done;
+GrowTeamCard on DashboardTab). Backend unchanged since Build 169.
+
+**IMPORTANT: the user has not seen any of Builds 169–174 on a device.** Six builds of
+mostly-UI change went out blind ("you decide you do"). Before continuing, get the user to
+install **v3.75.4** and give feedback — especially on Trainer 360 spacing, the calendar week
+grid, and the Search Ask flow. Do not stack more blind UI changes.
+
+**Genuinely open (small, safe):**
+- Route a Search question that names a specific trainer to `POST /api/agent/ask`
+  (`agentAsk`, single-trainer) instead of the team Copilot.
+- Certification-expiry calendar — check RMS `trainerResume` / cert endpoints for expiry
+  dates first (may not exist).
+- Bench-risk watchlist (low util + no upcoming assignment) — data is in
+  `trainer_current_state_df`.
+
 ## 2026-09-04T20:15:00+05:30 - Search tab answers questions via the team Copilot (v3.75.3, Build 173)
 
 - **Model**: Claude Sonnet 5 · **Tool**: Claude Code

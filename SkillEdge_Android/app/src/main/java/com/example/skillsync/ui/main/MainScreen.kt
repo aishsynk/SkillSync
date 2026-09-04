@@ -620,6 +620,7 @@ fun MainScreen(
                                         onOpenSkillRequests = onOpenSkillRequests,
                                         onBatchClick = onBatchClick,
                                         calendarReadiness = teamReadiness,
+                                        upskilling = viewModel.upskilling.collectAsState().value,
                                         fromCache = s.fromCache,
                                         cachedAt = s.cachedAt,
                                         listState = dashListState,
@@ -940,6 +941,7 @@ internal fun DashboardTab(
     onOpenSkillRequests: () -> Unit = {},
     onBatchClick: (String) -> Unit = {},
     calendarReadiness: Map<String, Map<String, Any>> = emptyMap(),
+    upskilling: Map<String, Any>? = null,
     /** Disk-write time of the payload, so the hero can state a real "as of". */
     fromCache: Boolean = false,
     cachedAt: Long = 0L,
@@ -1126,6 +1128,11 @@ internal fun DashboardTab(
         }
 
         item { Appear(7) { TopPerformers(ops, capMap, onTrainerClick) } }
+
+        // Demand the team cannot cover yet + who is closest to being able to.
+        if (upskilling != null) {
+            item { Appear(7) { com.example.skillsync.ui.batch.GrowTeamCard(upskilling) } }
+        }
         }
 
         item { Spacer(Modifier.height(16.dp)) }
