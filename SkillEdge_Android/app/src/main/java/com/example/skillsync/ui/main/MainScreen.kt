@@ -441,6 +441,7 @@ fun MainScreen(
                 }
             }
             Box(Modifier.weight(1f)) {
+            com.example.skillsync.theme.ReadableColumn(Modifier.fillMaxSize()) {
             when (tab) {
                 HomeTab.DEMAND -> when (val a = allocState) {
                     // Allocation desk has its own query, state and refresh.
@@ -627,6 +628,7 @@ fun MainScreen(
                         }
                     }
                 }
+            }
             }
         }
     }
