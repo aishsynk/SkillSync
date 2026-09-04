@@ -17,8 +17,12 @@
   categorised MOCK / WEBINAR / LEAVE / UPSKILLING / DELIVERY from course name + remarks +
   mode). Empty for `aishwar.c@` today because the two reportees have no current/upcoming
   batches — that is real, not a bug.
-- **Validation**: `compileDebugKotlin` clean; `testDebugUnitTest` running at write time.
-- **Status**: staged for v3.71.1 / Build 164.
+- **Validation**: `compileDebugKotlin` + `testDebugUnitTest` green. Live payload confirmed:
+  `unified-manager-intelligence` for `aishwar.c@` warms in ~1 cycle to `loading:false` with
+  `batch_engagement_df` = 5 real batches (AI-103, AB-100, PL-300, DP-900, DP-605) and
+  `trainer_current_state_df` = 2 with verified availability. The partial `loading:true`
+  payload is by design — the Android app shows a skeleton then refreshes.
+- **Status**: committed `86c39d5`, pushed; CI cutting v3.71.1 / Build 164.
 
 ## 2026-09-04T14:11:39+05:30 - Withdraw the reportee tier; fail-open to the manager app (v3.71.0, Build 163)
 
