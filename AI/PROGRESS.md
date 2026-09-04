@@ -14,6 +14,37 @@
 - **Session start**: repo was clean on `main` @ `a66d4b0` (Build 168 released); backend
   healthy, `aishwar.c@` → `role: manager` / `needs_password: false`.
 
+### HANDOVER 2026-09-04T18:40 (Claude Sonnet 5)
+
+Repo clean on `main` after Build 169 (`v3.74.1`, related-course wider-network expansion —
+backend live, CI cutting the APK). Nothing in flight.
+
+Everything the user reported broken across Builds 163–169 is fixed and verified. The message
+composition and future tweaks are server-side (no APK needed).
+
+**The four remaining user asks are visual reworks — do NOT do them blind. Ask for a
+screenshot of each screen first:**
+1. **Trainer 360 makeover** — user: "a lot many wide spaces in header to other area".
+   `Trainer360Content` @ `ui/trainer/Trainer360Screen.kt:245`; hero Column @ ~line 485
+   (`heroSurface().padding(Space.lg)` + `spacedBy(Space.md)`). Spacing scale is standard
+   (Space 4/8/12/16/24/32) — the gaps are likely empty sections rendering headers, or the
+   `Figure` grid. Need the render.
+2. **Today** — extend, do not rebuild (user likes it). `TopPerformers` already @
+   `MainScreen.kt:1262`. Add: team-KPI strip (live batches / open demand / avg util /
+   at-risk) + mirror the Grow-the-team card.
+3. **Calendar** — add a real week view, tidy the month grid. `TeamCalendarScreen.kt`.
+4. **Search tab** — make it the Copilot Q&A. `CopilotScreen.kt` exists but is
+   local-recommender-based; wire it to `POST /api/agent/ask` (one trainer) and
+   `POST /api/v2/copilot/team` (team). `UniversalCommandSearch` @ `Version2Workspaces.kt:85`
+   is the current local entity filter. Scope answers: me / my team / any trainer by name.
+
+**Safe backend-only follow-ups still open:** bench-risk watchlist (low util + no upcoming
+assignment), certification-expiry calendar (check RMS `trainerResume` / cert endpoints for
+expiry dates first).
+
+**Clock note:** the host system clock reads ~3h behind these entry timestamps; entries keep
+the +05:30 wall-clock the prior session used, for ordering.
+
 ## 2026-09-04T18:00:00+05:30 - "Grow the team" — demand-led upskilling card + Ask action (v3.74.0, Build 168)
 
 - **Model**: Claude Sonnet 5 · **Tool**: Claude Code
