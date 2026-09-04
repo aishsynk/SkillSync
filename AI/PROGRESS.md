@@ -29,21 +29,30 @@
     immediately instead of forcing the password step.
   - Reverted the Android `api/v2/data|action/*` client migration back to `api/data|action/*`
     (the always-working routes); backend v2 aliases stay. Pure risk reduction.
-- **Validation**: backend `pytest tests/ -q` **300 passed**; Android `compileDebugKotlin`
-  clean; `testDebugUnitTest` rerun in progress at write time.
-- **Current Status**: fix staged for v3.71.0 / Build 163.
+- **Validation**: backend `pytest tests/ -q` **300 passed**; Android `compileDebugKotlin` +
+  `testDebugUnitTest` (forced rerun) green.
+- **Post-deploy verification (live host, Build 163)**:
+  - `/healthz?rms=1` → `token: true` — the host **can** reach RMS. The earlier
+    everyone-is-reportee state was stale in-process token/cache on the old deploy; the
+    restart cleared it, and the inline-cred + fail-open changes prevent a recurrence.
+  - `auth/check` / `login` for `aishwar.c@` → `role: manager`, `needs_password: false`,
+    session minted with no password.
+  - `manager-profile` (real RMS certs), `allocation-desk` (HTTP 200), and
+    `unified-manager-intelligence` (HTTP 200, 25 KB) all return real data.
+- **Current Status**: RELEASED. v3.71.0 / Build 163 —
+  https://github.com/aishsynk/SkillSync/releases/tag/v3.71.0.163 (SkillEdge-v3.71.0.163.apk).
+  Backend live and serving real manager data. HANDOVER: repo clean on `main` at the
+  docs commit after `b5ff535`; nothing in flight.
 - **Known Issues / Blockers**:
-  - **Live host ↔ RMS connectivity still needs an operator check.** RMS works from a dev
-    machine but not from the deployed host. Likely RMS IP-allowlisting of the deploy egress
-    IP, or host networking. `curl 'https://skilledge-backend-fpcl.onrender.com/healthz?rms=1'`
-    after this deploy will confirm. If `token:false`, RMS must allowlist the host IP
-    (operator + RMS admin). The fail-open classification keeps the manager app usable
-    meanwhile, but dashboards stay thin until RMS is reachable.
-  - Demand-page crash: expected to clear once real data flows + role is `manager`; if it
-    persists, need a logcat stack from the device.
-  - RMS password rotation still pending (operator).
-- **Next Recommended Actions**: deploy Build 163; hit `/healthz?rms=1`; if RMS unreachable,
-  get the deploy egress IP allowlisted in RMS; retest Demand on device.
+  - Demand-page crash: backend now returns real data so it is expected to be resolved;
+    unconfirmed on device. If it still crashes on Build 163, capture a logcat stack.
+  - If the everyone-is-reportee symptom ever recurs, first check `/healthz?rms=1`; a
+    `token:false` there points at host↔RMS networking / RMS IP allowlisting (operator).
+  - RMS password rotation + Render `SKILLEDGE_RMS_*` secret provisioning still pending
+    (operator). Fallbacks are inline again, so this is hygiene, not availability.
+- **Next Recommended Actions**: user retests Build 163 on device (login = work ID only,
+  manager view, Demand tab). Then resume the notification source/freshness pass and the
+  manager-only-write capability sweep.
 
 ## 2026-09-04T13:29:18+05:30 - Release cut: v3.70.0 / Build 162 (operator-authorised publish)
 
