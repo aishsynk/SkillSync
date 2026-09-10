@@ -297,4 +297,39 @@ class ManagerRepository(
     }
 
     private fun Boolean.flag() = if (this) 1 else null
+
+    // ── Opportunity Guardian ────────────────────────────────────
+
+    suspend fun guardianConfig(manager: String, fresh: Boolean = false): Map<String, Any> =
+        cachedMap("guardian_config_$manager", fresh) {
+            api.getGuardianConfig(manager)
+        }
+
+    suspend fun updateGuardianConfig(manager: String, body: Map<String, Any>): Map<String, Any> =
+        api.updateGuardianConfig(body)
+
+    suspend fun opportunities(manager: String, status: String = "", fresh: Boolean = false): Map<String, Any> =
+        cachedMap("opportunities_$manager${if (status.isNotEmpty()) "_$status" else ""}", fresh) {
+            api.getOpportunities(manager, status)
+        }
+
+    suspend fun createOpportunity(body: Map<String, Any>): Map<String, Any> =
+        api.createOpportunity(body)
+
+    suspend fun acceptOpportunity(id: String): Map<String, Any> =
+        api.acceptOpportunity(id)
+
+    suspend fun declineOpportunity(id: String): Map<String, Any> =
+        api.declineOpportunity(id)
+
+    suspend fun matchOpportunity(body: Map<String, Any>): Map<String, Any> =
+        api.matchOpportunity(body)
+
+    suspend fun skillProfile(manager: String, fresh: Boolean = false): Map<String, Any> =
+        cachedMap("skill_profile_$manager", fresh) {
+            api.getSkillProfile(manager)
+        }
+
+    suspend fun updateSkillProfile(body: Map<String, Any>): Map<String, Any> =
+        api.updateSkillProfile(body)
 }

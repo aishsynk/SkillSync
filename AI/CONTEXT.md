@@ -684,3 +684,164 @@ Official Koenig HR scoring formula implemented in `_calculate_trainer_index` acr
 - **Tier 3: Gold (TI 600–899)**: 🔷 Core Delivery / Steady Anchor
 - **Tier 4: Silver (TI 300–599)**: 🔶 Developing / Upskilling Focus
 - **Tier 5: Bronze (TI < 300)**: ⚠️ At Risk / Quality & Util Recovery
+
+## Opportunity Guardian module (effective 2026-09-05)
+
+SkillEdge now includes an **Opportunity Guardian** module that watches for training/delivery opportunities and evaluates them against the manager's skill profile. It is not a separate application — it is a major layer inside SkillEdge.
+
+### Architecture
+
+```
+                 SKILLEDGE ECOSYSTEM
+
+              ┌────────────────────┐
+              │   SkillEdge Web    │
+              │   React / Vite     │
+              └─────────┬──────────┘
+                        │
+┌────────────────┐      │       ┌────────────────────┐
+│ SkillEdge      │──────┼───────│ Node / Express API │
+│ Android        │      │       └─────────┬──────────┘
+│ Kotlin/Compose │      │                 │
+└───────┬────────┘      │            ┌────┴────┐
+        │               │            │ MongoDB │
+        │               │            └────┬────┘
+ Android APIs           │                 │
+        │               │            ┌────┴──────┐
+ Notification Listener   │            │ AI Engine │
+ Biometrics              │            │ RAG       │
+ Background Work         │            │ Matching  │
+ Local Database          │            │ Documents │
+ Push Notifications      │            └───────────┘
+```
+
+The **Android client** is native Kotlin + Jetpack Compose because notification listening (Viber, other messaging apps) is an Android platform capability and belongs on-device. The **web frontend** is React/Vite + Node/Express + MongoDB.
+
+### Module structure
+
+```
+SKILLEDGE
+│
+├── My Skill Profile
+│   ├── Certifications
+│   ├── Technologies
+│   ├── Courses delivered
+│   ├── Experience
+│   ├── Labs/projects
+│   └── Confidence by topic
+│
+├── Opportunities
+│   ├── Manual opportunities
+│   ├── Detected opportunities        ← Opportunity Guardian
+│   ├── Accepted
+│   ├── Declined
+│   └── Missed
+│
+├── Opportunity Guardian              ← NEW
+│   ├── Trusted Sources
+│   ├── Notification Listener
+│   ├── Message Classification
+│   ├── Document Analysis
+│   ├── Skill Matching
+│   ├── Opportunity Score
+│   └── Escalation Rules
+│
+├── Learning
+│   └── Skill gaps discovered from opportunities
+│
+└── AI Copilot
+    └── "Can I deliver this?"
+```
+
+### Capability Graph
+
+The SkillEdge profile is no longer a flat list of skills (`"SQL, Azure, Power BI"`). It is a **Capability Graph**:
+
+```text
+                 Aishwar
+
+                    │
+       ┌────────────┼────────────┐
+       │            │            │
+   Certified     Delivered     Built
+       │            │            │
+    AI-102      AI courses     RAG labs
+    DP-600      DP courses     Chatbots
+    DP-700      SQL Admin      APIs
+    DP-750      Fabric         MLOps
+       │            │            │
+       └────────────┼────────────┘
+                    │
+                 SKILLS
+                    │
+       ┌────────────┼────────────┐
+       │            │            │
+   Strong      Moderate       Gap
+```
+
+Every new opportunity makes the graph smarter: opportunity → accept → prepare → deliver → evidence → score increases → better recommendations.
+
+### Decision model
+
+SkillEdge uses an opportunity-friendly decision model — it does not unnecessarily lose opportunities:
+
+| Score | Verdict | Action |
+|-------|---------|--------|
+| 90–100% | STRONGLY ACCEPT | Accept immediately |
+| 75–89% | ACCEPT | Accept, preparation required |
+| 60–74% | CONDITIONAL ACCEPT | Check preparation time |
+| 40–59% | HIGH RISK | Manual review |
+| 0–39% | DECLINE | Do not pursue |
+
+### Viber notification listener flow
+
+```text
+Viber Notification
+        ↓
+SkillEdge Android Listener
+        ↓
+Package = Viber?
+        ↓
+Group = Trailblazers?
+        ↓
+Sender = Gaurav Joshi?
+        ↓
+Relevant delivery request?
+        ↓
+YES
+        ↓
+Create SkillEdge Opportunity
+        ↓
+Analyse request/document
+        ↓
+Compare against SkillEdge Skill Profile
+        ↓
+Generate recommendation
+        ↓
+Critical alert
+```
+
+**Settings → Opportunity Guardian** configuration:
+- Trusted Source (App, Group, Sender)
+- Trigger keywords (Can anyone deliver, Can you deliver, Availability, Training requirement, Trainer needed, Travel opportunity, International delivery, Course / TOC attached)
+- Quiet Hours (11:00 PM – 7:00 AM) with escalation overrides:
+  - Normal messages → Ignore during quiet hours
+  - High opportunities → Persistent alert
+  - Critical opportunities → Alarm-style escalation
+
+### Backend API patterns
+
+All new endpoints follow the existing V2 canonical route pattern (`/api/v2/opportunity/*`, `/api/v2/skill-profile/*`). They run through `_v2_manager_session(manager_only=True)` for write operations. The existing `backend.py` is the deployment target on Render (`https://skilledge-backend-fpcl.onrender.com`).
+
+### Existing Android infrastructure for Opportunity Guardian
+
+- `ViberAutomationEngine.kt` — background automation pass that processes Viber outbox items; can be extended for opportunity detection
+- `ViberConfigStore.kt` — persists Viber configuration per manager
+- `ViberOutboxStore.kt` — persists outbox items
+- `ViberAutomationScreen.kt` / `ViberAutomationViewModel.kt` — existing settings screen
+- `NotificationCenter.kt` / `NotificationDestinationStore` — handles notification routing
+- `MonitoringService` / `MonitoringPass` — foreground service for background processing
+- `SyncScheduler` — background sync scheduling
+- `ManagerRepository` — data repository pattern
+
+These provide the foundation. The Opportunity Guardian adds a new `ui/opportunity/` package alongside the existing `ui/report/`, `ui/main/`, `ui/batch/`, `ui/trainer/` packages.

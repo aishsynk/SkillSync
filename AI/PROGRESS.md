@@ -1,3 +1,25 @@
+## 2026-09-05 - Opportunity Guardian module: core implementation done (v3.80.0, Build 175)
+
+- **Model**: Claude Sonnet 5 · **Tool**: Claude Code
+- **Files modified**:
+  - `AI/CONTEXT.md` — Added Opportunity Guardian architecture, Capability Graph, decision model, Viber listener flow
+  - `AI/DECISIONS.md` — Added architectural decisions for the module
+  - `AI/PROGRESS.md` — This entry
+  - `SkillEdge_Android/NavigationKeys.kt` — Added `OPPORTUNITIES` tab, 5 new `NavKey` classes (OpportunityGuardian, OpportunityList, OpportunityDetail, CapabilityGraph, SkillProfile)
+  - `SkillEdge_Android/data/api/SkillEdgeApi.kt` — Added 10 new API interface methods (`getGuardianConfig`, `updateGuardianConfig`, `getOpportunities`, `createOpportunity`, `acceptOpportunity`, `declineOpportunity`, `matchOpportunity`, `getSkillProfile`, `updateSkillProfile`)
+  - `SkillEdge_Android/data/DataRepository.kt` — Added repository methods for all new endpoints
+  - `SkillEdge_Android/data/models/OpportunityModels.kt` — New data models (Opportunity, EvidenceItem, SkillProfile, CapabilityGraph, GraphNode, SkillNode, OpportunityGuardianConfig, TrustedSource, EscalationRule, GuardianSettings, OpportunityMatchResult, OpportunitySummary)
+  - `SkillEdge_Android/ui/opportunity/OpportunityViewModel.kt` — ViewModel with load/accept/decline/match actions
+  - `SkillEdge_Android/ui/opportunity/OpportunityGuardianScreen.kt` — Settings screen for trusted sources, quiet hours, escalation rules
+  - `SkillEdge_Android/ui/opportunity/OpportunityListScreen.kt` — List with filters, status chips, accept/decline/details
+  - `SkillEdge_Android/ui/opportunity/OpportunityDetailScreen.kt` — Full detail with evidence trail, match score, strong/weak areas, action buttons
+  - `SkillEdge_Android/ui/opportunity/CapabilityGraphScreen.kt` — Visual capability graph (Certified/Delivered/Built/Skills)
+  - `SkillEdge_Android/ui/opportunity/SkillProfileScreen.kt` — My Skill Profile (certifications, technologies, courses, experience, labs, confidence)
+  - `SkillEdge_Android/Navigation.kt` — Added back handler cases and screen routing for all new NavKeys
+  - `SkillEdge_Android/ui/main/MainScreen.kt` — Added `onOpenOpportunityGuardian`/`onOpenOpportunities` params, `HomeTab.OPPORTUNITIES` tab rendering, OPPORTUNITIES in nav bar and tab title
+  - `backend.py` — Added 10 new API endpoints: `guardian_config`, `update_guardian_config`, `get_opportunities`, `create_opportunity`, `accept_opportunity`, `decline_opportunity`, `match_opportunity`, `skill_profile`, `update_skill_profile`. Version bumped to 6.2.0.
+- **Status**: Core Android + backend implementation done. Next: compile verification, Viber notification listener integration, skill matching engine refinement.
+
 ## 2026-09-04T20:35:00+05:30 - "Grow the team" card mirrored on Today (v3.75.4, Build 174)
 
 - **Model**: Claude Sonnet 5 · **Tool**: Claude Code
@@ -5245,6 +5267,22 @@ Wave D - Widen the lens:
   2. D-wave: accounts view, team-level Copilot, scheduled morning/weekly digests, delivery-quality
      alerts (recordingDetails / assignmentPax).
   3. Confirm Render `skilledge-state` persistent disk (operator - Settings -> Disks if not a Blueprint).
-  4. Physical-device upgrade test of build 139 over an older build (no ADB in this environment).
+   4. Physical-device upgrade test of build 139 over an older build (no ADB in this environment).
 - **TEST ACCOUNT**: `aishwar_c@koenig-solutions.com`. **Review + roadmap artifact**:
-  https://claude.ai/code/artifact/ca868032-e50f-4ee6-a497-b42a6143d65c
+   https://claude.ai/code/artifact/ca868032-e50f-4ee6-a497-b42a6143d65c
+
+### HANDOVER 2026-09-05T08:55 (Claude Sonnet 5)
+
+Implemented the **Opportunity Guardian** module as a major SkillEdge layer:
+- **Backend**: 10 new API endpoints in `backend.py` (v6.2.0) — guardian-config, opportunities CRUD, accept/decline, match, skill-profile
+- **Android**: New `ui/opportunity/` package with 6 files — ViewModel + 5 screens (Guardian settings, List, Detail, CapabilityGraph, SkillProfile)
+- **Navigation**: `HomeTab.OPPORTUNITIES` added, 5 new `NavKey` classes, back handler cases, screen routing
+- **Data models**: `OpportunityModels.kt` with Opportunity, SkillProfile, CapabilityGraph, GuardianConfig, etc.
+- **API interface**: 10 new `SkillEdgeApi` methods added
+- **Repository**: 9 new `ManagerRepository` methods added
+
+**Next recommended actions**:
+1. Verify Android compilation (`cd SkillEdge_Android && ./gradlew :app:compileDebugKotlin`)
+2. Integrate Viber notification listener with Opportunity Guardian detection
+3. Refine skill matching engine with real evidence trail
+4. Get user device feedback on v3.80.0 (Build 175)

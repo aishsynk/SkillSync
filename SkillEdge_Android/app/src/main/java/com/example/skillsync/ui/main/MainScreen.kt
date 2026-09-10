@@ -74,6 +74,8 @@ fun MainScreen(
     onOpenViberAutomation: () -> Unit = {},
     onOpenSkillRequests: () -> Unit = {},
     onOpenMySchedule: () -> Unit = {},
+    onOpenOpportunityGuardian: () -> Unit = {},
+    onOpenOpportunities: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: MainScreenViewModel = viewModel(),
@@ -544,16 +546,23 @@ fun MainScreen(
                                 onOpenWeeklyReport = onOpenWeeklyReport,
                                 onTrainer = onTrainerClick,
                             )
-                            HomeTab.SEARCH -> UniversalCommandSearch(
-                                managerEmail = email,
-                                dashboard = d,
-                                capability = capability,
-                                allocation = (allocState as? AllocationState.Success)?.data,
-                                actions = inboxActions.map { it.asMap() },
-                                onTrainer = onTrainerClick,
-                                onDemand = onBatchClick,
-                            )
-                            HomeTab.ACTIONS -> ActionsInbox(
+HomeTab.SEARCH -> UniversalCommandSearch(
+                                 managerEmail = email,
+                                 dashboard = d,
+                                 capability = capability,
+                                 allocation = (allocState as? AllocationState.Success)?.data,
+                                 actions = inboxActions.map { it.asMap() },
+                                 onTrainer = onTrainerClick,
+                                 onDemand = onBatchClick,
+                             )
+                             HomeTab.OPPORTUNITIES -> com.example.skillsync.ui.opportunity.OpportunityListScreen(
+                                 managerEmail = email,
+                                 onBack = { onTabChange(HomeTab.DASHBOARD) },
+                                 onOpportunityClick = { id -> /* navigate to detail */ },
+                                 onAccept = { id -> /* accept */ },
+                                 onDecline = { id -> /* decline */ },
+                             )
+                             HomeTab.ACTIONS -> ActionsInbox(
                                 managerEmail = email,
                                 actions = inboxActions.map { it.asMap() },
                                 initialLoading = inboxLoading,
@@ -696,6 +705,7 @@ private fun tabTitle(tab: String) = when (tab) {
     HomeTab.ACTIONS -> "Manager actions"
     HomeTab.DELIVERY -> "Delivery Operations"
     HomeTab.SEARCH -> "Search & Command"
+    HomeTab.OPPORTUNITIES -> "Opportunities"
     else -> "Today · Manager Brief"
 }
 
@@ -719,6 +729,7 @@ internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
             Triple(HomeTab.TEAM, R.drawable.ic_people, if (trainer) "My 360" else "People"),
             Triple(HomeTab.DEMAND, R.drawable.ic_inbox, if (trainer) "Demand" else "Plan"),
             Triple(HomeTab.DELIVERY, R.drawable.ic_calendar, if (trainer) "Calendar" else "Work"),
+            Triple(HomeTab.OPPORTUNITIES, R.drawable.ic_inbox, "Opportunities"),
             Triple(HomeTab.SEARCH, R.drawable.ic_search, "Search"),
         ),
         current = current,

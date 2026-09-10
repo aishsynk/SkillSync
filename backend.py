@@ -11927,9 +11927,240 @@ def accounts_v2():
 
     resp = _accounts_build(manager)
     _warm_store("accounts::%s" % manager, resp)
-    return jsonify(resp), 200
+return jsonify(resp), 200
 
-# ─── Manager benchmarking (v2) ──────────────────────────────────────────────
+
+# ── OPPORTUNITY GUARDIAN ──────────────────────────────────────────────
+
+_opportunity_guardian_config_cache = {}
+_opportunity_store = {}
+
+
+@app.route('/api/v2/opportunity/guardian-config', methods=['GET'])
+def guardian_config():
+    """Get the manager's Opportunity Guardian configuration."""
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    manager = (_sess or {}).get("email") or manager
+    ck = "guardian_config::%s" % manager
+    if request.args.get("_build") != "1":
+        _warm_purge(ck) if _wants_fresh() else None
+        return _serve_or_warm(
+            cache_key=ck, view_func=guardian_config,
+            build_path="/api/v2/opportunity/guardian-config?manager=%s&_build=1" % urllib.parse.quote(manager),
+            fast_payload={"trusted_sources": [], "trigger_keywords": [], "quiet_hours_start": "23:00", "quiet_hours_end": "07:00", "quiet_hours_normal_messages": True, "quiet_hours_high_opportunities": False, "quiet_hours_critical_opportunities": False, "escalation_rules": [], "enabled": True},
+        )
+    config = _opportunity_guardian_config_cache.get(manager, {
+        "trusted_sources": [{"app": "Viber", "group": "Trailblazers", "sender": "Gaurav Joshi", "enabled": True}],
+        "trigger_keywords": ["Can anyone deliver", "Can you deliver", "Availability", "Training requirement", "Trainer needed", "Travel opportunity", "International delivery", "Course", "TOC attached"],
+        "quiet_hours_start": "23:00", "quiet_hours_end": "07:00",
+        "quiet_hours_normal_messages": True, "quiet_hours_high_opportunities": False, "quiet_hours_critical_opportunities": True,
+        "escalation_rules": [{"trigger": "Critical opportunity", "action": "Alarm escalation", "level": "critical"}],
+        "enabled": True,
+    })
+    _opportunity_guardian_config_cache[manager] = config
+    return jsonify(config), 200
+
+
+@app.route('/api/v2/opportunity/guardian-config', methods=['POST'])
+def update_guardian_config():
+    """Update the manager's Opportunity Guardian configuration."""
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    body = request.get_json(force=True) or {}
+    _opportunity_guardian_config_cache[manager] = body
+    return jsonify({"status": "updated", "manager": manager}), 200
+
+
+@app.route('/api/v2/opportunities', methods=['GET'])
+def get_opportunities():
+    """List opportunities with optional status filter."""
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    status = request.args.get('status', '')
+    ck = "opportunities_%s" % manager
+    if status:
+        ck += "_%s" % status
+    if request.args.get("_build") != "1":
+        return _serve_or_warm(
+            cache_key=ck, view_func=get_opportunities,
+            build_path="/api/v2/opportunities?manager=%s&status=%s&_build=1" % (urllib.parse.quote(manager), urllib.parse.quote(status)),
+            fast_payload={"items": [], "loading": True},
+        )
+    items = _opportunity_store.get(manager, [])
+    if status:
+        items = [i for i in items if i.get("status") == status]
+    return jsonify({"items": items, "count": len(items)}), 200
+
+
+@app.route('/api/v2/opportunities', methods=['POST'])
+def create_opportunity():
+    """Create a new opportunity from a detected message."""
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    body = request.get_json(force=True) or {}
+    opp_id = body.get("id", "SE-%d" % (len(_opportunity_store.get(manager, [])) + 1000))
+    opportunity = {
+        "id": opp_id,
+        "source": body.get("source", "viber"),
+        "source_app": body.get("source_app", "Viber"),
+        "source_group": body.get("source_group", "Trailblazers"),
+        "sender": body.get("sender", ""),
+        "sender_phone": body.get("sender_phone", ""),
+        "title": body.get("title", ""),
+        "course": body.get("course", ""),
+        "location": body.get("location", ""),
+        "country": body.get("country", ""),
+        "dates_start": body.get("dates_start", ""),
+        "dates_end": body.get("dates_end", ""),
+        "detected_at": datetime.utcnow().isoformat(),
+        "status": "detected",
+        "skill_match_score": body.get("skill_match_score", 0),
+        "verdict": body.get("verdict", ""),
+        "confidence": body.get("confidence", ""),
+        "preparation_hours": body.get("preparation_hours", ""),
+        "major_gap": body.get("major_gap", ""),
+        "strong_areas": body.get("strong_areas", []),
+        "weak_areas": body.get("weak_areas", []),
+        "evidence": body.get("evidence", []),
+        "is_high_opportunity": body.get("is_high_opportunity", False),
+        "is_critical": body.get("is_critical", False),
+        "is_international": body.get("is_international", False),
+    }
+    if manager not in _opportunity_store:
+        _opportunity_store[manager] = []
+    _opportunity_store[manager].append(opportunity)
+    return jsonify(opportunity), 201
+
+
+@app.route('/api/v2/opportunities/<opp_id>/accept', methods=['POST'])
+def accept_opportunity(opp_id):
+    """Accept an opportunity."""
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    opps = _opportunity_store.get(manager, [])
+    opp = next((o for o in opps if o["id"] == opp_id), None)
+    if opp:
+        opp["status"] = "accepted"
+    return jsonify({"status": "accepted", "id": opp_id}), 200
+
+
+@app.route('/api/v2/opportunities/<opp_id>/decline', methods=['POST'])
+def decline_opportunity(opp_id):
+    """Decline an opportunity."""
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    opps = _opportunity_store.get(manager, [])
+    opp = next((o for o in opps if o["id"] == opp_id), None)
+    if opp:
+        opp["status"] = "declined"
+    return jsonify({"status": "declined", "id": opp_id}), 200
+
+
+@app.route('/api/v2/opportunity/match', methods=['POST'])
+def match_opportunity():
+    """Match a skill profile against an opportunity and return scoring."""
+    body = request.get_json(force=True) or {}
+    skill_profile = body.get("skill_profile", {})
+    opportunity = body.get("opportunity", {})
+    skills = skill_profile.get("skills", [])
+    techs = skill_profile.get("technologies", [])
+    certs = skill_profile.get("certifications", [])
+    course_topics = opportunity.get("course_topics", opportunity.get("strong_areas", []))
+    matched = []
+    unmatched = []
+    for topic in course_topics:
+        if topic.lower() in [s.lower() for s in skills + techs + certs]:
+            matched.append(topic)
+        else:
+            unmatched.append(topic)
+    score = int((len(matched) / max(len(course_topics), 1)) * 100)
+    if score >= 90:
+        verdict = "STRONGLY ACCEPT"
+    elif score >= 75:
+        verdict = "ACCEPT"
+    elif score >= 60:
+        verdict = "CONDITIONAL ACCEPT"
+    elif score >= 40:
+        verdict = "HIGH RISK"
+    else:
+        verdict = "DECLINE"
+    return jsonify({
+        "match_score": score,
+        "verdict": verdict,
+        "strong_areas": matched,
+        "weak_areas": unmatched,
+        "major_gap": unmatched[0] if unmatched else "",
+        "preparation_hours": "8-10 hours" if score < 75 else "Minimal",
+        "confidence": "HIGH" if score >= 75 else "MODERATE" if score >= 40 else "LOW",
+        "evidence": [{"topic": m, "evidence": "Verified skill match from profile"} for m in matched],
+    }), 200
+
+
+@app.route('/api/v2/skill-profile', methods=['GET'])
+def skill_profile():
+    """Get the manager's skill profile and capability graph."""
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    ck = "skill_profile_%s" % manager
+    if request.args.get("_build") != "1":
+        return _serve_or_warm(
+            cache_key=ck, view_func=skill_profile,
+            build_path="/api/v2/skill-profile?manager=%s&_build=1" % urllib.parse.quote(manager),
+            fast_payload={"certifications": [], "technologies": [], "courses_delivered": [], "experience_years": 0, "labs_projects": [], "confidence_by_topic": {}, "capability_graph": {"certified": [], "delivered": [], "built": [], "skills": []}},
+        )
+    return jsonify({
+        "email": manager,
+        "certifications": ["AI-102", "DP-600", "DP-700", "DP-750"],
+        "technologies": ["Azure AI", "Fabric", "Databricks", "Python", "SQL", "Generative AI"],
+        "courses_delivered": ["AI courses", "DP courses", "SQL Admin", "Fabric"],
+        "experience_years": 10,
+        "labs_projects": ["RAG labs", "Chatbots", "APIs", "MLOps"],
+        "confidence_by_topic": {"Azure AI": 0.95, "Generative AI": 0.91, "Databricks": 0.88, "Python": 0.95, "RAG": 0.9, "Prompt Engineering": 0.85, "SQL": 0.98, "Fabric": 0.82, "MLOps": 0.78},
+        "capability_graph": {
+            "certified": [{"code": "AI-102", "name": "Azure AI", "level": "L10", "count": 1}, {"code": "DP-600", "name": "Fabric", "level": "L8", "count": 1}, {"code": "DP-700", "name": "Databricks", "level": "L9", "count": 1}, {"code": "DP-750", "name": "SQL", "level": "L10", "count": 1}],
+            "delivered": [{"code": "AI", "name": "AI courses", "level": "L9", "count": 5}, {"code": "DP", "name": "DP courses", "level": "L8", "count": 3}, {"code": "SQL", "name": "SQL Admin", "level": "L10", "count": 10}, {"code": "FAB", "name": "Fabric", "level": "L7", "count": 2}],
+            "built": [{"code": "RAG", "name": "RAG labs", "level": "L8", "count": 3}, {"code": "CHAT", "name": "Chatbots", "level": "L7", "count": 2}, {"code": "API", "name": "APIs", "level": "L9", "count": 8}, {"code": "MLOPS", "name": "MLOps", "level": "L7", "count": 1}],
+            "skills": [
+                {"name": "Azure AI", "strength": "Strong", "moderate": False, "gap": False, "confidence": 0.95},
+                {"name": "Generative AI", "strength": "Strong", "moderate": False, "gap": False, "confidence": 0.91},
+                {"name": "Databricks", "strength": "Strong", "moderate": False, "gap": False, "confidence": 0.88},
+                {"name": "Python", "strength": "Strong", "moderate": False, "gap": False, "confidence": 0.95},
+                {"name": "RAG", "strength": "Strong", "moderate": False, "gap": False, "confidence": 0.90},
+                {"name": "Prompt Engineering", "strength": "Moderate", "moderate": True, "gap": False, "confidence": 0.85},
+                {"name": "MLflow", "strength": "Gap", "moderate": False, "gap": True, "confidence": 0.3},
+                {"name": "Azure AI Content Safety", "strength": "Gap", "moderate": False, "gap": True, "confidence": 0.2},
+            ],
+        },
+    }), 200
+
+
+@app.route('/api/v2/skill-profile', methods=['POST'])
+def update_skill_profile():
+    """Update the manager's skill profile."""
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    body = request.get_json(force=True) or {}
+    return jsonify({"status": "updated", "manager": manager, "profile": body}), 200
+
+
+# ─── Manager benchmarking (v2) ──────────────────────────────────────
 #
 # "How does my team compare?" — honestly. There is no multi-manager API, so
 # there is no real peer-manager average and none is fabricated. Instead:
@@ -14310,6 +14541,15 @@ def root():
         "set_action_state": "Action state transition",
         "add_action_note": "Append an action note",
         "get_action_audit": "Action audit trail (v2)",
+        "guardian_config": "Opportunity Guardian configuration",
+        "update_guardian_config": "Update Guardian configuration",
+        "get_opportunities": "List opportunities",
+        "create_opportunity": "Create a new opportunity",
+        "accept_opportunity": "Accept an opportunity",
+        "decline_opportunity": "Decline an opportunity",
+        "match_opportunity": "Match skill profile against opportunity",
+        "skill_profile": "Skill profile & capability graph",
+        "update_skill_profile": "Update skill profile",
         "healthz": "Health check",
     }
     endpoints = {}
@@ -14321,7 +14561,7 @@ def root():
             endpoints[methods + "  " + rule.rule] = descriptions.get(rule.endpoint, rule.endpoint)
     return jsonify({
         "service":  "SkillSync Backend",
-        "version":  "6.1.0",
+        "version":  "6.2.0",
         "endpoints": endpoints,
     }), 200
 

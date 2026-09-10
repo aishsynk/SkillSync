@@ -1,5 +1,21 @@
 # SkillEdge / Manager OS — Decisions
 
+## 2026-09-05 - Opportunity Guardian becomes a major SkillEdge module (not a separate app)
+
+- **Decision:** The Opportunity Guardian concept is implemented as a **major layer inside SkillEdge**, not as a separate application. SkillEdge already revolves around skills, qualifications/certifications, opportunities, training, recommendations, applications and notifications — the new feature is a natural extension, not a bolt-on.
+- **Rationale:** Building a separate app would duplicate the skill profile, notification system, and user management. SkillEdge's existing Android client (Kotlin/Compose) provides the platform capability for Viber notification listening. The web frontend (React/Vite + Node/Express + MongoDB) provides the data layer.
+- **Architecture:** Android native Kotlin/Compose for notification listening (platform capability); React/Vite + Node/Express + MongoDB for the web backend and data persistence; Flask Python (`backend.py`) continues as the existing API server.
+
+## 2026-09-05 - Capability Graph replaces flat skill tags
+
+- **Decision:** The SkillEdge skill profile evolves from a flat list of skills (`"SQL, Azure, Power BI"`) to a real **Capability Graph** with three dimensions: Certified (RMS certifications), Delivered (courses delivered), Built (labs/projects). Each dimension feeds a Strong / Moderate / Gap classification per topic.
+- **Rationale:** A flat skill list cannot express the nuance needed for opportunity matching. A graph with evidence dimensions enables confidence scoring, topic-level gap analysis, and the "why yes?" evidence trail.
+
+## 2026-09-05 - Opportunity-friendly decision model
+
+- **Decision:** SkillEdge uses an opportunity-friendly scoring model — STRONGLY ACCEPT (90–100%), ACCEPT (75–89%), CONDITIONAL ACCEPT (60–74%), HIGH RISK (40–59%), DECLINE (0–39%). It does not become overly conservative.
+- **Rationale:** The product goal is to ensure opportunities are not lost unnecessarily. A conservative model would decline too many opportunities. The model provides evidence-based recommendations with preparation estimates and conditional acceptance.
+
 ## 2026-09-04 - Publication block lifted for v3.70.0 / Build 162
 
 - **Decision:** The operator explicitly authorised "build and publish like always on git a/c".

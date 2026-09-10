@@ -105,7 +105,7 @@ fun MainNavigation() {
     }
 
     // Hardware/gesture back returns from a pushed detail screen to the shell.
-    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot || current is HrReport || current is Priorities || current is CapacityRunway || current is Ramp || current is Accounts || current is Benchmark || current is PipelineRadar || current is DeliveryCompliance || current is ViberAutomation || current is SkillRequests) {
+    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot || current is HrReport || current is Priorities || current is CapacityRunway || current is Ramp || current is Accounts || current is Benchmark || current is PipelineRadar || current is DeliveryCompliance || current is ViberAutomation || current is SkillRequests || current is OpportunityGuardian || current is OpportunityList || current is OpportunityDetail || current is CapabilityGraph || current is SkillProfile) {
         current = when (val c = current) {
             is Trainer360 -> Main(c.email, HomeTab.TEAM)
             is SkillRequests -> Main(c.email, HomeTab.DASHBOARD)
@@ -113,6 +113,22 @@ fun MainNavigation() {
             is WeeklyReport -> Main(c.email, HomeTab.DASHBOARD)
             is Copilot -> Main(c.email, HomeTab.DASHBOARD)
             is HrReport -> Main(c.email, HomeTab.TEAM)
+            is Priorities -> Main(c.email, HomeTab.DASHBOARD)
+            is CapacityRunway -> Main(c.email, HomeTab.DASHBOARD)
+            is Ramp -> Priorities(c.email)
+            is Accounts -> Main(c.email, HomeTab.DASHBOARD)
+            is Benchmark -> Main(c.email, HomeTab.TEAM)
+            is PipelineRadar -> Main(c.email, HomeTab.DASHBOARD)
+            is DeliveryCompliance -> Main(c.email, HomeTab.DASHBOARD)
+            is ViberAutomation -> Main(c.email, HomeTab.DASHBOARD)
+            is OpportunityGuardian -> Main(c.email, HomeTab.OPPORTUNITIES)
+            is OpportunityList -> Main(c.email, HomeTab.OPPORTUNITIES)
+            is OpportunityDetail -> Main(c.email, HomeTab.OPPORTUNITIES)
+            is CapabilityGraph -> Main(c.email, HomeTab.OPPORTUNITIES)
+            is SkillProfile -> Main(c.email, HomeTab.OPPORTUNITIES)
+            else -> c
+        }
+    }
             is Priorities -> Main(c.email, HomeTab.DASHBOARD)
             is CapacityRunway -> Main(c.email, HomeTab.DASHBOARD)
             is Ramp -> Priorities(c.email)
@@ -217,6 +233,8 @@ fun MainNavigation() {
                 onOpenViberAutomation = { current = ViberAutomation(screen.email) },
                 onOpenSkillRequests = { current = SkillRequests(screen.email) },
                 onOpenMySchedule = { current = MySchedule(screen.email) },
+                onOpenOpportunityGuardian = { current = OpportunityGuardian(screen.email) },
+                onOpenOpportunities = { current = OpportunityList(screen.email) },
                 onLogout = { current = Login },
                 modifier = Modifier,
                 viewModel = mainViewModel,
@@ -322,6 +340,36 @@ fun MainNavigation() {
                 managerEmail = screen.email,
                 onOpenTrainer = { email, name -> current = Trainer360(screen.email, email, name) },
                 onBack = { current = Main(screen.email, HomeTab.DASHBOARD) },
+            )
+
+            is OpportunityGuardian -> com.example.skillsync.ui.opportunity.OpportunityGuardianScreen(
+                managerEmail = screen.email,
+                onBack = { current = Main(screen.email, HomeTab.OPPORTUNITIES) },
+                onTabChange = { tab -> current = Main(screen.email, tab) },
+            )
+
+            is OpportunityList -> com.example.skillsync.ui.opportunity.OpportunityListScreen(
+                managerEmail = screen.email,
+                onBack = { current = Main(screen.email, HomeTab.OPPORTUNITIES) },
+                onOpportunityClick = { id -> current = OpportunityDetail(screen.email, id) },
+                onAccept = { id -> /* handled in detail */ },
+                onDecline = { id -> /* handled in detail */ },
+            )
+
+            is OpportunityDetail -> com.example.skillsync.ui.opportunity.OpportunityDetailScreen(
+                managerEmail = screen.email,
+                opportunityId = screen.opportunityId,
+                onBack = { current = Main(screen.email, HomeTab.OPPORTUNITIES) },
+            )
+
+            is CapabilityGraph -> com.example.skillsync.ui.opportunity.CapabilityGraphScreen(
+                managerEmail = screen.email,
+                onBack = { current = Main(screen.email, HomeTab.OPPORTUNITIES) },
+            )
+
+            is SkillProfile -> com.example.skillsync.ui.opportunity.SkillProfileScreen(
+                managerEmail = screen.email,
+                onBack = { current = Main(screen.email, HomeTab.OPPORTUNITIES) },
             )
 
             is Trainer360 -> Trainer360Screen(

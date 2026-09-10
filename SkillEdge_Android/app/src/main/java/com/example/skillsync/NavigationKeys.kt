@@ -48,11 +48,23 @@ import kotlinx.serialization.Serializable
 /** "Skill Requests" — pending reportee skill-level elevation requests for a manager to approve/deny. */
 @Serializable data class SkillRequests(val email: String) : NavKey
 
-/** A trainer's practice record — learner comment log + session recordings. */
-@Serializable data class TrainerPractice(val email: String, val name: String) : NavKey
-
-/** Your own delivery schedule + leave bands — for anyone who also delivers. */
+/** "Your own delivery schedule + leave bands — for anyone who also delivers." */
 @Serializable data class MySchedule(val email: String) : NavKey
+
+/** "Opportunity Guardian" — settings for trusted sources, escalation rules, quiet hours. */
+@Serializable data class OpportunityGuardian(val email: String) : NavKey
+
+/** "Opportunities" — list of detected, manual, accepted, declined, missed opportunities. */
+@Serializable data class OpportunityList(val email: String) : NavKey
+
+/** "Opportunity detail — evidence trail and recommendation." */
+@Serializable data class OpportunityDetail(val email: String, val opportunityId: String) : NavKey
+
+/** "Capability Graph" — visual capability graph with certified/delivered/built dimensions. */
+@Serializable data class CapabilityGraph(val email: String) : NavKey
+
+/** "My Skill Profile" — certifications, technologies, courses, experience, labs, confidence. */
+@Serializable data class SkillProfile(val email: String) : NavKey
 
 
 object HomeTab {
@@ -63,4 +75,5 @@ object HomeTab {
     const val ACTIONS = "actions"
     const val DELIVERY = "delivery"
     const val SEARCH = "search"
+    const val OPPORTUNITIES = "opportunities"
 }
