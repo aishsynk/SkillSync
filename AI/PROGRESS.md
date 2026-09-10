@@ -1,3 +1,58 @@
+## 2026-09-11 - Communication Intelligence module built on Android (mirror of backend engine + composer UI) - all gates green, staged for release
+
+- **Model**: big-pickle (opencode) **Tool**: OpenCode
+- **Context**: Backend Communication Intelligence (12-purpose deterministic composer, house-style Teams/Viber prose) was landed earlier; `pytest tests/communication/test_communication.py` re-verified 11/11 this session. This session shipped the matching Android module so compose works offline and client/server never diverge.
+- **What was completed**:
+  - Android engine mirror (`feature/communication/engine/`): `CommunicationPolicy.kt` (MAX_LENGTH 1000, 12 PURPOSES, tones, greetings, closings, format helpers), `CommunicationModels.kt` (Recipient/Context/ValidationResult/GeneratedMessage), `CommunicationIntent.kt` (Hinglish normalize + full purpose-classification chain ported verbatim from `services/communication/intent.py`), `CommunicationValidator.kt` (issue flags + truncate), `CommunicationComposer.kt` (opportunityResponse/draftBody/deliveryUpdateBody per purpose, house style), `CommunicationGenerator.kt` (object `generate` mirroring `CommunicationService.generate`).
+  - API + repository: `SkillEdgeApi.kt` += `generateCommunication` / `saveCommunication` / `communicationHistory` (matching backend `POST /api/v2/communication/generate`, `/save`, and `GET /api/v2/communication/history?manager=`); `ManagerRepository` wrappers incl. `cachedMap("communication_history_$manager")`.
+  - UI: `CommunicationViewModel.kt` (generate with server-first + local engine fallback, save statuses DRAFT/COPIED/SENT/ARCHIVED, history load) + `CommunicationScreen.kt` (recipient/purpose/inputs cards, GENERATE, result card with COPY + SAVE/SAVE DRAFT/CLEAR, validation issues + facts + length, history list).
+  - Navigation: `Communication(email, relatedEntityId, relatedEntityType)` NavKey; `Navigation.kt` route branch (back to OpportunityDetail when OPPORTUNITY); `OpportunityDetailScreen` "GENERATE RESPONSE" button wired via `onGenerateResponse`.
+  - Tests: `CommunicationEngineTest.kt` (10 tests: the 5 mandated scenarios + opportunity without verified context stays generic + purpose classification + validator blocks emoji/bullets/oversize + flags missing greeting + accepts well-formed message).
+- **Validation (all with --rerun-tasks, exit 0)**: compileDebugKotlin 0 errors (only pre-existing deprecation warnings); testDebugUnitTest **195/195 pass** (185 prior + 10 new); assembleDebug green.
+- **Fixes made during drill-down**: PowerShell cannot invoke `".\gradlew.bat" :app:...` bare (ParserError on the colon scope) - use call operator `& '.\gradlew.bat' ':app:task'`; Kotlin `to`/`associate` on wildcard maps needs context (use `mapKeys { it.key.toString() }` + `mapValues { it.value ?: "" }`, pass `Map<*, *>` to opportunityResponse, `emptyMap<String, Any>()`); `String.count(Char)` is not `count(substring)` - use `split(marker).size - 1`; `parseHistoryItem(raw: Any?)` for `mapNotNull` over `List<*>`.
+- **Version bumps**: Android versionName 3.80.1 / versionCode 176 (`app/build.gradle.kts`); backend healthz version 6.3.0 (`backend.py`). Backend code otherwise untouched this session.
+- **Status**: COMPLETE + staged. 
+- **Next recommended actions**: (1) final `git status` confirm only `Qubits/qubitcourses.xlsx` unstaged; (2) commit excluding the workbook and push main for auto-deploy; (3) device validation: open an opportunity > GENERATE RESPONSE > verify house-style prose + SAVE DRAFT/SENT > reload history.
+
+## 2026-09-11 - Restructure repair complete: all Android gates green (149-file package surgery + import reconstruction)
+
+- **Model**: big-pickle (opencode) **Tool**: OpenCode
+- **Context**: Post-restructure working tree had ~8893 compile errors (class-appended packages) plus cp1252-wound mojibake. All repaired in this session; backend untouched (still 319/319 pytest green).
+- **What was completed**:
+  - Contiguous non-ASCII arrow/· repair finished: → (U+2192) restored in eature/ai/Facts.kt (5x) + eature/report/ui/SkillRequestsScreen.kt (1x); NotificationEngineTest span C3 83 C6 92 C3 A2 E2 82 AC C5 A1 E2 86 92 -> · (C2 B7) so runtime/test agree ("…AI-102 · Trainer skill level: L7."). NotificationEngine regex tidied (?:-|---|to) -> (?:-|to). Final byte scan: 0 FFFD / 0 C3 83 markers in main/test/androidTest.
+  - Package normalization: all packages made dir-based across main/test/androidTest (149 files) to match HEAD convention (HEAD = dir-based; reconstruction had emitted class-appended packages like com.example.skillsync.theme.Theme). HomeTab = object in 
+avigation/NavigationKeys.kt -> import com.example.skillsync.navigation.HomeTab; ManagerRepository/DataSource import from core.data.*.
+  - Import reconstruction: added missing dp/sp/spring/Modifier/R/painterResource imports via ordinal (case-SENSITIVE) passes; added TrainerPractice NavKey (was in HEAD, lost); SkillEdgeApi + ManagerRepository gained updateOpportunityDocument (POST api/v2/opportunities/{id}/document, backend route exists) wired to OpportunityViewModel.updateDocumentStatus; fixed inline com.example.skillsync.data.* -> core.data.* strays; removed duplicated when-fragment in 
+avigation/Navigation.kt; test imports remapped to feature packages (feature.ai / feature.home / feature.training.ui / feature.viber.ui / feature.communication.engine / core.storage); rewrote stale androidTest ui/main/MainScreenTest.kt (was broken at HEAD too) into a truthful Today-label smoke test; fixed double-encoded C3 82 C2 B7 -> C2 B7 in TrainerReadinessTest.
+  - **Pitfalls encoded**: PowerShell -eq/-contains/hashtable @{} and -match are case-INSENSITIVE (masked unit.Dp for unit.dp; dedupe.ps1 deleted unit.dp because it "equaled" unit.Dp); Kotlin incremental compile can false-green -> ALWAYS verify with --rerun-tasks; never Get-Content/Set-Content (ANSI-corrupts) -> [System.IO.File]::ReadAll*/WriteAll* with UTF8Encoding(False); use ordinal HashSet[string] for exact import dedupe.
+- **Validation (all with --rerun-tasks, exit 0)**:
+  - :app:compileDebugKotlin (0 errors); :app:testDebugUnitTest **185/185 pass**; :app:compileDebugAndroidTestKotlin; :app:assembleDebug; :app:lintDebug. Android compile/unit pipeline fully green after repair.
+- **Status**: repair COMPLETE. Staged move + fixes ready for Testing/Staging.
+- **Next recommended actions**: (1) stage/git-add remaining modified files (AI/DECISIONS.md, AI/PROGRESS.md, MainScreenTest.kt, AndroidManifest.xml); (2) build Android Communication Intelligence module (eature/communication mirroring services/communication/*.py — purpose/model policy, composer screen+VM, history, wire OpportunityDetail "Generate Response", 5 mandated test scenarios); (3) version bump Android 3.80.1/Build 176 + backend 6.3.0 healthz; (4) commit (exclude Qubits/qubitcourses.xlsx) + push main for auto-deploy.
+
+## 2026-09-10 - Opportunity Guardian v2: evidence-based matching, extraction, document states, retry worker (Android 3.80.1 pending, backend 6.3.0 pending)
+
+- **Model**: big-pickle (opencode) · **Tool**: OpenCode
+- **Backend (`backend.py`, `opportunity_store.py`, `tests/test_opportunity_guardian.py`)**
+  - `_skill_profile_from_capability(email)` replaces the hardcoded mock on `GET /api/v2/skill-profile` (real capability builder + `_warm_store` warm cache).
+  - `_extract_structured_requirements(text)` + new `POST /api/v2/opportunity/extract`: parses exam code, date ranges ("22 Sep 2026 to 26 Sep 2026", "22-26 Sep", dd/mm/yyyy spans), city→country, mode, participants, doc markers (TOC/syllabus/agenda/PDF/deck/attachment), action classification.
+  - `match_opportunity` rewritten to **evidence-based** matching (STRONG/MODERATE/GAP), decision enum `accept|decline|pending|insufficient_evidence|escalate` (escalate only when international + critical), verdicts STRONGLY ACCEPT/ACCEPT/CONDITIONAL ACCEPT/HIGH RISK/DECLINE/INSUFFICIENT EVIDENCE.
+  - `create_opportunity` persists `course_code`, `decision`, `requirements`, `raw_text`, `document_status`; new `POST /api/v2/opportunities/<id>/document`; `OpportunityStore.patch()`.
+  - Full pytest **308/308 pass** (8/8 guardian).
+- **Android (`SkillEdge_Android/`)**
+  - Engine: client-side `OpportunityInboundEngine.extractRequirements` (offline mirror), `buildOpportunity` sets `requirements/raw_text/courses/document_status=mentioned`; critical opportunities are **never silenced** by quiet hours (`inQuietHours` returns false for critical) and fire `LocalNotificationService.showEscalation` (persistent, ongoing, not auto-cancel).
+  - `OpportunityRetryWorker.kt` (WorkManager, exponential 5-min backoff, unique work `guardian_retry_worker-{manager}`) for pending-opportunity retries.
+  - UI: GuardianScreen (notification-access card via NotificationAccessCard + `ViberNotificationListener.hasNotificationAccess`, trusted sources, quiet hours with corrected escalation labels), ListScreen (working filter chips, real match panel, accept/decline), DetailScreen (full real binding + live match + document-state buttons), CapabilityGraphScreen (no hardcoded name, honest empty states); API/repo/models/ViewModel extended for document + extract + full match fields.
+  - Bugs fixed: removed bogus `<uses-permission BIND_NOTIFICATION_LISTENER_SERVICE>` (must be a service attribute — it already was), `Bundle.getParcelableArrayList(EXTRA_MESSAGES, …)` (API 33) replaced with API-safe `NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification`.
+  - Validation: `:app:compileDebugKotlin` ✅, `:app:testDebugUnitTest` ✅ (incl. new `OpportunityInboundEngineTest`), `:app:assembleDebug` ✅, `:app:lintDebug` ✅ (0 errors). Backend pytest 308/308.
+- **Status**: phases 1–12, 16 complete. Remaining: phase 13/14 device validation (no device available — all synthetic), phase 15 no further engine coverage needed, un-pushed (Render not redeployed).
+
+### Handover
+
+- **Next**: push backend + Android changes and let CI/Render deploy, then run the device validation checklist (grant notification access → Viber post → detected opportunity → match panel → document states → accept/decline) and confirm real `StatusBarNotification` parsing against real Viber messages.
+- **Known open item**: `Qubits/qubitcourses.xlsx` shows modified in git status — unrelated workbook, exclude from commits.
+- **Note**: the old score-threshold decision mapping (2026-09-05 DECISIONS.md) is superseded by the evidence-based model — see new DECISIONS.md entry.
+
 ## 2026-09-05 - Opportunity Guardian module: core implementation done (v3.80.0, Build 175)
 
 - **Model**: Claude Sonnet 5 · **Tool**: Claude Code

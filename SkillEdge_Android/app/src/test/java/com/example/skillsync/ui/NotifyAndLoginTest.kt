@@ -9,11 +9,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.example.skillsync.theme.Severity
 import com.example.skillsync.theme.SkillSyncTheme
-import com.example.skillsync.ui.auth.LoginScreen
-import com.example.skillsync.ui.components.LocalNotify
-import com.example.skillsync.ui.components.NotifyState
-import com.example.skillsync.ui.components.SkillAlertDialog
-import com.example.skillsync.ui.components.ToastHost
+import com.example.skillsync.feature.auth.ui.LoginScreen
+import com.example.skillsync.core.ui.LocalNotify
+import com.example.skillsync.core.ui.NotifyState
+import com.example.skillsync.core.ui.SkillAlertDialog
+import com.example.skillsync.core.ui.ToastHost
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule

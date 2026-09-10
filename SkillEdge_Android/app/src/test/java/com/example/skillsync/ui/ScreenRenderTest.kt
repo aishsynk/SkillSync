@@ -13,19 +13,19 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performScrollToNode
-import com.example.skillsync.HomeTab
+import com.example.skillsync.navigation.HomeTab
 import com.example.skillsync.theme.SkillSyncTheme
-import com.example.skillsync.ui.batch.BatchCard
-import com.example.skillsync.ui.batch.AllocationDeskContent
-import com.example.skillsync.ui.main.CoursesTab
-import com.example.skillsync.ui.main.DashboardTab
-import com.example.skillsync.ui.main.SkillSyncNavBar
-import com.example.skillsync.ui.main.TeamTab
-import com.example.skillsync.ui.main.TrainerCard
-import com.example.skillsync.ui.main.DeliveryOperationsWorkspace
-import com.example.skillsync.ui.main.UniversalCommandSearch
-import com.example.skillsync.ui.trainer.Trainer360Content
-import com.example.skillsync.data.cache.LocalCache
+import com.example.skillsync.feature.training.ui.BatchCard
+import com.example.skillsync.feature.training.ui.AllocationDeskContent
+import com.example.skillsync.feature.home.CoursesTab
+import com.example.skillsync.feature.home.DashboardTab
+import com.example.skillsync.feature.home.SkillSyncNavBar
+import com.example.skillsync.feature.home.TeamTab
+import com.example.skillsync.feature.home.TrainerCard
+import com.example.skillsync.feature.home.DeliveryOperationsWorkspace
+import com.example.skillsync.feature.home.UniversalCommandSearch
+import com.example.skillsync.feature.training.ui.Trainer360Content
+import com.example.skillsync.core.storage.LocalCache
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -455,7 +455,7 @@ class ScreenRenderTest {
 
     @Test
     fun dashboard_teamStrengthDrillsIntoTrainerEvidence() {
-        var opened: com.example.skillsync.ui.main.Drill? = null
+        var opened: com.example.skillsync.feature.home.Drill? = null
         compose.setContent {
             SkillSyncTheme {
                 DashboardTab(
@@ -503,7 +503,7 @@ class ScreenRenderTest {
         // shell and title must still compose.
         compose.setContent {
             SkillSyncTheme {
-                com.example.skillsync.ui.report.PrioritiesScreen(
+                com.example.skillsync.feature.report.ui.PrioritiesScreen(
                     managerEmail = "aishwar.c@koenig-solutions.com",
                     onOpenDemand = {},
                     onOpenTrainer = { _, _ -> },
@@ -517,8 +517,8 @@ class ScreenRenderTest {
 
     @Test
     fun prioritiesScreen_rendersBulkShareBarWhenBulkBatchesPresent() {
-        val vm = com.example.skillsync.ui.report.PrioritiesViewModel(
-            repository = com.example.skillsync.data.ManagerRepository()
+        val vm = com.example.skillsync.feature.report.ui.PrioritiesViewModel(
+            repository = com.example.skillsync.core.data.ManagerRepository()
         )
         // Seed the bulk-batches state directly so the screen renders the bar.
         LocalCache.init(ApplicationProvider.getApplicationContext())
@@ -559,7 +559,7 @@ class ScreenRenderTest {
         )
         compose.setContent {
             SkillSyncTheme {
-                com.example.skillsync.ui.report.PrioritiesScreen(
+                com.example.skillsync.feature.report.ui.PrioritiesScreen(
                     managerEmail = "aishwar.c@koenig-solutions.com",
                     onOpenDemand = {},
                     onOpenTrainer = { _, _ -> },
@@ -601,7 +601,7 @@ class ScreenRenderTest {
                 TeamTab(
                     dashboardPayload(), capabilityPayload(),
                     actions = listOf(
-                        com.example.skillsync.data.models.ActionRow(
+                        com.example.skillsync.feature.home.data.ActionRow(
                             trainerEmail = "abhinav.samant@koenig-solutions.com",
                             lifecycleState = "open",
                         )
@@ -1002,18 +1002,18 @@ class ScreenRenderTest {
 
     @Test
     fun demandPlan_showsCapacityPressureAndEvidenceConfidence() {
-        val plan = com.example.skillsync.data.api.CapacityPlanResponse(
+        val plan = com.example.skillsync.core.network.CapacityPlanResponse(
             schemaVersion = "2.1",
             ready = true,
-            summary = com.example.skillsync.data.api.CapacitySummary(
+            summary = com.example.skillsync.core.network.CapacitySummary(
                 demand = 6, strongCoverage = 4, uncovered = 1, priority = 3,
                 international = 1, coveragePct = 67,
             ),
             weeks = listOf(
-                com.example.skillsync.data.api.CapacityWeek(weekStart = "2026-08-10", demand = 2, pressure = "high"),
-                com.example.skillsync.data.api.CapacityWeek(weekStart = "2026-08-17", demand = 1, pressure = "healthy"),
+                com.example.skillsync.core.network.CapacityWeek(weekStart = "2026-08-10", demand = 2, pressure = "high"),
+                com.example.skillsync.core.network.CapacityWeek(weekStart = "2026-08-17", demand = 1, pressure = "healthy"),
             ),
-            confidence = com.example.skillsync.data.api.CapacityConfidence(
+            confidence = com.example.skillsync.core.network.CapacityConfidence(
                 availabilityPct = 75,
                 note = "Unknown evidence is never treated as free capacity.",
             ),

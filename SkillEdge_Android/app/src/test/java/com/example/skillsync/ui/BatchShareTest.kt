@@ -1,6 +1,6 @@
 package com.example.skillsync.ui
 
-import com.example.skillsync.ui.batch.BatchShare
+import com.example.skillsync.feature.training.ui.BatchShare
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

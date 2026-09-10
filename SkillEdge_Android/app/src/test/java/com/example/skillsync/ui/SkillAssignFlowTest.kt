@@ -12,9 +12,9 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.example.skillsync.theme.SkillSyncTheme
-import com.example.skillsync.ui.main.SkillAssignFlow
-import com.example.skillsync.ui.main.SkillCandidate
-import com.example.skillsync.ui.main.SkillWriteResult
+import com.example.skillsync.feature.home.SkillAssignFlow
+import com.example.skillsync.feature.home.SkillCandidate
+import com.example.skillsync.feature.home.SkillWriteResult
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -23,7 +23,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * Skill to Select Members to Assign (§7.6).
+ * Skill to Select Members to Assign (Â§7.6).
  *
  * The rules pinned here are the ones that make it a manager's workflow rather
  * than a wrapper over a single-record API.

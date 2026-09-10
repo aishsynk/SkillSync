@@ -2,6 +2,7 @@ package com.example.skillsync.ui.main
 
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.example.skillsync.feature.home.actionTransitionExplanation
 
 class ActionTransitionExplanationTest {
     @Test

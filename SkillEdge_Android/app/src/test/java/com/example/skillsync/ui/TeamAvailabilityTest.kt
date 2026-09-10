@@ -5,7 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import com.example.skillsync.theme.SkillSyncTheme
-import com.example.skillsync.ui.main.TeamMemberCard
+import com.example.skillsync.feature.home.TeamMemberCard
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

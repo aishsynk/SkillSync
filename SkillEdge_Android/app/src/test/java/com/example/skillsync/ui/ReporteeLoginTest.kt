@@ -1,6 +1,6 @@
 package com.example.skillsync.ui
 
-import com.example.skillsync.ui.auth.sanitiseWorkId
+import com.example.skillsync.feature.auth.ui.sanitiseWorkId
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

@@ -5,9 +5,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.example.skillsync.data.api.AllocationCandidatesResponse
+import com.example.skillsync.core.network.AllocationCandidatesResponse
 import com.example.skillsync.theme.SkillSyncTheme
-import com.example.skillsync.ui.batch.GatedCandidatesSection
+import com.example.skillsync.feature.training.ui.GatedCandidatesSection
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

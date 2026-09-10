@@ -6,7 +6,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import com.example.skillsync.theme.SkillSyncTheme
-import com.example.skillsync.ui.batch.BatchCard
+import com.example.skillsync.feature.training.ui.BatchCard
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

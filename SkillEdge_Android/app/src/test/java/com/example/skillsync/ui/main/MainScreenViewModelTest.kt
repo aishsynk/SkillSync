@@ -4,6 +4,8 @@ import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import com.example.skillsync.feature.home.MainScreenViewModel
+import com.example.skillsync.feature.home.DashboardState
 
 class MainScreenViewModelTest {
 

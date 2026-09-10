@@ -3,24 +3,26 @@ package com.example.skillsync.ui.main
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import org.junit.Before
+import com.example.skillsync.feature.home.MainScreen
+import com.example.skillsync.navigation.HomeTab
 import org.junit.Rule
 import org.junit.Test
 
-/** UI tests for [com.example.skillsync.ui.main.MainScreen]. */
+/** Shell smoke test: the MainScreen bottom bar renders the active tab label. */
 class MainScreenTest {
 
   @get:Rule val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
-  @Before
-  fun setup() {
-    composeTestRule.setContent { MainScreen(FAKE_DATA) }
-  }
-
   @Test
-  fun firstItem_exists() {
-    FAKE_DATA.forEach { composeTestRule.onNodeWithText("Hello $it!").assertExists() }
+  fun dashboardTabLabel_isShown() {
+    composeTestRule.setContent {
+      MainScreen(
+        email = "smoke@koenig-solutions.com",
+        tab = HomeTab.DASHBOARD,
+        onTabChange = {},
+        onTrainerClick = { _, _ -> },
+      )
+    }
+    composeTestRule.onNodeWithText("Today").assertExists()
   }
 }
-
-private val FAKE_DATA = listOf("Sample1", "Sample2", "Sample3")

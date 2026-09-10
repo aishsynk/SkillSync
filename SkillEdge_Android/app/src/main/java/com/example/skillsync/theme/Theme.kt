@@ -14,6 +14,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import androidx.compose.ui.Modifier
 
 /**
  * One brand-locked command-centre scheme, dark in both system modes.
@@ -60,10 +61,10 @@ fun SkillSyncTheme(
     @Suppress("UNUSED_PARAMETER") darkTheme: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    val notify = com.example.skillsync.ui.components.rememberNotifyState()
+    val notify = com.example.skillsync.core.ui.rememberNotifyState()
     CompositionLocalProvider(
         LocalSkillColors provides CommandSkillColors,
-        com.example.skillsync.ui.components.LocalNotify provides notify,
+        com.example.skillsync.core.ui.LocalNotify provides notify,
     ) {
         MaterialTheme(
             colorScheme = CommandScheme,
@@ -75,7 +76,7 @@ fun SkillSyncTheme(
             // and never own notification plumbing themselves.
             androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
                 content()
-                com.example.skillsync.ui.components.ToastHost(
+                com.example.skillsync.core.ui.ToastHost(
                     notify,
                     androidx.compose.ui.Modifier
                         .align(androidx.compose.ui.Alignment.TopCenter)

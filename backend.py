@@ -110,6 +110,8 @@ import urllib.request
 from action_store import ActionStore, SessionRevocationStore
 from reportee_store import ReporteeStore
 from dev_plan_store import DevPlanStore
+from repositories.opportunity_store import OpportunityStore
+from services.communication.service import CommunicationService
 
 app = Flask(__name__)
 CORS(app)
@@ -4160,6 +4162,122 @@ def _capability_fast_payload(email):
         "courses": [],
         "kpis": {},
         "loading": True,
+    }
+
+
+def _skill_profile_from_capability(email):
+    """Build a verified skill profile from the real capability pipeline.
+
+    This is the single source of truth for the Opportunity Guardian's skill
+    profile / capability graph. It runs the exact same reportee + per-trainer
+    capability fan-out as `team_capability` and rewrites that verified evidence
+    into the skill-profile shape the client already renders. Nothing is
+    fabricated: an empty roster returns an honest empty profile, and fields
+    with no evidence source are left empty rather than guessed.
+    """
+    reps = _reportees(email) or []
+    rows = [r for r in (reps if isinstance(reps, list) else []) if isinstance(r, dict)]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        policy = _exam_policy()
+        taxonomy = _course_taxonomy()
+        team = [t for t in pool.map(lambda r: _capability_for(r, policy), rows) if t]
+
+    catalogue = {}
+    for t in team:
+        for c in t["courses"]:
+            key = _norm(c["course"]) or c["course"]
+            entry = catalogue.setdefault(key, {
+                "course": c["course"], "course_id": c.get("course_id", ""),
+                "vendor": c["vendor"], "exam_code": _exam_code(c["course"]),
+                "future_skill": False, "owners": [],
+            })
+            entry["future_skill"] = entry["future_skill"] or c["future_skill"]
+            held = set(t["certification"]["held_codes"])
+            entry["owners"].append({
+                "trainer_name": t["trainer_name"], "trainer_email": t["trainer_email"],
+                "photo_url": t["photo_url"], "qubits_score": c["qubits_score"],
+                "skill_level": c["skill_level"], "approved": c["approved"],
+                "delivered": c["delivered"],
+                "certified": _exam_code(c["course"]) in held,
+            })
+
+    courses = []
+    for entry in catalogue.values():
+        entry["owners"].sort(key=lambda o: (-o["qubits_score"], o["trainer_name"]))
+        owners = entry["owners"]
+        cert_name = _CERT_CATALOG[entry["exam_code"]][0] if entry["exam_code"] in _CERT_CATALOG else ""
+        courses.append({
+            **entry,
+            "owner_count":     len(owners),
+            "certified_count": sum(1 for o in owners if o["certified"]),
+            "approved_count":  sum(1 for o in owners if o["approved"]),
+            "delivered_total": sum(o["delivered"] for o in owners),
+            "best_qubits":     owners[0]["qubits_score"] if owners else 0,
+            "certification":   cert_name,
+            "coverage":        "single" if len(owners) == 1 else "shared",
+        })
+    courses.sort(key=lambda c: (-c["owner_count"], -c["best_qubits"], c["course"]))
+    portfolio = _capability_portfolio(team, courses, taxonomy)
+
+    cert_rows = {}
+    for t in team:
+        for code in t["certification"]["held_codes"]:
+            row = cert_rows.setdefault(code, {"code": code, "count": 0})
+            row["name"] = _CERT_CATALOG[code][0] if code in _CERT_CATALOG else code
+            row["count"] += 1
+    certified = sorted(cert_rows.values(), key=lambda r: (-r["count"], r["code"]))
+
+    del_rows = {}
+    for c in courses:
+        vendor = str(c.get("vendor") or "Unclassified").strip() or "Unclassified"
+        row = del_rows.setdefault(vendor, {"code": vendor[:6].upper(), "name": vendor, "count": 0})
+        row["count"] += int(c.get("delivered_total") or 0)
+    delivered = sorted(del_rows.values(), key=lambda r: (-r["count"], r["name"]))
+
+    built = sorted(
+        ({"code": c.get("exam_code") or c["course"][:6].upper(),
+          "name": c["course"],
+          "level": "L%d" % min(10, 1 + int(c.get("best_qubits") or 0) // 10),
+          "count": int(c.get("delivered_total") or 0)}
+         for c in courses if c.get("approved") and int(c.get("delivered_total") or 0) > 0),
+        key=lambda r: -r["count"],
+    )
+
+    tech_rows = {}
+    for c in courses:
+        tax = _taxonomy_for_course(taxonomy, c)
+        tech = str((tax or {}).get("technology") or "Unclassified")
+        row = tech_rows.setdefault(tech, {"name": tech, "certified": 0, "approved": 0, "best": 0})
+        row["certified"] += int(c.get("certified_count") or 0)
+        row["approved"] += int(c.get("approved_count") or 0)
+        row["best"] = max(row["best"], int(c.get("best_qubits") or 0))
+    skills = [
+        {
+            "name":       row["name"],
+            "strength":   "Strong" if row["certified"] else ("Moderate" if row["approved"] else "Gap"),
+            "moderate":   row["certified"] == 0 and row["approved"] > 0,
+            "gap":        row["certified"] == 0 and row["approved"] == 0,
+            "confidence": round(row["best"] / 100.0, 2) if row["best"] else 0.0,
+        }
+        for row in tech_rows.values()
+    ]
+    skills.sort(key=lambda s: (-s["confidence"], s["name"]))
+
+    return {
+        "email":             email,
+        "certifications":    sorted({c["code"] for c in certified}),
+        "technologies":      [t["technology"] for t in portfolio.get("by_technology", [])],
+        "courses_delivered": [c["course"] for c in courses],
+        "experience_years":  0,
+        "labs_projects":     [],
+        "confidence_by_topic": {s["name"]: s["confidence"] for s in skills},
+        "capability_graph":  {
+            "certified": certified,
+            "delivered": delivered,
+            "built":     built[:12],
+            "skills":    skills,
+        },
+        "source": "rms-capability",
     }
 
 
@@ -11927,13 +12045,199 @@ def accounts_v2():
 
     resp = _accounts_build(manager)
     _warm_store("accounts::%s" % manager, resp)
-return jsonify(resp), 200
+    return jsonify(resp), 200
 
 
 # ── OPPORTUNITY GUARDIAN ──────────────────────────────────────────────
 
-_opportunity_guardian_config_cache = {}
-_opportunity_store = {}
+_OPPORTUNITY_DB = os.path.join(
+    os.getenv("SKILLEDGE_STATE_DIR", "."), "skilledge_opportunities.sqlite3")
+_opportunity_repository = OpportunityStore(_OPPORTUNITY_DB)
+_opportunity_lock = threading.Lock()
+
+_DEFAULT_GUARDIAN_CONFIG = {
+    "trusted_sources": [{"app": "Viber", "group": "Trailblazers", "sender": "Gaurav Joshi", "enabled": True}],
+    "trigger_keywords": ["Can anyone deliver", "Can you deliver", "Availability", "Training requirement", "Trainer needed", "Travel opportunity", "International delivery", "Course", "TOC attached"],
+    "quiet_hours_start": "23:00",
+    "quiet_hours_end": "07:00",
+    "quiet_hours_normal_messages": True,
+    "quiet_hours_high_opportunities": False,
+    "quiet_hours_critical_opportunities": True,
+    "escalation_rules": [{"trigger": "Critical opportunity", "action": "Alarm escalation", "level": "critical"}],
+    "enabled": True,
+}
+
+
+# ── Structured requirement extraction (Phase 4) ──────────────────────────
+# Everything returned is read directly from the raw message. A field is left
+# empty when the text does not evidence it — nothing is guessed.
+
+_OG_MONTHS = {
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+}
+
+_OG_CITY_COUNTRY = {
+    "dubai": "UAE", "abu dhabi": "UAE", "sharjah": "UAE",
+    "singapore": "Singapore",
+    "delhi": "India", "new delhi": "India", "bangalore": "India", "bengaluru": "India",
+    "mumbai": "India", "hyderabad": "India", "chennai": "India", "pune": "India",
+    "gurgaon": "India", "gurugram": "India", "noida": "India", "kolkata": "India", "ahmedabad": "India",
+    "london": "UK", "manchester": "UK", "birmingham": "UK",
+    "berlin": "Germany", "frankfurt": "Germany", "munich": "Germany", "hamburg": "Germany",
+    "zurich": "Switzerland", "geneva": "Switzerland",
+    "paris": "France", "nice": "France",
+    "toronto": "Canada", "vancouver": "Canada",
+    "new york": "USA", "dallas": "USA", "houston": "USA", "chicago": "USA", "seattle": "USA", "san francisco": "USA",
+    "sydney": "Australia", "melbourne": "Australia", "brisbane": "Australia",
+    "doha": "Qatar", "manama": "Bahrain", "muscat": "Oman",
+    "riyadh": "Saudi Arabia", "jeddah": "Saudi Arabia",
+    "lagos": "Nigeria", "nairobi": "Kenya", "cairo": "Egypt", "johannesburg": "South Africa", "cape town": "South Africa",
+    "warsaw": "Poland", "krakow": "Poland", "brussels": "Belgium", "amsterdam": "Netherlands",
+}
+
+_OG_DOC_MARKERS = ["toc", "syllabus", "agenda", "brochure", "pdf", "deck", "course material", "attachment", "concept note", "toc attached"]
+
+
+def _og_month_number(token):
+    t = str(token or "").strip().lower().rstrip(".")
+    if t in _OG_MONTHS:
+        return _OG_MONTHS[t]
+    for name, num in _OG_MONTHS.items():
+        if name.startswith(t):
+            return num
+    return 0
+
+
+def _og_iso(y, mo, d):
+    try:
+        return date(int(y), int(mo), int(d)).isoformat()
+    except ValueError:
+        return ""
+
+
+def _extract_structured_requirements(text):
+    """Pull structured requirements out of a raw opportunity message.
+
+    Returns: course_code, course, dates_start/end, location, country, mode,
+    participants, documentation_mentioned, action. Every field is evidenced by
+    the text or left empty.
+    """
+    raw = str(text or "")
+    if not raw.strip():
+        return {"course_code": "", "course": "", "dates_start": "", "dates_end": "",
+                "location": "", "country": "", "mode": "", "participants": "",
+                "documentation_mentioned": [], "action": "information"}
+
+    m = _EXAM_CODE.search(raw.upper())
+    course_code = "%s-%s" % (m.group(1), m.group(2)) if m else ""
+    course = course_code
+
+    # ── Dates: "22-26 Sep 2026", "22 Sep 2026 to 26 Sep 2026", "Sep 22-26, 2026",
+    #           "22 Sep 2026", "22/09/2026 to 26/09/2026"
+    dates_start = dates_end = ""
+    lower = raw.lower()
+    to_range = _re.search(r"\bfrom\s+(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]{3,9})\.?\s*[ ,]*(20\d{2})?\s+(?:to|until|upto|up to)\s+(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]{3,9})\.?\s*[ ,]*(20\d{2})?\b", lower)
+    if to_range:
+        sm = _og_month_number(to_range.group(2))
+        em = _og_month_number(to_range.group(5))
+        sy = to_range.group(3) or str(date.today().year)
+        ey = to_range.group(6) or sy
+        if sm and em:
+            s = _og_iso(sy, sm, int(to_range.group(1)))
+            e = _og_iso(ey, em, int(to_range.group(4)))
+            if s and e and s <= e:
+                dates_start, dates_end = s, e
+    if not dates_start:
+        full_range = _re.search(r"\b(class|trng|training|dates?|run)?\s*(?:from\s+)?(\d{1,2})(?:st|nd|rd|th)?\s*(?:-|–|—|to)\s*(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]{3,9})(?:\b[ ,]+(20\d{2}))?", lower)
+        if full_range and full_range.group(4):
+            mo = _og_month_number(full_range.group(4))
+            year = full_range.group(5) or (str(date.today().year))
+            if mo:
+                start = _og_iso(year, mo, int(full_range.group(2)))
+                end = _og_iso(year, mo, int(full_range.group(3)))
+                if start and end and start <= end:
+                    dates_start, dates_end = start, end
+    if not dates_start:
+        rev = _re.search(r"\b([a-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?\s*(?:-|–|—|to|,\s*)\s*(\d{1,2})?(?:st|nd|rd|th)?\b[ ,]+(20\d{2})", lower)
+        if rev:
+            mo = _og_month_number(rev.group(1))
+            year = rev.group(4)
+            if mo and rev.group(3):
+                start = _og_iso(year, mo, int(rev.group(2)))
+                end = _og_iso(year, mo, int(rev.group(3)))
+                if start and end and start <= end:
+                    dates_start, dates_end = start, end
+    if not dates_start:
+        single = _re.search(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]{3,9})(?:\.)?\b[ ,]+(20\d{2})", lower)
+        if single:
+            mo = _og_month_number(single.group(2))
+            if mo:
+                start = _og_iso(single.group(3), mo, int(single.group(1)))
+                if start:
+                    dates_start = dates_end = start
+    if not dates_start:
+        slash_range = _re.search(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\s*(?:to|or)\s*(\d{1,2})/(\d{1,2})/(\d{4})", lower)
+        if slash_range:
+            s = _og_iso(slash_range.group(3), slash_range.group(2), slash_range.group(1))
+            e = _og_iso(slash_range.group(6), slash_range.group(5), slash_range.group(4))
+            if s and e:
+                dates_start, dates_end = s, e
+
+    # ── Location / country from the delivery-hub map ────────────────────────
+    location = country = ""
+    for city, cty in _OG_CITY_COUNTRY.items():
+        if _re.search(r"\b%s\b" % _re.escape(city), lower):
+            location = city.title()
+            country = cty
+            break
+    mode = ""
+    if _re.search(r"\b(vilt|virtual|online|remote)\b", lower):
+        mode = "virtual"
+    elif _re.search(r"\b(onsite|in[- ]person|classroom|ilt|dedicated)\b", lower):
+        mode = "onsite"
+
+    pax = _re.search(r"\b(\d{1,3})\s*(?:participants?|pax|heads|delegates?|learners?|people)\b", lower)
+    participants = pax.group(1) if pax else ""
+
+    docs = sorted({mm.title() for mm in _OG_DOC_MARKERS if mm in lower})
+
+    if _re.search(r"\b(availability|who is free|who can take|free this)\b", lower):
+        action = "availability check"
+    elif _re.search(r"\b(can anyone deliver|can you deliver|who can deliver|need a trainer|trainer needed|looking for a trainer)\b", lower):
+        action = "training requirement"
+    elif _re.search(r"\b(international|travel|overseas|abroad)\b", lower):
+        action = "travel opportunity"
+    else:
+        action = "information"
+
+    if not course_code:
+        seg = _re.split(r"[\n;!?.]", raw[:200])[0]
+        quoted = _re.search(r"[\"'“]([^\"'”]{4,80})[\"'”]", raw)
+        if quoted:
+            course = quoted.group(1).strip()
+        else:
+            tail = _re.search(r"\b(?:course|training|program(?:me)?|class|certification)\s*:\s*([^\n;,.]+)", raw, _re.I)
+            if tail:
+                course = tail.group(1).strip()[:60]
+
+    return {
+        "course_code": course_code, "course": course,
+        "dates_start": dates_start, "dates_end": dates_end,
+        "location": location, "country": country, "mode": mode,
+        "participants": participants, "documentation_mentioned": docs, "action": action,
+    }
+
+
+@app.route('/api/v2/opportunity/extract', methods=['POST'])
+def extract_opportunity_requirements():
+    """Extract structured requirements from a raw opportunity message text."""
+    body = request.get_json(force=True) or {}
+    manager = str(body.get("manager") or request.args.get('manager', '')).strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    return jsonify(_extract_structured_requirements(body.get("text", ""))), 200
 
 
 @app.route('/api/v2/opportunity/guardian-config', methods=['GET'])
@@ -11944,23 +12248,7 @@ def guardian_config():
     if error:
         return error
     manager = (_sess or {}).get("email") or manager
-    ck = "guardian_config::%s" % manager
-    if request.args.get("_build") != "1":
-        _warm_purge(ck) if _wants_fresh() else None
-        return _serve_or_warm(
-            cache_key=ck, view_func=guardian_config,
-            build_path="/api/v2/opportunity/guardian-config?manager=%s&_build=1" % urllib.parse.quote(manager),
-            fast_payload={"trusted_sources": [], "trigger_keywords": [], "quiet_hours_start": "23:00", "quiet_hours_end": "07:00", "quiet_hours_normal_messages": True, "quiet_hours_high_opportunities": False, "quiet_hours_critical_opportunities": False, "escalation_rules": [], "enabled": True},
-        )
-    config = _opportunity_guardian_config_cache.get(manager, {
-        "trusted_sources": [{"app": "Viber", "group": "Trailblazers", "sender": "Gaurav Joshi", "enabled": True}],
-        "trigger_keywords": ["Can anyone deliver", "Can you deliver", "Availability", "Training requirement", "Trainer needed", "Travel opportunity", "International delivery", "Course", "TOC attached"],
-        "quiet_hours_start": "23:00", "quiet_hours_end": "07:00",
-        "quiet_hours_normal_messages": True, "quiet_hours_high_opportunities": False, "quiet_hours_critical_opportunities": True,
-        "escalation_rules": [{"trigger": "Critical opportunity", "action": "Alarm escalation", "level": "critical"}],
-        "enabled": True,
-    })
-    _opportunity_guardian_config_cache[manager] = config
+    config = _opportunity_repository.get_config(manager) or _DEFAULT_GUARDIAN_CONFIG
     return jsonify(config), 200
 
 
@@ -11972,7 +12260,15 @@ def update_guardian_config():
     if error:
         return error
     body = request.get_json(force=True) or {}
-    _opportunity_guardian_config_cache[manager] = body
+    if "manager" in body:
+        body = dict(body)
+        body.pop("manager", None)
+    _opportunity_lock.acquire()
+    try:
+        _opportunity_repository.save_config(manager, body)
+    finally:
+        _opportunity_lock.release()
+    _warm_purge("guardian_config::%s" % manager) if _wants_fresh() else None
     return jsonify({"status": "updated", "manager": manager}), 200
 
 
@@ -11984,18 +12280,7 @@ def get_opportunities():
     if error:
         return error
     status = request.args.get('status', '')
-    ck = "opportunities_%s" % manager
-    if status:
-        ck += "_%s" % status
-    if request.args.get("_build") != "1":
-        return _serve_or_warm(
-            cache_key=ck, view_func=get_opportunities,
-            build_path="/api/v2/opportunities?manager=%s&status=%s&_build=1" % (urllib.parse.quote(manager), urllib.parse.quote(status)),
-            fast_payload={"items": [], "loading": True},
-        )
-    items = _opportunity_store.get(manager, [])
-    if status:
-        items = [i for i in items if i.get("status") == status]
+    items = _opportunity_repository.list(manager, status)
     return jsonify({"items": items, "count": len(items)}), 200
 
 
@@ -12003,13 +12288,14 @@ def get_opportunities():
 def create_opportunity():
     """Create a new opportunity from a detected message."""
     manager = request.args.get('manager', '').strip().lower()
-    _sess, error = _v2_manager_session(manager)
+    body = request.get_json(force=True) or {}
+    _sess, error = _v2_manager_session(manager or str(body.get("manager", "")))
     if error:
         return error
+    manager = (_sess or {}).get("email") or manager or str(body.get("manager", ""))
     body = request.get_json(force=True) or {}
-    opp_id = body.get("id", "SE-%d" % (len(_opportunity_store.get(manager, [])) + 1000))
     opportunity = {
-        "id": opp_id,
+        "id": body.get("id", ""),
         "source": body.get("source", "viber"),
         "source_app": body.get("source_app", "Viber"),
         "source_group": body.get("source_group", "Trailblazers"),
@@ -12017,6 +12303,7 @@ def create_opportunity():
         "sender_phone": body.get("sender_phone", ""),
         "title": body.get("title", ""),
         "course": body.get("course", ""),
+        "course_code": body.get("course_code", ""),
         "location": body.get("location", ""),
         "country": body.get("country", ""),
         "dates_start": body.get("dates_start", ""),
@@ -12025,20 +12312,27 @@ def create_opportunity():
         "status": "detected",
         "skill_match_score": body.get("skill_match_score", 0),
         "verdict": body.get("verdict", ""),
+        "decision": body.get("decision", ""),
         "confidence": body.get("confidence", ""),
         "preparation_hours": body.get("preparation_hours", ""),
         "major_gap": body.get("major_gap", ""),
         "strong_areas": body.get("strong_areas", []),
         "weak_areas": body.get("weak_areas", []),
         "evidence": body.get("evidence", []),
+        "requirements": body.get("requirements", {}),
+        "raw_text": body.get("raw_text", ""),
+        "document_status": body.get("document_status", "none") if isinstance(body.get("document_status"), str) else "none",
         "is_high_opportunity": body.get("is_high_opportunity", False),
         "is_critical": body.get("is_critical", False),
         "is_international": body.get("is_international", False),
     }
-    if manager not in _opportunity_store:
-        _opportunity_store[manager] = []
-    _opportunity_store[manager].append(opportunity)
-    return jsonify(opportunity), 201
+    _opportunity_lock.acquire()
+    try:
+        created = _opportunity_repository.create(manager, opportunity)
+    finally:
+        _opportunity_lock.release()
+    _warm_purge("opportunities_%s" % manager) if _wants_fresh() else None
+    return jsonify(created), 201
 
 
 @app.route('/api/v2/opportunities/<opp_id>/accept', methods=['POST'])
@@ -12048,10 +12342,13 @@ def accept_opportunity(opp_id):
     _sess, error = _v2_manager_session(manager)
     if error:
         return error
-    opps = _opportunity_store.get(manager, [])
-    opp = next((o for o in opps if o["id"] == opp_id), None)
-    if opp:
-        opp["status"] = "accepted"
+    manager = (_sess or {}).get("email") or manager
+    _opportunity_lock.acquire()
+    try:
+        _opportunity_repository.set_status(manager, opp_id, "accepted")
+    finally:
+        _opportunity_lock.release()
+    _warm_purge("opportunities_%s" % manager) if _wants_fresh() else None
     return jsonify({"status": "accepted", "id": opp_id}), 200
 
 
@@ -12062,32 +12359,136 @@ def decline_opportunity(opp_id):
     _sess, error = _v2_manager_session(manager)
     if error:
         return error
-    opps = _opportunity_store.get(manager, [])
-    opp = next((o for o in opps if o["id"] == opp_id), None)
-    if opp:
-        opp["status"] = "declined"
+    manager = (_sess or {}).get("email") or manager
+    _opportunity_lock.acquire()
+    try:
+        _opportunity_repository.set_status(manager, opp_id, "declined")
+    finally:
+        _opportunity_lock.release()
+    _warm_purge("opportunities_%s" % manager) if _wants_fresh() else None
     return jsonify({"status": "declined", "id": opp_id}), 200
+
+
+@app.route('/api/v2/opportunities/<opp_id>/document', methods=['POST'])
+def update_opportunity_document(opp_id):
+    """Advance the documentation state of an opportunity.
+
+    States: none -> mentioned (doc referenced, not received) ->
+    requested (user was asked to share it) -> shared (user attached it) ->
+    reviewed. Each transition is evidence the guardian surfaces at decision time.
+    """
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    manager = (_sess or {}).get("email") or manager
+    body = request.get_json(force=True) or {}
+    status = str(body.get("status", "")).strip().lower()
+    allowed = {"none", "mentioned", "requested", "shared", "reviewed"}
+    if status not in allowed:
+        return error_response("INVALID_DOCUMENT_STATUS",
+                              "document status must be one of %s" % ", ".join(sorted(allowed)), 400)
+    _opportunity_lock.acquire()
+    try:
+        updated = _opportunity_repository.patch(manager, opp_id, {"document_status": status})
+    finally:
+        _opportunity_lock.release()
+    if updated is None:
+        return error_response("OPPORTUNITY_NOT_FOUND", "opportunity not found", 404)
+    _warm_purge("opportunities_%s" % manager) if _wants_fresh() else None
+    return jsonify({"status": "updated", "id": opp_id, "document_status": status}), 200
 
 
 @app.route('/api/v2/opportunity/match', methods=['POST'])
 def match_opportunity():
-    """Match a skill profile against an opportunity and return scoring."""
+    """Match a verified skill profile against an opportunity.
+
+    When `manager` is present the profile is the real RMS-capability profile
+    (`_skill_profile_from_capability`); otherwise the caller may pass an
+    explicit `skill_profile`. Every score line traces to evidence — a
+    requirement is STRONG when a held certification or delivered course backs
+    it, MODERATE when the technology is trained, and a GAP when there is no
+    evidence at all. Missing evidence yields INSUFFICIENT EVIDENCE instead of a
+    guessed score.
+    """
     body = request.get_json(force=True) or {}
-    skill_profile = body.get("skill_profile", {})
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = None, None
+    if manager:
+        _sess, error = _v2_manager_session(manager)
+        if error:
+            return error
+        manager = (_sess or {}).get("email") or manager
+    if manager:
+        profile = _skill_profile_from_capability(manager)
+    else:
+        profile = body.get("skill_profile", {})
     opportunity = body.get("opportunity", {})
-    skills = skill_profile.get("skills", [])
-    techs = skill_profile.get("technologies", [])
-    certs = skill_profile.get("certifications", [])
-    course_topics = opportunity.get("course_topics", opportunity.get("strong_areas", []))
+
+    cert_codes = {str(c).strip().upper() for c in profile.get("certifications", []) if str(c).strip()}
+    skills = [str(s.get("name", "")) for s in profile.get("capability_graph", {}).get("skills", [])]
+    techs = [str(t) for t in profile.get("technologies", [])]
+    strong_names, moderate_names = set(), set()
+    for s in profile.get("capability_graph", {}).get("skills", []):
+        n = str(s.get("name", ""))
+        if s.get("strength") == "Strong":
+            strong_names.add(n)
+        elif s.get("strength") == "Moderate":
+            moderate_names.add(n)
+
+    reqs = opportunity.get("requirements", {})
+    course_topics = [
+        t for t in opportunity.get("course_topics", opportunity.get("strong_areas", []))
+        if str(t).strip()
+    ]
+    topics = list(course_topics) or [reqs.get("course_code") or reqs.get("course") or ""]
+    topics = [t for t in topics if str(t).strip()]
+
+    evidence = []
     matched = []
     unmatched = []
-    for topic in course_topics:
-        if topic.lower() in [s.lower() for s in skills + techs + certs]:
-            matched.append(topic)
+    for topic in topics:
+        t = str(topic).strip()
+        if not t:
+            continue
+        low = t.lower()
+        tc = _re.sub(r"[^A-Z0-9-]", "", t.upper())
+        if tc in cert_codes:
+            status = "STRONG"
+            reason = "Held certification %s in the verified capability profile" % tc
+        elif any(c in t.upper() for c in cert_codes):
+            status = "STRONG"
+            reason = "Course code %s covered by a held certification" % t.upper()
+        elif low in {s.lower() for s in strong_names} or low in {s.lower() for s in techs}:
+            status = "STRONG"
+            reason = "Strong technology evidence in capability profile"
+        elif low in {s.lower() for s in moderate_names}:
+            status = "MODERATE"
+            reason = "Moderate technology evidence (approved but not certified)"
         else:
-            unmatched.append(topic)
-    score = int((len(matched) / max(len(course_topics), 1)) * 100)
-    if score >= 90:
+            status = "GAP"
+            reason = "No verified capability evidence for this requirement"
+        evidence.append({
+            "topic": t,
+            "status": status,
+            "strength": 1.0 if status == "STRONG" else (0.5 if status == "MODERATE" else 0.0),
+            "evidence": reason,
+            "source": "rms-capability",
+        })
+        if status in ("STRONG", "MODERATE"):
+            matched.append(t)
+        else:
+            unmatched.append(t)
+
+    strong_count = sum(1 for e in evidence if e["status"] == "STRONG")
+    moderate_count = sum(1 for e in evidence if e["status"] == "MODERATE")
+    gap_count = sum(1 for e in evidence if e["status"] == "GAP")
+    n_total = len(evidence)
+    score = int(((strong_count * 1.0 + moderate_count * 0.5) / max(n_total, 1)) * 100) if n_total else 0
+
+    if not n_total:
+        verdict = "INSUFFICIENT EVIDENCE"
+    elif score >= 90 and strong_count >= moderate_count:
         verdict = "STRONGLY ACCEPT"
     elif score >= 75:
         verdict = "ACCEPT"
@@ -12097,25 +12498,52 @@ def match_opportunity():
         verdict = "HIGH RISK"
     else:
         verdict = "DECLINE"
+
+    if verdict in ("STRONGLY ACCEPT", "ACCEPT"):
+        decision = "accept"
+    elif verdict in ("CONDITIONAL ACCEPT", "HIGH RISK"):
+        decision = "pending"
+    elif verdict == "DECLINE":
+        decision = "decline"
+    else:
+        decision = "insufficient_evidence"
+    is_critical = bool(opportunity.get("is_critical")) or verdict in ("STRONGLY ACCEPT", "ACCEPT")
+    if opportunity.get("is_international") and is_critical:
+        decision = "escalate"
+
+    prep = "Minimal preparation expected" if score >= 75 else (
+        "8-10 hours focused preparation recommended" if score >= 40 else
+        "Substantial upskilling required before delivery")
+
     return jsonify({
         "match_score": score,
         "verdict": verdict,
+        "decision": decision,
         "strong_areas": matched,
         "weak_areas": unmatched,
         "major_gap": unmatched[0] if unmatched else "",
-        "preparation_hours": "8-10 hours" if score < 75 else "Minimal",
+        "preparation_hours": prep,
         "confidence": "HIGH" if score >= 75 else "MODERATE" if score >= 40 else "LOW",
-        "evidence": [{"topic": m, "evidence": "Verified skill match from profile"} for m in matched],
+        "evidence": evidence,
+        "profile_source": "rms-capability" if manager else "client-provided",
+        "recommendation": "Match the verified capability graph to the requested course before committing." if verdict == "CONDITIONAL ACCEPT" else "Verified records support taking this opportunity." if decision in ("accept", "escalate") else "Decline unless missing evidence is supplied.",
+        "requirements": reqs or _extract_structured_requirements(opportunity.get("raw_text", "")),
     }), 200
 
 
 @app.route('/api/v2/skill-profile', methods=['GET'])
 def skill_profile():
-    """Get the manager's skill profile and capability graph."""
+    """Get the manager's skill profile and capability graph.
+
+    Sourced from the verified capability pipeline (`_skill_profile_from_capability`)
+    — the same RMS evidence team_capability uses. The client keeps its last
+    snapshot while the per-trainer credential fan-out warms the cache.
+    """
     manager = request.args.get('manager', '').strip().lower()
     _sess, error = _v2_manager_session(manager)
     if error:
         return error
+    manager = (_sess or {}).get("email") or manager
     ck = "skill_profile_%s" % manager
     if request.args.get("_build") != "1":
         return _serve_or_warm(
@@ -12123,30 +12551,9 @@ def skill_profile():
             build_path="/api/v2/skill-profile?manager=%s&_build=1" % urllib.parse.quote(manager),
             fast_payload={"certifications": [], "technologies": [], "courses_delivered": [], "experience_years": 0, "labs_projects": [], "confidence_by_topic": {}, "capability_graph": {"certified": [], "delivered": [], "built": [], "skills": []}},
         )
-    return jsonify({
-        "email": manager,
-        "certifications": ["AI-102", "DP-600", "DP-700", "DP-750"],
-        "technologies": ["Azure AI", "Fabric", "Databricks", "Python", "SQL", "Generative AI"],
-        "courses_delivered": ["AI courses", "DP courses", "SQL Admin", "Fabric"],
-        "experience_years": 10,
-        "labs_projects": ["RAG labs", "Chatbots", "APIs", "MLOps"],
-        "confidence_by_topic": {"Azure AI": 0.95, "Generative AI": 0.91, "Databricks": 0.88, "Python": 0.95, "RAG": 0.9, "Prompt Engineering": 0.85, "SQL": 0.98, "Fabric": 0.82, "MLOps": 0.78},
-        "capability_graph": {
-            "certified": [{"code": "AI-102", "name": "Azure AI", "level": "L10", "count": 1}, {"code": "DP-600", "name": "Fabric", "level": "L8", "count": 1}, {"code": "DP-700", "name": "Databricks", "level": "L9", "count": 1}, {"code": "DP-750", "name": "SQL", "level": "L10", "count": 1}],
-            "delivered": [{"code": "AI", "name": "AI courses", "level": "L9", "count": 5}, {"code": "DP", "name": "DP courses", "level": "L8", "count": 3}, {"code": "SQL", "name": "SQL Admin", "level": "L10", "count": 10}, {"code": "FAB", "name": "Fabric", "level": "L7", "count": 2}],
-            "built": [{"code": "RAG", "name": "RAG labs", "level": "L8", "count": 3}, {"code": "CHAT", "name": "Chatbots", "level": "L7", "count": 2}, {"code": "API", "name": "APIs", "level": "L9", "count": 8}, {"code": "MLOPS", "name": "MLOps", "level": "L7", "count": 1}],
-            "skills": [
-                {"name": "Azure AI", "strength": "Strong", "moderate": False, "gap": False, "confidence": 0.95},
-                {"name": "Generative AI", "strength": "Strong", "moderate": False, "gap": False, "confidence": 0.91},
-                {"name": "Databricks", "strength": "Strong", "moderate": False, "gap": False, "confidence": 0.88},
-                {"name": "Python", "strength": "Strong", "moderate": False, "gap": False, "confidence": 0.95},
-                {"name": "RAG", "strength": "Strong", "moderate": False, "gap": False, "confidence": 0.90},
-                {"name": "Prompt Engineering", "strength": "Moderate", "moderate": True, "gap": False, "confidence": 0.85},
-                {"name": "MLflow", "strength": "Gap", "moderate": False, "gap": True, "confidence": 0.3},
-                {"name": "Azure AI Content Safety", "strength": "Gap", "moderate": False, "gap": True, "confidence": 0.2},
-            ],
-        },
-    }), 200
+    profile = _skill_profile_from_capability(manager)
+    _warm_store(ck, profile)
+    return jsonify(profile), 200
 
 
 @app.route('/api/v2/skill-profile', methods=['POST'])
@@ -14507,6 +14914,74 @@ def v2_viber_config():
     return jsonify(cfg), 200
 
 
+# ── COMMUNICATION INTELLIGENCE ──────────────────────────────────────────
+
+_communication_service = CommunicationService()
+
+
+@app.route('/api/v2/communication/generate', methods=['POST'])
+def communication_generate():
+    """Generate one professional message from a Communication request.
+
+    The route gathers ONLY verified SkillEdge context (an opportunity record,
+    when `relatedEntityId` matches one belonging to the manager) and hands it
+    to the engine. The engine never invents facts.
+    """
+    body = request.get_json(force=True) or {}
+    manager = str(body.get("manager") or request.args.get('manager', '')).strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    verified = {}
+    opp_id = str(body.get("relatedEntityId") or "").strip()
+    if opp_id:
+        for item in _opportunity_repository.list(manager, ""):
+            if str(item.get("id", "")) == opp_id:
+                verified["opportunity"] = {
+                    k: item.get(k) for k in (
+                        "id", "course", "course_code", "location", "country",
+                        "dates_start", "dates_end", "decision", "verdict",
+                        "skill_match_score", "preparation_hours", "major_gap",
+                    )
+                }
+                break
+    result = _communication_service.generate(manager, body, verified_context=verified)
+    return jsonify({
+        "message": result.text,
+        "purpose": result.purpose,
+        "tone": result.tone,
+        "facts_used": result.facts_used,
+        "validation": {
+            "passed": result.validation.passed,
+            "issues": result.validation.issues,
+        },
+    }), 200
+
+
+@app.route('/api/v2/communication/save', methods=['POST'])
+def communication_save():
+    """Persist a generated/sent communication with structured metadata."""
+    body = request.get_json(force=True) or {}
+    manager = str(body.get("manager") or request.args.get('manager', '')).strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    record = _communication_service.save(manager, body)
+    return jsonify(record), 200
+
+
+@app.route('/api/v2/communication/history', methods=['GET'])
+def communication_history():
+    """Structured history of generated messages for one manager."""
+    manager = request.args.get('manager', '').strip().lower()
+    _sess, error = _v2_manager_session(manager)
+    if error:
+        return error
+    limit = request.args.get('limit', '50')
+    items = _communication_service.history(manager, limit=int(limit or 50))
+    return jsonify({"items": items, "count": len(items)}), 200
+
+
 @app.errorhandler(500)
 def internal_error(error):
     return error_response("INTERNAL_ERROR", "Internal server error", 500)
@@ -14550,6 +15025,9 @@ def root():
         "match_opportunity": "Match skill profile against opportunity",
         "skill_profile": "Skill profile & capability graph",
         "update_skill_profile": "Update skill profile",
+        "communication_generate": "Generate a professional message (Communication Intelligence)",
+        "communication_save": "Save a generated message to history",
+        "communication_history": "Structured communication history",
         "healthz": "Health check",
     }
     endpoints = {}
@@ -14561,7 +15039,7 @@ def root():
             endpoints[methods + "  " + rule.rule] = descriptions.get(rule.endpoint, rule.endpoint)
     return jsonify({
         "service":  "SkillSync Backend",
-        "version":  "6.2.0",
+        "version":  "6.3.0",
         "endpoints": endpoints,
     }), 200
 

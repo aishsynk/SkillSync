@@ -11,7 +11,7 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
-        android:name=".SkillEdgeApplication"
+        android:name=".app.SkillEdgeApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -30,12 +30,25 @@
                 tools:node="remove" />
         </provider>
         <service
-            android:name=".util.MonitoringService"
+            android:name=".core.notification.MonitoringService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <service
+            android:name=".feature.guardian.listener.ViberNotificationListener"
+            android:exported="true"
+            android:label="Opportunity Guardian"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.notification.default_filter_types"
+                android:value="conversations,alerting,silent" />
+        </service>
+
         <receiver
-            android:name=".util.BootReceiver"
+            android:name=".core.notification.BootReceiver"
             android:exported="true"
             android:enabled="true">
             <intent-filter>
@@ -46,7 +59,7 @@
         </receiver>
 
         <activity
-            android:name=".MainActivity"
+            android:name=".app.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

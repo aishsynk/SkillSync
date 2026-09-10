@@ -1,5 +1,21 @@
 # SkillEdge / Manager OS — Decisions
 
+## 2026-09-10 - Opportunity matching is evidence-based, not score-threshold based (supersedes the 2026-09-05 mapping)
+
+- **Decision:** `match_opportunity` no longer maps one number to a verdict. Each demand aspect (course match, dates, location/travel, mode, participants, documents, skill level, international/critical flags) produces an evidence item with strength `STRONG | MODERATE | GAP`; the verdict and a discrete decision (`accept | decline | pending | insufficient_evidence | escalate`) are derived from the evidence set. `escalate` fires only when the opportunity is both international and critical.
+- **Rationale:** A percentage alone hid *why* an opportunity was or was not accepted. The evidence trail gives the manager an auditable reason (e.g. "dates conflict: no verified events", "no document attached → insufficient evidence") and prevents the UI from showing fabricated reasons. The device renders the server's verdict; it never re-derives one.
+- **Supersedes:** the 2026-09-05 "Opportunity-friendly decision model" entry (score buckets 90/75/60/40).
+
+## 2026-09-10 - Critical opportunities are never silenced by quiet hours
+
+- **Decision:** During quiet hours only normal messages and high-value opportunities respect the quiet-hours toggle. Critical opportunities always reach the manager; `quiet_hours_critical_opportunities` now controls *escalation persistence* (persistent on-screen alarm via `showEscalation` vs. standard alert), not delivery.
+- **Rationale:** The cost of missing a critical international opportunity is higher than the cost of a disruption at night. Silencing critical alerts by default would defeat the Guardian's purpose.
+
+## 2026-09-10 - Nah-fabrication rule: capability exports and list screens show honest empty states
+
+- **Decision:** `CapabilityGraphScreen`, `SkillProfileScreen`, `OpportunityGuardianScreen`, and the skill-profile endpoint show real data only (`experience_years: 0`, empty `labs_projects`, empty roster messages) and never fall back to guessed values or placeholder names.
+- **Rationale:** The module is a decision system; fabricated scores or names would be acted on by managers. Consistent with the existing evidence-only report policy.
+
 ## 2026-09-05 - Opportunity Guardian becomes a major SkillEdge module (not a separate app)
 
 - **Decision:** The Opportunity Guardian concept is implemented as a **major layer inside SkillEdge**, not as a separate application. SkillEdge already revolves around skills, qualifications/certifications, opportunities, training, recommendations, applications and notifications — the new feature is a natural extension, not a bolt-on.

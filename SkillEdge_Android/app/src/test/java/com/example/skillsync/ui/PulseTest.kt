@@ -5,8 +5,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.example.skillsync.theme.SkillSyncTheme
-import com.example.skillsync.ui.components.Pulse
-import com.example.skillsync.ui.components.PulseTone
+import com.example.skillsync.core.ui.Pulse
+import com.example.skillsync.core.ui.PulseTone
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test

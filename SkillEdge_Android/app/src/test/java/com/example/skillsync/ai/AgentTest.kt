@@ -6,6 +6,17 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.example.skillsync.feature.ai.TrainerFact
+import com.example.skillsync.feature.ai.TeamFact
+import com.example.skillsync.feature.ai.DemandMatch
+import com.example.skillsync.feature.ai.FactBuilder
+import com.example.skillsync.feature.ai.Recommender
+import com.example.skillsync.feature.ai.SuggestionKind
+import com.example.skillsync.feature.ai.Agent
+import com.example.skillsync.feature.ai.Intent
+import com.example.skillsync.feature.ai.Confidence
+import com.example.skillsync.feature.ai.Weights
+import com.example.skillsync.feature.ai.LearningStore
 
 /**
  * The agent's reasoning, its refusals, and the learning loop.
