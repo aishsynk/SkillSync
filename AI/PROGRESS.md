@@ -11,8 +11,8 @@
 - **Validation (all with --rerun-tasks, exit 0)**: compileDebugKotlin 0 errors (only pre-existing deprecation warnings); testDebugUnitTest **195/195 pass** (185 prior + 10 new); assembleDebug green.
 - **Fixes made during drill-down**: PowerShell cannot invoke `".\gradlew.bat" :app:...` bare (ParserError on the colon scope) - use call operator `& '.\gradlew.bat' ':app:task'`; Kotlin `to`/`associate` on wildcard maps needs context (use `mapKeys { it.key.toString() }` + `mapValues { it.value ?: "" }`, pass `Map<*, *>` to opportunityResponse, `emptyMap<String, Any>()`); `String.count(Char)` is not `count(substring)` - use `split(marker).size - 1`; `parseHistoryItem(raw: Any?)` for `mapNotNull` over `List<*>`.
 - **Version bumps**: Android versionName 3.80.1 / versionCode 176 (`app/build.gradle.kts`); backend healthz version 6.3.0 (`backend.py`). Backend code otherwise untouched this session.
-- **Status**: COMPLETE + staged. 
-- **Next recommended actions**: (1) final `git status` confirm only `Qubits/qubitcourses.xlsx` unstaged; (2) commit excluding the workbook and push main for auto-deploy; (3) device validation: open an opportunity > GENERATE RESPONSE > verify house-style prose + SAVE DRAFT/SENT > reload history.
+- **Status**: COMPLETE + committed as `e92ab75` and pushed to main (`9ad398b..e92ab75`) for auto-deploy; `Qubits/qubitcourses.xlsx` excluded (still locally modified, never commit). Post-commit `git status` shows ~160 ` M` files that are purely CRLF/LF artifacts (autocrlf normalization) - the blobs are correct; this is cosmetic and was present in prior sessions too.
+- **Next recommended actions**: (1) confirm Render backend deploy of 6.3.0 healthz + Android CI release Build 176; (2) device validation: open an opportunity > GENERATE RESPONSE > verify house-style prose + SAVE DRAFT/SENT > reload history; (3) optionally renormalize line endings repo-wide (`git add --renormalize` + commit) to clear the CRLF noise.
 
 ## 2026-09-11 - Restructure repair complete: all Android gates green (149-file package surgery + import reconstruction)
 
