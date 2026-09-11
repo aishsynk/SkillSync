@@ -105,7 +105,7 @@ fun MainNavigation() {
     }
 
     // Hardware/gesture back returns from a pushed detail screen to the shell.
-    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot || current is HrReport || current is Priorities || current is CapacityRunway || current is Ramp || current is Accounts || current is Benchmark || current is PipelineRadar || current is DeliveryCompliance || current is ViberAutomation || current is SkillRequests || current is OpportunityGuardian || current is OpportunityList || current is OpportunityDetail || current is CapabilityGraph || current is SkillProfile) {
+    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot || current is HrReport || current is Priorities || current is CapacityRunway || current is Ramp || current is Accounts || current is Benchmark || current is PipelineRadar || current is DeliveryCompliance || current is ViberAutomation || current is SkillRequests || current is MySchedule || current is OpportunityGuardian || current is OpportunityList || current is OpportunityDetail || current is CapabilityGraph || current is SkillProfile) {
         current = when (val c = current) {
             is Trainer360 -> Main(c.email, HomeTab.TEAM)
             is SkillRequests -> Main(c.email, HomeTab.DASHBOARD)
@@ -121,6 +121,7 @@ fun MainNavigation() {
             is PipelineRadar -> Main(c.email, HomeTab.DASHBOARD)
             is DeliveryCompliance -> Main(c.email, HomeTab.DASHBOARD)
             is ViberAutomation -> Main(c.email, HomeTab.DASHBOARD)
+            is MySchedule -> Main(c.email, HomeTab.DASHBOARD)
             is OpportunityGuardian -> Main(c.email, HomeTab.OPPORTUNITIES)
             is OpportunityList -> Main(c.email, HomeTab.OPPORTUNITIES)
             is OpportunityDetail -> Main(c.email, HomeTab.OPPORTUNITIES)

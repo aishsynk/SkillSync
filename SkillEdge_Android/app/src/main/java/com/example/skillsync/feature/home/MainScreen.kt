@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.main
+package com.example.skillsync.feature.home
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -19,7 +19,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -34,11 +33,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.skillsync.HomeTab
+import com.example.skillsync.navigation.HomeTab
 import com.example.skillsync.R
 import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.IconSlot
@@ -47,11 +45,13 @@ import com.example.skillsync.theme.StatusBarIcons
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.batch.AllocationDeskContent
-import com.example.skillsync.ui.batch.AllocationState
-import com.example.skillsync.ui.batch.AllocationViewModel
-import com.example.skillsync.ui.components.*
+import com.example.skillsync.feature.training.ui.AllocationDeskContent
+import com.example.skillsync.feature.training.ui.AllocationState
+import com.example.skillsync.feature.training.ui.AllocationViewModel
+import com.example.skillsync.core.ui.*
 import kotlinx.coroutines.launch
+import androidx.compose.material3.Text
+import androidx.compose.ui.unit.dp
 
 // ── Screen shell ──────────────────────────────────────────────────────────────
 
@@ -100,8 +100,8 @@ fun MainScreen(
 
     LaunchedEffect(email, tab) {
         // Keep background delivery monitoring alive whenever a manager is in the app.
-        com.example.skillsync.util.MonitoringService.start(context)
-        com.example.skillsync.util.BatteryOptimization.requestOnce(context)
+        com.example.skillsync.core.notification.MonitoringService.start(context)
+        com.example.skillsync.core.notification.BatteryOptimization.requestOnce(context)
         viewModel.loadData(email, context)
         if (tab == HomeTab.DEMAND || tab == HomeTab.SEARCH) allocationViewModel.load(email, context)
         if (tab == HomeTab.DEMAND || tab == HomeTab.DASHBOARD) viewModel.ensureUpskilling(email, context)
@@ -120,11 +120,11 @@ fun MainScreen(
         viewModel.adoptBackgroundSync(email)
         allocationViewModel.adoptBackgroundSync(email, context)
         actionsViewModel.adoptBackgroundSync(email)
-        com.example.skillsync.data.sync.SyncScheduler.enqueueImmediate(context)
+        com.example.skillsync.core.sync.SyncScheduler.enqueueImmediate(context)
     }
 
     LaunchedEffect(email) {
-        com.example.skillsync.data.sync.SyncCoordinator.revisions.collect {
+        com.example.skillsync.core.sync.SyncCoordinator.revisions.collect {
             viewModel.adoptBackgroundSync(email)
             allocationViewModel.adoptBackgroundSync(email, context)
             actionsViewModel.adoptBackgroundSync(email)
@@ -155,7 +155,7 @@ fun MainScreen(
     val courseSearchLoading by allocationViewModel.courseSearchLoading.collectAsState()
     val courseIntelligence by allocationViewModel.courseIntelligence.collectAsState()
     val courseIntelligenceLoading by allocationViewModel.courseIntelligenceLoading.collectAsState()
-    val online by com.example.skillsync.data.sync.SyncScheduler.online.collectAsState()
+    val online by com.example.skillsync.core.sync.SyncScheduler.online.collectAsState()
     val inboxActions by actionsViewModel.actions.collectAsState()
     val inboxLoading by actionsViewModel.initialLoading.collectAsState()
     val inboxError by actionsViewModel.error.collectAsState()
@@ -163,7 +163,7 @@ fun MainScreen(
 
     // Which KPI the manager tapped; drives the drill-down sheet.
     var drill by remember { mutableStateOf<Drill?>(null) }
-    val notify = com.example.skillsync.ui.components.LocalNotify.current
+    val notify = com.example.skillsync.core.ui.LocalNotify.current
     val teamReadiness by viewModel.teamReadiness.collectAsState()
     val bulkWorking by allocationViewModel.bulkWorking.collectAsState()
     val bulkResults by allocationViewModel.bulkResults.collectAsState()
@@ -177,13 +177,13 @@ fun MainScreen(
 
     // Accumulate in-app notification events so the bell sheet shows history.
     // The list is reset when the sheet is dismissed (mark-as-read UX).
-    var notificationEvents by remember { mutableStateOf<List<com.example.skillsync.util.NotifyEvent>>(emptyList()) }
+    var notificationEvents by remember { mutableStateOf<List<com.example.skillsync.core.notification.NotifyEvent>>(emptyList()) }
 
     LaunchedEffect(Unit) {
         viewModel.notification.collect { event ->
             // System notification — fires even if the manager is on a
             // different screen than the dashboard right now.
-            com.example.skillsync.util.LocalNotificationService.showNotification(context, event)
+            com.example.skillsync.core.notification.LocalNotificationService.showNotification(context, event)
             // In-app toast for immediate visibility while the app is open. The
             // engine's own title is kept — it already says what changed.
             notify.info(event.title, event.message)
@@ -193,7 +193,7 @@ fun MainScreen(
     }
 
     if (showLogoutConfirm) {
-        com.example.skillsync.ui.components.SkillAlertDialog(
+        com.example.skillsync.core.ui.SkillAlertDialog(
             severity = com.example.skillsync.theme.Severity.Warning,
             title = "Sign out?",
             message = "Your cached team data stays on this device, so the next sign-in is instant.",
@@ -244,9 +244,9 @@ fun MainScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         notificationEvents.forEach { ev ->
                             val tint = when (ev.bucket) {
-                                com.example.skillsync.util.NotificationEngine.BUCKET_ALLOCATION -> MaterialTheme.skill.sky
-                                com.example.skillsync.util.NotificationEngine.BUCKET_FEEDBACK   -> MaterialTheme.skill.crit
-                                com.example.skillsync.util.NotificationEngine.BUCKET_DEMAND     -> MaterialTheme.skill.warn
+                                com.example.skillsync.core.notification.NotificationEngine.BUCKET_ALLOCATION -> MaterialTheme.skill.sky
+                                com.example.skillsync.core.notification.NotificationEngine.BUCKET_FEEDBACK   -> MaterialTheme.skill.crit
+                                com.example.skillsync.core.notification.NotificationEngine.BUCKET_DEMAND     -> MaterialTheme.skill.warn
                                 else -> MaterialTheme.skill.brand
                             }
                             Row(
@@ -269,7 +269,7 @@ fun MainScreen(
                                             "trainer_list" -> onTabChange(HomeTab.TEAM)
                                             "actions" -> onTabChange(HomeTab.ACTIONS)
                                             else -> {
-                                                if (ev.bucket == com.example.skillsync.util.NotificationEngine.BUCKET_DEMAND) {
+                                                if (ev.bucket == com.example.skillsync.core.notification.NotificationEngine.BUCKET_DEMAND) {
                                                     if (ev.targetId.isNotBlank()) onBatchClick(ev.targetId)
                                                     else onTabChange(HomeTab.DEMAND)
                                                 } else {
@@ -323,12 +323,12 @@ fun MainScreen(
                                     .background(
                                         Brush.linearGradient(
                                             listOf(
-                                                Color(0xFF2563EB).copy(alpha = 0.35f),
-                                                Color(0xFF06B6D4).copy(alpha = 0.35f),
+                                                MaterialTheme.skill.azure.copy(alpha = 0.35f),
+                                                MaterialTheme.skill.cyan.copy(alpha = 0.35f),
                                             )
                                         )
                                     )
-                                    .border(1.dp, Color(0x6638BDF8), RoundedCornerShape(12.dp)),
+                                    .border(1.dp, MaterialTheme.skill.sky.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
                                 contentAlignment = Alignment.Center,
                             ) { SkillSyncLogo(size = 22.dp) }
                             Spacer(Modifier.width(12.dp))
@@ -350,7 +350,7 @@ fun MainScreen(
                                     Text(
                                         if (collapsed) "TODAY · THE BRIEF" else "SKILLEDGE · EXECUTIVE CONSOLE",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF93C5FD),
+                                        color = MaterialTheme.colorScheme.tertiary,
                                     )
                                     Text(
                                         if (collapsed) briefLine else tabTitle(tab),
@@ -358,7 +358,7 @@ fun MainScreen(
                                             fontSize = if (collapsed) 15.sp else
                                                 MaterialTheme.typography.headlineMedium.fontSize,
                                         ),
-                                        color = Color.White,
+                                        color = MaterialTheme.skill.frost,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
@@ -376,14 +376,14 @@ fun MainScreen(
                                 Modifier
                                     .size(34.dp)
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(Color.White.copy(alpha = 0.08f))
-                                    .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(10.dp)),
+                                    .background(MaterialTheme.skill.frost.copy(alpha = 0.08f))
+                                    .border(1.dp, MaterialTheme.skill.frost.copy(alpha = 0.16f), RoundedCornerShape(10.dp)),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
                                     painterResource(R.drawable.ic_trend),
                                     contentDescription = "Refresh",
-                                    tint = Color(0xFF38BDF8),
+                                    tint = MaterialTheme.skill.sky,
                                     modifier = Modifier.size(16.dp),
                                 )
                             }
@@ -391,14 +391,14 @@ fun MainScreen(
                         IconButton(onClick = { showLogoutConfirm = true }) {
                             Box(contentAlignment = Alignment.BottomEnd) {
                                 Surface(
-                                    color = Color(0xFF1E293B),
+                                    color = MaterialTheme.skill.surface3,
                                     shape = RoundedCornerShape(12.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x6638BDF8)),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.skill.sky.copy(alpha = 0.4f)),
                                 ) {
                                     Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
                                         Text(
                                             profile?.str("name").orEmpty().trim().take(1).uppercase().ifBlank { "M" },
-                                            color = Color.White,
+                                            color = MaterialTheme.skill.frost,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
                                         )
@@ -408,15 +408,15 @@ fun MainScreen(
                                     Modifier
                                         .size(9.dp)
                                         .clip(androidx.compose.foundation.shape.CircleShape)
-                                        .background(Color(0xFF10B981))
-                                        .border(1.5.dp, Color(0xFF0F172A), androidx.compose.foundation.shape.CircleShape)
+                                        .background(MaterialTheme.skill.aqua)
+                                        .border(1.5.dp, MaterialTheme.skill.navy, androidx.compose.foundation.shape.CircleShape)
                                 )
                             }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
-                        scrolledContainerColor = Color(0xF0090F1C),
+                        scrolledContainerColor = MaterialTheme.skill.pageBg.copy(alpha = 0.94f),
                     ),
                 )
         },
@@ -555,7 +555,7 @@ HomeTab.SEARCH -> UniversalCommandSearch(
                                  onTrainer = onTrainerClick,
                                  onDemand = onBatchClick,
                              )
-                             HomeTab.OPPORTUNITIES -> com.example.skillsync.ui.opportunity.OpportunityListScreen(
+                             HomeTab.OPPORTUNITIES -> com.example.skillsync.feature.opportunity.ui.OpportunityListScreen(
                                  managerEmail = email,
                                  onBack = { onTabChange(HomeTab.DASHBOARD) },
                                  onOpportunityClick = { id -> /* navigate to detail */ },
@@ -613,7 +613,6 @@ HomeTab.SEARCH -> UniversalCommandSearch(
                                         onLogout = { showLogoutConfirm = true },
                                         onDrill = { drill = it },
                                         onLoadCapability = { viewModel.ensureCapability(email, context) },
-                                        onOpenTeam = { onTabChange(HomeTab.TEAM) },
                                         onOpenNotifications = { showNotificationsSheet = true },
                                         onOpenDemand = { onTabChange(HomeTab.DEMAND) },
                                         onOpenWeeklyReport = onOpenWeeklyReport,
@@ -629,7 +628,6 @@ HomeTab.SEARCH -> UniversalCommandSearch(
                                         onOpenSkillRequests = onOpenSkillRequests,
                                         onBatchClick = onBatchClick,
                                         calendarReadiness = teamReadiness,
-                                        upskilling = viewModel.upskilling.collectAsState().value,
                                         fromCache = s.fromCache,
                                         cachedAt = s.cachedAt,
                                         listState = dashListState,
@@ -722,7 +720,7 @@ private fun tabTitle(tab: String) = when (tab) {
 internal fun SkillSyncNavBar(current: String, onSelect: (String) -> Unit) {
     // Same bar, same design — a trainer just gets destinations named for a
     // person who delivers rather than one who runs a team.
-    val trainer = com.example.skillsync.data.SessionManager.isReportee()
+    val trainer = com.example.skillsync.core.data.SessionManager.isReportee()
     AppNavBar(
         items = listOf(
             Triple(HomeTab.DASHBOARD, R.drawable.ic_home, "Today"),
@@ -758,8 +756,8 @@ fun AppNavBar(
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        Color(0xF00D1527),
-                        Color(0xF8090F1C),
+                        MaterialTheme.skill.pageBg.copy(alpha = 0.94f),
+                        MaterialTheme.skill.pageBg.copy(alpha = 0.97f),
                     )
                 )
             )
@@ -773,9 +771,9 @@ fun AppNavBar(
                     .background(
                         Brush.horizontalGradient(
                             listOf(
-                                Color(0x1038BDF8),
-                                Color(0x8038BDF8),
-                                Color(0x1038BDF8),
+                                MaterialTheme.skill.sky.copy(alpha = 0.06f),
+                                MaterialTheme.skill.sky.copy(alpha = 0.5f),
+                                MaterialTheme.skill.sky.copy(alpha = 0.06f),
                             )
                         )
                     )
@@ -791,7 +789,7 @@ fun AppNavBar(
                 items.forEach { (key, icon, label) ->
                     val selected = current == key
                     val tint by animateColorAsState(
-                        if (selected) Color(0xFF38BDF8) else sk.labelText,
+                        if (selected) MaterialTheme.skill.sky else sk.labelText,
                         tween(Motion.FAST), label = "navTint",
                     )
                     Column(
@@ -818,15 +816,15 @@ fun AppNavBar(
                                 .background(
                                     if (selected) Brush.horizontalGradient(
                                         listOf(
-                                            Color(0xFF2563EB).copy(alpha = 0.28f),
-                                            Color(0xFF06B6D4).copy(alpha = 0.28f),
+                                            MaterialTheme.skill.azure.copy(alpha = 0.28f),
+                                            MaterialTheme.skill.cyan.copy(alpha = 0.28f),
                                         )
                                     ) else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
                                 )
                                 .then(
                                     if (selected) Modifier.border(
                                         1.dp,
-                                        Color(0x6638BDF8),
+                                        MaterialTheme.skill.sky.copy(alpha = 0.4f),
                                         RoundedCornerShape(12.dp)
                                     ) else Modifier
                                 ),
@@ -928,7 +926,7 @@ internal fun DashboardTab(
     capability: Map<String, Any>?,
     capabilityLoading: Boolean,
     actions: List<Map<String, Any>> = emptyList(),
-    recentNotifications: List<com.example.skillsync.util.NotifyEvent> = emptyList(),
+    recentNotifications: List<com.example.skillsync.core.notification.NotifyEvent> = emptyList(),
     email: String,
     onTrainerClick: (String, String) -> Unit,
     onOpenProfile: () -> Unit,
@@ -936,7 +934,6 @@ internal fun DashboardTab(
     onLogout: () -> Unit = {},
     onDrill: (Drill) -> Unit,
     onLoadCapability: () -> Unit = {},
-    onOpenTeam: () -> Unit = {},
     onOpenNotifications: () -> Unit = {},
     onOpenDemand: () -> Unit = {},
     onOpenWeeklyReport: () -> Unit = {},
@@ -952,7 +949,6 @@ internal fun DashboardTab(
     onOpenSkillRequests: () -> Unit = {},
     onBatchClick: (String) -> Unit = {},
     calendarReadiness: Map<String, Map<String, Any>> = emptyMap(),
-    upskilling: Map<String, Any>? = null,
     /** Disk-write time of the payload, so the hero can state a real "as of". */
     fromCache: Boolean = false,
     cachedAt: Long = 0L,
@@ -966,15 +962,6 @@ internal fun DashboardTab(
     val kpis = data.obj("manager_kpis")
     val capKpis = capability?.obj("kpis")
     val capTrainers = capability?.rows("trainers").orEmpty()
-    val stateMap = states.associateBy { it.str("trainer_email").lowercase() }
-    val capMap = capTrainers.associateBy { it.str("trainer_email").lowercase() }
-    // Delivery readiness rows — always present in the unified payload, no extra API call.
-    val deliveryRows = data.rows("delivery_intelligence_df")
-    val deliveryByEmail = remember(deliveryRows) {
-        deliveryRows.associateBy { it.str("trainer_email").lowercase() }
-    }
-    val attention = remember(ops, deliveryByEmail) { rankByAttention(ops, deliveryByEmail) }
-
     var showProfileMenu by remember { mutableStateOf(false) }
     val sessionScope = rememberCoroutineScope()
     val logoutContext = androidx.compose.ui.platform.LocalContext.current
@@ -986,9 +973,9 @@ internal fun DashboardTab(
             onLogout = {
                 showProfileMenu = false
                 sessionScope.launch {
-                    runCatching { com.example.skillsync.data.api.RetrofitClient.instance.logout() }
-                    com.example.skillsync.data.SessionManager.clearSession()
-                    com.example.skillsync.util.MonitoringService.stop(logoutContext)
+                    runCatching { com.example.skillsync.core.network.RetrofitClient.instance.logout() }
+                    com.example.skillsync.core.data.SessionManager.clearSession()
+                    com.example.skillsync.core.notification.MonitoringService.stop(logoutContext)
                     onLogout()
                 }
             },
@@ -1055,186 +1042,7 @@ internal fun DashboardTab(
             }
         }
 
-        if (false) { // Retained temporarily for safe removal after command-centre rollout.
-        // Needs Attention — promoted directly under the numbers, ahead of the
-        // descriptive analytics below. A command center leads with decisions,
-        // not charts: this is the one section a manager should act on first,
-        // so it no longer sits two-thirds down the page behind five chart
-        // cards. A short, ranked preview, not the full roster — the complete
-        // list with real search/sort/filter already lives on the Team tab;
-        // repeating every TrainerCard here just to also show it on Home was
-        // pure duplication, and on a roster of any real size (this product's
-        // own reportees dataset runs to 80+) it turned the home screen into
-        // an extremely long scroll for zero extra information.
-        item {
-            Appear(3) {
-                DashSectionHeader("Needs you today", "Ranked by urgency across the roster")
-            }
-        }
-
-        if (ops.isEmpty()) {
-            item { EmptyStateCard("No reportees returned. Check your account permissions.") }
-        } else {
-            if (attention.isEmpty()) {
-                item {
-                    Appear(3) {
-                        EmptyStateCard("No urgent items — the whole team looks healthy right now.")
-                    }
-                }
-            } else {
-                itemsIndexed(attention) { i, (t, reason) ->
-                    Appear(i + 3) {
-                        NeedsYouTodayCard(
-                            trainer = t,
-                            reason = reason,
-                            capability = capMap[t.str("official_email").lowercase()],
-                        ) {
-                            onTrainerClick(t.str("official_email"), t.str("trainer_name"))
-                        }
-                    }
-                }
-            }
-            item {
-                OutlinedButton(
-                    onClick = onOpenTeam,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                ) { Text("View full team (${ops.size})") }
-            }
-        }
-
-        // Team Pulse — one header covering readiness/risk/capacity (current
-        // state, right now) plus a clearly-separated forecast card
-        // (predictive, next month) so it never reads as an unexplained extra
-        // card in the middle of the section.
-        if (deliveryRows.isNotEmpty() || ops.isNotEmpty()) {
-            item { Appear(4) { DashSectionHeader("Team pulse", "Readiness, risk, capacity — and what's trending next") } }
-        }
-        if (deliveryRows.isNotEmpty()) {
-            item { Appear(4) { TeamReadinessSummaryCard(deliveryRows) } }
-        }
-        if (ops.isNotEmpty()) {
-            item { Appear(4) { TeamRiskSummaryCard(ops) } }
-            item { Appear(5) { TeamCapacityAlertCard(ops) } }
-            // Predictive trend projection — renders nothing when nobody is
-            // trending toward overload or bench, so a healthy team sees no
-            // extra card at all. The card's own header makes clear this is a
-            // forward-looking projection, not another current-state reading
-            // like the three cards above it (see TeamCapacityForecastCard).
-            item { Appear(5) { TeamCapacityForecastCard(ops) } }
-        }
-
-        item { Appear(6) { DashSectionHeader("Team health", "Distribution and trend across the whole team") } }
-
-        item {
-            Appear(6) {
-                TeamAnalytics(
-                    ops = ops,
-                    states = states,
-                    capKpis = capKpis,
-                    capTrainers = capTrainers,
-                    capabilityLoading = capabilityLoading,
-                )
-            }
-        }
-
-        item { Appear(7) { TopPerformers(ops, capMap, onTrainerClick) } }
-
-        // Demand the team cannot cover yet + who is closest to being able to.
-        if (upskilling != null) {
-            item { Appear(7) { com.example.skillsync.ui.batch.GrowTeamCard(upskilling) } }
-        }
-        }
-
         item { Spacer(Modifier.height(16.dp)) }
-    }
-}
-
-/**
- * Ranks trainers by how urgently a manager should look at them: feedback risk
- * first (a real incident), then delivery risk, then capacity extremes
- * (overloaded or benched). Returns at most 5 — this is a preview, not the
- * roster; [reason] is the single sentence explaining why each one is here.
- */
-private fun rankByAttention(
-    ops: List<Map<*, *>>,
-    deliveryByEmail: Map<String, Map<*, *>>,
-): List<Pair<Map<*, *>, String>> {
-    return ops.mapNotNull { t ->
-        val email = t.str("official_email").lowercase()
-        val delivery = deliveryByEmail[email]
-        val feedbackRisk = t.str("feedback_risk")
-        val deliveryRisk = delivery?.str("delivery_risk_level").orEmpty()
-        val capacity = t.str("capacity_bucket")
-        val (score, reason) = when {
-            feedbackRisk == "High" -> 100 to "High feedback risk"
-            deliveryRisk == "High" -> 90 to "High delivery risk"
-            feedbackRisk == "Medium" -> 60 to "Feedback alert"
-            capacity == "Stretched" -> 40 to "Stretched — over 85% utilised"
-            capacity == "On Bench" -> 30 to "On bench — available now"
-            else -> 0 to ""
-        }
-        if (score == 0) null else Triple(t, score, reason)
-    }.sortedByDescending { it.second }.take(5).map { it.first to it.third }
-}
-
-@Composable
-private fun NeedsYouTodayCard(
-    trainer: Map<*, *>,
-    reason: String,
-    capability: Map<*, *>?,
-    onClick: () -> Unit,
-) {
-    val sk = MaterialTheme.skill
-    val name = trainer.str("trainer_name")
-    val tint = when {
-        reason.contains("risk", ignoreCase = true) -> sk.crit
-        reason.contains("Stretched") -> sk.warn
-        else -> sk.aqua
-    }
-    val shape = RoundedCornerShape(Radii.card)
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .accentGlass(tint, shape, strong = tint == sk.crit)
-            .clickable(onClick = onClick),
-    ) {
-        // Severity is carried by the stripe first and the colour second, so the
-        // triage still reads for a colour-blind manager.
-        Box(
-            Modifier
-                .width(3.dp)
-                .fillMaxHeight()
-                .background(Brush.verticalGradient(listOf(tint, tint.copy(alpha = 0.2f))))
-        )
-        Row(
-            Modifier.padding(start = 14.dp, top = 11.dp, end = 12.dp, bottom = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Avatar(name, capability?.str("photo_url"), 34.dp)
-            Spacer(Modifier.width(11.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    name,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = sk.frost,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    reason,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = tint,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 10.sp,
-                )
-            }
-            Icon(
-                painterResource(R.drawable.ic_chevron), null,
-                tint = sk.labelText, modifier = Modifier.size(15.dp),
-            )
-        }
     }
 }
 
@@ -1275,85 +1083,6 @@ private fun DashSectionHeader(title: String, subtitle: String) {
             color = sk.labelText,
             fontSize = 10.5.sp,
         )
-    }
-}
-
-/** Top of the roster by utilisation — a quick read on who is carrying delivery. */
-@Composable
-private fun TopPerformers(
-    ops: List<Map<*, *>>,
-    capMap: Map<String, Map<*, *>>,
-    onTrainerClick: (String, String) -> Unit,
-) {
-    val sk = MaterialTheme.skill
-    val top = remember(ops) {
-        ops.filter { (it.intOrNull("current_utilization") ?: 0) > 0 }
-            .sortedByDescending { it.int("current_utilization") }
-            .take(5)
-    }
-    if (top.isEmpty()) return
-
-    Box(Modifier.fillMaxWidth().glassSurface()) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconSlot(tint = sk.sky, size = 26.dp) {
-                    Icon(
-                        painterResource(R.drawable.ic_award), null,
-                        tint = sk.sky, modifier = Modifier.size(14.dp),
-                    )
-                }
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    "Carrying delivery",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = sk.frost,
-                )
-            }
-            Spacer(Modifier.height(2.dp))
-            Text(
-                "Ranked by utilisation over the last three months",
-                style = MaterialTheme.typography.labelSmall, color = sk.labelText,
-            )
-            Spacer(Modifier.height(12.dp))
-            top.forEachIndexed { i, t ->
-                val util = t.int("current_utilization")
-                val cap = capMap[t.str("official_email").lowercase()]
-                val tint = when {
-                    util > 85 -> sk.crit
-                    util >= 60 -> sk.aqua
-                    else -> sk.warn
-                }
-                Row(
-                    Modifier.fillMaxWidth()
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable { onTrainerClick(t.str("official_email"), t.str("trainer_name")) }
-                        .padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "${i + 1}", style = MaterialTheme.typography.labelMedium,
-                        color = sk.subText, modifier = Modifier.width(16.dp),
-                    )
-                    Avatar(t.str("trainer_name"), cap?.str("photo_url"), 28.dp)
-                    Spacer(Modifier.width(9.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            t.str("trainer_name"), style = MaterialTheme.typography.titleSmall,
-                            color = sk.bodyText, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            t.str("capacity_bucket").ifBlank { t.str("designation") },
-                            style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                        )
-                    }
-                    Text(
-                        "$util%", style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold, color = tint,
-                    )
-                }
-            }
-        }
     }
 }
 
@@ -1399,8 +1128,8 @@ internal fun ActionsTab(
                     onClick = { selectedFilter = filter },
                     label = { Text(filter) },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = Color.White
+                        selectedContainerColor = sk.brand,
+                        selectedLabelColor = sk.frost
                     )
                 )
             }
@@ -1568,8 +1297,8 @@ private fun DashErrorView(message: String, onRetry: () -> Unit) {
             onClick = onRetry,
             shape = RoundedCornerShape(Radii.chip),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White,
+                containerColor = sk.brand,
+                contentColor = sk.frost,
             ),
         ) {
             Text("Try again", style = MaterialTheme.typography.labelLarge)

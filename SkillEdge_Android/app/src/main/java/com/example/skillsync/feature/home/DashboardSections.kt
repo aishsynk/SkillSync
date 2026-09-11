@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.main
+package com.example.skillsync.feature.home
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -32,9 +32,10 @@ import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.heroSurface
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.*
+import com.example.skillsync.core.ui.*
 import java.util.Calendar
 import kotlin.math.roundToInt
+import androidx.compose.material3.Text
 
 // ── Personalised header ───────────────────────────────────────────────────────
 
@@ -128,7 +129,7 @@ fun ProfileHeader(
                         "$unread",
                         fontSize = 8.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = sk.frost,
                         modifier = Modifier.padding(horizontal = 3.dp),
                     )
                 }
@@ -172,7 +173,7 @@ fun CommandHero(kpis: Map<*, *>?, capKpis: Map<*, *>?) {
                         readiness?.toString() ?: "—",
                         fontSize = 40.sp,
                         fontWeight = FontWeight.Light,
-                        color = Color.White,
+                        color = sk.heroText,
                         letterSpacing = (-0.04).em,
                     )
                     if (trend.isNotBlank()) {
@@ -245,32 +246,32 @@ fun ProfileMenuBottomSheet(
         containerColor = sk.cardBg,
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("Session Information", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            Text("Session Information", style = MaterialTheme.typography.titleMedium, color = sk.bodyText)
             Spacer(Modifier.height(8.dp))
-            Text("Logged in as: $email", color = Color.LightGray)
-            Text("Secure manager session", color = Color.LightGray)
-            Text("Background sync: Automatic", color = Color.LightGray)
+            Text("Logged in as: $email", color = sk.subText)
+            Text("Secure manager session", color = sk.subText)
+            Text("Background sync: Automatic", color = sk.subText)
             
             Spacer(Modifier.height(24.dp))
-            HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
+            HorizontalDivider(color = sk.frost.copy(alpha = 0.12f))
             Spacer(Modifier.height(8.dp))
             
             ListItem(
-                headlineContent = { Text("View My Profile", color = Color.White) },
-                leadingContent = { Icon(painterResource(R.drawable.ic_people), null, tint = Color.White) },
+                headlineContent = { Text("View My Profile", color = sk.bodyText) },
+                leadingContent = { Icon(painterResource(R.drawable.ic_people), null, tint = sk.bodyText) },
                 modifier = Modifier.clickable { onViewProfile() },
                 colors = ListItemDefaults.colors(containerColor = sk.cardBg)
             )
             ListItem(
-                headlineContent = { Text("My schedule & leave bands", color = Color.White) },
-                supportingContent = { Text("Your own delivery — you deliver too", color = Color.LightGray) },
-                leadingContent = { Icon(painterResource(R.drawable.ic_calendar), null, tint = Color.White) },
+                headlineContent = { Text("My schedule & leave bands", color = sk.bodyText) },
+                supportingContent = { Text("Your own delivery — you deliver too", color = sk.subText) },
+                leadingContent = { Icon(painterResource(R.drawable.ic_calendar), null, tint = sk.bodyText) },
                 modifier = Modifier.clickable { onMySchedule() },
                 colors = ListItemDefaults.colors(containerColor = sk.cardBg)
             )
             ListItem(
-                headlineContent = { Text("Logout", color = Color(0xFFF44336)) },
-                leadingContent = { Icon(painterResource(R.drawable.ic_alert), null, tint = Color(0xFFF44336)) },
+                headlineContent = { Text("Logout", color = sk.crit) },
+                leadingContent = { Icon(painterResource(R.drawable.ic_alert), null, tint = sk.crit) },
                 modifier = Modifier.clickable { onLogout() },
                 colors = ListItemDefaults.colors(containerColor = sk.cardBg)
             )
@@ -330,7 +331,7 @@ fun ManagerKpiGrid(
     fun c(key: String) = capKpis?.intOrNull(key)
 
     fun namesOf(rows: List<Map<*, *>>) = rows.map {
-        com.example.skillsync.ui.main.DrillRow(
+        com.example.skillsync.feature.home.DrillRow(
             it.str("trainer_name"),
             listOfNotNull(
                 it.str("designation").takeIf(String::isNotBlank),
@@ -371,7 +372,7 @@ fun ManagerKpiGrid(
             Drill(
                 "Demand left on the table",
                 "Open batches your team already has the skills to teach but is not assigned to. $oppDays trainer-days of delivery capacity are idle for want of allocation.",
-                oppCourses.map { com.example.skillsync.ui.main.DrillRow(it, "open, coverable by your team") },
+                oppCourses.map { com.example.skillsync.feature.home.DrillRow(it, "open, coverable by your team") },
             ),
             icon = R.drawable.ic_award,
             trend = if (oppCoverable > 0) "confirm availability" else "none coverable",
@@ -385,7 +386,7 @@ fun ManagerKpiGrid(
                         it.str("trainer_email").equals(o.str("official_email"), true)
                     }?.str("current_status") in listOf("teaching_now", "scheduled_today", "preparing")
                 }.map {
-                    com.example.skillsync.ui.main.DrillRow(
+                    com.example.skillsync.feature.home.DrillRow(
                         it.str("trainer_name"),
                         it.str("designation").ifBlank { it.str("capacity_bucket") },
                         it.str("official_email"),
@@ -398,7 +399,7 @@ fun ManagerKpiGrid(
         Kpi("Active deliveries", figure(n("active_batches")), "running today", sk.royal,
             Drill("Active deliveries", "Currently being delivered",
                 batches.filter { it.str("engagement_state") == "current" }.map {
-                    com.example.skillsync.ui.main.DrillRow(
+                    com.example.skillsync.feature.home.DrillRow(
                         it.str("course_name"),
                         "${it.str("trainer_name")} · ${it.str("delivery_mode")}"
                     )
@@ -412,7 +413,7 @@ fun ManagerKpiGrid(
             utilTint(n("avg_team_utilization"), sk),
             Drill("Utilisation", "Three-month average per trainer",
                 ops.sortedByDescending { it.int("current_utilization") }.map {
-                    com.example.skillsync.ui.main.DrillRow(
+                    com.example.skillsync.feature.home.DrillRow(
                         it.str("trainer_name"),
                         if (it.bool("utilization_available")) "${it.int("current_utilization")}%" else "no data"
                     )
@@ -427,7 +428,7 @@ fun ManagerKpiGrid(
             Drill("Certification coverage", "Courses taught against certificates held",
                 capTrainers.map {
                     val cert = it.obj("certification")
-                    com.example.skillsync.ui.main.DrillRow(
+                    com.example.skillsync.feature.home.DrillRow(
                         it.str("trainer_name"),
                         "${cert?.intOrNull("coverage_pct") ?: "—"}% · ${cert?.int("gap_count") ?: 0} gap(s)",
                         it.str("trainer_email"),
@@ -441,7 +442,7 @@ fun ManagerKpiGrid(
         Kpi("At risk", "$atRisk", "resources flagged", sk.crit,
             Drill("At-risk resources", "Feedback risk flagged on the operations record",
                 ops.filter { it.str("feedback_risk") == "High" }.map {
-                    com.example.skillsync.ui.main.DrillRow(
+                    com.example.skillsync.feature.home.DrillRow(
                         it.str("trainer_name"),
                         "${it.str("designation")} · ${it.str("recommended_action")}",
                         it.str("trainer_email").ifBlank { it.str("email") }
@@ -533,7 +534,7 @@ private fun KpiCard(
                     letterSpacing = (-0.03).em,
                     color = when {
                         kpi.value == "—" -> sk.subText
-                        kpi.critical -> Color(0xFFFF8A9B)
+                        kpi.critical -> sk.crit
                         else -> sk.frost
                     },
                     maxLines = 1,
