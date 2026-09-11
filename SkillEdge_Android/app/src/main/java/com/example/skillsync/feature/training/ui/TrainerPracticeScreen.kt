@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.trainer
+package com.example.skillsync.feature.training.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,16 +40,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.R
-import com.example.skillsync.data.api.RetrofitClient
+import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.editorialRule
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.SectionHeader
-import com.example.skillsync.ui.components.pressable
-import com.example.skillsync.ui.components.rows
-import com.example.skillsync.ui.components.str
-import com.example.skillsync.ui.components.strings
+import com.example.skillsync.core.ui.SectionHeader
+import com.example.skillsync.core.ui.pressable
+import com.example.skillsync.core.ui.rows
+import com.example.skillsync.core.ui.str
+import com.example.skillsync.core.ui.strings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch

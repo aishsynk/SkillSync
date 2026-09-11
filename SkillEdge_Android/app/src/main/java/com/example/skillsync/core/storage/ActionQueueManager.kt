@@ -1,8 +1,8 @@
-package com.example.skillsync.data.cache
+package com.example.skillsync.core.storage
 
 import android.content.Context
-import com.example.skillsync.data.api.MarkSkillRequest
-import com.example.skillsync.data.api.RetrofitClient
+import com.example.skillsync.core.network.MarkSkillRequest
+import com.example.skillsync.core.network.RetrofitClient
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers

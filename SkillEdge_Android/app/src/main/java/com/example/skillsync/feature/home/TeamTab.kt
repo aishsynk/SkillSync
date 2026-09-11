@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.main
+package com.example.skillsync.feature.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,7 +25,8 @@ import com.example.skillsync.R
 import com.example.skillsync.theme.IconSlot
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.*
+import com.example.skillsync.core.ui.*
+import androidx.compose.material3.Text
 
 // ── Filter model ──────────────────────────────────────────────────────────────
 
@@ -90,7 +91,7 @@ private val STATUS_OPTIONS = listOf(
 internal fun TeamTab(
     data: Map<String, Any>,
     capability: Map<String, Any>?,
-    actions: List<com.example.skillsync.data.models.ActionRow> = emptyList(),
+    actions: List<com.example.skillsync.feature.home.data.ActionRow> = emptyList(),
     readiness: Map<String, Map<String, Any>> = emptyMap(),
     readinessNote: String = "",
     loading: Boolean = false,
@@ -98,13 +99,13 @@ internal fun TeamTab(
     onTrainerClick: (String, String) -> Unit,
     courseSearchResults: List<Map<String, Any>> = emptyList(),
     courseSearchLoading: Boolean = false,
-    courseIntelligence: com.example.skillsync.data.models.CourseIntelligence? = null,
+    courseIntelligence: com.example.skillsync.feature.training.data.CourseIntelligence? = null,
     courseIntelligenceLoading: Boolean = false,
     onSearchCourses: (String) -> Unit = {},
     onLoadCourseIntelligence: (String) -> Unit = {},
     onAssign: (String, List<Pair<String, String>>, Int, String) -> Unit = { _, _, _, _ -> },
     onClearMark: () -> Unit = {},
-    markState: com.example.skillsync.ui.batch.MarkState = com.example.skillsync.ui.batch.MarkState.Idle,
+    markState: com.example.skillsync.feature.training.ui.MarkState = com.example.skillsync.feature.training.ui.MarkState.Idle,
     email: String = "",
     onOpenWeeklyReport: () -> Unit = {},
     onOpenHrReport: () -> Unit = {},

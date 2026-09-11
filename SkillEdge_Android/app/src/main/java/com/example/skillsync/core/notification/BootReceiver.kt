@@ -1,11 +1,11 @@
-package com.example.skillsync.util
+package com.example.skillsync.core.notification
 
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.example.skillsync.data.SessionManager
-import com.example.skillsync.data.sync.SyncCoordinator
-import com.example.skillsync.data.sync.SyncScheduler
+import com.example.skillsync.core.data.SessionManager
+import com.example.skillsync.core.sync.SyncCoordinator
+import com.example.skillsync.core.sync.SyncScheduler
 
 /**
  * Restarts background monitoring after a device reboot or an app update, so the

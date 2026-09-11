@@ -1,4 +1,4 @@
-package com.example.skillsync.data
+package com.example.skillsync.core.data
 
 import android.content.Context
 import android.content.SharedPreferences

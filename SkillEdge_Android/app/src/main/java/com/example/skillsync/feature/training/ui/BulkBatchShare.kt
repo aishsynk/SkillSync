@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.batch
+package com.example.skillsync.feature.training.ui
 
 /**
  * Builds a single team-facing message that lists **all** unallocated batches,

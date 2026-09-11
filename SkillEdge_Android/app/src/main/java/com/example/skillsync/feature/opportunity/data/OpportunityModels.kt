@@ -1,4 +1,4 @@
-package com.example.skillsync.data.models
+package com.example.skillsync.feature.opportunity.data
 
 data class Opportunity(
     val id: String = "",
@@ -9,6 +9,7 @@ data class Opportunity(
     val senderPhone: String = "",
     val title: String = "",
     val course: String = "",
+    val courseCode: String = "",
     val location: String = "",
     val country: String = "",
     val datesStart: String = "",
@@ -17,12 +18,16 @@ data class Opportunity(
     val status: String = "detected",
     val skillMatchScore: Int = 0,
     val verdict: String = "",
+    val decision: String = "",
     val confidence: String = "",
     val preparationHours: String = "",
     val majorGap: String = "",
     val strongAreas: List<String> = emptyList(),
     val weakAreas: List<String> = emptyList(),
     val evidence: List<EvidenceItem> = emptyList(),
+    val requirements: OpportunityRequirements = OpportunityRequirements(),
+    val rawText: String = "",
+    val documentStatus: String = "none",
     val isHighOpportunity: Boolean = false,
     val isCritical: Boolean = false,
     val isInternational: Boolean = false,
@@ -33,6 +38,21 @@ data class EvidenceItem(
     val topic: String = "",
     val evidence: String = "",
     val source: String = "",
+    val status: String = "",
+    val strength: Double = 0.0,
+)
+
+data class OpportunityRequirements(
+    val courseCode: String = "",
+    val course: String = "",
+    val datesStart: String = "",
+    val datesEnd: String = "",
+    val location: String = "",
+    val country: String = "",
+    val mode: String = "",
+    val participants: String = "",
+    val documentationMentioned: List<String> = emptyList(),
+    val action: String = "information",
 )
 
 data class SkillProfile(
@@ -107,12 +127,15 @@ data class GuardianSettings(
 data class OpportunityMatchResult(
     val matchScore: Int = 0,
     val verdict: String = "",
+    val decision: String = "",
     val strongAreas: List<String> = emptyList(),
     val weakAreas: List<String> = emptyList(),
     val majorGap: String = "",
     val preparationHours: String = "",
     val confidence: String = "",
+    val recommendation: String = "",
     val evidence: List<EvidenceItem> = emptyList(),
+    val requirements: OpportunityRequirements = OpportunityRequirements(),
 )
 
 data class OpportunitySummary(

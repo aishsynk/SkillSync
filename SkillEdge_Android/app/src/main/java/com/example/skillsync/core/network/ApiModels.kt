@@ -1,4 +1,4 @@
-package com.example.skillsync.data.network.generated
+package com.example.skillsync.core.network
 
 import com.google.gson.annotations.SerializedName
 

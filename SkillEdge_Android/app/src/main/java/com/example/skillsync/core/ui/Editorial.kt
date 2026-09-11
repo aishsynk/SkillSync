@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.components
+package com.example.skillsync.core.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

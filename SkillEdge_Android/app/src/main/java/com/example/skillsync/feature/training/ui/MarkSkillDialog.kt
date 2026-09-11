@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.batch
+package com.example.skillsync.feature.training.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,8 +13,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.shortDate
+import com.example.skillsync.core.ui.shortDate
 import java.util.Calendar
+import androidx.compose.material3.Text
 
 /**
  * Captures the two things RMS needs to record a skill — an effective date and a

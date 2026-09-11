@@ -1,4 +1,5 @@
-package com.example.skillsync.ui.report
+package com.example.skillsync.feature.report.ui
+import com.example.skillsync.feature.communication.engine.MessageRewriter
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -42,7 +43,8 @@ import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.ToneChip
 import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.LocalNotify
+import com.example.skillsync.core.ui.LocalNotify
+import androidx.compose.material3.Text
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -153,7 +155,7 @@ fun HrMonthlyReportScreen(
                             )
                             Spacer(Modifier.height(20.dp))
                             Button(
-                                onClick = { com.example.skillsync.data.SessionManager.clearSession() },
+                                onClick = { com.example.skillsync.core.data.SessionManager.clearSession() },
                                 colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
                             ) {
                                 Text("Sign in again")
@@ -734,7 +736,7 @@ private fun ReporteeSnapshotCard(
                                     rewriting = true
                                     hrCardScope.launch {
                                         try {
-                                            val resp = com.example.skillsync.data.api.RetrofitClient.instance.composeMessage(
+                                            val resp = com.example.skillsync.core.network.RetrofitClient.instance.composeMessage(
                                                 manager = managerEmail,
                                                 cadence = if (monthendSelected) "monthend" else "monthly",
                                                 target = rep.email,
@@ -744,11 +746,11 @@ private fun ReporteeSnapshotCard(
                                             notify.success("Message composed")
                                         } catch (_: Exception) {
                                             rewritten = rep.structuredFeedback.formattedText.ifBlank {
-                                                com.example.skillsync.ui.report.MessageRewriter.compose(
+                                                com.example.skillsync.feature.communication.engine.MessageRewriter.compose(
                                                     userMessage = "", myMessage = myMessage,
-                                                    style = com.example.skillsync.ui.report.MessageStyle.TEAMS,
+                                                    style = com.example.skillsync.feature.communication.engine.MessageStyle.TEAMS,
                                                     targetName = rep.name, isTeam = false,
-                                                    evidence = com.example.skillsync.ui.report.MessageRewriter.EvidenceContext(
+                                                    evidence = com.example.skillsync.feature.communication.engine.MessageRewriter.EvidenceContext(
                                                         certGapCourses = rep.topCourses,
                                                         utilisation = rep.utilisationPct.toInt(),
                                                     ),

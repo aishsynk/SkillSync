@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.components
+package com.example.skillsync.core.ui
 
 /**
  * Gson decodes our untyped payloads into Map<String, Any> with every number as a

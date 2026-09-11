@@ -1,4 +1,4 @@
-﻿package com.example.skillsync.ui.report
+package com.example.skillsync.feature.report.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,8 +22,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.R
 import com.example.skillsync.theme.*
-import com.example.skillsync.ui.components.list
-import com.example.skillsync.ui.components.str
+import com.example.skillsync.core.ui.list
+import com.example.skillsync.core.ui.str
+import androidx.compose.material3.Text
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

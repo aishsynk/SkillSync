@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.ai
+package com.example.skillsync.feature.ai.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -20,10 +20,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.skillsync.R
-import com.example.skillsync.ai.*
+import com.example.skillsync.feature.ai.*
 import com.example.skillsync.theme.*
-import com.example.skillsync.ui.components.Appear
-import com.example.skillsync.ui.components.LocalNotify
+import com.example.skillsync.core.ui.Appear
+import com.example.skillsync.core.ui.LocalNotify
+import androidx.compose.material3.Text
 
 /**
  * The delivery agent.

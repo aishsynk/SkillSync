@@ -1,4 +1,13 @@
-package com.example.skillsync.ui.report
+package com.example.skillsync.feature.report.ui
+import com.example.skillsync.feature.communication.engine.composeManagerStandpointNote
+
+import com.example.skillsync.feature.communication.engine.TeamSignals
+
+import com.example.skillsync.feature.communication.engine.ReporteeSignals
+
+import com.example.skillsync.feature.communication.engine.MessageStyle
+
+import com.example.skillsync.feature.communication.engine.MessageRewriter
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -47,7 +56,8 @@ import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.ToneChip
 import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.*
+import com.example.skillsync.core.ui.*
+import androidx.compose.material3.Text
 
 /**
  * Enterprise Weekly Delivery & Operations Intelligence Screen.
@@ -314,7 +324,7 @@ fun WeeklyReportScreen(
                                                     teamRewriting = true
                                                     teamScope.launch {
                                                         try {
-                                                            val resp = com.example.skillsync.data.api.RetrofitClient.instance.composeMessage(
+                                                            val resp = com.example.skillsync.core.network.RetrofitClient.instance.composeMessage(
                                                                 manager = managerEmail,
                                                                 cadence = if (weekendSelected) "weekend" else "weekly",
                                                                 target = "",
@@ -747,17 +757,17 @@ private fun WeeklyReporteeLiveCard(
 
                     OutlinedButton(
                         onClick = {
-                            val outboxItem = com.example.skillsync.data.cache.ViberOutboxItem(
+                            val outboxItem = com.example.skillsync.core.storage.ViberOutboxItem(
                                 id = "viber_weekly_${rep.email}_${System.currentTimeMillis()}",
-                                category = com.example.skillsync.data.cache.ViberOutboxItem.CAT_WEEKLY,
+                                category = com.example.skillsync.core.storage.ViberOutboxItem.CAT_WEEKLY,
                                 recipientName = rep.name,
                                 recipientEmail = rep.email,
                                 courseName = rep.currentBatch?.course ?: "Weekly Delivery Standpoint",
                                 messageText = activeText,
                             )
-                            com.example.skillsync.data.cache.ViberOutboxStore.enqueue(managerEmail, listOf(outboxItem))
+                            com.example.skillsync.core.storage.ViberOutboxStore.enqueue(managerEmail, listOf(outboxItem))
                             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                                com.example.skillsync.util.ViberDispatcher.dispatchBatch(context, managerEmail, listOf(outboxItem))
+                                com.example.skillsync.feature.viber.ViberDispatcher.dispatchBatch(context, managerEmail, listOf(outboxItem))
                             }
                             notify.success("Auto-sending ${rep.name.substringBefore(" ")}'s message to Viber...")
                         },
@@ -811,7 +821,7 @@ private fun WeeklyReporteeLiveCard(
                                 rewriting = true
                                 cardScope.launch {
                                     try {
-                                        val resp = com.example.skillsync.data.api.RetrofitClient.instance.composeMessage(
+                                        val resp = com.example.skillsync.core.network.RetrofitClient.instance.composeMessage(
                                             manager = managerEmail,
                                             cadence = if (weekendSelected) "weekend" else "weekly",
                                             target = rep.email,

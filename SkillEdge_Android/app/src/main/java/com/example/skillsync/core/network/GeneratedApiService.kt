@@ -1,4 +1,4 @@
-package com.example.skillsync.data.network.generated
+package com.example.skillsync.core.network
 
 import retrofit2.http.POST
 import retrofit2.http.Query

@@ -1,4 +1,4 @@
-package com.example.skillsync.util
+package com.example.skillsync.core.storage
 
 import android.content.Intent
 import kotlinx.coroutines.flow.MutableStateFlow

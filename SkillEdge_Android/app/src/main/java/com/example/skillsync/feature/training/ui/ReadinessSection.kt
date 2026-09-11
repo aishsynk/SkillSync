@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.trainer
+package com.example.skillsync.feature.training.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,12 +25,12 @@ import com.example.skillsync.theme.SectionHeading
 import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.int
-import com.example.skillsync.ui.components.intOrNull
-import com.example.skillsync.ui.components.list
-import com.example.skillsync.ui.components.obj
-import com.example.skillsync.ui.components.str
-import com.example.skillsync.ui.components.strings
+import com.example.skillsync.core.ui.int
+import com.example.skillsync.core.ui.intOrNull
+import com.example.skillsync.core.ui.list
+import com.example.skillsync.core.ui.obj
+import com.example.skillsync.core.ui.str
+import com.example.skillsync.core.ui.strings
 
 /**
  * Real readiness for one trainer.

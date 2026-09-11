@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.batch
+package com.example.skillsync.feature.training.ui
 
 import android.content.ActivityNotFoundException
 import android.content.ClipData
@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.core.net.toUri
+import androidx.compose.material3.Text
 
 /**
  * Builds the trainer-facing broadcast for an unallocated assignment.

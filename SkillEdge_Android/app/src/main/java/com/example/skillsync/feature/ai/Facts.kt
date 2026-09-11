@@ -1,11 +1,11 @@
-package com.example.skillsync.ai
+package com.example.skillsync.feature.ai
 
-import com.example.skillsync.ui.components.int
-import com.example.skillsync.ui.components.intOrNull
-import com.example.skillsync.ui.components.list
-import com.example.skillsync.ui.components.obj
-import com.example.skillsync.ui.components.rows
-import com.example.skillsync.ui.components.str
+import com.example.skillsync.core.ui.int
+import com.example.skillsync.core.ui.intOrNull
+import com.example.skillsync.core.ui.list
+import com.example.skillsync.core.ui.obj
+import com.example.skillsync.core.ui.rows
+import com.example.skillsync.core.ui.str
 
 /**
  * The fact base the agent reasons over.
@@ -26,19 +26,19 @@ data class TrainerFact(
     val designation: String = "",
     val location: String = "",
 
-    // unified-manager-intelligence · trainer_operations_df
+    // unified-manager-intelligence → trainer_operations_df
     val utilisation: Int? = null,
     val capacityBucket: String = "",
     val feedbackRisk: String = "",
     val recommendedAction: String = "",
 
-    // unified-manager-intelligence · trainer_current_state_df
+    // unified-manager-intelligence → trainer_current_state_df
     val currentStatus: String = "",
     val currentCourse: String = "",
     val nextCourse: String = "",
     val nextStartsAt: String = "",
 
-    // team-capability · trainers[]
+    // team-capability → trainers[]
     val readiness: Int? = null,
     val readinessBucket: String = "",
     val certsHeld: List<String> = emptyList(),
@@ -50,13 +50,13 @@ data class TrainerFact(
     val deliveryRisk: String = "",
     val deliveryReadinessLabel: String = "",
 
-    // trainer-utilization-history · series
+    // trainer-utilization-history → series
     val utilisationHistory: List<Int> = emptyList(),
 
     // actions inbox
     val openActions: Int = 0,
 
-    // allocation-desk · derived: demand this trainer is a ranked candidate for
+    // allocation-desk → derived: demand this trainer is a ranked candidate for
     val candidateFor: List<DemandMatch> = emptyList(),
 ) {
     /** Month over month movement, only when a real series exists. */

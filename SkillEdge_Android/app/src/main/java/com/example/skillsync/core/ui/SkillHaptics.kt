@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.components
+package com.example.skillsync.core.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.hapticfeedback.HapticFeedback

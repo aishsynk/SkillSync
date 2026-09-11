@@ -1,20 +1,20 @@
-package com.example.skillsync.ui.trainer
+package com.example.skillsync.feature.training.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.skillsync.data.api.RetrofitClient
-import com.example.skillsync.data.ManagerRepository
-import com.example.skillsync.data.cache.LocalCache
-import com.example.skillsync.data.models.ActionRow
-import com.example.skillsync.data.api.TrainerIndexDto
-import com.example.skillsync.ui.common.userMessage
+import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.core.storage.LocalCache
+import com.example.skillsync.feature.home.data.ActionRow
+import com.example.skillsync.core.network.TrainerIndexDto
+import com.example.skillsync.core.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 sealed class Trainer360State {
     object Loading : Trainer360State()
-    /** See [com.example.skillsync.ui.main.DashboardState.Success] — same offline contract. */
+    /** See [com.example.skillsync.feature.home.DashboardState.Success] — same offline contract. */
     data class Success(
         val data: Map<String, Any>,
         val fromCache: Boolean = false,
@@ -71,7 +71,7 @@ class Trainer360ViewModel(
         if (trainerEmail.isBlank()) return
         viewModelScope.launch {
             sentiment.value = runCatching {
-                com.example.skillsync.data.api.RetrofitClient.instance.getTrainerSentiment(trainerEmail)
+                com.example.skillsync.core.network.RetrofitClient.instance.getTrainerSentiment(trainerEmail)
             }.getOrNull()
         }
     }
@@ -139,7 +139,7 @@ class Trainer360ViewModel(
     ) {
         viewModelScope.launch {
             try {
-                val res = com.example.skillsync.data.api.RetrofitClient.instance.endorseSkill(
+                val res = com.example.skillsync.core.network.RetrofitClient.instance.endorseSkill(
                     mapOf(
                         "manager_email" to managerEmail,
                         "trainer_email" to trainerEmail,
@@ -176,7 +176,7 @@ class Trainer360ViewModel(
             try {
                 val today = java.time.LocalDate.now().toString()
                 val res = repository.markSkill(
-                    com.example.skillsync.data.api.MarkSkillRequest(
+                    com.example.skillsync.core.network.MarkSkillRequest(
                         course_id = courseId,
                         trainer_email = trainerEmail,
                         skill_level = skillLevel,
@@ -277,7 +277,7 @@ viewModelScope.launch {
             if (data["loading"] == true && _state.value is Trainer360State.Success) return
             _state.value = Trainer360State.Success(
                 data,
-                fromCache = result.source == com.example.skillsync.data.DataSource.CACHE,
+                fromCache = result.source == com.example.skillsync.core.data.DataSource.CACHE,
                 cachedAt = result.cachedAt,
             )
         } catch (e: Exception) {
@@ -300,7 +300,7 @@ viewModelScope.launch {
         readinessKey = key
         viewModelScope.launch {
             readiness.value = runCatching {
-                com.example.skillsync.data.api.RetrofitClient.instance
+                com.example.skillsync.core.network.RetrofitClient.instance
                     .getTrainerReadiness(managerEmail, trainerEmail)
             }.getOrNull()
         }

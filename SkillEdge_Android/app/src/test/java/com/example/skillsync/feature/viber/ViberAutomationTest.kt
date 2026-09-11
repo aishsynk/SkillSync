@@ -1,12 +1,13 @@
-package com.example.skillsync.ui
+package com.example.skillsync.feature.viber
+import com.example.skillsync.feature.viber.ui.ViberAutomationViewModel
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
-import com.example.skillsync.data.cache.LocalCache
-import com.example.skillsync.data.cache.ViberConfig
-import com.example.skillsync.data.cache.ViberConfigStore
-import com.example.skillsync.data.cache.ViberOutboxItem
-import com.example.skillsync.data.cache.ViberOutboxStore
+import com.example.skillsync.core.storage.LocalCache
+import com.example.skillsync.core.storage.ViberConfig
+import com.example.skillsync.core.storage.ViberConfigStore
+import com.example.skillsync.core.storage.ViberOutboxItem
+import com.example.skillsync.core.storage.ViberOutboxStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull

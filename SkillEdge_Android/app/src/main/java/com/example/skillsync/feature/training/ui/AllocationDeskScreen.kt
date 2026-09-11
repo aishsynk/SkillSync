@@ -1,4 +1,5 @@
-package com.example.skillsync.ui.batch
+package com.example.skillsync.feature.training.ui
+import com.example.skillsync.feature.home.GrowTeamCard
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
@@ -33,11 +34,11 @@ import com.example.skillsync.R
 import com.example.skillsync.theme.Figure
 import com.example.skillsync.theme.FigureSize
 import com.example.skillsync.theme.SectionHeading
-import com.example.skillsync.ui.components.DistributionBar
-import com.example.skillsync.ui.components.Slice
-import com.example.skillsync.ui.main.SearchField
-import com.example.skillsync.ui.main.SelectChip
-import com.example.skillsync.ui.main.TeamTab
+import com.example.skillsync.core.ui.DistributionBar
+import com.example.skillsync.core.ui.Slice
+import com.example.skillsync.feature.home.SearchField
+import com.example.skillsync.feature.home.SelectChip
+import com.example.skillsync.feature.home.TeamTab
 import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.Radii
@@ -45,7 +46,8 @@ import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.heroSurface
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.*
+import com.example.skillsync.core.ui.*
+import androidx.compose.material3.Text
 
 /** Relevance -> colour. 75%+ is green, matching the agreed banding. */
 @Composable
@@ -86,7 +88,7 @@ internal fun AllocationDeskContent(
     data: Map<String, Any>,
     newIds: Set<String>,
     onBatchClick: (Map<*, *>) -> Unit,
-    capacityPlan: com.example.skillsync.data.api.CapacityPlanResponse? = null,
+    capacityPlan: com.example.skillsync.core.network.CapacityPlanResponse? = null,
     capacityPlanLoading: Boolean = false,
     upskilling: Map<String, Any>? = null,
 ) {
@@ -1000,7 +1002,7 @@ internal fun BatchCard(
 
 @Composable
 private fun CapacityPlanningCard(
-    plan: com.example.skillsync.data.api.CapacityPlanResponse?,
+    plan: com.example.skillsync.core.network.CapacityPlanResponse?,
     loading: Boolean,
 ) {
     val sk = MaterialTheme.skill

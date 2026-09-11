@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.report
+package com.example.skillsync.feature.report.ui
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -26,9 +26,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.R
 import com.example.skillsync.theme.*
-import com.example.skillsync.ui.components.LocalNotify
-import com.example.skillsync.ui.components.list
-import com.example.skillsync.ui.components.str
+import com.example.skillsync.core.ui.LocalNotify
+import com.example.skillsync.core.ui.list
+import com.example.skillsync.core.ui.str
+import androidx.compose.material3.Text
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

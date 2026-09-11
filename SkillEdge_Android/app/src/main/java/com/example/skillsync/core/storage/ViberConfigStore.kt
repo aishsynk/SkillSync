@@ -1,4 +1,4 @@
-package com.example.skillsync.data.cache
+package com.example.skillsync.core.storage
 
 /**
  * Manager Viber Automation configuration and preferences.

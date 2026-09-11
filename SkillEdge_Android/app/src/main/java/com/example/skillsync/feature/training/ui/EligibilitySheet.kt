@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.batch
+package com.example.skillsync.feature.training.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,12 +15,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.skillsync.data.api.RetrofitClient
+import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.*
+import com.example.skillsync.core.ui.*
 import kotlinx.coroutines.delay
+import androidx.compose.material3.Text
 
 /**
  * "Why my team isn't eligible" for one open batch.

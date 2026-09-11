@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.report
+package com.example.skillsync.feature.report.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,12 +33,13 @@ import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.SkillColors
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.batch.BatchShare
-import com.example.skillsync.ui.batch.BulkBatchShare
-import com.example.skillsync.ui.components.LocalNotify
-import com.example.skillsync.ui.components.longDate
-import com.example.skillsync.ui.components.str
-import com.example.skillsync.ui.components.intOrNull
+import com.example.skillsync.feature.training.ui.BatchShare
+import com.example.skillsync.feature.training.ui.BulkBatchShare
+import com.example.skillsync.core.ui.LocalNotify
+import com.example.skillsync.core.ui.longDate
+import com.example.skillsync.core.ui.str
+import com.example.skillsync.core.ui.intOrNull
+import androidx.compose.material3.Text
 
 /**
  * "This Week" — the manager's ranked board of what needs them, driven by
@@ -235,17 +236,17 @@ fun PrioritiesScreen(
                 showBulkShare = false
             },
             onAutoViber = { text ->
-                val outboxItem = com.example.skillsync.data.cache.ViberOutboxItem(
+                val outboxItem = com.example.skillsync.core.storage.ViberOutboxItem(
                     id = "viber_pipeline_bulk_${System.currentTimeMillis()}",
-                    category = com.example.skillsync.data.cache.ViberOutboxItem.CAT_DEMAND,
+                    category = com.example.skillsync.core.storage.ViberOutboxItem.CAT_DEMAND,
                     recipientName = "Team",
                     recipientEmail = "team",
                     courseName = "Open Pipeline (${bulkBatches.size} batches)",
                     messageText = text,
                 )
-                com.example.skillsync.data.cache.ViberOutboxStore.enqueue(managerEmail, listOf(outboxItem))
+                com.example.skillsync.core.storage.ViberOutboxStore.enqueue(managerEmail, listOf(outboxItem))
                 CoroutineScope(Dispatchers.IO).launch {
-                    com.example.skillsync.util.ViberDispatcher.dispatchBatch(context, managerEmail, listOf(outboxItem))
+                    com.example.skillsync.feature.viber.ViberDispatcher.dispatchBatch(context, managerEmail, listOf(outboxItem))
                 }
                 notify.success("Auto-dispatching pipeline to Viber in background...")
                 showBulkShare = false

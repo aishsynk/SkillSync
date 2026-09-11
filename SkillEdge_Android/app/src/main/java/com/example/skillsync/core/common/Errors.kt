@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.common
+package com.example.skillsync.core.common
 
 import retrofit2.HttpException
 

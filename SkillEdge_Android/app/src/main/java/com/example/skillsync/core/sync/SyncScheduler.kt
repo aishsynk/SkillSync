@@ -1,4 +1,4 @@
-package com.example.skillsync.data.sync
+package com.example.skillsync.core.sync
 
 import android.content.Context
 import android.net.ConnectivityManager
@@ -11,15 +11,15 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import com.example.skillsync.util.SkillSyncNotificationWorker
-import com.example.skillsync.data.api.RetrofitClient
+import com.example.skillsync.core.notification.SkillSyncNotificationWorker
+import com.example.skillsync.core.network.RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.TimeUnit
 
 /**
  * OS-backed periodic sync (15-min floor) plus an immediate pass when internet
- * returns. Real-time detection is owned by [com.example.skillsync.util.MonitoringService];
+ * returns. Real-time detection is owned by [com.example.skillsync.core.notification.MonitoringService];
  * this is the backstop for when that service is killed, so the aggressive ~60s
  * self-chaining pass was removed.
  */

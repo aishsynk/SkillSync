@@ -1,9 +1,9 @@
-package com.example.skillsync.ui.report
+package com.example.skillsync.feature.report.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.skillsync.data.ManagerRepository
-import com.example.skillsync.data.DataSource
+import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.core.data.DataSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch

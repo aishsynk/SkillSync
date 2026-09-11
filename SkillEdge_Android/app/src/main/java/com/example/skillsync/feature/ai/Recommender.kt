@@ -1,4 +1,4 @@
-package com.example.skillsync.ai
+package com.example.skillsync.feature.ai
 
 import kotlin.math.abs
 import kotlin.math.roundToInt

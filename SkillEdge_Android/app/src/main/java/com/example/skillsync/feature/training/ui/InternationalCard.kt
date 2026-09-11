@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.batch
+package com.example.skillsync.feature.training.ui
 
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -37,9 +37,9 @@ import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.ToneChip
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.list
-import com.example.skillsync.ui.components.obj
-import com.example.skillsync.ui.components.str
+import com.example.skillsync.core.ui.list
+import com.example.skillsync.core.ui.obj
+import com.example.skillsync.core.ui.str
 
 /**
  * International demand as a card *class*, per design vision §7.4.

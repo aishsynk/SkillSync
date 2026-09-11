@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.trainer
+package com.example.skillsync.feature.training.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,8 +16,9 @@ import com.example.skillsync.theme.SectionHeading
 import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.list
-import com.example.skillsync.ui.components.str
+import com.example.skillsync.core.ui.list
+import com.example.skillsync.core.ui.str
+import androidx.compose.material3.Text
 
 /**
  * Development plan for one reportee, rendered inside Trainer 360.

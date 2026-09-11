@@ -1,4 +1,5 @@
-package com.example.skillsync
+package com.example.skillsync.app
+import com.example.skillsync.navigation.MainNavigation
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -28,8 +29,8 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
 
     // SkillEdgeApplication initializes cache, networking and sync before UI.
-    com.example.skillsync.util.NotificationStateStore.init(applicationContext)
-    com.example.skillsync.util.NotificationDestinationStore.accept(intent)
+    com.example.skillsync.core.storage.NotificationStateStore.init(applicationContext)
+    com.example.skillsync.core.storage.NotificationDestinationStore.accept(intent)
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -47,12 +48,12 @@ class MainActivity : ComponentActivity() {
 
   override fun onResume() {
     super.onResume()
-    com.example.skillsync.data.sync.SyncScheduler.enqueueImmediate(applicationContext)
+    com.example.skillsync.core.sync.SyncScheduler.enqueueImmediate(applicationContext)
   }
 
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
-    com.example.skillsync.util.NotificationDestinationStore.accept(intent)
+    com.example.skillsync.core.storage.NotificationDestinationStore.accept(intent)
   }
 }

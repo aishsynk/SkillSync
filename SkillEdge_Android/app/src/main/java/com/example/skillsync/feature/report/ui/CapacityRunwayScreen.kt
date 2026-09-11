@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.report
+package com.example.skillsync.feature.report.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,6 +28,7 @@ import com.example.skillsync.theme.skill
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.material3.Text
 
 /**
  * "Capacity Runway" — the manager's forward view. A bar per week (incoming

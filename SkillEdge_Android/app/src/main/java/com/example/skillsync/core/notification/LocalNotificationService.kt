@@ -1,4 +1,5 @@
-package com.example.skillsync.util
+package com.example.skillsync.core.notification
+import com.example.skillsync.core.storage.NotificationDestinationStore
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -11,7 +12,7 @@ import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.example.skillsync.MainActivity
+import com.example.skillsync.app.MainActivity
 import com.example.skillsync.R
 import kotlin.random.Random
 
@@ -50,6 +51,44 @@ object LocalNotificationService {
     fun showNotification(context: Context, title: String, message: String) {
         showNotification(context, NotifyEvent("general", "general", title, message, "dashboard", ""))
     }
+
+    /** Persistent escalation for critical opportunities: stays on screen with
+     * renewed sound until the manager opens the app. */
+    fun showEscalation(context: Context, title: String, message: String) {
+        createNotificationChannel(context)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(NotificationDestinationStore.EXTRA_TYPE, "opportunities")
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context, Random.nextInt(), openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
+            .setVibrate(longArrayOf(0, 300, 200, 300))
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setContentIntent(pendingIntent)
+            .build()
+        (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+            .notify(ESCALATION_NOTIFICATION_ID, notification)
+    }
+
+    private const val ESCALATION_NOTIFICATION_ID = 909_001
 
     fun showNotification(context: Context, event: NotifyEvent) {
         // Ensure channel exists

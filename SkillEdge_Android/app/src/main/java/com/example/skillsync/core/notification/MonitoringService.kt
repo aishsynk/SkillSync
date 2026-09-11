@@ -1,4 +1,4 @@
-package com.example.skillsync.util
+package com.example.skillsync.core.notification
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -11,9 +11,9 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.example.skillsync.MainActivity
+import com.example.skillsync.app.MainActivity
 import com.example.skillsync.R
-import com.example.skillsync.data.SessionManager
+import com.example.skillsync.core.data.SessionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

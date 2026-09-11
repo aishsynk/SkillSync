@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.main
+package com.example.skillsync.feature.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -31,7 +31,8 @@ import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.*
+import com.example.skillsync.core.ui.*
+import androidx.compose.material3.Text
 
 /**
  * The manager's decision inbox.
@@ -63,7 +64,7 @@ internal fun ActionsInbox(
     onDismissError: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
-    val canManageActions = !com.example.skillsync.data.SessionManager.isReportee()
+    val canManageActions = !com.example.skillsync.core.data.SessionManager.isReportee()
     var filter by remember { mutableStateOf(ActionFilter.OPEN) }
     var category by remember { mutableStateOf<String?>(null) }
     var detailFor by remember { mutableStateOf<Map<String, Any>?>(null) }

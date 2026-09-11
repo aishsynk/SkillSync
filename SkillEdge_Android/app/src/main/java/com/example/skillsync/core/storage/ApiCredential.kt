@@ -1,4 +1,4 @@
-package com.example.skillsync.data.network.generated
+package com.example.skillsync.core.storage
 
 enum class ApiCredential(val apiKey: String, val userName: String, val userPass: String, val userRole: String) {
     ADDTRAINERSKILLIDP("255", "AISHWAR_AddTrainerSkill", "2bd6UhV#PJ#T", "Add Trainer Skill (IDP)"),

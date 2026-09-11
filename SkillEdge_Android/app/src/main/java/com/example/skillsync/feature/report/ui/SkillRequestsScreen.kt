@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.report
+package com.example.skillsync.feature.report.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,7 +17,8 @@ import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.skill
 import com.example.skillsync.theme.SkillCard
-import com.example.skillsync.ui.components.str
+import com.example.skillsync.core.ui.str
+import androidx.compose.material3.Text
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,7 +80,7 @@ fun SkillRequestsScreen(
                                     style = MaterialTheme.typography.titleSmall, color = sk.bodyText,
                                 )
                                 Text(
-                                    "Wants level ${req.str("requested_level")} · " +
+                                    "Wants level ${req.str("requested_level")} → " +
                                         (req.str("course_name").ifBlank { "course ${req.str("course_id")}" }),
                                     style = MaterialTheme.typography.bodySmall, color = sk.subText,
                                 )

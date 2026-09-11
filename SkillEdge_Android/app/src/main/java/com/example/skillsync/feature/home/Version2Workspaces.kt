@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.main
+package com.example.skillsync.feature.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,9 +26,10 @@ import kotlinx.coroutines.launch
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.intOrNull
-import com.example.skillsync.ui.components.rows
-import com.example.skillsync.ui.components.str
+import com.example.skillsync.core.ui.intOrNull
+import com.example.skillsync.core.ui.rows
+import com.example.skillsync.core.ui.str
+import androidx.compose.material3.Text
 
 private data class CommandResult(
     val kind: String,
@@ -114,7 +115,7 @@ internal fun UniversalCommandSearch(
         answering = true; answeredFor = q
         scope.launch {
             try {
-                answer = com.example.skillsync.data.api.RetrofitClient.instance.askCopilotTeam(
+                answer = com.example.skillsync.core.network.RetrofitClient.instance.askCopilotTeam(
                     mapOf("manager" to managerEmail, "question" to q),
                 )
             } catch (_: Exception) {

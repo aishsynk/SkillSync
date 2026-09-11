@@ -1,14 +1,15 @@
-package com.example.skillsync.ui.batch
+package com.example.skillsync.feature.training.ui
+import com.example.skillsync.core.storage.SeenBatches
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.skillsync.data.api.MarkSkillRequest
-import com.example.skillsync.data.api.MarkSkillResponse
-import com.example.skillsync.data.api.RetrofitClient
-import com.example.skillsync.data.ManagerRepository
-import com.example.skillsync.data.models.CourseIntelligence
-import com.example.skillsync.ui.common.userMessage
+import com.example.skillsync.core.network.MarkSkillRequest
+import com.example.skillsync.core.network.MarkSkillResponse
+import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.feature.training.data.CourseIntelligence
+import com.example.skillsync.core.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -75,10 +76,10 @@ class AllocationViewModel(
     val courseSearchLoading = MutableStateFlow(false)
     val courseIntelligence = MutableStateFlow<CourseIntelligence?>(null)
     val courseIntelligenceLoading = MutableStateFlow(false)
-    val demandContext = MutableStateFlow<com.example.skillsync.data.api.DemandContextResponse?>(null)
+    val demandContext = MutableStateFlow<com.example.skillsync.core.network.DemandContextResponse?>(null)
     val demandContextLoading = MutableStateFlow(false)
     val demandContextError = MutableStateFlow<String?>(null)
-    val capacityPlan = MutableStateFlow<com.example.skillsync.data.api.CapacityPlanResponse?>(null)
+    val capacityPlan = MutableStateFlow<com.example.skillsync.core.network.CapacityPlanResponse?>(null)
     val capacityPlanLoading = MutableStateFlow(false)
     private var demandContextKey: String? = null
 
@@ -91,7 +92,7 @@ class AllocationViewModel(
      * [candidatesUnverified] carries the reason when the course could not be
      * resolved, which must never be shown as "nobody available".
      */
-    val gatedCandidates = MutableStateFlow<com.example.skillsync.data.api.AllocationCandidatesResponse?>(null)
+    val gatedCandidates = MutableStateFlow<com.example.skillsync.core.network.AllocationCandidatesResponse?>(null)
     val gatedCandidatesLoading = MutableStateFlow(false)
     val gatedCandidatesUnverified = MutableStateFlow<String?>(null)
     private var gatedKey: String? = null
@@ -187,9 +188,9 @@ class AllocationViewModel(
         loadedFor = email
         // Never replace a usable persisted Demand board with a loading screen.
         // The network pass below updates it silently when it completes.
-        com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))?.let { cached ->
+        com.example.skillsync.core.storage.LocalCache.loadMap(cacheKey(email))?.let { cached ->
             _newIds.value = SeenBatches.diffAndRemember(context, email, cached)
-            lastAdoptedAt = com.example.skillsync.data.cache.LocalCache.savedAt(cacheKey(email))
+            lastAdoptedAt = com.example.skillsync.core.storage.LocalCache.savedAt(cacheKey(email))
             _state.value = AllocationState.Success(cached)
             viewModelScope.launch { fetchCapacityPlan(email) }
         }
@@ -229,7 +230,7 @@ class AllocationViewModel(
         livePollingJob = viewModelScope.launch {
             // Instant adoption whenever SyncCoordinator emits a new revision
             launch {
-                com.example.skillsync.data.sync.SyncCoordinator.revisions.collect {
+                com.example.skillsync.core.sync.SyncCoordinator.revisions.collect {
                     adoptBackgroundSync(email, context)
                 }
             }
@@ -251,9 +252,9 @@ class AllocationViewModel(
 
     fun adoptBackgroundSync(email: String, context: Context) {
         viewModelScope.launch {
-            val savedAt = com.example.skillsync.data.cache.LocalCache.savedAt(cacheKey(email))
+            val savedAt = com.example.skillsync.core.storage.LocalCache.savedAt(cacheKey(email))
             if (savedAt <= lastAdoptedAt) return@launch
-            com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))?.let { cached ->
+            com.example.skillsync.core.storage.LocalCache.loadMap(cacheKey(email))?.let { cached ->
                 val previous = (_state.value as? AllocationState.Success)?.data
                 if (previous != cached) {
                     lastAdoptedAt = savedAt
@@ -267,19 +268,19 @@ class AllocationViewModel(
     private suspend fun fetch(email: String, context: Context, fresh: Boolean) {
         // 1. Instantly read from LocalCache if not already loaded and no fresh push requested
         if (!fresh && _state.value !is AllocationState.Success) {
-            val cached = com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))
-                ?: com.example.skillsync.data.cache.LocalCache.loadMap("dashboard_$email")
+            val cached = com.example.skillsync.core.storage.LocalCache.loadMap(cacheKey(email))
+                ?: com.example.skillsync.core.storage.LocalCache.loadMap("dashboard_$email")
             if (cached != null) {
                 _newIds.value = SeenBatches.diffAndRemember(context, email, cached)
-                lastAdoptedAt = com.example.skillsync.data.cache.LocalCache.savedAt(cacheKey(email))
+                lastAdoptedAt = com.example.skillsync.core.storage.LocalCache.savedAt(cacheKey(email))
                 _state.value = AllocationState.Success(cached)
             }
         }
 
         // 2. Network Check
         if (!RetrofitClient.isNetworkAvailable(context)) {
-            val cached = com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))
-                ?: com.example.skillsync.data.cache.LocalCache.loadMap("dashboard_$email")
+            val cached = com.example.skillsync.core.storage.LocalCache.loadMap(cacheKey(email))
+                ?: com.example.skillsync.core.storage.LocalCache.loadMap("dashboard_$email")
             if (cached != null) {
                 _state.value = AllocationState.Success(cached)
             } else if (_state.value !is AllocationState.Success) {
@@ -292,8 +293,8 @@ class AllocationViewModel(
         try {
             var result = repository.allocation(email, fresh)
             var data = result.data ?: run {
-                val cached = com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))
-                    ?: com.example.skillsync.data.cache.LocalCache.loadMap("dashboard_$email")
+                val cached = com.example.skillsync.core.storage.LocalCache.loadMap(cacheKey(email))
+                    ?: com.example.skillsync.core.storage.LocalCache.loadMap("dashboard_$email")
                 if (cached != null) {
                     _state.value = AllocationState.Success(cached)
                     return
@@ -310,8 +311,8 @@ class AllocationViewModel(
                 data = result.data ?: data
             }
             if (data["loading"] == true) {
-                val cached = com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))
-                    ?: com.example.skillsync.data.cache.LocalCache.loadMap("dashboard_$email")
+                val cached = com.example.skillsync.core.storage.LocalCache.loadMap(cacheKey(email))
+                    ?: com.example.skillsync.core.storage.LocalCache.loadMap("dashboard_$email")
                 if (cached != null) {
                     _state.value = AllocationState.Success(cached)
                 } else if (_state.value !is AllocationState.Success) {
@@ -324,8 +325,8 @@ class AllocationViewModel(
             _state.value = AllocationState.Success(data)
             fetchCapacityPlan(email)
         } catch (e: Exception) {
-            val cached = com.example.skillsync.data.cache.LocalCache.loadMap(cacheKey(email))
-                ?: com.example.skillsync.data.cache.LocalCache.loadMap("dashboard_$email")
+            val cached = com.example.skillsync.core.storage.LocalCache.loadMap(cacheKey(email))
+                ?: com.example.skillsync.core.storage.LocalCache.loadMap("dashboard_$email")
             if (cached != null) {
                 _state.value = AllocationState.Success(cached)
             } else if (_state.value !is AllocationState.Success) {
@@ -358,9 +359,9 @@ class AllocationViewModel(
 
             // OFFLINE QUEUE CHECK
             if (!RetrofitClient.isNetworkAvailable(context)) {
-                com.example.skillsync.data.cache.ActionQueueManager.enqueueAction(
-                    com.example.skillsync.data.cache.QueuedAction(
-                        payload = com.example.skillsync.data.api.MarkSkillRequest(
+                com.example.skillsync.core.storage.ActionQueueManager.enqueueAction(
+                    com.example.skillsync.core.storage.QueuedAction(
+                        payload = com.example.skillsync.core.network.MarkSkillRequest(
                             course_id = courseId,
                             trainer_email = trainerEmail,
                             skill_level = level,
@@ -381,7 +382,7 @@ class AllocationViewModel(
 
             _mark.value = try {
                 val resp = repository.markSkill(
-                    com.example.skillsync.data.api.MarkSkillRequest(
+                    com.example.skillsync.core.network.MarkSkillRequest(
                         course_id = courseId,
                         trainer_email = trainerEmail,
                         skill_level = level,
@@ -391,7 +392,7 @@ class AllocationViewModel(
                 val body = resp.body() ?: runCatching {
                     // Error bodies still carry the reason the write was refused.
                     com.google.gson.Gson().fromJson(
-                        resp.errorBody()?.string().orEmpty(), com.example.skillsync.data.api.MarkSkillResponse::class.java
+                        resp.errorBody()?.string().orEmpty(), com.example.skillsync.core.network.MarkSkillResponse::class.java
                     )
                 }.getOrNull()
 
@@ -470,7 +471,7 @@ class AllocationViewModel(
 
     // ── §7.6 bulk skill assignment ──────────────────────────────────────────
     val bulkWorking = MutableStateFlow(false)
-    val bulkResults = MutableStateFlow<List<com.example.skillsync.ui.main.SkillWriteResult>?>(null)
+    val bulkResults = MutableStateFlow<List<com.example.skillsync.feature.home.SkillWriteResult>?>(null)
 
     /**
      * One skill to many reportees.
@@ -485,24 +486,24 @@ class AllocationViewModel(
             bulkWorking.value = true
             bulkResults.value = null
             val response = runCatching {
-                com.example.skillsync.data.api.RetrofitClient.instance.bulkAssignSkill(
-                    com.example.skillsync.data.api.BulkAssignRequest(
+                com.example.skillsync.core.network.RetrofitClient.instance.bulkAssignSkill(
+                    com.example.skillsync.core.network.BulkAssignRequest(
                         course_id = courseId,
                         trainers = rows.map { (email, level) ->
-                            com.example.skillsync.data.api.BulkAssignRow(email, level)
+                            com.example.skillsync.core.network.BulkAssignRow(email, level)
                         },
                     )
                 )
             }.getOrNull()
 
             bulkResults.value = response?.results?.map {
-                com.example.skillsync.ui.main.SkillWriteResult(
+                com.example.skillsync.feature.home.SkillWriteResult(
                     email = it.trainer_email, ok = it.ok, message = it.message,
                 )
             } ?: rows.map { (email, _) ->
                 // A transport failure is not a refusal, and must not be shown
                 // as one: nothing is known about whether the write landed.
-                com.example.skillsync.ui.main.SkillWriteResult(
+                com.example.skillsync.feature.home.SkillWriteResult(
                     email = email, ok = false,
                     message = "No response from the server. Check the RMS skill register before retrying.",
                 )

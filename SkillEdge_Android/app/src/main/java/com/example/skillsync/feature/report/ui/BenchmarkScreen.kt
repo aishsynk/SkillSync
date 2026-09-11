@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.report
+package com.example.skillsync.feature.report.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -25,6 +25,7 @@ import com.example.skillsync.theme.SkillColors
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.skill
 import kotlin.math.abs
+import androidx.compose.material3.Text
 
 /**
  * "How your team compares" — each metric shows the team value big, the baseline

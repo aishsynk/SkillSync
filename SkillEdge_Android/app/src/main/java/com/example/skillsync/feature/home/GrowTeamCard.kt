@@ -1,4 +1,5 @@
-package com.example.skillsync.ui.batch
+package com.example.skillsync.feature.home
+import com.example.skillsync.feature.training.ui.BatchShare
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -11,13 +12,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.skillsync.data.api.RetrofitClient
+import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.int
-import com.example.skillsync.ui.components.list
-import com.example.skillsync.ui.components.str
+import com.example.skillsync.core.ui.int
+import com.example.skillsync.core.ui.list
+import com.example.skillsync.core.ui.str
 import kotlinx.coroutines.launch
+import androidx.compose.material3.Text
 
 /**
  * "Grow the team" — demand the team cannot cover yet, and the reportee who is

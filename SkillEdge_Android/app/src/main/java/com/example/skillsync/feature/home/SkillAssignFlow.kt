@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.main
+package com.example.skillsync.feature.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,7 +27,8 @@ import com.example.skillsync.theme.ToneChip
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.Avatar
+import com.example.skillsync.core.ui.Avatar
+import androidx.compose.material3.Text
 
 /**
  * Skill to Select Members to Assign — design vision §7.6.

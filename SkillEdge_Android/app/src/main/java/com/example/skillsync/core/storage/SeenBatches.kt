@@ -1,8 +1,8 @@
-package com.example.skillsync.ui.batch
+package com.example.skillsync.core.storage
 
 import android.content.Context
-import com.example.skillsync.ui.components.rows
-import com.example.skillsync.ui.components.str
+import com.example.skillsync.core.ui.rows
+import com.example.skillsync.core.ui.str
 
 /**
  * Remembers which batches this manager has already seen, so newly-published ones

@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.components
+package com.example.skillsync.core.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
@@ -11,7 +11,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -38,9 +37,10 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import com.example.skillsync.theme.skill
 import kotlinx.coroutines.delay
+import androidx.compose.ui.unit.dp
+import androidx.compose.animation.core.spring
 
 /** Shared timing/easing so every screen animates with the same personality. */
 object Motion {

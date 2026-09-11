@@ -1,13 +1,19 @@
-package com.example.skillsync.util
+package com.example.skillsync.core.notification
+import com.example.skillsync.feature.viber.ViberAutomationEngine
+
+import com.example.skillsync.core.storage.NotificationStateStore
+
+import com.example.skillsync.core.storage.DigestStateStore
 
 import android.content.Context
 import android.util.Log
-import com.example.skillsync.data.api.RetrofitClient
-import com.example.skillsync.data.cache.LocalCache
-import com.example.skillsync.data.sync.SyncCoordinator
+import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.storage.LocalCache
+import com.example.skillsync.core.sync.SyncCoordinator
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import androidx.compose.material3.Text
 
 /**
  * One delivery-monitoring pass: refresh the manager snapshots, diff against the
@@ -36,7 +42,7 @@ object MonitoringPass {
             SyncCoordinator.initialize(context)
             NotificationStateStore.init(context)
 
-            val email = com.example.skillsync.data.SessionManager.getEmail()
+            val email = com.example.skillsync.core.data.SessionManager.getEmail()
             if (email.isNullOrBlank()) return Result.NotLoggedIn
 
             if (!SyncCoordinator.sync(context)) return Result.Retry

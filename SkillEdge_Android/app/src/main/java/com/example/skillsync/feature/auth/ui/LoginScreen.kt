@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.auth
+package com.example.skillsync.feature.auth.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -66,12 +66,12 @@ import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.StatusBarIcons
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.Appear
-import com.example.skillsync.ui.components.LocalNotify
-import com.example.skillsync.ui.components.Motion
-import com.example.skillsync.ui.components.SkillSyncLogo
-import com.example.skillsync.ui.components.SkillSyncWordmark
-import com.example.skillsync.ui.components.rememberShake
+import com.example.skillsync.core.ui.Appear
+import com.example.skillsync.core.ui.LocalNotify
+import com.example.skillsync.core.ui.Motion
+import com.example.skillsync.core.ui.SkillSyncLogo
+import com.example.skillsync.core.ui.SkillSyncWordmark
+import com.example.skillsync.core.ui.rememberShake
 
 /**
  * Sign-in.

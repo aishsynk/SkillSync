@@ -1,6 +1,6 @@
-package com.example.skillsync.ai
+package com.example.skillsync.feature.ai
 
-import com.example.skillsync.data.cache.LocalCache
+import com.example.skillsync.core.storage.LocalCache
 
 /**
  * The learning loop.

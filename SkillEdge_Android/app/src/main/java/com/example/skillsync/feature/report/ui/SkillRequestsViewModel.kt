@@ -1,10 +1,10 @@
-package com.example.skillsync.ui.report
+package com.example.skillsync.feature.report.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.skillsync.data.api.RetrofitClient
-import com.example.skillsync.data.api.SkillRequestResolve
-import com.example.skillsync.ui.components.rows
+import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.network.SkillRequestResolve
+import com.example.skillsync.core.ui.rows
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch

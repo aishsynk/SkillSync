@@ -1,11 +1,11 @@
-package com.example.skillsync.ui.trainer
+package com.example.skillsync.feature.training.ui
 
 import android.content.Context
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import com.example.skillsync.ui.components.*
+import com.example.skillsync.core.ui.*
 
 /**
  * Publishes a trainer profile as a PDF.

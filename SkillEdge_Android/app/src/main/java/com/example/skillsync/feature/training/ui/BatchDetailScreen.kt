@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.batch
+package com.example.skillsync.feature.training.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,9 +30,10 @@ import com.example.skillsync.theme.StatusBarIcons
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.*
-import com.example.skillsync.ui.main.CourseCurriculumSheet
+import com.example.skillsync.core.ui.*
+import com.example.skillsync.feature.home.CourseCurriculumSheet
 import kotlinx.coroutines.launch
+import androidx.compose.material3.Text
 
 /**
  * Everything known about one unallocated batch, plus the four actions a manager
@@ -46,10 +47,10 @@ fun BatchDetailScreen(
     managerEmail: String,
     reportees: List<Pair<String, String>>,   // name to email
     markState: MarkState,
-    operationalContext: com.example.skillsync.data.api.DemandContextResponse? = null,
+    operationalContext: com.example.skillsync.core.network.DemandContextResponse? = null,
     operationalContextLoading: Boolean = false,
     operationalContextError: String? = null,
-    gatedCandidates: com.example.skillsync.data.api.AllocationCandidatesResponse? = null,
+    gatedCandidates: com.example.skillsync.core.network.AllocationCandidatesResponse? = null,
     gatedCandidatesLoading: Boolean = false,
     gatedCandidatesUnverified: String? = null,
     onMarkSkill: (courseId: String, trainerEmail: String, level: Int, date: String, who: String) -> Unit,
@@ -113,7 +114,7 @@ fun BatchDetailScreen(
         if (demandId.isBlank() || serverMsg.containsKey(key)) return
         scope.launch {
             try {
-                val r = com.example.skillsync.data.api.RetrofitClient.instance
+                val r = com.example.skillsync.core.network.RetrofitClient.instance
                     .getBatchMessage(demandId, if (key == "Team") null else key)
                 val plain = (r["plain"] as? String).orEmpty()
                 val html = (r["html"] as? String).orEmpty()
@@ -134,7 +135,7 @@ fun BatchDetailScreen(
     // Material's default snackbar was the only surface in the app that did not
     // use the design tokens, and it gave a confirmed write, an unconfirmed one
     // and an outright failure the same neutral styling.
-    val notify = com.example.skillsync.ui.components.LocalNotify.current
+    val notify = com.example.skillsync.core.ui.LocalNotify.current
     LaunchedEffect(markState) {
         when (markState) {
             is MarkState.Done -> {
@@ -641,7 +642,7 @@ fun BatchDetailScreen(
                     actions = listOfNotNull(
                         ActionItem("Curriculum", R.drawable.ic_book, sk.blue) { showCurriculumSheet = true },
                         ActionItem("My skill", R.drawable.ic_check, sk.teal) { showMine = true },
-                        if (com.example.skillsync.data.SessionManager.canManageTeam())
+                        if (com.example.skillsync.core.data.SessionManager.canManageTeam())
                             ActionItem("Reportee", R.drawable.ic_people, sk.indigo) { showReportee = true }
                         else null,
                         ActionItem("Message", R.drawable.ic_mail, sk.green) {

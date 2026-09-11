@@ -1,11 +1,11 @@
-package com.example.skillsync.ui.auth
+package com.example.skillsync.feature.auth.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.skillsync.data.api.LoginRequest
-import com.example.skillsync.data.api.RetrofitClient
-import com.example.skillsync.data.api.SetPasswordRequest
-import com.example.skillsync.ui.common.userMessage
+import com.example.skillsync.core.network.LoginRequest
+import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.network.SetPasswordRequest
+import com.example.skillsync.core.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -132,7 +132,7 @@ class LoginViewModel : ViewModel() {
                         val email = response.email ?: "$id$DOMAIN"
                         val role = response.role ?: "manager"
                         val mustChange = response.must_change == true
-                        com.example.skillsync.data.SessionManager.saveSession(email, sid, role, mustChange)
+                        com.example.skillsync.core.data.SessionManager.saveSession(email, sid, role, mustChange)
                         if (mustChange) {
                             _step.value = LoginStep.SET_PASSWORD
                             _loginState.value = LoginState.Idle
@@ -168,9 +168,9 @@ class LoginViewModel : ViewModel() {
             _loginState.value = LoginState.Loading
             try {
                 RetrofitClient.instance.setPassword(SetPasswordRequest(newPassword))
-                com.example.skillsync.data.SessionManager.clearMustChange()
-                val email = com.example.skillsync.data.SessionManager.getEmail() ?: "$pendingId$DOMAIN"
-                val sid = com.example.skillsync.data.SessionManager.getSessionId() ?: ""
+                com.example.skillsync.core.data.SessionManager.clearMustChange()
+                val email = com.example.skillsync.core.data.SessionManager.getEmail() ?: "$pendingId$DOMAIN"
+                val sid = com.example.skillsync.core.data.SessionManager.getSessionId() ?: ""
                 _loginState.value = LoginState.Success(sid, email)
             } catch (e: Exception) {
                 _loginState.value = LoginState.Error(e.userMessage("set password"))

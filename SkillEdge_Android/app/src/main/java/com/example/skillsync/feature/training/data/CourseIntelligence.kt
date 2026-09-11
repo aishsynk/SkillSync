@@ -1,8 +1,8 @@
-package com.example.skillsync.data.models
+package com.example.skillsync.feature.training.data
 
-import com.example.skillsync.ui.components.intOrNull
-import com.example.skillsync.ui.components.str
-import com.example.skillsync.ui.components.strings
+import com.example.skillsync.core.ui.intOrNull
+import com.example.skillsync.core.ui.str
+import com.example.skillsync.core.ui.strings
 
 /**
  * Outcome of a `course-intelligence` lookup, deliberately a closed model rather

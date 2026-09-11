@@ -1,4 +1,4 @@
-package com.example.skillsync.ai
+package com.example.skillsync.feature.ai
 
 /**
  * The question answering half of the agent.

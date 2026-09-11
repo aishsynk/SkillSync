@@ -1,11 +1,11 @@
-package com.example.skillsync.data.models
+package com.example.skillsync.feature.home.data
 
 /**
  * One row of the manager action inbox.
  *
- * Every consumer — [MainScreenViewModel][com.example.skillsync.ui.main.MainScreenViewModel],
- * [ActionsViewModel][com.example.skillsync.ui.main.ActionsViewModel] and
- * [Trainer360ViewModel][com.example.skillsync.ui.trainer.Trainer360ViewModel] —
+ * Every consumer — [MainScreenViewModel][com.example.skillsync.feature.home.MainScreenViewModel],
+ * [ActionsViewModel][com.example.skillsync.feature.home.ActionsViewModel] and
+ * [Trainer360ViewModel][com.example.skillsync.feature.training.ui.Trainer360ViewModel] —
  * parses the `actions_<email>` snapshot through [parseActions], so a field is
  * decoded in exactly one place instead of three private copies drifting apart.
  */

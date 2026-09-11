@@ -1,4 +1,4 @@
-package com.example.skillsync.util
+package com.example.skillsync.core.notification
 
 import android.content.Context
 import androidx.work.CoroutineWorker

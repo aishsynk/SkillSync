@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.main
+package com.example.skillsync.feature.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,8 +23,8 @@ import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.Surface0
 import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
-import com.example.skillsync.util.NotificationEngine
-import com.example.skillsync.util.NotifyEvent
+import com.example.skillsync.core.notification.NotificationEngine
+import com.example.skillsync.core.notification.NotifyEvent
 
 private val BUCKET_PRIORITY = mapOf(
     NotificationEngine.BUCKET_FEEDBACK to 0,

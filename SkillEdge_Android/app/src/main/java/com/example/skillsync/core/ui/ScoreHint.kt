@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.components
+package com.example.skillsync.core.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.shrinkVertically
@@ -18,7 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.skillsync.data.SessionManager
+import com.example.skillsync.core.data.SessionManager
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill

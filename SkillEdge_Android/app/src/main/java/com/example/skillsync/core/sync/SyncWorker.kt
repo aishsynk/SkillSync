@@ -1,4 +1,5 @@
-package com.example.skillsync.data.network.generated
+package com.example.skillsync.core.sync
+import com.example.skillsync.core.storage.LocalCacheHelper
 
 import android.content.Context
 import androidx.work.CoroutineWorker

@@ -1,11 +1,11 @@
-package com.example.skillsync.data.sync
+package com.example.skillsync.core.sync
 
 import android.content.Context
-import com.example.skillsync.data.ManagerRepository
-import com.example.skillsync.data.SessionManager
-import com.example.skillsync.data.cache.ActionQueueManager
-import com.example.skillsync.data.cache.LocalCache
-import com.example.skillsync.data.api.RetrofitClient
+import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.core.data.SessionManager
+import com.example.skillsync.core.storage.ActionQueueManager
+import com.example.skillsync.core.storage.LocalCache
+import com.example.skillsync.core.network.RetrofitClient
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.sync.Mutex

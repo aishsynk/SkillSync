@@ -1,4 +1,5 @@
-package com.example.skillsync.util
+package com.example.skillsync.core.notification
+import com.example.skillsync.core.notification.NotificationEngine
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

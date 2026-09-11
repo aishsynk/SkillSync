@@ -1,4 +1,4 @@
-package com.example.skillsync.data.api
+package com.example.skillsync.core.network
 
 import android.content.Context
 import android.net.ConnectivityManager
@@ -62,7 +62,7 @@ object RetrofitClient {
         // If a 401 occurs (e.g. Render restart), perform a transparent silent re-auth
         // using the stored email rather than abruptly booting the user to the login screen.
         val sessionInterceptor = Interceptor { chain ->
-            val sessionId = com.example.skillsync.data.SessionManager.getSessionId()
+            val sessionId = com.example.skillsync.core.data.SessionManager.getSessionId()
             val request = if (sessionId.isNullOrBlank()) {
                 chain.request()
             } else {
@@ -72,7 +72,7 @@ object RetrofitClient {
             }
             val response = chain.proceed(request)
             if (response.code == 401) {
-                val email = com.example.skillsync.data.SessionManager.getEmail()
+                val email = com.example.skillsync.core.data.SessionManager.getEmail()
                 if (!email.isNullOrBlank() && !request.url.encodedPath.contains("/auth/login")) {
                     response.close()
                     try {
@@ -89,7 +89,7 @@ object RetrofitClient {
                             val json = org.json.JSONObject(respStr)
                             val newSid = json.optString("session_id")
                             if (newSid.isNotBlank()) {
-                                com.example.skillsync.data.SessionManager.saveSession(email, newSid)
+                                com.example.skillsync.core.data.SessionManager.saveSession(email, newSid)
                                 val retryRequest = request.newBuilder()
                                     .header("Authorization", "Bearer $newSid")
                                     .build()

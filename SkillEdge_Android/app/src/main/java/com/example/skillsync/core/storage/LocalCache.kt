@@ -1,4 +1,4 @@
-package com.example.skillsync.data.cache
+package com.example.skillsync.core.storage
 
 import android.content.Context
 import com.google.gson.Gson

@@ -1,12 +1,12 @@
-package com.example.skillsync.ui.main
+package com.example.skillsync.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.skillsync.data.api.RetrofitClient
-import com.example.skillsync.data.ManagerRepository
-import com.example.skillsync.data.models.ActionRow
-import com.example.skillsync.data.models.parseActions
-import com.example.skillsync.ui.common.userMessage
+import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.feature.home.data.ActionRow
+import com.example.skillsync.feature.home.data.parseActions
+import com.example.skillsync.core.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -51,9 +51,9 @@ class ActionsViewModel(
         if (loadedFor == managerEmail && _actions.value.isNotEmpty()) return
         loadedFor = managerEmail
         viewModelScope.launch {
-            val cached = com.example.skillsync.data.cache.LocalCache.loadMap("actions_$managerEmail")
+            val cached = com.example.skillsync.core.storage.LocalCache.loadMap("actions_$managerEmail")
             if (cached != null) {
-                lastAdoptedAt = com.example.skillsync.data.cache.LocalCache.savedAt("actions_$managerEmail")
+                lastAdoptedAt = com.example.skillsync.core.storage.LocalCache.savedAt("actions_$managerEmail")
                 _actions.value = parseActions(cached)
             }
             if (_actions.value.isEmpty()) _initialLoading.value = true
@@ -73,9 +73,9 @@ class ActionsViewModel(
     fun adoptBackgroundSync(managerEmail: String) {
         viewModelScope.launch {
             val key = "actions_$managerEmail"
-            val savedAt = com.example.skillsync.data.cache.LocalCache.savedAt(key)
+            val savedAt = com.example.skillsync.core.storage.LocalCache.savedAt(key)
             if (savedAt <= lastAdoptedAt) return@launch
-            val body = com.example.skillsync.data.cache.LocalCache.loadMap(key) ?: return@launch
+            val body = com.example.skillsync.core.storage.LocalCache.loadMap(key) ?: return@launch
             lastAdoptedAt = savedAt
             val rows = parseActions(body)
             if (_actions.value != rows) _actions.value = rows

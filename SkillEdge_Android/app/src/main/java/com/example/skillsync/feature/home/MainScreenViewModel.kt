@@ -1,14 +1,14 @@
-package com.example.skillsync.ui.main
+package com.example.skillsync.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.skillsync.data.DataSource
-import com.example.skillsync.data.ManagerRepository
-import com.example.skillsync.data.api.RetrofitClient
-import com.example.skillsync.data.cache.LocalCache
-import com.example.skillsync.data.models.ActionRow
-import com.example.skillsync.data.models.parseActions
-import com.example.skillsync.ui.common.userMessage
+import com.example.skillsync.core.data.DataSource
+import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.storage.LocalCache
+import com.example.skillsync.feature.home.data.ActionRow
+import com.example.skillsync.feature.home.data.parseActions
+import com.example.skillsync.core.common.userMessage
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -184,7 +184,7 @@ class MainScreenViewModel(
     fun ensureTeamIntelligence(email: String, context: android.content.Context) {
         if (_capabilityLoading.value) return
         viewModelScope.launch {
-            if (!com.example.skillsync.data.api.RetrofitClient.isNetworkAvailable(context)) {
+            if (!com.example.skillsync.core.network.RetrofitClient.isNetworkAvailable(context)) {
                 if (_capability.value == null) {
                     _capability.value = LocalCache.loadMap(capabilityCacheKey(email))
                 }
@@ -241,7 +241,7 @@ class MainScreenViewModel(
 
     private suspend fun fetchAll(email: String, context: android.content.Context, fresh: Boolean = false) = coroutineScope {
         // Sync any offline actions first so subsequent fetches get updated data
-        com.example.skillsync.data.cache.ActionQueueManager.syncPendingActions(context)
+        com.example.skillsync.core.storage.ActionQueueManager.syncPendingActions(context)
 
         val dash = async { fetchDashboard(email, context, fresh) }
         val prof = async { fetchProfile(email, context, fresh) }
@@ -298,7 +298,7 @@ class MainScreenViewModel(
             // In-memory is now as fresh as any persisted revision, so a
             // background adopt must not swap in an older disk snapshot.
             lastAdoptedAt[dashboardCacheKey(email)] = System.currentTimeMillis()
-            com.example.skillsync.data.SessionManager.setLastSyncTime(System.currentTimeMillis())
+            com.example.skillsync.core.data.SessionManager.setLastSyncTime(System.currentTimeMillis())
         } catch (e: Exception) {
             // Leave UI in its current state (likely cached Success)
             if (_uiState.value !is DashboardState.Success) {
@@ -350,19 +350,19 @@ class MainScreenViewModel(
     }
 
     /** Targeted events for both system notifications and the in-app banner. */
-    private val _notification = kotlinx.coroutines.flow.MutableSharedFlow<com.example.skillsync.util.NotifyEvent>()
+    private val _notification = kotlinx.coroutines.flow.MutableSharedFlow<com.example.skillsync.core.notification.NotifyEvent>()
     val notification = _notification.asSharedFlow()
 
     /** Recent notification events shown in the in-app notification center. */
-    private val _recentNotifications = MutableStateFlow<List<com.example.skillsync.util.NotifyEvent>>(emptyList())
-    val recentNotifications: StateFlow<List<com.example.skillsync.util.NotifyEvent>> = _recentNotifications
+    private val _recentNotifications = MutableStateFlow<List<com.example.skillsync.core.notification.NotifyEvent>>(emptyList())
+    val recentNotifications: StateFlow<List<com.example.skillsync.core.notification.NotifyEvent>> = _recentNotifications
 
     private var pollingJob: kotlinx.coroutines.Job? = null
 
     /**
      * Foreground fast-path: checks immediately on start (after a short settle),
-     * then every 2 minutes. Shares [com.example.skillsync.util.NotificationStateStore]'s
-     * seen-set with [com.example.skillsync.util.SkillSyncNotificationWorker], so an
+     * then every 2 minutes. Shares [com.example.skillsync.core.storage.NotificationStateStore]'s
+     * seen-set with [com.example.skillsync.core.notification.SkillSyncNotificationWorker], so an
      * event is only ever reported once regardless of which path notices it first.
      */
     fun startPolling(email: String, context: android.content.Context) {
@@ -371,7 +371,7 @@ class MainScreenViewModel(
             // First check runs after a short settle so the dashboard has loaded.
             kotlinx.coroutines.delay(5000)
             try {
-                com.example.skillsync.data.sync.SyncCoordinator.sync(context)
+                com.example.skillsync.core.sync.SyncCoordinator.sync(context)
                 adoptBackgroundSync(email)
                 val fresh = (_uiState.value as? DashboardState.Success)?.intelligenceData
                 if (fresh != null) checkForNotifications(email, fresh)
@@ -379,7 +379,7 @@ class MainScreenViewModel(
             while (true) {
                 kotlinx.coroutines.delay(20000) // 20-second active live pulse for real-time demand alerts
                 try {
-                    com.example.skillsync.data.sync.SyncCoordinator.sync(context)
+                    com.example.skillsync.core.sync.SyncCoordinator.sync(context)
                     adoptBackgroundSync(email)
                     val fresh = (_uiState.value as? DashboardState.Success)?.intelligenceData
                     if (fresh != null) checkForNotifications(email, fresh)
@@ -391,8 +391,8 @@ class MainScreenViewModel(
     }
 
     private suspend fun checkForNotifications(email: String, data: Map<String, Any>) {
-        val store = com.example.skillsync.util.NotificationStateStore
-        val engine = com.example.skillsync.util.NotificationEngine
+        val store = com.example.skillsync.core.storage.NotificationStateStore
+        val engine = com.example.skillsync.core.notification.NotificationEngine
         if (store.isFirstRun(email)) {
             // A fresh login/first poll must not fire once per pre-existing
             // batch — seed the seen-set from the current snapshot instead.

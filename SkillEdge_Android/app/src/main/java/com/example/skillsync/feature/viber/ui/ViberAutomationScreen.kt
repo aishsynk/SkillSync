@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.report
+package com.example.skillsync.feature.viber.ui
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -64,8 +64,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.R
-import com.example.skillsync.data.cache.ViberConfig
-import com.example.skillsync.data.cache.ViberOutboxItem
+import com.example.skillsync.core.storage.ViberConfig
+import com.example.skillsync.core.storage.ViberOutboxItem
 import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.LocalSkillColors
 import com.example.skillsync.theme.Radii

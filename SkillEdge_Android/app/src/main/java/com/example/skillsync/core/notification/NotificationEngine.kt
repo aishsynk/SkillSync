@@ -1,7 +1,7 @@
-package com.example.skillsync.util
+package com.example.skillsync.core.notification
 
-import com.example.skillsync.ui.components.rows
-import com.example.skillsync.ui.components.str
+import com.example.skillsync.core.ui.rows
+import com.example.skillsync.core.ui.str
 
 /** [id] is the dedupe key persisted to [NotificationStateStore] once fired. */
 data class NotifyEvent(

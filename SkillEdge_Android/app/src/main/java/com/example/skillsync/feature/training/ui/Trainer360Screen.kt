@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.trainer
+package com.example.skillsync.feature.training.ui
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -39,9 +39,10 @@ import com.example.skillsync.theme.heroSurface
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.StatusBarIcons
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.*
-import com.example.skillsync.ui.main.projectNextUtilization
-import com.example.skillsync.data.api.TrainerIndexDto
+import com.example.skillsync.core.ui.*
+import com.example.skillsync.feature.home.projectNextUtilization
+import com.example.skillsync.core.network.TrainerIndexDto
+import androidx.compose.material3.Text
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,7 +75,7 @@ fun Trainer360Screen(
     val devPlan by viewModel.devPlan.collectAsState()
     val sentiment by viewModel.sentiment.collectAsState()
     val trainerIndex by viewModel.trainerIndex.collectAsState()
-    val online by com.example.skillsync.data.sync.SyncScheduler.online.collectAsState()
+    val online by com.example.skillsync.core.sync.SyncScheduler.online.collectAsState()
     StatusBarIcons(lightIcons = true)
 
     var showCopilot by remember { mutableStateOf(false) }
@@ -192,7 +193,7 @@ fun Trainer360Screen(
                                 sentiment = sentiment,
                                 trainerIndex = trainerIndex,
                                 onOpenPractice = onOpenPractice,
-                                canEdit = !selfView && com.example.skillsync.data.SessionManager.canManageTeam(),
+                                canEdit = !selfView && com.example.skillsync.core.data.SessionManager.canManageTeam(),
                                 onAddGoal = { title, kind, target, note ->
                                     if (selfView) toast(context, "Your manager owns your development plan.")
                                     else viewModel.addDevPlanItem(managerEmail, trainerEmail, title, kind, target, note)
@@ -1230,7 +1231,7 @@ private fun CapabilitySection(
                         Spacer(Modifier.height(14.dp))
                         Button(
                             onClick = {
-                                com.example.skillsync.ui.batch.BatchShare.openUrl(
+                                com.example.skillsync.feature.training.ui.BatchShare.openUrl(
                                     ctx, syllabus.str("syllabus_url"),
                                 )
                             },

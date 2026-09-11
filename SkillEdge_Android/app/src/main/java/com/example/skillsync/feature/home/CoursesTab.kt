@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.main
+package com.example.skillsync.feature.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,10 +24,11 @@ import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.*
-import com.example.skillsync.ui.batch.MarkState
-import com.example.skillsync.data.models.CourseIntelligence
+import com.example.skillsync.core.ui.*
+import com.example.skillsync.feature.training.ui.MarkState
+import com.example.skillsync.feature.training.data.CourseIntelligence
 import java.util.Calendar
+import androidx.compose.material3.Text
 
 private enum class CourseSort(val label: String) {
     COVERAGE("Coverage"), QUBITS("Qubits"), DELIVERED("Delivered"), NAME("Name")
@@ -59,7 +60,7 @@ internal fun CoursesTab(
     /** §7.6: one skill to many reportees, with per-row outcomes. */
     onBulkAssign: (courseId: String, rows: List<Pair<String, Int>>) -> Unit = { _, _ -> },
     bulkWorking: Boolean = false,
-    bulkResults: List<com.example.skillsync.ui.main.SkillWriteResult>? = null,
+    bulkResults: List<com.example.skillsync.feature.home.SkillWriteResult>? = null,
     onClearMark: () -> Unit = {},
 ) {
     val sk = MaterialTheme.skill

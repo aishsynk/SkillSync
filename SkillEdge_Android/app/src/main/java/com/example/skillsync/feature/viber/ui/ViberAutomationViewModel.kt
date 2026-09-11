@@ -1,15 +1,15 @@
-package com.example.skillsync.ui.report
+package com.example.skillsync.feature.viber.ui
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.skillsync.data.ManagerRepository
-import com.example.skillsync.data.cache.ViberConfig
-import com.example.skillsync.data.cache.ViberConfigStore
-import com.example.skillsync.data.cache.ViberOutboxItem
-import com.example.skillsync.data.cache.ViberOutboxStore
-import com.example.skillsync.util.ViberAutomationEngine
-import com.example.skillsync.util.ViberDispatcher
+import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.core.storage.ViberConfig
+import com.example.skillsync.core.storage.ViberConfigStore
+import com.example.skillsync.core.storage.ViberOutboxItem
+import com.example.skillsync.core.storage.ViberOutboxStore
+import com.example.skillsync.feature.viber.ViberAutomationEngine
+import com.example.skillsync.feature.viber.ViberDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

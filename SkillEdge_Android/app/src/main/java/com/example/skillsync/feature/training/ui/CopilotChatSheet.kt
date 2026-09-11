@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.trainer
+package com.example.skillsync.feature.training.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.text.HtmlCompat
 import com.example.skillsync.theme.ToneChip
 import com.example.skillsync.theme.skill
+import com.example.skillsync.R
+import androidx.compose.material3.Text
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

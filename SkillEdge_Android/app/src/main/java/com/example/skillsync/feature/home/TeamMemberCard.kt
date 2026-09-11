@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.main
+package com.example.skillsync.feature.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,13 +33,13 @@ import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.Avatar
-import com.example.skillsync.ui.components.Sparkline
-import com.example.skillsync.ui.components.int
-import com.example.skillsync.ui.components.intOrNull
-import com.example.skillsync.ui.components.list
-import com.example.skillsync.ui.components.obj
-import com.example.skillsync.ui.components.str
+import com.example.skillsync.core.ui.Avatar
+import com.example.skillsync.core.ui.Sparkline
+import com.example.skillsync.core.ui.int
+import com.example.skillsync.core.ui.intOrNull
+import com.example.skillsync.core.ui.list
+import com.example.skillsync.core.ui.obj
+import com.example.skillsync.core.ui.str
 
 /**
  * Roster card for the People & Capability tab — full-width single column.

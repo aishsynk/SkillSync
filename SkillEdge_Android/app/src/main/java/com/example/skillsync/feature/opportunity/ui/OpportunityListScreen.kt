@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.opportunity
+package com.example.skillsync.feature.opportunity.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,6 +13,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.theme.AuroraBackground
+import androidx.compose.ui.Modifier
+import com.example.skillsync.R
+import androidx.compose.material3.Text
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

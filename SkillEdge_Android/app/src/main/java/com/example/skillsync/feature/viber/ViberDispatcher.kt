@@ -1,14 +1,14 @@
-package com.example.skillsync.util
+package com.example.skillsync.feature.viber
 
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import com.example.skillsync.data.ManagerRepository
-import com.example.skillsync.data.cache.ViberConfig
-import com.example.skillsync.data.cache.ViberConfigStore
-import com.example.skillsync.data.cache.ViberOutboxItem
-import com.example.skillsync.data.cache.ViberOutboxStore
+import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.core.storage.ViberConfig
+import com.example.skillsync.core.storage.ViberConfigStore
+import com.example.skillsync.core.storage.ViberOutboxItem
+import com.example.skillsync.core.storage.ViberOutboxStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

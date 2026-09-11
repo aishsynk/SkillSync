@@ -1,4 +1,4 @@
-package com.example.skillsync.ui.batch
+package com.example.skillsync.feature.training.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,17 +30,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.skillsync.R
-import com.example.skillsync.data.api.AllocationCandidatesResponse
+import com.example.skillsync.core.network.AllocationCandidatesResponse
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.SectionHeading
 import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
-import com.example.skillsync.ui.components.intOrNull
-import com.example.skillsync.ui.components.list
-import com.example.skillsync.ui.components.obj
-import com.example.skillsync.ui.components.str
+import com.example.skillsync.core.ui.intOrNull
+import com.example.skillsync.core.ui.list
+import com.example.skillsync.core.ui.obj
+import com.example.skillsync.core.ui.str
 
 /**
  * The fully gated candidate evaluation for one batch.

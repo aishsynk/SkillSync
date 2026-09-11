@@ -1,4 +1,4 @@
-package com.example.skillsync.data.network.generated
+package com.example.skillsync.core.storage
 
 import android.content.ContentValues
 import android.content.Context

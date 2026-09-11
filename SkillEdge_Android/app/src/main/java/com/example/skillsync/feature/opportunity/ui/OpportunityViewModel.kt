@@ -1,15 +1,22 @@
-package com.example.skillsync.ui.opportunity
+package com.example.skillsync.feature.opportunity.ui
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.skillsync.data.DataRepository
-import com.example.skillsync.data.cache.LocalCache
-import com.example.skillsync.data.models.Opportunity
-import com.example.skillsync.data.models.OpportunityGuardianConfig
-import com.example.skillsync.data.models.OpportunityMatchResult
-import com.example.skillsync.data.models.OpportunitySummary
-import com.example.skillsync.data.models.SkillProfile
+import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.core.storage.LocalCache
+import com.example.skillsync.feature.opportunity.data.CapabilityGraph
+import com.example.skillsync.feature.opportunity.data.EscalationRule
+import com.example.skillsync.feature.opportunity.data.EvidenceItem
+import com.example.skillsync.feature.opportunity.data.GraphNode
+import com.example.skillsync.feature.opportunity.data.Opportunity
+import com.example.skillsync.feature.opportunity.data.OpportunityGuardianConfig
+import com.example.skillsync.feature.opportunity.data.OpportunityMatchResult
+import com.example.skillsync.feature.opportunity.data.OpportunityRequirements
+import com.example.skillsync.feature.opportunity.data.OpportunitySummary
+import com.example.skillsync.feature.opportunity.data.SkillNode
+import com.example.skillsync.feature.opportunity.data.SkillProfile
+import com.example.skillsync.feature.opportunity.data.TrustedSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,7 +33,7 @@ data class OpportunityUiState(
 )
 
 class OpportunityViewModel : ViewModel() {
-    private val repository = DataRepository()
+    private val repository = ManagerRepository()
     private val _uiState = MutableStateFlow(OpportunityUiState())
     val uiState: StateFlow<OpportunityUiState> = _uiState.asStateFlow()
 
@@ -34,8 +41,8 @@ class OpportunityViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(loading = true, error = null)
             try {
-                val result = repository.opportunities(manager, status)
-                val items = (result["items"] as? List<*>?)?.mapNotNull {
+                val result = repository.opportunities(manager, status).data
+                val items = (result?.get("items") as? List<*>?)?.mapNotNull {
                     it as? Map<*, *>
                 }?.map { map ->
                     Opportunity(
@@ -47,6 +54,7 @@ class OpportunityViewModel : ViewModel() {
                         senderPhone = map["sender_phone"].toString(),
                         title = map["title"].toString(),
                         course = map["course"].toString(),
+                        courseCode = map["course_code"].toString(),
                         location = map["location"].toString(),
                         country = map["country"].toString(),
                         datesStart = map["dates_start"].toString(),
@@ -55,12 +63,39 @@ class OpportunityViewModel : ViewModel() {
                         status = map["status"].toString(),
                         skillMatchScore = (map["skill_match_score"] as? Number)?.toInt() ?: 0,
                         verdict = map["verdict"].toString(),
+                        decision = map["decision"].toString(),
                         confidence = map["confidence"].toString(),
                         preparationHours = map["preparation_hours"].toString(),
                         majorGap = map["major_gap"].toString(),
                         strongAreas = (map["strong_areas"] as? List<*>?)?.map { it.toString() } ?: emptyList(),
                         weakAreas = (map["weak_areas"] as? List<*>?)?.map { it.toString() } ?: emptyList(),
-                        evidence = emptyList(),
+                        evidence = (map["evidence"] as? List<*>?)?.mapNotNull {
+                            (it as? Map<*, *>)?.let { e ->
+                                EvidenceItem(
+                                    topic = e["topic"].toString(),
+                                    evidence = e["evidence"].toString(),
+                                    source = e["source"].toString(),
+                                    status = e["status"].toString(),
+                                    strength = (e["strength"] as? Number)?.toDouble() ?: 0.0,
+                                )
+                            }
+                        } ?: emptyList(),
+                        requirements = (map["requirements"] as? Map<*, *>)?.let { r ->
+                            OpportunityRequirements(
+                                courseCode = r["course_code"].toString(),
+                                course = r["course"].toString(),
+                                datesStart = r["dates_start"].toString(),
+                                datesEnd = r["dates_end"].toString(),
+                                location = r["location"].toString(),
+                                country = r["country"].toString(),
+                                mode = r["mode"].toString(),
+                                participants = r["participants"].toString(),
+                                documentationMentioned = (r["documentation_mentioned"] as? List<*>?)?.map { it.toString() } ?: emptyList(),
+                                action = r["action"].toString(),
+                            )
+                        } ?: OpportunityRequirements(),
+                        rawText = map["raw_text"].toString(),
+                        documentStatus = map["document_status"].toString(),
                         isHighOpportunity = map["is_high_opportunity"] == true,
                         isCritical = map["is_critical"] == true,
                         isInternational = map["is_international"] == true,
@@ -87,11 +122,11 @@ class OpportunityViewModel : ViewModel() {
     fun loadGuardianConfig(manager: String) {
         viewModelScope.launch {
             try {
-                val result = repository.guardianConfig(manager)
+                val result = repository.guardianConfig(manager).data ?: emptyMap<String, Any>()
                 val config = OpportunityGuardianConfig(
                     trustedSources = (result["trusted_sources"] as? List<*>?)?.mapNotNull {
                         (it as? Map<*, *>)?.let { m ->
-                            OpportunityGuardianConfig.TrustedSource(
+                            TrustedSource(
                                 app = m["app"].toString(),
                                 group = m["group"].toString(),
                                 sender = m["sender"].toString(),
@@ -107,7 +142,7 @@ class OpportunityViewModel : ViewModel() {
                     quietHoursCriticalOpportunities = result["quiet_hours_critical_opportunities"] == true,
                     escalationRules = (result["escalation_rules"] as? List<*>?)?.mapNotNull {
                         (it as? Map<*, *>)?.let { m ->
-                            OpportunityGuardianConfig.EscalationRule(
+                            EscalationRule(
                                 trigger = m["trigger"].toString(),
                                 action = m["action"].toString(),
                                 level = m["level"].toString(),
@@ -146,7 +181,7 @@ class OpportunityViewModel : ViewModel() {
     fun loadSkillProfile(manager: String) {
         viewModelScope.launch {
             try {
-                val result = repository.skillProfile(manager)
+                val result = repository.skillProfile(manager).data ?: emptyMap<String, Any>()
                 val profile = SkillProfile(
                     email = manager,
                     certifications = (result["certifications"] as? List<*>?)?.map { it.toString() } ?: emptyList(),
@@ -154,13 +189,13 @@ class OpportunityViewModel : ViewModel() {
                     coursesDelivered = (result["courses_delivered"] as? List<*>?)?.map { it.toString() } ?: emptyList(),
                     experienceYears = (result["experience_years"] as? Number)?.toInt() ?: 0,
                     labsProjects = (result["labs_projects"] as? List<*>?)?.map { it.toString() } ?: emptyList(),
-                    confidenceByTopic = (result["confidence_by_topic"] as? Map<*, *>)?.mapValues { (_, v) ->
-                        (v as? Number)?.toDouble() ?: 0.0
+                    confidenceByTopic = (result["confidence_by_topic"] as? Map<*, *>)?.entries?.associate {
+                        it.key.toString() to ((it.value as? Number)?.toDouble() ?: 0.0)
                     } ?: emptyMap(),
-                    capabilityGraph = SkillProfile.CapabilityGraph(
+                    capabilityGraph = CapabilityGraph(
                         certified = (result["certified"] as? List<*>?)?.mapNotNull {
                             (it as? Map<*, *>)?.let { m ->
-                                SkillProfile.GraphNode(
+                                GraphNode(
                                     code = m["code"].toString(),
                                     name = m["name"].toString(),
                                     level = m["level"].toString(),
@@ -170,7 +205,7 @@ class OpportunityViewModel : ViewModel() {
                         } ?: emptyList(),
                         delivered = (result["delivered"] as? List<*>?)?.mapNotNull {
                             (it as? Map<*, *>)?.let { m ->
-                                SkillProfile.GraphNode(
+                                GraphNode(
                                     code = m["code"].toString(),
                                     name = m["name"].toString(),
                                     level = m["level"].toString(),
@@ -180,7 +215,7 @@ class OpportunityViewModel : ViewModel() {
                         } ?: emptyList(),
                         built = (result["built"] as? List<*>?)?.mapNotNull {
                             (it as? Map<*, *>)?.let { m ->
-                                SkillProfile.GraphNode(
+                                GraphNode(
                                     code = m["code"].toString(),
                                     name = m["name"].toString(),
                                     level = m["level"].toString(),
@@ -190,7 +225,7 @@ class OpportunityViewModel : ViewModel() {
                         } ?: emptyList(),
                         skills = (result["skills"] as? List<*>?)?.mapNotNull {
                             (it as? Map<*, *>)?.let { m ->
-                                SkillProfile.SkillNode(
+                                SkillNode(
                                     name = m["name"].toString(),
                                     strength = m["strength"].toString(),
                                     moderate = m["moderate"] == true,
@@ -206,22 +241,68 @@ class OpportunityViewModel : ViewModel() {
         }
     }
 
-    fun matchOpportunity(body: Map<String, Any>) {
+    fun matchOpportunity(manager: String, opportunity: Opportunity) {
         viewModelScope.launch {
             try {
-                val result = repository.matchOpportunity(body)
+                val result = repository.matchOpportunity(mapOf(
+                    "manager" to manager,
+                    "opportunity" to mapOf(
+                        "course_topics" to (opportunity.strongAreas.ifEmpty {
+                            listOf(opportunity.courseCode).filter { it.isNotBlank() }
+                        }.ifEmpty { listOf(opportunity.course) }.filter { it.isNotBlank() }),
+                        "course_code" to opportunity.courseCode,
+                        "course" to opportunity.course,
+                        "raw_text" to opportunity.rawText,
+                        "is_international" to opportunity.isInternational,
+                        "is_critical" to opportunity.isCritical,
+                    ),
+                ))
                 _uiState.value = _uiState.value.copy(
                     matchResult = OpportunityMatchResult(
                         matchScore = (result["match_score"] as? Number)?.toInt() ?: 0,
                         verdict = result["verdict"].toString(),
+                        decision = result["decision"].toString(),
                         strongAreas = (result["strong_areas"] as? List<*>?)?.map { it.toString() } ?: emptyList(),
                         weakAreas = (result["weak_areas"] as? List<*>?)?.map { it.toString() } ?: emptyList(),
                         majorGap = result["major_gap"].toString(),
                         preparationHours = result["preparation_hours"].toString(),
                         confidence = result["confidence"].toString(),
-                        evidence = emptyList(),
+                        recommendation = result["recommendation"].toString(),
+                        evidence = (result["evidence"] as? List<*>?)?.mapNotNull {
+                            (it as? Map<*, *>)?.let { e ->
+                                EvidenceItem(
+                                    topic = e["topic"].toString(),
+                                    evidence = e["evidence"].toString(),
+                                    source = e["source"].toString(),
+                                    status = e["status"].toString(),
+                                    strength = (e["strength"] as? Number)?.toDouble() ?: 0.0,
+                                )
+                            }
+                        } ?: emptyList(),
+                        requirements = (result["requirements"] as? Map<*, *>)?.let { r ->
+                            OpportunityRequirements(
+                                courseCode = r["course_code"].toString(),
+                                course = r["course"].toString(),
+                                datesStart = r["dates_start"].toString(),
+                                datesEnd = r["dates_end"].toString(),
+                                location = r["location"].toString(),
+                                country = r["country"].toString(),
+                                mode = r["mode"].toString(),
+                                participants = r["participants"].toString(),
+                                documentationMentioned = (r["documentation_mentioned"] as? List<*>?)?.map { it.toString() } ?: emptyList(),
+                                action = r["action"].toString(),
+                            )
+                        } ?: OpportunityRequirements(),
                     )
                 )
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun updateDocumentStatus(id: String, status: String) {
+        viewModelScope.launch {
+            try {
+                repository.updateOpportunityDocument(id, mapOf("status" to status))
             } catch (_: Exception) {}
         }
     }
