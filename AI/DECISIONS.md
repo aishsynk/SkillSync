@@ -69,6 +69,23 @@ Important decisions and their rationale. Add new entries at the top (newest firs
   `?related=`, default 0.55) from `_course_catalogue_index()`; trainers carry
   `match: exact|related` + `via_course`.
 
+## 2026-09-11 - Password gate restored for every privileged role (reverses 2026-09-04 password-less login)
+
+- **Decision:** Every privileged role (manager / assistant_manager / trainer_plus) signs in
+  with a password. First sign-in bootstraps with the RMS employee code (`must_change`), then
+  the account owner sets their own password via `/api/auth/set-password`. `_needs_password`
+  is True for the privileged set; the `reportee_store.py` credential table is the live
+  mechanism again (previously "dead code for rollback only").
+- **Rationale:** Operator directive 2026-09-11: "no one can login there be security measures,
+  only manager/trainer+ use password protection." Reverses half of the 2026-09-04 decision
+  (the password wall) while keeping the other half (no `reportee` role; `_classify_identity`
+  still fails open to the manager app on RMS blips — the fail-open now routes to a full
+  password sign-in rather than to a bare work-ID button).
+- **Decision:** Android dropped the silent email-only re-auth interceptor. A 401 now clears
+  the stale session and routes back to Login (email alone can no longer mint a session).
+- **Supersedes:** the password-less portion of the 2026-09-04 "withdrawn; login fails open"
+  decision below.
+
 ## 2026-09-04 - Reportee self-service tier withdrawn; login fails open to the manager app
 
 - **Decision:** No account is classified `reportee` any more. A recognised

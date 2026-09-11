@@ -1,3 +1,15 @@
+## 2026-09-11 - Password gate restored for manager/trainer+ sign-in + republished v3.80.1.176 (release digest changed)
+
+- **Model**: big-pickle (opencode) **Tool**: OpenCode
+- **Directive**: "from login to each page… security no one can login there be security measures, only manager/trainer+ use password protection." Full re-enable + release confirmed (reverses 2026-09-04 password-less sign-in).
+- **Backend** (`backend.py`, committed `2ab3b86`): `_needs_password()` now returns True for the `_PASSWORD_ROLES` set (manager/assistant_manager/trainer_plus); `_classify_identity` propagates it on every return path; fail-open to manager still applies on RMS blips but now requires a real password. First sign-in bootstraps with the RMS employee code (`must_change`), then `/api/auth/set-password` replaces it (the previously-"dead" reportee_store credential table is live again). Android LoginViewModel already drove PASSWORD→SET_PASSWORD; only docs updated there.
+- **Android** (`RetrofitClient.kt`): REMOVED the silent email-only re-auth interceptor (email alone can no longer mint a session; it was a no-check login backdoor). A 401 on a session-bearing request now calls `SessionManager.clearSession()` → MainNavigation routes back to Login. This is a security-relevant behavioural change, hence the republish.
+- **Tests**: full backend suite 282/282 OK (touch `tests/test_reportee_role.py` — updated to assert privileged roles `needs_password=True`, bootstrap-with-employee-code, must_change, and old-bootstrap rejection after set-password). Android gates all green: compileDebugKotlin 0 · testDebugUnitTest PASS · compileDebugAndroidTestKotlin PASS · assembleDebug PASS · lintDebug PASS.
+- **Deployment**: pushed `2ab3b86` → Render auto-deploy. Live-probed: `POST /api/auth/check {email:aishwar.c}` → `needs_password: true, first_login: true`; `POST /api/auth/login {email:aishwar.c}` → `PASSWORD_REQUIRED`. Backend live password gate confirmed.
+- **Release**: rebuilt `assembleRelease` and **clobber-republished** `SkillEdge-v3.80.1.176.apk` on the existing tag (no version bump, binding rule) — new digest **sha256:e0a73c33d2edb7b2dc77310188ba1bec5a1fad3456655ff0e59becc7c9d5a298**, size 13,860,733 B, updatedAt 2026-09-11T06:57:03Z. This replaces the earlier aishw republish (b4051de…) from this morning.
+- **Status**: Security milestone COMPLETE and live. CONTEXT.md and DECISIONS.md updated to record the reversal.
+- **Next recommended actions**: (1) Today-page corporate modernization (per awesome-android-ui, native only, no new deps) — next in-progress; (2) message-sharing manager-POV prompt enforcement on every share/send surface; (3) then per-page PAGES_TRACKER order. `Qubits/qubitcourses.xlsx` still locally modified and deliberately uncommitted.
+
 ## 2026-09-11 - UI/UX Transformation delivered + released: foundation → shell → Home SHIPPED (first green CI since v3.75.4; release v3.80.1.176 published)
 
 - **Model**: big-pickle (opencode) **Tool**: OpenCode

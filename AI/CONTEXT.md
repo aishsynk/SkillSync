@@ -81,19 +81,22 @@ All manager-to-reportee and team-level generated messages, standpoints, evaluati
 - **Group Broadcast Safety (Hard Rule)**: Team broadcasts must NEVER name an individual for negative signals (bench, feedback flags, cert gaps). Names appear ONLY for positive recognition.
 - **Teams/Viber Prose Formatting**: Greeting `Hello _First_,`, blank line, sanitised body with at most one `**bold**` action and one `__underlined__` time reference, blank line, italicized closing `_Thank you..._`, maximum 1000 characters, no hyphens, bullets, emojis, or dashes.
 
-## Sign-in & roles (reportee tier withdrawn 2026-09-04)
+## Sign-in & roles (password gate restored 2026-09-11)
 
-Sign-in is by **work ID alone** (initials, e.g. `aishwar.c`; client appends
-`@koenig-solutions.com`). `POST /api/auth/check` returns the role with
-`needs_password: false`; `POST /api/auth/login` with just the email mints the session.
-`_classify_identity`:
+Sign-in is by **work ID** (initials, e.g. `aishwar.c`; client appends
+`@koenig-solutions.com`) **plus a password**. `POST /api/auth/check` returns the role with
+`needs_password: true` for every privileged role; `POST /api/auth/login` requires the
+password — first time it is the RMS employee code (bootstrap, `must_change`), then the
+account owner sets their own via `/api/auth/set-password`. `_classify_identity`:
 - **manager** — owns a non-empty RMS `reportees` roster, OR anything not positively flagged
   otherwise, OR any case where the RMS roster call did not answer (**fail-open** — an RMS
   blip must never strip a manager to an empty view).
 - **trainer_plus** — positively flagged `TrainerPlus=Yes` in a roster.
 - **assistant_manager** — `Designation` in a roster reads as a manager title.
 - No account is ever `reportee`. The password / employee-code path and the
-  `reportee_store.py` credential table remain as dead code for rollback only.
+  `reportee_store.py` credential table are the live password mechanism (reversed the
+  2026-09-04 decision that made them dead code). Android never attempts a silent email-only
+  re-auth: a 401 clears the stale session and routes the user back to Login.
 
 The reportee-scoped routes (`/api/v2/reportee/*`, skill-request approval flow, self-mark
 ceiling) still exist but nothing routes to them — no session carries `role == "reportee"`.
