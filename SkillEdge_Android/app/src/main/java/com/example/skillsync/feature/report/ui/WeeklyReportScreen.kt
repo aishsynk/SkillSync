@@ -832,7 +832,7 @@ private fun WeeklyReporteeLiveCard(
                                     } catch (_: Exception) {
                                         rewritten = rep.standpointNote.ifBlank {
                                             MessageRewriter.compose(
-                                                userMessage = "", myMessage = myMessage, style = style,
+                                                userMessage = userMessage, myMessage = myMessage, style = style,
                                                 targetName = rep.name, isTeam = false,
                                                 evidence = MessageRewriter.EvidenceContext(
                                                     certGapCourses = rep.certGapCourses,

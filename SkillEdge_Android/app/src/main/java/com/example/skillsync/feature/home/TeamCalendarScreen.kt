@@ -50,12 +50,12 @@ enum class EventCategory(
     val color: Color,
     val lightBg: Color,
 ) {
-    DELIVERY("Delivery", "📦", Color(0xFF0284C7), Color(0x330284C7)),
-    MOCK("Mock", "🎯", Color(0xFF9333EA), Color(0x339333EA)),
-    WEBINAR("Webinar", "🎤", Color(0xFFEC4899), Color(0x33EC4899)),
-    LEAVE("Leave", "🏖️", Color(0xFFF59E0B), Color(0x33F59E0B)),
-    UPSKILLING("Upskilling", "🚀", Color(0xFF10B981), Color(0x3310B981)),
-    MEETING("Meeting", "💬", Color(0xFF06B6D4), Color(0x3306B6D4))
+    DELIVERY("Delivery", "◆", Color(0xFF38BDF8), Color(0x3338BDF8)),
+    MOCK("Mock", "◎", Color(0xFF818CF8), Color(0x33818CF8)),
+    WEBINAR("Webinar", "▲", Color(0xFFF472B6), Color(0x33F472B6)),
+    LEAVE("Leave", "■", Color(0xFFFBBF24), Color(0x33FBBF24)),
+    UPSKILLING("Upskilling", "★", Color(0xFF34D399), Color(0x3334D399)),
+    MEETING("Meeting", "●", Color(0xFF22D3EE), Color(0x3322D3EE))
 }
 
 data class CalendarEventItem(
@@ -385,7 +385,7 @@ private fun CalendarTopHeader(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (isSelected) Color(0xFF0284C7) else Color.Transparent)
+                                .background(if (isSelected) sk.brand else Color.Transparent)
                                 .clickable { onViewModeChange(mode) }
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
                             contentAlignment = Alignment.Center,
@@ -417,17 +417,16 @@ private fun CalendarTopHeader(
                 Surface(
                     onClick = onToday,
                     shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFF0284C7).copy(alpha = 0.15f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF0284C7).copy(alpha = 0.4f)),
+                    color = sk.brand.copy(alpha = 0.16f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.brand.copy(alpha = 0.45f)),
                 ) {
                     Text(
                         "Today",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF38BDF8),
+                        color = sk.sky,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                    )
+                                            )
                 }
 
                 IconButton(onClick = onPrev, modifier = Modifier.size(30.dp)) {
@@ -528,8 +527,7 @@ private fun FilterPill(
             style = MaterialTheme.typography.labelSmall,
             color = if (selected) tint else sk.subText,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            fontSize = 11.sp,
-        )
+                    )
     }
 }
 
@@ -574,8 +572,7 @@ private fun SpanningMonthCalendarGrid(
                     style = MaterialTheme.typography.labelSmall,
                     color = if (isWeekend) sk.subText.copy(alpha = 0.5f) else sk.labelText,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
-                )
+                                    )
             }
         }
 
@@ -642,7 +639,7 @@ private fun MonthWeekRow(
                         .clip(RoundedCornerShape(4.dp))
                         .background(
                             when {
-                                isSelected -> Color(0xFF0284C7).copy(alpha = 0.3f)
+                                isSelected -> sk.brand.copy(alpha = 0.35f)
                                 isToday -> sk.cyan.copy(alpha = 0.15f)
                                 else -> Color.Transparent
                             }
@@ -656,14 +653,13 @@ private fun MonthWeekRow(
                         style = MaterialTheme.typography.labelSmall,
                         color = when {
                             isSelected -> Color.White
-                            isToday -> Color(0xFF38BDF8)
+                            isToday -> sk.sky
                             !isCurrentMonth -> sk.subText.copy(alpha = 0.3f)
                             isWeekend -> sk.subText.copy(alpha = 0.6f)
                             else -> sk.bodyText
                         },
                         fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
-                        fontSize = 11.sp,
-                    )
+                                            )
                 }
             }
         }
@@ -763,7 +759,7 @@ private fun SelectedDayInspectionCard(
                     formatted,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF38BDF8),
+                    color = sk.sky,
                 )
                 Text(
                     if (eventsOnDay.isEmpty()) "No activities scheduled" else "${eventsOnDay.size} active engagements",
@@ -774,14 +770,14 @@ private fun SelectedDayInspectionCard(
 
             if (eventsOnDay.isNotEmpty()) {
                 Surface(
-                    color = Color(0xFF0284C7).copy(alpha = 0.2f),
+                    color = sk.brand.copy(alpha = 0.20f),
                     shape = RoundedCornerShape(6.dp),
                 ) {
                     Text(
                         "${eventsOnDay.size} ACTIVE",
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF38BDF8),
+                        color = sk.sky,
                         fontWeight = FontWeight.Bold,
                     )
                 }
@@ -839,7 +835,7 @@ private fun WeekScheduleView(
                         .clip(RoundedCornerShape(4.dp))
                         .background(
                             when {
-                                isSelected -> Color(0xFF0284C7).copy(alpha = 0.22f)
+                                isSelected -> sk.brand.copy(alpha = 0.25f)
                                 isToday -> sk.cyan.copy(alpha = 0.12f)
                                 else -> Color.Transparent
                             }
@@ -853,14 +849,13 @@ private fun WeekScheduleView(
                         date.format(DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH)).uppercase(),
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isWeekend) sk.subText.copy(alpha = 0.5f) else sk.labelText,
-                        fontWeight = FontWeight.Bold, fontSize = 10.sp,
-                    )
+                        fontWeight = FontWeight.Bold,                     )
                     Text(
                         "${date.dayOfMonth}",
                         style = MaterialTheme.typography.titleSmall,
                         color = when {
                             isSelected -> Color.White
-                            isToday -> Color(0xFF38BDF8)
+                            isToday -> sk.sky
                             isWeekend -> sk.subText.copy(alpha = 0.7f)
                             else -> sk.bodyText
                         },
@@ -967,7 +962,7 @@ private fun TimelineQueueView(
             Text(
                 "UPCOMING ENGAGEMENTS (${upcoming.size})",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF38BDF8),
+                color = sk.sky,
                 fontWeight = FontWeight.Bold,
             )
             upcoming.forEach { EventCardRow(it, onTrainerClick, onEventClick) }
@@ -1045,7 +1040,7 @@ private fun EventCardRow(
                     Text(
                         event.trainerName,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF38BDF8),
+                        color = sk.sky,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.clickable {
                             onTrainerClick(event.trainerEmail, event.trainerName)
@@ -1076,8 +1071,7 @@ private fun EventCardRow(
                 "${event.startDate.format(DateTimeFormatter.ofPattern("d MMM"))} – ${event.endDate.format(DateTimeFormatter.ofPattern("d MMM yyyy"))} · ${event.timeSlot}",
                 style = MaterialTheme.typography.labelSmall,
                 color = sk.subText.copy(alpha = 0.8f),
-                fontSize = 10.sp,
-            )
+                            )
         }
     }
 }
@@ -1180,7 +1174,7 @@ private fun DetailRow(label: String, value: String, onClick: (() -> Unit)? = nul
         Text(
             value,
             style = MaterialTheme.typography.bodySmall,
-            color = if (onClick != null) Color(0xFF38BDF8) else sk.bodyText,
+            color = if (onClick != null) sk.sky else sk.bodyText,
             fontWeight = if (onClick != null) FontWeight.Bold else FontWeight.Medium,
         )
     }

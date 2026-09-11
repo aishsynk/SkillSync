@@ -747,7 +747,7 @@ private fun ReporteeSnapshotCard(
                                         } catch (_: Exception) {
                                             rewritten = rep.structuredFeedback.formattedText.ifBlank {
                                                 com.example.skillsync.feature.communication.engine.MessageRewriter.compose(
-                                                    userMessage = "", myMessage = myMessage,
+                                                    userMessage = userMessage, myMessage = myMessage,
                                                     style = com.example.skillsync.feature.communication.engine.MessageStyle.TEAMS,
                                                     targetName = rep.name, isTeam = false,
                                                     evidence = com.example.skillsync.feature.communication.engine.MessageRewriter.EvidenceContext(

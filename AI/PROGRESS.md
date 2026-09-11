@@ -1,3 +1,57 @@
+## 2026-09-11 - Parallel Modernization Tranche SHIPPED: Row 3 People & Capability, Dashboard Dead Code Sweep, Opportunity Cluster Wired, Message-Sharing Manager-POV - All 5 Android Gates + Pytest 322 Green
+
+- **Model**: inherit (Antigravity) **Tool**: Antigravity
+- **Directive**: Execute 4 modernization and governance tracks in parallel:
+  1. Row 3 People & Capability modernization (`TeamTab.kt`, `TeamMemberCard.kt`, `TeamCalendarScreen.kt`).
+  2. Manager-POV message-sharing prompt enforcement audit and offline fixes across report screens.
+  3. Dead-code sweep in `DashboardSections.kt` (~900 lines pruned).
+  4. Restore and wire Opportunity cluster (`OpportunityListScreen.kt`, `OpportunityDetailScreen.kt`, `MainScreen.kt`, `Navigation.kt`, `CapabilityGraphScreen.kt`).
+- **Files Modified**:
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/DashboardSections.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/TeamMemberCard.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/TeamTab.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/TeamCalendarScreen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/MainScreen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/capability/ui/CapabilityGraphScreen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/opportunity/ui/OpportunityListScreen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/opportunity/ui/OpportunityDetailScreen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/report/ui/WeeklyReportScreen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/report/ui/HrMonthlyReportScreen.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/navigation/Navigation.kt`
+  - `docs/PAGES_TRACKER.md`
+- **Work Completed**:
+  - **People & Capability (Row 3)**:
+    - `TeamMemberCard.kt`: 100% token pure. All 13 raw `Color(0x...)` and `Color.White` replaced with `sk.*` tokens (`sk.good`, `sk.cyan`, `sk.indigo`, `sk.amber`, `sk.sky`, `sk.subText`, `sk.cardBg`, `sk.cardBorder`, `sk.crit`, `sk.bodyText`). Removed 9sp/10sp font overrides. Action pills updated to DesignSystem standards.
+    - `TeamTab.kt`: Replaced all 11 `MaterialTheme.colorScheme.primary` calls with `sk.brand`/`sk.sky`. Updated report buttons to `.pressable`. Added 4-item `ShimmerBox` skeleton for initial empty loading. Removed sub-11sp font overrides in `FilterButton`, `SortMenu`, `SelectChip`, `DismissChip`, and `ExecutiveMiniMetric`.
+    - `TeamCalendarScreen.kt`: Replaced all emojis (`📦`, `🎯`, `🎤`, `🏖️`, `🚀`, `💬`) with corporate symbols (`◆`, `◎`, `▲`, `■`, `★`, `●`). Replaced raw hex colors with `sk.brand`/`sk.sky`. Removed sub-11sp font overrides.
+  - **DashboardSections Dead Code Sweep**:
+    - Pruned ~900 lines of unreferenced legacy composables (`ProfileHeader`, `CommandHero`, `ManagerKpiGrid`, `TeamReadinessSummaryCard`, `TeamRiskSummaryCard`, `TeamCapacityAlertCard`, `TeamAnalytics`, `TeamCapacityForecastCard`).
+    - Retained `ProfileMenuBottomSheet` (used by `MainScreen.kt`) and `Trainer360Screen`'s trend projection utilities (`projectNextUtilization`, `averageMonthOverMonthDelta`, `UtilProjection`).
+  - **Opportunity Cluster Restoration & Modernization**:
+    - `MainScreen.kt`: Dynamic manager profile name from `profile?.str("name")`. Added `onOpenOpportunityDetail` wiring on `HomeTab.OPPORTUNITIES`.
+    - `Navigation.kt`: Wired `onOpenOpportunityDetail = { id -> current = OpportunityDetail(screen.email, id) }`.
+    - `CapabilityGraphScreen.kt`: Replaced hardcoded "Aishwar" with dynamic manager name derived from `managerEmail` and `sk.frost`. Fixed Scaffold lambda and resolved imports.
+    - `OpportunityListScreen.kt`: Fully tokenized, dynamic filter chips (`All`, `Detected`, `Accepted`, `Declined`, `Missed`), empty state card, match progress bars, pressable cards wired to details.
+    - `OpportunityDetailScreen.kt`: Fully tokenized, status banner, wired action buttons (`ACCEPT`, `DECLINE`, `SNOOZE`, `MARK SEEN`), match breakdown, and skill match indicators.
+  - **Manager-POV Message Sharing**:
+    - Verified message-sharing prompt enforcement in `CommunicationComposer.kt`, `MessageRewriter.kt`, and `BatchShare.kt`. Fixed bug where offline message composition in `WeeklyReportScreen.kt` and `HrMonthlyReportScreen.kt` passed `userMessage = ""` instead of the actual user input.
+- **Verification Gates (All Green)**:
+  1. `:app:compileDebugKotlin` — BUILD SUCCESSFUL (0 errors)
+  2. `:app:testDebugUnitTest` — BUILD SUCCESSFUL (all baseline tests passing)
+  3. `:app:compileDebugAndroidTestKotlin` — BUILD SUCCESSFUL
+  4. `:app:assembleDebug` — BUILD SUCCESSFUL (debug APK packaged)
+  5. `:app:lintDebug` — BUILD SUCCESSFUL (lint report generated)
+  6. Backend pytest suite (`python -m pytest tests/`) — 322 passed, 0 failed
+- **Governance & Constraints**:
+  - Zero new Gradle dependencies.
+  - Native Compose only.
+  - No version bump (version 3.80.1/176 unchanged).
+  - `Qubits/qubitcourses.xlsx` excluded and unstaged.
+- **Current Status**: Complete, fully verified, all gates green.
+- **Next Recommended Actions**:
+  1. Next screen in `docs/PAGES_TRACKER.md`: Row 4 Demand & Planning (`feature/training/ui/AllocationDeskScreen.kt`) or Row 5 Capability Marketplace (`feature/home/CoursesTab.kt`).
+  2. Continue following per-page transformation checklist.
+
 ## 2026-09-11 - Today page corporate modernisation tranche 1 SHIPPED (animated KPI figuration, press-feedback unify, shimmer loading) - all 5 gates green
 
 - **Model**: big-pickle (opencode) **Tool**: OpenCode

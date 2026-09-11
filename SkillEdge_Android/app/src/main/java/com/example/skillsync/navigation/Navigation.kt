@@ -225,6 +225,7 @@ fun MainNavigation() {
                 onOpenMySchedule = { current = MySchedule(screen.email) },
                 onOpenOpportunityGuardian = { current = OpportunityGuardian(screen.email) },
                 onOpenOpportunities = { current = OpportunityList(screen.email) },
+                onOpenOpportunityDetail = { id -> current = OpportunityDetail(screen.email, id) },
                 onLogout = { current = Login },
                 modifier = Modifier,
                 viewModel = mainViewModel,

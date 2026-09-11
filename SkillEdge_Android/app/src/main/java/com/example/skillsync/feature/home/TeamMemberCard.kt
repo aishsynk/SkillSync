@@ -94,20 +94,20 @@ internal fun TeamMemberCard(
         else -> "Active"
     }
     val statusColor = when (statusLabel) {
-        "Delivering" -> Color(0xFF10B981)
-        "Scheduled" -> Color(0xFF06B6D4)
-        "Preparing" -> Color(0xFF8B5CF6)
-        "On Leave" -> Color(0xFFF59E0B)
-        "Available" -> Color(0xFF38BDF8)
-        else -> Color(0xFF94A3B8)
+        "Delivering" -> sk.good
+        "Scheduled" -> sk.cyan
+        "Preparing" -> sk.indigo
+        "On Leave" -> sk.amber
+        "Available" -> sk.sky
+        else -> sk.subText
     }
 
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radii.card))
-            .background(Color(0x22111827))
-            .border(1.dp, Color(0x3538BDF8), RoundedCornerShape(Radii.card))
+            .background(sk.cardBg)
+            .border(1.dp, sk.cardBorder, RoundedCornerShape(Radii.card))
             .pressable(onClick),
     ) {
         // Glowing severity indicator bar on the left edge
@@ -137,7 +137,7 @@ internal fun TeamMemberCard(
                     Modifier
                         .size(44.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .border(1.dp, Color(0x4038BDF8), RoundedCornerShape(12.dp)),
+                        .border(1.dp, sk.cardBorder, RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Avatar(name, capability?.str("photo_url"), 44.dp)
@@ -148,7 +148,7 @@ internal fun TeamMemberCard(
                         Text(
                             name,
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White,
+                            color = sk.bodyText,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
@@ -173,7 +173,6 @@ internal fun TeamMemberCard(
                                     statusLabel,
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                     color = statusColor,
-                                    fontSize = 9.sp,
                                 )
                             }
                         }
@@ -182,7 +181,7 @@ internal fun TeamMemberCard(
                         Text(
                             designation,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF93C5FD),
+                            color = sk.cyan,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -191,9 +190,9 @@ internal fun TeamMemberCard(
                 if (readiness != null) {
                     Spacer(Modifier.width(Space.sm))
                     val rColor = when {
-                        readiness >= 80 -> Color(0xFF34D399)
-                        readiness >= 60 -> Color(0xFFFBBF24)
-                        else -> Color(0xFFFB7185)
+                        readiness >= 80 -> sk.good
+                        readiness >= 60 -> sk.warn
+                        else -> sk.crit
                     }
                     Box(
                         Modifier
@@ -267,15 +266,14 @@ internal fun TeamMemberCard(
             ) {
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    color = sk.brand.copy(alpha = 0.16f),
                     modifier = Modifier.clip(RoundedCornerShape(6.dp)),
                 ) {
                     Text(
                         "Trainer 360 →",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = sk.sky,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp,
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
                     )
                 }
@@ -290,7 +288,6 @@ internal fun TeamMemberCard(
                             style = MaterialTheme.typography.labelSmall,
                             color = sk.crit,
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 10.sp,
                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
                         )
                     }
@@ -304,7 +301,6 @@ internal fun TeamMemberCard(
                             style = MaterialTheme.typography.labelSmall,
                             color = sk.warn,
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 10.sp,
                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
                         )
                     }

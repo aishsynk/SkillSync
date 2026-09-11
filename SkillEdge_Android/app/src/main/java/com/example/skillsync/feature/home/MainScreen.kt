@@ -76,6 +76,7 @@ fun MainScreen(
     onOpenMySchedule: () -> Unit = {},
     onOpenOpportunityGuardian: () -> Unit = {},
     onOpenOpportunities: () -> Unit = {},
+    onOpenOpportunityDetail: (String) -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: MainScreenViewModel = viewModel(),
@@ -475,7 +476,9 @@ fun MainScreen(
                 ) {
                     val dashboard = (state as? DashboardState.Success)?.intelligenceData
                     val coursePeople = buildList {
-                        add("Aishwar (You)" to email)
+                        val myName = profile?.str("name")?.takeIf { it.isNotBlank() }
+                            ?: email.substringBefore("@").replace(".", " ").split(" ").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                        add("$myName (You)" to email)
                         dashboard?.rows("trainer_operations_df").orEmpty().forEach { trainer ->
                             val trainerEmail = trainer.str("trainer_email")
                             if (trainerEmail.isNotBlank() && trainerEmail.lowercase() != email.lowercase()) {
@@ -558,9 +561,7 @@ HomeTab.SEARCH -> UniversalCommandSearch(
                              HomeTab.OPPORTUNITIES -> com.example.skillsync.feature.opportunity.ui.OpportunityListScreen(
                                  managerEmail = email,
                                  onBack = { onTabChange(HomeTab.DASHBOARD) },
-                                 onOpportunityClick = { id -> /* navigate to detail */ },
-                                 onAccept = { id -> /* accept */ },
-                                 onDecline = { id -> /* decline */ },
+                                 onOpportunityClick = onOpenOpportunityDetail,
                              )
                              HomeTab.ACTIONS -> ActionsInbox(
                                 managerEmail = email,

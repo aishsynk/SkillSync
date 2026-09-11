@@ -23,7 +23,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
 import com.example.skillsync.theme.IconSlot
+import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.glassSurface
+import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
 import com.example.skillsync.core.ui.*
 import androidx.compose.material3.Text
@@ -271,7 +273,7 @@ internal fun TeamTab(
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { onOpenWeeklyReport() },
+                            .pressable { onOpenWeeklyReport() },
                         shape = RoundedCornerShape(10.dp),
                         color = sk.brand.copy(alpha = 0.16f),
                         border = androidx.compose.foundation.BorderStroke(1.dp, sk.brand.copy(alpha = 0.45f)),
@@ -289,7 +291,7 @@ internal fun TeamTab(
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { onOpenHrReport() },
+                            .pressable { onOpenHrReport() },
                         shape = RoundedCornerShape(10.dp),
                         color = sk.amber.copy(alpha = 0.14f),
                         border = androidx.compose.foundation.BorderStroke(1.dp, sk.amber.copy(alpha = 0.40f)),
@@ -346,7 +348,16 @@ internal fun TeamTab(
             }
         }
 
-        if (shown.isEmpty()) {
+        if (loading && ops.isEmpty()) {
+            items(4) {
+                ShimmerBox(
+                    height = 120.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radii.card)),
+                )
+            }
+        } else if (shown.isEmpty()) {
             item {
                 EmptyStateCard(
                     if (ops.isEmpty()) "No reportees returned. Check your account permissions."
@@ -590,9 +601,9 @@ private fun FilterButton(activeCount: Int, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(9.dp),
-        color = if (on) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else sk.cardBg,
+        color = if (on) sk.brand.copy(alpha = 0.20f) else sk.cardBg,
         border = androidx.compose.foundation.BorderStroke(
-            1.dp, if (on) MaterialTheme.colorScheme.primary else sk.cardBorder,
+            1.dp, if (on) sk.brand else sk.cardBorder,
         ),
     ) {
         Row(
@@ -601,19 +612,19 @@ private fun FilterButton(activeCount: Int, onClick: () -> Unit) {
         ) {
             Text(
                 "Filters",
-                style = MaterialTheme.typography.labelMedium, fontSize = 11.sp,
-                color = if (on) MaterialTheme.colorScheme.primary else sk.bodyText,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (on) sk.sky else sk.bodyText,
             )
             if (on) {
                 Spacer(Modifier.width(5.dp))
                 Box(
-                    Modifier.size(15.dp).clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.primary),
+                    Modifier.size(16.dp).clip(RoundedCornerShape(8.dp))
+                        .background(sk.brand),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "$activeCount", color = Color.White,
-                        fontSize = 8.5.sp, fontWeight = FontWeight.Bold,
+                        "$activeCount", color = sk.frost,
+                        style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold,
                     )
                 }
             }
@@ -639,7 +650,7 @@ private fun SortMenu(current: TeamSort, onSelect: (TeamSort) -> Unit) {
             ) {
                 Text(
                     "Sort: ${current.label}",
-                    style = MaterialTheme.typography.labelMedium, fontSize = 11.sp, color = sk.bodyText,
+                    style = MaterialTheme.typography.labelMedium, color = sk.bodyText,
                 )
                 Icon(
                     painterResource(R.drawable.ic_chevron), null,
@@ -651,13 +662,13 @@ private fun SortMenu(current: TeamSort, onSelect: (TeamSort) -> Unit) {
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             TeamSort.entries.forEach { s ->
                 DropdownMenuItem(
-                    text = { Text(s.label, fontSize = 13.sp) },
+                    text = { Text(s.label, style = MaterialTheme.typography.bodyMedium) },
                     onClick = { onSelect(s); open = false },
                     trailingIcon = if (s == current) {
                         {
                             Icon(
                                 painterResource(R.drawable.ic_check), null,
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = sk.sky,
                                 modifier = Modifier.size(15.dp),
                             )
                         }
@@ -675,33 +686,35 @@ internal fun SelectChip(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
+    val sk = MaterialTheme.skill
     FilterChip(
         selected = selected,
         onClick = onClick,
         enabled = enabled,
-        label = { Text(label, fontSize = 10.5.sp, maxLines = 1) },
+        label = { Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1) },
         shape = RoundedCornerShape(9.dp),
         colors = FilterChipDefaults.filterChipColors(
-            containerColor = MaterialTheme.skill.cardBg,
-            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
-            selectedLabelColor = MaterialTheme.colorScheme.primary,
-            labelColor = MaterialTheme.skill.bodyText,
+            containerColor = sk.cardBg,
+            selectedContainerColor = sk.brand.copy(alpha = 0.20f),
+            selectedLabelColor = sk.sky,
+            labelColor = sk.bodyText,
         ),
         border = FilterChipDefaults.filterChipBorder(
             enabled = enabled,
             selected = selected,
-            borderColor = MaterialTheme.skill.cardBorder,
-            selectedBorderColor = MaterialTheme.colorScheme.primary,
+            borderColor = sk.cardBorder,
+            selectedBorderColor = sk.brand,
         ),
     )
 }
 
 @Composable
 private fun DismissChip(label: String, onClear: () -> Unit) {
+    val sk = MaterialTheme.skill
     Surface(
         onClick = onClear,
         shape = RoundedCornerShape(9.dp),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f),
+        color = sk.brand.copy(alpha = 0.16f),
     ) {
         Row(
             Modifier.padding(start = 9.dp, end = 7.dp, top = 5.dp, bottom = 5.dp),
@@ -710,10 +723,10 @@ private fun DismissChip(label: String, onClear: () -> Unit) {
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary, maxLines = 1,
+                color = sk.sky, maxLines = 1,
             )
             Spacer(Modifier.width(5.dp))
-            Text("✕", fontSize = 9.sp, color = MaterialTheme.colorScheme.primary)
+            Text("✕", style = MaterialTheme.typography.labelSmall, color = sk.sky)
         }
     }
 }
@@ -856,7 +869,6 @@ internal fun ExecutiveMiniMetric(
                 label,
                 style = MaterialTheme.typography.labelSmall,
                 color = sk.subText,
-                fontSize = 9.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 0.5.sp,
             )

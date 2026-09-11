@@ -9,11 +9,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.theme.AuroraBackground
+import com.example.skillsync.theme.skill
 import androidx.compose.ui.Modifier
 import com.example.skillsync.R
 import androidx.compose.material3.Text
@@ -53,13 +55,20 @@ fun CapabilityGraphScreen(
                 )
             },
         ) { padding ->
+            val sk = MaterialTheme.skill
+            val displayName = remember(managerEmail) {
+                managerEmail.substringBefore("@").replace(".", " ").split(" ")
+                    .filter { it.isNotBlank() }
+                    .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+                    .ifBlank { "Capability Graph" }
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item {
-                    Text("Aishwar", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text(displayName, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = sk.frost)
                 }
                 item {
                     Card(
