@@ -14,10 +14,11 @@ import retrofit2.HttpException
 private const val DOMAIN = "@koenig-solutions.com"
 
 /**
- * Sign-in is always two steps. Step one (`ID`) validates the email and returns
- * the role. Privileged roles (manager / assistant manager / trainer+) then land
- * on `CONFIRM` — a bare Sign-in button. A reportee lands on `PASSWORD`, and on
- * `SET_PASSWORD` the first time (their bootstrap employee code must be replaced).
+ * Sign-in is two steps. Step one (`ID`) validates the email and returns the
+ * role. Every privileged account (manager / assistant manager / trainer+)
+ * then lands on `PASSWORD` — first time using their RMS employee code as the
+ * bootstrap password — and on `SET_PASSWORD` to replace it (must_change).
+ * `CONFIRM` remains as a fallback only for a hypothetical password-less role.
  */
 enum class LoginStep { ID, CONFIRM, PASSWORD, SET_PASSWORD }
 
@@ -95,7 +96,7 @@ class LoginViewModel : ViewModel() {
                         _step.value = LoginStep.PASSWORD
                         _loginState.value = LoginState.Idle
                     } else {
-                        // Sign-in is by work ID alone — no password wall.
+                        // Fallback for a hypothetical password-less role.
                         authenticate(id, null)
                     }
                 } else {

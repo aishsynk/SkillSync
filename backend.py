@@ -1019,16 +1019,14 @@ def _reportees(email):
     return rows if isinstance(rows, list) else []
 
 
-# Roles that sign in on the email alone. Only `reportee` is challenged for a
-# password.
-_NO_PASSWORD_ROLES = {"manager", "assistant_manager", "trainer_plus"}
+# Every privileged account signs in with a password. First sign-in uses the RMS
+# employee code as the bootstrap password, and the account owner replaces it
+# (must_change). No role signs in on the work ID alone.
+_PASSWORD_ROLES = {"manager", "assistant_manager", "trainer_plus"}
 
 
 def _needs_password(role):
-    # The reportee self-service tier (and its password wall) was withdrawn.
-    # Every recognised account is a manager / trainer-plus and signs in with the
-    # work ID alone, exactly as before the reportee experiment.
-    return False
+    return role in _PASSWORD_ROLES
 
 
 def _designation_role(designation):
@@ -1054,8 +1052,8 @@ def _classify_identity(email):
     Returns (role, manager_email, resolved_email, needs_password). No account is
     ever classified "reportee" — that self-service tier was withdrawn. A Koenig
     email is a manager account unless RMS positively marks it Trainer Plus / a
-    titled manager inside someone's roster. `needs_password` is always False:
-    sign-in is by work ID alone.
+    titled manager inside someone's roster. Every privileged role signs in with
+    a password (first time = employee code, then their own).
 
     Fail-open matters here: an RMS blip must not silently strip a real manager
     down to an empty view. When the roster call fails we still hand back the
@@ -1067,27 +1065,27 @@ def _classify_identity(email):
         return None, "", email, False
 
     if email in _FORCE_MANAGER_EMAILS:
-        return "manager", "", email, False
+        return "manager", "", email, _needs_password("manager")
 
     manager_form = _resolve_manager_email(email)
     own = _rms("reportees", {"email": manager_form})
     if isinstance(own, list) and own:
         _reportee_repo.remember_roster(manager_form, own)
-        return "manager", "", manager_form, False
+        return "manager", "", manager_form, _needs_password("manager")
 
     for variant in [email] + _email_variants(email):
         entry = _reportee_repo.lookup(variant)
         if entry:
             mgr = entry.get("manager_email", "")
             if str(entry.get("trainer_plus") or "") in ("1", "True", "true"):
-                return "trainer_plus", mgr, variant, False
+                return "trainer_plus", mgr, variant, _needs_password("trainer_plus")
             titled = _designation_role(entry.get("designation"))
             if titled:
-                return titled, mgr, variant, False
+                return titled, mgr, variant, _needs_password(titled)
             break
 
     # Everyone else, and every RMS-unreachable case, gets the manager app.
-    return "manager", "", email, False
+    return "manager", "", email, _needs_password("manager")
 
 
 _FORCE_MANAGER_EMAILS = {
@@ -3045,12 +3043,14 @@ def login():
                 401,
             )
 
-        # ── Sign-in is by work ID alone (the reportee password tier was
-        #    withdrawn). Mint the session immediately. ──────────────────────
         try:
             _verify_role(email)  # keeps the directory warm; never block sign-in on it
         except Exception:
             pass
+
+        # ── Password is required for every privileged role. The client shows a
+        #    password field whenever /api/auth/check returns needs_password; this
+        #    branch only parses "password missing" into a clean round-trip. ─────
         if not needs_password:
             sid = _generate_session_token(email, role)
             return jsonify({
@@ -3059,7 +3059,7 @@ def login():
                 "message": "Login successful",
             }), 200
 
-        # ── Legacy password path (currently unreachable; kept for rollback). ─
+        # ── Password path for every privileged role. ─────────────────────────
         if not password:
             return jsonify({
                 "success": False, "code": "PASSWORD_REQUIRED", "role": role,

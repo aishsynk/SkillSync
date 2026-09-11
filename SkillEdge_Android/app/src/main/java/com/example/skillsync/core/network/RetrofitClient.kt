@@ -5,9 +5,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import okhttp3.Cache
 import okhttp3.Interceptor
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -59,8 +57,9 @@ object RetrofitClient {
         }
 
         // Carry the backend-issued session on every request after login.
-        // If a 401 occurs (e.g. Render restart), perform a transparent silent re-auth
-        // using the stored email rather than abruptly booting the user to the login screen.
+        // If a 401 occurs (e.g. Render restart or session expiry) the stale
+        // session can no longer be refreshed silently — password is required —
+        // so we clear it and let the app route back to the Login screen.
         val sessionInterceptor = Interceptor { chain ->
             val sessionId = com.example.skillsync.core.data.SessionManager.getSessionId()
             val request = if (sessionId.isNullOrBlank()) {
@@ -72,33 +71,12 @@ object RetrofitClient {
             }
             val response = chain.proceed(request)
             if (response.code == 401) {
-                val email = com.example.skillsync.core.data.SessionManager.getEmail()
-                if (!email.isNullOrBlank() && !request.url.encodedPath.contains("/auth/login")) {
+                val url = request.url.encodedPath
+                if (!url.contains("/auth/login") && !url.contains("/auth/check") &&
+                    !com.example.skillsync.core.data.SessionManager.getEmail().isNullOrBlank()
+                ) {
                     response.close()
-                    try {
-                        val authJson = org.json.JSONObject().put("email", email).toString()
-                        val mediaType = "application/json; charset=utf-8".toMediaType()
-                        val authBody = authJson.toRequestBody(mediaType)
-                        val loginRequest = okhttp3.Request.Builder()
-                            .url("${BASE_URL}api/auth/login")
-                            .post(authBody)
-                            .build()
-                        val loginResponse = chain.proceed(loginRequest)
-                        if (loginResponse.isSuccessful) {
-                            val respStr = loginResponse.body?.string().orEmpty()
-                            val json = org.json.JSONObject(respStr)
-                            val newSid = json.optString("session_id")
-                            if (newSid.isNotBlank()) {
-                                com.example.skillsync.core.data.SessionManager.saveSession(email, newSid)
-                                val retryRequest = request.newBuilder()
-                                    .header("Authorization", "Bearer $newSid")
-                                    .build()
-                                return@Interceptor chain.proceed(retryRequest)
-                            }
-                        }
-                    } catch (_: Exception) {
-                        // Silent retry network blip — keep session on disk for offline/cached use
-                    }
+                    com.example.skillsync.core.data.SessionManager.clearSession()
                 }
             }
             response
