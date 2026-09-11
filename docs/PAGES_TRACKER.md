@@ -11,7 +11,7 @@ Status legend: **PENDING** → **IN PROGRESS** → **DONE** (tokens + states + g
 | # | Screen | File | Audit flags | Status |
 |---|---|---|---|---|
 | 1 | Login | `feature/auth/ui/LoginScreen.kt` | none | PENDING |
-| 2 | Today / Manager Brief | `feature/home/ManagerCommandCentre.kt` (+`DashboardSections.kt`) | 69 raw hex; 9sp badges; 12 duplicate ExecDeck tiles | **DONE** (tokens + DeckTile + 9sp→labelSmall; gates green) |
+| 2 | Today / Manager Brief | `feature/home/ManagerCommandCentre.kt` (+`DashboardSections.kt`) | 69 raw hex; 9sp badges; 12 duplicate ExecDeck tiles | **DONE** (tokens + DeckTile + 9sp→labelSmall; **V2 modernisation**: AnimatedCount on Pulse/hero/badge, press feedback unify, shimmer loading; gates green) |
 | 3 | People & Capability | `feature/home/TeamTab.kt`, `TeamMemberCard.kt`, `TeamCalendarScreen.kt` | hex/emoji; 9sp; KPI dup with Home | PENDING |
 | 4 | Demand & Planning | `feature/training/ui/AllocationDeskScreen.kt` | raw field labels | PENDING |
 | 5 | Capability Marketplace | `feature/home/CoursesTab.kt` + curriculum sheet | emoji; jargon | PENDING |

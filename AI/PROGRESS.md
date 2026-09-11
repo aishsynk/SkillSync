@@ -1,3 +1,17 @@
+## 2026-09-11 - Today page corporate modernisation tranche 1 SHIPPED (animated KPI figuration, press-feedback unify, shimmer loading) - all 5 gates green
+
+- **Model**: big-pickle (opencode) **Tool**: OpenCode
+- **Directive**: Modernise the Today page to a corporate-standard look & feel using awesome-android-ui *patterns* only — native Compose, **no new Gradle dependencies**; user confirmed "Patterns + native, no new deps". This is the first page of the approved per-page modernisation run (PAGES_TRACKER order).
+- **Scope** (all inside `feature/home/ManagerCommandCentre.kt`, presentation-only; no data/behaviour change — nothing here invents a number, every value still comes from the payload): 
+  1. **Animated KPI figuration**: new private `AnimatedFigure` helper (built on the existing core UI `AnimatedCount`; counts to value on first composition, `%` unit-aware, non-numeric dash/content falls back to plain Text). Applied to the Pulse tile figures (Strength/Utilisation/Cert coverage/At risk), the BriefingHero readiness reading, and the This Week "needs you" badge — the flagship numbers now *land* instead of blinking in (the pattern behind most KPI-animation libs in the awesome-android-ui corpus, done with the app's own sanctioned motion primitive).
+  2. **Press-feedback unify**: the three elements that still used bare `Modifier.clickable` (DeckTile bento tiles, ThisWeekCard, DeliveryPulseGlance) now use the DesignSystem `pressable` modifier (0.98 press scale) — the last visual inconsistency that made parts of the page read as a different product. (Hero avatar/bell keep `.clickable` — icon chrome, sized 38–42dp.)
+  3. **Loading language**: `CertificationBand` loading state swapped from the raw `LinearProgressIndicator` to the branded `ShimmerBox` skeleton so loading uses the same motion vocabulary as the rest of the app.
+- **Gates (all green)**: `:app:compileDebugKotlin` 0 · `:app:compileDebugAndroidTestKotlin` PASS · `:app:testDebugUnitTest` PASS (baseline 195, none removed) · `:app:assembleDebug` PASS · `:app:lintDebug` PASS (lint report written). No version bump (binding rule; 3.80.1/176 unchanged).
+- **Docs**: `docs/PAGES_TRACKER.md` row 2 Today = **DONE** with V2-modernisation note. `AI/CONTEXT.md` and `AI/DECISIONS.md` unchanged (no new durable fact).
+- **Status**: Today page modernisation tranche 1 COMMITTED + PUSHED (CI + Render auto-deploy not triggered — Android-only change). 
+- **Known leftovers / next tranches for Today (uncommitted queue)**: Executive deck bento rhythm/elevation refinement, hero glow/edge accent polish, section entrance stagger (scoped; likely in a later page sweep), 12-tile deck remains tile-for-tile.
+- **Next recommended actions**: (1) await user's call on Today tranche 1 (install/assess on device) before further visual passes; (2) then the **message-sharing manager-POV prompt enforcement** on every share/send surface (WeeklyReportScreen, HrMonthlyReportScreen, batch share/allocation, Viber automation, OpportunityGuardian, CommunicationService/message compose) per the confirmed directive: "any and every where the message is been shared/sent must follow the prompt as a manager point of view to the recipient"; (3) then next page per PAGES_TRACKER (row 3 People & Capability — TeamTab/TeamMemberCard/TeamCalendarScreen). `Qubits/qubitcourses.xlsx` still locally modified and deliberately uncommitted.
+
 ## 2026-09-11 - Password gate restored for manager/trainer+ sign-in + republished v3.80.1.176 (release digest changed)
 
 - **Model**: big-pickle (opencode) **Tool**: OpenCode

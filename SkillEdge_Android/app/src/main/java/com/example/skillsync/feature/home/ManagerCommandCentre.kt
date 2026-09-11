@@ -369,6 +369,30 @@ fun ManagerCommandCentre(
 private fun plural(n: Int, one: String, many: String) = if (n == 1) one else many
 
 /**
+ * A figure that counts to its value on first composition instead of snapping.
+ * A trailing "%" keeps the animated number unit-aware; non-numeric values
+ * (dashes, uncounted states) render as plain text. Built on [AnimatedCount],
+ * the one sanctioned way the page animates a number.
+ */
+@Composable
+private fun AnimatedFigure(
+    value: String,
+    style: androidx.compose.ui.text.TextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    val trimmed = value.removeSuffix("%")
+    val target = trimmed.toIntOrNull()
+    if (target != null && trimmed != value) {
+        AnimatedCount(target = target, style = style, color = color, modifier = modifier, suffix = "%")
+    } else if (target != null) {
+        AnimatedCount(target = target, style = style, color = color, modifier = modifier)
+    } else {
+        Text(value, style = style, color = color, maxLines = 1, modifier = modifier)
+    }
+}
+
+/**
  * A single Executive-Command-Deck tile. Fill, hairline, icon bed and icon tint all
  * derive from one [tint] token, so the bento carries no literal colours.
  */
@@ -383,7 +407,7 @@ private fun DeckTile(
     onClick: () -> Unit,
 ) {
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier.pressable(onClick = onClick),
         shape = RoundedCornerShape(Radii.kpi),
         color = tint.copy(alpha = 0.16f),
         border = androidx.compose.foundation.BorderStroke(1.dp, tint.copy(alpha = 0.4f)),
@@ -420,7 +444,7 @@ private fun ThisWeekCard(email: String, onOpen: () -> Unit) {
         com.example.skillsync.feature.report.ui.PrioritiesViewModel.cachedOpenCount(email)
     }
     Surface(
-        modifier = Modifier.fillMaxWidth().clickable { onOpen() },
+        modifier = Modifier.fillMaxWidth().pressable { onOpen() },
         shape = RoundedCornerShape(Radii.card),
         color = sk.royal.copy(alpha = 0.16f),
         border = androidx.compose.foundation.BorderStroke(1.dp, sk.sky.copy(alpha = 0.4f)),
@@ -455,7 +479,11 @@ private fun ThisWeekCard(email: String, onOpen: () -> Unit) {
                     Modifier.clip(RoundedCornerShape(10.dp)).background(sk.sky)
                         .padding(horizontal = 9.dp, vertical = 3.dp),
                 ) {
-                    Text("$openCount", color = sk.pageBg, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    AnimatedCount(
+                        target = openCount,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = sk.pageBg,
+                    )
                 }
             }
         }
@@ -585,7 +613,7 @@ private fun BriefingHero(
                     ),
                     color = MaterialTheme.colorScheme.tertiary
                 )
-                Text(
+                AnimatedFigure(
                     readiness?.let { "$it%" } ?: "—",
                     style = MaterialTheme.typography.displayLarge.copy(
                         fontFeatureSettings = "tnum",
@@ -866,7 +894,7 @@ private fun PulseTile(item: PulseTileData, modifier: Modifier, onDrill: (Drill) 
             )
         }
         Spacer(Modifier.height(Space.xs))
-        Text(
+        AnimatedFigure(
             item.value,
             style = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = "tnum"),
             color = item.tint,
@@ -1140,7 +1168,7 @@ private fun CertificationBand(coverage: Int?, gaps: Int, loading: Boolean) {
     SkillCard(Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             if (loading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = sk.brand, trackColor = sk.track)
+                ShimmerBox(width = null, height = 6.dp, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(3.dp))
             } else {
                 Row(
                     Modifier.fillMaxWidth(),
@@ -1441,7 +1469,7 @@ private fun DeliveryPulseGlance(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onOpenDelivery() },
+            .pressable { onOpenDelivery() },
         shape = RoundedCornerShape(16.dp),
         color = sk.cardBg,
         border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
