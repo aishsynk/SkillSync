@@ -1,3 +1,33 @@
+## 2026-09-11 - Row 4 Demand & Planning (AllocationDeskScreen.kt) operational redesign SHIPPED - all 5 Android gates green + pytest 322 pass
+
+- **Model**: inherit (Antigravity) **Tool**: Antigravity
+- **Directive**: Row 4 Demand & Planning transformation on `AllocationDeskScreen.kt`. Redesign as a polished operational planning workspace, streamline information hierarchy, eliminate visual noise, remove dead code, enforce design tokens, and verify all 5 Android gates + backend pytest.
+- **Files Modified**:
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/training/ui/AllocationDeskScreen.kt`
+  - `docs/PAGES_TRACKER.md`
+  - `AI/PROGRESS.md`
+- **Work Completed**:
+  - **100% Token Pure**: Retired all raw `Color.White` usages (lines 726, 736) in badges, mapped to `sk.frost`/`sk.bodyText`/`sk.labelText`. Zero raw hex or bare colors remain in the file.
+  - **Typography & Font Overrides**: Eliminated `fontSize = 10.sp` sub-11sp override on the live radar indicator (now aligned to standard `labelSmall`).
+  - **Emoji Removal**: Replaced decorative emojis with clean enterprise text/glyphs: `⚡ Fast-track` $\rightarrow$ `Fast-track`, `⭐ Client requested` $\rightarrow$ `Client requested`, `Search Wider Trainer Network 🌐` $\rightarrow$ `Search Wider Trainer Network`.
+  - **Tactile Interaction**: Integrated DesignSystem `.pressable` modifier on `BatchCard` and `ActiveFilterChip` for unified touch feedback.
+  - **Empty State Modernization**: Replaced bare text box with branded `Surface` empty card featuring check icon, card border, and actionable text (`"No unallocated batches right now."` / `"No batches match this filter."`).
+  - **Dead Code Cleanup (-259 lines net)**: Safely pruned unreferenced composables and helpers: `globalPrioritySection`, `GlobalPriorityHeader`, `modeSection`, `ModeSectionHeader`, `GlobalPriorityRibbon`, `SectionHeader`, `animateFloatAsStateCompat`, and unused mode filter lists.
+  - **Test Assertions Intact**: All test strings asserted by `ScreenRenderTest.kt` (`"INTERNATIONAL FMAT"`, `"London, United Kingdom"`, `"Travel readiness not checked"`, `"LOW MATCH · MANAGER REVIEW REQUIRED"`, `"34%"`, `"EIGHT WEEK OUTLOOK"`, `"1 week is over capacity."`, `"67%"`, `"Availability verified for 75 percent of candidates; the rest are unconfirmed."`, `"Unknown evidence is never treated as free capacity."`) preserved and passing.
+- **Gates (All Green)**:
+  - `:app:compileDebugKotlin` — BUILD SUCCESSFUL (0 errors)
+  - `:app:testDebugUnitTest` — BUILD SUCCESSFUL (all unit tests passing)
+  - `:app:compileDebugAndroidTestKotlin` — BUILD SUCCESSFUL
+  - `:app:assembleDebug` — BUILD SUCCESSFUL (debug APK packaged)
+  - `:app:lintDebug` — BUILD SUCCESSFUL (lint report generated)
+  - Backend pytest: 322 passed, 0 failed
+- **Governance & Versioning**:
+  - Version 3.80.1 / Build 176 unchanged.
+  - `Qubits/qubitcourses.xlsx` unstaged and excluded.
+  - No new Gradle dependencies.
+- **Current Status**: Complete, verified, and ready for review.
+- **Next Recommended Target**: Row 5 — Capability Marketplace (`feature/home/CoursesTab.kt` + `CourseCurriculumSheet.kt`).
+
 ## 2026-09-11 - Parallel Modernization Tranche SHIPPED: Row 3 People & Capability, Dashboard Dead Code Sweep, Opportunity Cluster Wired, Message-Sharing Manager-POV - All 5 Android Gates + Pytest 322 Green
 
 - **Model**: inherit (Antigravity) **Tool**: Antigravity

@@ -42,6 +42,7 @@ import com.example.skillsync.feature.home.TeamTab
 import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.Radii
+import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.heroSurface
@@ -166,16 +167,6 @@ internal fun AllocationDeskContent(
             it.bool("is_international") && it.str("delivery_mode_kind") in listOf("FMAT", "ILT")
         }
     }
-    val fmatBatches = remember(filtered, globalBatches) {
-        filtered.filter { it.str("delivery_mode_kind") == "FMAT" && it !in globalBatches }
-    }
-    val iltBatches = remember(filtered, globalBatches) {
-        filtered.filter { it.str("delivery_mode_kind") == "ILT" && it !in globalBatches }
-    }
-    val iloBatches = remember(filtered) { filtered.filter { it.str("delivery_mode_kind") == "ILO" } }
-    val otherModeBatches = remember(filtered) {
-        filtered.filter { it.str("delivery_mode_kind") !in listOf("FMAT", "ILT", "ILO") }
-    }
     val orderedBatches = remember(filtered) {
         filtered.withIndex().sortedWith(
             compareBy<IndexedValue<Map<*, *>>> {
@@ -269,8 +260,8 @@ internal fun AllocationDeskContent(
                             SelectChip("Need trainers", selectedLens == "Need trainers") { selectedLens = "Need trainers" }
                             SelectChip("Priority", selectedLens == "Priority") { selectedLens = "Priority" }
                             SelectChip("At risk", selectedLens == "At risk") { selectedLens = "At risk" }
-                            SelectChip("⚡ Fast-track", selectedLens == "Fast-track") { selectedLens = "Fast-track" }
-                            SelectChip("⭐ Client requested", selectedLens == "Client requested") { selectedLens = "Client requested" }
+                            SelectChip("Fast-track", selectedLens == "Fast-track") { selectedLens = "Fast-track" }
+                            SelectChip("Client requested", selectedLens == "Client requested") { selectedLens = "Client requested" }
                         }
                         Spacer(Modifier.height(24.dp))
                         Row(
@@ -298,7 +289,7 @@ internal fun AllocationDeskContent(
                                 )
                                 Text(
                                     "LIVE RADAR (20s)",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                     color = sk.aqua,
                                 )
                             }
@@ -353,12 +344,29 @@ internal fun AllocationDeskContent(
 
         if (filtered.isEmpty()) {
             item {
-                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Text(
-                        if (batches.isEmpty()) "No unallocated batches right now."
-                        else "No batches match this filter.",
-                        style = MaterialTheme.typography.bodySmall, color = sk.subText,
-                    )
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                    color = sk.cardBg,
+                    shape = RoundedCornerShape(Radii.card),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+                ) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_check), null,
+                            tint = sk.sky, modifier = Modifier.size(28.dp),
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            if (batches.isEmpty()) "No unallocated batches right now."
+                            else "No batches match this filter.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = sk.subText,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                    }
                 }
             }
         }
@@ -530,7 +538,7 @@ private fun ActiveFilterChip(label: String, onRemove: () -> Unit) {
     Surface(
         color = sk.teal.copy(alpha = 0.14f),
         shape = RoundedCornerShape(20.dp),
-        modifier = Modifier.clickable(onClick = onRemove),
+        modifier = Modifier.pressable(onClick = onRemove),
     ) {
         Row(
             Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -542,46 +550,6 @@ private fun ActiveFilterChip(label: String, onRemove: () -> Unit) {
         }
     }
 }
-
-// ── Section header ───────────────────────────────────────────────────────────
-
-@Composable
-private fun SectionHeader(title: String, count: Int, tint: Color, expanded: Boolean, onToggle: () -> Unit) {
-    val sk = MaterialTheme.skill
-    val rotation by animateFloatAsStateCompat(if (expanded) 90f else 0f)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(tint.copy(alpha = 0.11f))
-            .border(1.dp, tint.copy(alpha = 0.28f), RoundedCornerShape(14.dp))
-            .clickable(onClick = onToggle)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.width(4.dp).height(18.dp).clip(RoundedCornerShape(2.dp)).background(tint))
-        Spacer(Modifier.width(8.dp))
-        Text(
-            title, style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold, color = sk.bodyText, modifier = Modifier.weight(1f),
-        )
-        Surface(color = tint.copy(alpha = 0.14f), shape = RoundedCornerShape(10.dp)) {
-            Text(
-                "$count", style = MaterialTheme.typography.labelSmall, color = tint,
-                fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-            )
-        }
-        Spacer(Modifier.width(6.dp))
-        Icon(
-            painterResource(R.drawable.ic_chevron), null, tint = sk.subText,
-            modifier = Modifier.size(14.dp).rotate(rotation),
-        )
-    }
-}
-
-@Composable
-private fun animateFloatAsStateCompat(target: Float) =
-    androidx.compose.animation.core.animateFloatAsState(target, tween(Motion.FAST), label = "chevron")
 
 @Composable
 private fun NewBatchBanner(count: Int) {
@@ -672,7 +640,7 @@ internal fun BatchCard(
                     1.5.dp, sk.crit.copy(alpha = 0.72f), RoundedCornerShape(Radii.card)
                 ) else Modifier
             )
-            .clickable(onClick = onClick),
+            .pressable(onClick = onClick),
     ) {
       Column {
         // Full-bleed ribbon: an international batch is a different class of
@@ -723,7 +691,7 @@ internal fun BatchCard(
                                 Surface(color = sk.blue, shape = RoundedCornerShape(4.dp)) {
                                     Text(
                                         "NEW", style = MaterialTheme.typography.labelSmall,
-                                        color = Color.White,
+                                        color = sk.frost,
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
                                     )
                                 }
@@ -733,7 +701,7 @@ internal fun BatchCard(
                                 Surface(color = sk.teal, shape = RoundedCornerShape(4.dp)) {
                                     Text(
                                         "★ PRIORITY", style = MaterialTheme.typography.labelSmall,
-                                        color = Color.White, fontWeight = FontWeight.Bold,
+                                        color = sk.frost, fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
                                     )
                                 }
@@ -991,7 +959,7 @@ internal fun BatchCard(
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                     ) {
-                        Text("Search Wider Trainer Network 🌐", style = MaterialTheme.typography.labelSmall, color = sk.cyan)
+                        Text("Search Wider Trainer Network", style = MaterialTheme.typography.labelSmall, color = sk.cyan)
                     }
                 }
             }
@@ -1128,40 +1096,7 @@ private fun CapacityPlanningCard(
     }
 }
 
-@Composable
-private fun GlobalPriorityRibbon(batch: Map<*, *>) {
-    val sk = MaterialTheme.skill
-    Row(
-        Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(
-                androidx.compose.ui.graphics.Brush.horizontalGradient(
-                    listOf(sk.indigo.copy(alpha = 0.42f), sk.sky.copy(alpha = 0.24f))
-                )
-            )
-            .border(1.dp, sk.sky.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 10.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(painterResource(R.drawable.ic_flag), null, tint = sk.aqua, modifier = Modifier.size(15.dp))
-        Spacer(Modifier.width(7.dp))
-        Text(
-            "GLOBAL PRIORITY",
-            style = MaterialTheme.typography.labelSmall,
-            color = sk.frost, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f),
-        )
-        Surface(color = sk.aqua.copy(alpha = 0.18f), shape = RoundedCornerShape(6.dp)) {
-            Row(Modifier.padding(horizontal = 7.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(R.drawable.ic_globe), null, tint = sk.aqua, modifier = Modifier.size(11.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    if (batch.str("delivery_mode_kind") == "FMAT") "TRAVEL REQUIRED" else "INTERNATIONAL DELIVERY",
-                    color = sk.aqua, fontWeight = FontWeight.Bold,
-                )
-            }
-        }
-    }
-}
+
 
 @Composable
 private fun InternationalBadge() {
@@ -1253,197 +1188,3 @@ private fun InternationalOpportunityBanner(batch: Map<*, *>) {
 }
 
 
-private fun LazyListScope.globalPrioritySection(
-    batches: List<Map<*, *>>,
-    newIds: Set<String>,
-    onGlobalSearch: (String) -> Unit,
-    onBatchClick: (Map<*, *>) -> Unit,
-) {
-    if (batches.isEmpty()) return
-
-    item(key = "global_priority_header") {
-        GlobalPriorityHeader(batches)
-    }
-    itemsIndexed(batches, key = { _, b -> "global_" + b.str("demand_id") }) { i, batch ->
-        Appear(i) {
-            BatchCard(
-                b = batch,
-                isNew = batch.str("demand_id") in newIds,
-                isPriority = true,
-                globalFeatured = true,
-                modeTint = MaterialTheme.skill.sky,
-            ) { onBatchClick(batch) }
-        }
-    }
-    item(key = "global_priority_divider") {
-        Row(Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.skill.cardBorder)
-            Text(
-                "ALL OTHER DEMAND",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.skill.labelText, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 9.dp),
-            )
-            HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.skill.cardBorder)
-        }
-    }
-}
-
-@Composable
-private fun GlobalPriorityHeader(batches: List<Map<*, *>>) {
-    val sk = MaterialTheme.skill
-    val transition = rememberInfiniteTransition(label = "globalPriorityHeader")
-    val rotation by transition.animateFloat(
-        initialValue = -7f, targetValue = 7f,
-        animationSpec = infiniteRepeatable(tween(1300, easing = LinearEasing)),
-        label = "globalPriorityHeaderGlobe",
-    )
-    Box(Modifier.fillMaxWidth().heroSurface(RoundedCornerShape(16.dp))) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = Color.White.copy(alpha = 0.13f), shape = RoundedCornerShape(12.dp)) {
-                Icon(
-                    painterResource(R.drawable.ic_globe), "Global priority opportunities",
-                    tint = sk.aqua, modifier = Modifier.padding(9.dp).size(25.dp).rotate(rotation),
-                )
-            }
-            Spacer(Modifier.width(11.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    "GLOBAL PRIORITY DESK",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = Color.White, fontWeight = FontWeight.ExtraBold,
-                )
-                Text(
-                    "International FMAT & ILT · travel, visa and allocation decisions first",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.76f),
-                    maxLines = 2,
-                )
-            }
-            Surface(color = sk.aqua, shape = RoundedCornerShape(12.dp)) {
-                Text(
-                    "${batches.size}", color = Color(0xFF071523),
-                    fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
-                )
-            }
-        }
-    }
-}
-
-/**
- * One delivery-mode band on the demand board.
- *
- * A `LazyListScope` extension rather than a composable so each batch stays its
- * own lazy item — wrapping a whole mode in a single item would compose every
- * card in it at once and lose recycling on a long board.
- */
-private fun LazyListScope.modeSection(
-    batches: List<Map<*, *>>,
-    title: String,
-    subtitle: String,
-    tint: Color,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    keyPrefix: String,
-    newIds: Set<String>,
-    isPriority: Boolean,
-    onGlobalSearch: (String) -> Unit,
-    onBatchClick: (Map<*, *>) -> Unit,
-) {
-    if (batches.isEmpty()) return
-
-    item(key = keyPrefix + "header") {
-        Spacer(Modifier.height(4.dp))
-        ModeSectionHeader(
-            title = title,
-            subtitle = subtitle,
-            count = batches.size,
-            internationalCount = batches.count { it.bool("is_international") },
-            tint = tint,
-            expanded = expanded,
-            onToggle = onToggle,
-        )
-    }
-    if (expanded) {
-        itemsIndexed(batches, key = { _, b -> keyPrefix + b.str("demand_id") }) { i, b ->
-            Appear(i) {
-                BatchCard(
-                    b,
-                    isNew = b.str("demand_id") in newIds,
-                    isPriority = isPriority,
-                    modeTint = tint,
-                ) { onBatchClick(b) }
-            }
-        }
-    }
-}
-
-/** Mode band header: what the mode is, how many, and how many are abroad. */
-@Composable
-private fun ModeSectionHeader(
-    title: String,
-    subtitle: String,
-    count: Int,
-    internationalCount: Int,
-    tint: Color,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-) {
-    val sk = MaterialTheme.skill
-    val rotation by animateFloatAsStateCompat(if (expanded) 90f else 0f)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onToggle)
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.width(5.dp).height(34.dp).clip(RoundedCornerShape(3.dp)).background(tint))
-        Spacer(Modifier.width(9.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = sk.frost,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = sk.labelText,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (internationalCount > 0) {
-            Surface(color = sk.indigo.copy(alpha = 0.18f), shape = RoundedCornerShape(10.dp)) {
-                Text(
-                    "$internationalCount abroad",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.indigo,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-                )
-            }
-            Spacer(Modifier.width(6.dp))
-        }
-        Surface(color = tint.copy(alpha = 0.16f), shape = RoundedCornerShape(10.dp)) {
-            Text(
-                "$count",
-                style = MaterialTheme.typography.labelSmall,
-                color = tint,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-            )
-        }
-        Spacer(Modifier.width(6.dp))
-        Icon(
-            painterResource(R.drawable.ic_chevron), null, tint = sk.subText,
-            modifier = Modifier.size(14.dp).rotate(rotation),
-        )
-    }
-}
