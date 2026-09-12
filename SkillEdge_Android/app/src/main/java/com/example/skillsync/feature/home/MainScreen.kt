@@ -389,6 +389,34 @@ fun MainScreen(
                                 )
                             }
                         }
+                        // Notification Center Bell
+                        IconButton(onClick = { showNotificationsSheet = true }) {
+                            Box(
+                                Modifier
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.skill.frost.copy(alpha = 0.08f))
+                                    .border(1.dp, MaterialTheme.skill.frost.copy(alpha = 0.16f), RoundedCornerShape(10.dp)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    painterResource(R.drawable.ic_alert),
+                                    contentDescription = "Notifications",
+                                    tint = if (notificationEvents.isNotEmpty()) MaterialTheme.skill.sky else MaterialTheme.skill.subText,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                if (notificationEvents.isNotEmpty()) {
+                                    Box(
+                                        Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(3.dp)
+                                            .size(7.dp)
+                                            .clip(androidx.compose.foundation.shape.CircleShape)
+                                            .background(MaterialTheme.skill.crit)
+                                    )
+                                }
+                            }
+                        }
                         IconButton(onClick = { showLogoutConfirm = true }) {
                             Box(contentAlignment = Alignment.BottomEnd) {
                                 Surface(
@@ -783,7 +811,7 @@ fun AppNavBar(
                 Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .height(60.dp),
+                    .height(62.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -812,7 +840,7 @@ fun AppNavBar(
                     ) {
                         Box(
                             Modifier
-                                .size(width = 44.dp, height = 30.dp)
+                                .size(width = 46.dp, height = 30.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
                                     if (selected) Brush.horizontalGradient(
@@ -841,10 +869,10 @@ fun AppNavBar(
                         Spacer(Modifier.height(3.dp))
                         Text(
                             label,
-                            fontSize = 10.sp,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                             color = tint,
                             maxLines = 1,
-                            letterSpacing = 0.03.em,
+                            letterSpacing = 0.02.em,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                         )
                     }

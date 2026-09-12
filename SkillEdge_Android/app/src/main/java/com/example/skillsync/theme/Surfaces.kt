@@ -51,50 +51,50 @@ object Space {
 }
 
 /**
- * The aurora ground the whole app sits on: the mandated
- * #0F2027 → #203A43 → #2C5364 mesh, with a royal bloom top-left and a cyan
- * bloom top-right. Drawn once behind the scaffold, never per-card.
+ * The atmospheric ground: deep enterprise slate (#0B0F19 → #111827) with a quiet,
+ * restrained brand bloom top-left and subtle cyan sheen top-right. Drawn behind
+ * the root scaffold to provide depth without muddying contrast or competing with data.
  */
 @Composable
 fun AuroraBackground(modifier: Modifier = Modifier) {
     Canvas(modifier.fillMaxSize()) {
-        // Warm graphite base — a violet-ink cast, not blue-black.
+        // Deep enterprise slate base
         drawRect(
             Brush.linearGradient(
-                colors = listOf(Color(0xFF0B0910), Color(0xFF100D16), Color(0xFF0A0810)),
+                colors = listOf(Color(0xFF0B0F19), Color(0xFF0E1422), Color(0xFF0A0D15)),
                 start = Offset(0f, 0f),
                 end = Offset(size.width, size.height),
             )
         )
-        // Plum bloom, upper left — the warm identity anchor.
+        // Quiet brand blue bloom, upper left — calm authority, low opacity
         drawRect(
             Brush.radialGradient(
-                colors = listOf(Color(0xFF8A73C4).copy(alpha = 0.16f), Color.Transparent),
-                center = Offset(size.width * 0.12f, -size.height * 0.04f),
-                radius = size.width * 1.25f,
+                colors = listOf(BrandBlue.copy(alpha = 0.08f), Color.Transparent),
+                center = Offset(size.width * 0.10f, -size.height * 0.04f),
+                radius = size.width * 1.15f,
             )
         )
-        // Champagne brass ember, upper right — the premium glow.
+        // Subtle cyan sheen, upper right — light accent
         drawRect(
             Brush.radialGradient(
-                colors = listOf(Color(0xFFD8B26A).copy(alpha = 0.09f), Color.Transparent),
-                center = Offset(size.width * 0.96f, size.height * 0.06f),
-                radius = size.width * 0.95f,
+                colors = listOf(Cyan.copy(alpha = 0.04f), Color.Transparent),
+                center = Offset(size.width * 0.95f, size.height * 0.05f),
+                radius = size.width * 0.90f,
             )
         )
-        // Cool blue counter-glow, low-left — keeps blue reading as "signal".
+        // Low-left counter-glow
         drawRect(
             Brush.radialGradient(
-                colors = listOf(BrandBlue.copy(alpha = 0.07f), Color.Transparent),
-                center = Offset(size.width * 0.02f, size.height * 0.62f),
-                radius = size.width * 0.9f,
+                colors = listOf(AzureBlue.copy(alpha = 0.05f), Color.Transparent),
+                center = Offset(size.width * 0.02f, size.height * 0.60f),
+                radius = size.width * 0.85f,
             )
         )
-        // Grounded vignette at the bottom for contrast under content.
+        // Grounded bottom vignette for strong list contrast
         drawRect(
             Brush.verticalGradient(
-                colors = listOf(Color.Transparent, Color(0xFF0A0810).copy(alpha = 0.88f)),
-                startY = size.height * 0.58f,
+                colors = listOf(Color.Transparent, Color(0xFF0B0F19).copy(alpha = 0.92f)),
+                startY = size.height * 0.55f,
                 endY = size.height,
             )
         )
@@ -110,8 +110,8 @@ fun Modifier.glassSurface(
     .background(
         Brush.verticalGradient(
             listOf(
-                Color(0xFF201A29).copy(alpha = 0.86f),
-                Color(0xFF141019).copy(alpha = 0.95f),
+                Color(0xFF182234).copy(alpha = 0.88f),
+                Color(0xFF101724).copy(alpha = 0.95f),
             )
         )
     )
@@ -120,9 +120,9 @@ fun Modifier.glassSurface(
         1.dp,
         Brush.verticalGradient(
             listOf(
-                Color(0x3ED8B26A), // warm champagne highlight on the top edge
-                Color(0x14C9B79A),
-                Color(0x10201A29),
+                Color(0x3338BDF8), // clean sky/ice highlight on top edge
+                Color(0x14263345),
+                Color(0x0A101724),
             )
         ),
         shape
@@ -165,10 +165,10 @@ fun Modifier.heroSurface(shape: Shape = RoundedCornerShape(Radii.hero)): Modifie
     .background(
         Brush.linearGradient(
             colors = listOf(
-                Color(0xFF241C33),
-                Color(0xFF2E2340),
-                Color(0xFF1C2A55),
-                Color(0xFF171430),
+                DeepNavy,
+                Color(0xFF131D2E),
+                RoyalBlue.copy(alpha = 0.45f),
+                Color(0xFF0E1624),
             ),
             start = Offset(0f, 0f),
             end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
@@ -178,9 +178,9 @@ fun Modifier.heroSurface(shape: Shape = RoundedCornerShape(Radii.hero)): Modifie
         1.dp,
         Brush.linearGradient(
             listOf(
-                Color(0x66D8B26A),
-                Color(0x338FB4F6),
-                Color(0x10241C33),
+                Color(0x4038BDF8),
+                Color(0x203B82F6),
+                Color(0x10111827),
             )
         ),
         shape

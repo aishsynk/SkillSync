@@ -40,9 +40,9 @@ Blue ramp carries structure + brand; cyan = positive performance; amber/rose = e
 | `ice` / `IceBlue` | `#BFDBFE` | info, tertiary |
 | `frost` / `FrostWhite` | `#F8FAFC` | primary body text |
 
-Surfaces (elevation steps, not shadows): `pageBg` = `Surface0 #0B0F17` (page),
-`surface1` = `Surface1 #101722`, `cardBg`/`surface2` = `Surface2 #151E2B` (card),
-`surface3` = `Surface3 #1C2736`.
+Surfaces (elevation steps, not shadows): `pageBg` = `Surface0 #0B0F19` (clean deep slate page),
+`surface1` = `Surface1 #111827`, `cardBg`/`surface2` = `Surface2 #162032` (card),
+`surface3` = `Surface3 #1E2B42`.
 Semantic text: `bodyText = frost`, `subText = heroMuted = #A8B3C5`,
 `labelText = #9AA8BF`, `track = cardBorder = glassBorder = #263345`,
 `shimmer = #202C3C`.
@@ -50,11 +50,11 @@ Semantic text: `bodyText = frost`, `subText = heroMuted = #A8B3C5`,
 Access via `MaterialTheme.skill.<name>` (static CompositionLocal). The Material scheme
 (`darkColorScheme`) mirrors the ramp — primary = BrandBlue, secondary = Cyan, tertiary = IceBlue.
 
-> **Open decision (flagged in audit):** `Surfaces.kt::AuroraBackground` still draws plum
-> (`#8A73C4`) and brass (`#D8B26A`) blooms with warm champagne hairlines in
-> `glassSurface`/`heroSurface`, while `Color.kt` states the warm-graphite/brass "editorial"
-> scheme is retired. Unchanged pending a product decision on the ground texture; do not extend
-> either pattern in new screens.
+> **Decision Closed (Wave 1 Redesign):** Legacy plum (`#8A73C4`) and brass (`#D8B26A`) blooms in
+> `Surfaces.kt::AuroraBackground` and champagne hairlines are fully retired. Aurora ground now
+> features a restrained deep slate base (`#0B0F19`) with calm brand blue (`#3B82F6`, alpha 0.08)
+> and subtle cyan (`#22D3EE`, alpha 0.04) sheens. Operational pages favor clean, high-contrast
+> surfaces.
 
 ## 3. Type (`Type.kt`)
 
@@ -140,7 +140,54 @@ Exceptions counter-example: "× and N more" overflow text, Trainer360 EmptyNotes
 
 ## 9. Accessibility contract
 
-- Every interactive affordance ≥ 48dp tap target (the 60dp AppNavBar is the model).
+- Every interactive affordance ≥ 48dp tap target (the 62dp AppNavBar is the model).
 - `contentDescription` present on every meaningful icon (`null` only for decorative).
 - Nothing below 11sp. Colour is never the sole differentiator (stripe + label + weight).
 - Text scaling: whole-sp sizes so the system font setting scales predictably.
+
+## 10. Unified Shared Component System (`SkillSyncComponents.kt`)
+
+Wave 1 establishes standard, production-ready primitives:
+- `SkillSyncScreen` / `SkillSyncScaffold`: Standardized container with background, insets, and offline banner.
+- `SkillSyncTopBar`: Professional application chrome with title, subtitle, back handler, and action buttons.
+- `SkillSyncPageHeader`: Screen header with title, context subtitle, and optional primary action.
+- `SkillSyncSection`: Section wrapper with header, optional conclusion text, and trailing affordance.
+- `SkillSyncCard`: Glass/solid elevated card with optional severity stripe and tactile `.pressable` feedback.
+- `SkillSyncMetric`: Tabular numeric figure with label and optional delta badge.
+- `SkillSyncStatusChip` / `SkillSyncChip`: Compact status and filter chips with ≥ 44dp touch bounds.
+- `SkillSyncPrimaryButton` / `SkillSyncSecondaryButton`: High-contrast corporate buttons with press scaling.
+- `SkillSyncTextField` / `SkillSyncSearchBar`: Clean input fields with clear icons and focus borders.
+- `SkillSyncEmptyState`: Branded empty state illustration/icon, title, description, and action button.
+- `SkillSyncErrorState`: Error state with retry action button.
+- `SkillSyncLoadingState`: Standardized skeleton shimmer block.
+- `SkillSyncInfoBanner`: Severity-driven alert/notice banner.
+- `SkillSyncListItem`: Scannable list row with leading icon, title, subtitle, trailing value, and chevron.
+
+## 11. Global Screen States
+
+The application enforces consistent visual treatments across all screens:
+- **LOADING**: Standardized `SkillSyncLoadingState` skeleton with smooth shimmer animation (no bare progress spinners).
+- **EMPTY**: Actionable `SkillSyncEmptyState` card with icon, title, honest absence reason, and recovery button.
+- **ERROR**: Elevated `SkillSyncErrorState` with `Severity.Critical` accent and retry button.
+- **OFFLINE**: Persistent `SkillSyncOfflineBanner` across top indicating cached data status.
+- **ALERTS / BANNERS**: `SkillSyncInfoBanner` driven by `Severity` (`Critical`, `Warning`, `Watch`, `Info`, `Good`).
+
+## 12. Communication Intelligence Context Policy
+
+**Architectural Rule**: `AVAILABLE DATA ≠ MESSAGE CONTENT`
+
+Available SkillSync data is evidence from which relevant context may be selected. It must NOT automatically be inserted into messages.
+
+Pipeline:
+`Purpose → Recipient Relationship → User Message → Entity → Context Selector → ONLY verified facts → Policy → Review → Manual Send`
+
+### Sensitivity & Disclosure Rules (`CommunicationContextFilter`)
+1. **`TRAINER_SUMMARY_EXTERNAL`**:
+   - *Allowed*: trainer name, primary skills, certifications, approved readiness, public bio, experience.
+   - *Denied*: private manager notes, raw negative feedback, internal utilization margins, retention risks.
+2. **`BATCH_INVITATION`**:
+   - *Allowed*: course code, course title, schedule dates, delivery mode, timing, timezone, location.
+   - *Denied*: client billing codes, financial IDs, client rate cards, gross profit margins.
+3. **`EXTERNAL_STAFFING_REQUEST`**:
+   - *Allowed*: required technology, course, dates, mode, location, candidate criteria.
+   - *Denied*: target margins, internal rate calculations, client confidential revenue numbers.
