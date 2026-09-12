@@ -115,6 +115,7 @@ from services.communication.service import CommunicationService
 
 app = Flask(__name__)
 CORS(app)
+_communication_service = CommunicationService()
 
 # ─── RMS API wiring ───────────────────────────────────────────────────────────
 _RMS_BASE = "https://api.koenig-solutions.com"
@@ -8969,9 +8970,16 @@ def message_compose():
     if not target:
         digest = report.get(_dkey) or report.get("team_digest") or ""
         if my_message.strip():
-            facts = {"period_key": key, "manager_first": manager.split("@")[0].split(".")[0].title(),
-                     "month_label": report.get("month", "")}
-            digest = _compose_manager_message("team", cadence, facts, my_message=my_message)
+            gen_res = _communication_service.generate(
+                manager,
+                {
+                    "recipient": {"type": "TEAM"},
+                    "myMessage": my_message,
+                    "channel": "MS_TEAMS_OR_VIBER",
+                },
+                verified_context=report.get("team_summary", {}),
+            )
+            digest = gen_res.text if gen_res.requires_communication else _compose_manager_message("team", cadence, {"period_key": key, "manager_first": manager.split("@")[0].split(".")[0].title(), "month_label": report.get("month", "")}, my_message=my_message)
         return jsonify({"message": digest, "scope": "team", "cadence": cadence,
                         "length": len(digest)}), 200
 
@@ -8990,7 +8998,20 @@ def message_compose():
         month_label=report.get("month", ""),
     )
     facts["opp_courses"] = row.get("opportunity_courses") or facts.get("opp_courses") or []
-    msg = _compose_manager_message("reportee", cadence, facts, my_message=my_message)
+    if my_message.strip():
+        r_name = (row.get("name") or "").split()[0] if row.get("name") else "there"
+        gen_res = _communication_service.generate(
+            manager,
+            {
+                "recipient": {"name": r_name, "type": "REPORTEE"},
+                "myMessage": my_message,
+                "channel": "MS_TEAMS_OR_VIBER",
+            },
+            verified_context=facts,
+        )
+        msg = gen_res.text if gen_res.requires_communication else _compose_manager_message("reportee", cadence, facts, my_message=my_message)
+    else:
+        msg = _compose_manager_message("reportee", cadence, facts, my_message=my_message)
     return jsonify({"message": msg, "scope": "reportee", "cadence": cadence,
                     "target": target, "length": len(msg)}), 200
 
@@ -9520,29 +9541,31 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
                            + ("Monday" if cadence == "weekend" else "next month") + ".")
         else:
             # forward-looking plan (weekly / monthly)
-            if deliv or batches:
-                beats.append(_msg_pick([
-                    f"This {period} {deliv} of {head} of us are in delivery, {pax} participants across {batches} {'batch' if batches == 1 else 'batches'}.",
-                    f"We have {deliv} of {head} trainers delivering this {period}, {pax} participants over {batches} {'batch' if batches == 1 else 'batches'}.",
-                ], seed, 1))
+            # Single-focus communication intelligence: select only the 1-2 critical facts
             if opp:
                 line = f"There {'is' if opp == 1 else 'are'} {opp} open {'batch' if opp == 1 else 'batches'} on the board"
                 if coverable:
                     line += f", {coverable} of which this team can already teach"
                 if bench:
                     line += f", and {bench} of us {'is' if bench == 1 else 'are'} free"
-                line += ". If that could be you, please confirm your availability with me today so we do not lose the slot."
+                line += ". If you are available to take this up, please confirm with me so we can review the requirement and proceed accordingly."
                 beats.append(line)
             elif bench:
                 beats.append(f"{bench} of us {'is' if bench == 1 else 'are'} on the bench this {period}; check the demand board and tell me where you can help.")
-            if gaps:
+            elif gaps:
                 beats.append(
                     f"We are carrying {gaps} open certification {'gap' if gaps == 1 else 'gaps'} across the team. "
                     + ("Please prioritise the ones tied to open demand." if gaps > 3 else f"Please book yours before {deadline_ref}.")
                 )
-            if at_risk:
+            elif deliv or batches:
+                beats.append(_msg_pick([
+                    f"This {period} {deliv} of {head} of us are in delivery, {pax} participants across {batches} {'batch' if batches == 1 else 'batches'}.",
+                    f"We have {deliv} of {head} trainers delivering this {period}, {pax} participants over {batches} {'batch' if batches == 1 else 'batches'}.",
+                ], seed, 1))
+
+            if at_risk and not opp:
                 beats.append(f"{at_risk} feedback {'point is' if at_risk == 1 else 'points are'} being handled individually this {period}.")
-            if stalled_cnt > 0:
+            if stalled_cnt > 0 and not opp and not gaps:
                 beats.append(f"{stalled_cnt} new trainer onboarding {'milestone needs' if stalled_cnt == 1 else 'milestones need'} staffing focus this {period}.")
             if not beats:
                 beats.append(f"Delivery is steady across the team this {period} with no open flags. Thank you for keeping it that way.")
@@ -9763,7 +9786,7 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
         if neg or hr_neg:
             closing_raw = "Please treat this as a priority and reply with your plan."
         elif bench and opp_courses:
-            closing_raw = ("Please confirm today so we do not lose the slot." if cadence == "weekly" else "Let me know where you can pick up demand this month.")
+            closing_raw = ("Please confirm your availability." if cadence == "weekly" else "Let me know where you can pick up demand this month.")
         elif rating is not None and rating >= 4.5 and cur:
             closing_raw = "Thank you for the consistency, it shows in the feedback."
         elif gap_courses:
@@ -14916,8 +14939,6 @@ def v2_viber_config():
 
 # ── COMMUNICATION INTELLIGENCE ──────────────────────────────────────────
 
-_communication_service = CommunicationService()
-
 
 @app.route('/api/v2/communication/generate', methods=['POST'])
 def communication_generate():
@@ -14951,6 +14972,12 @@ def communication_generate():
         "purpose": result.purpose,
         "tone": result.tone,
         "facts_used": result.facts_used,
+        "selected_facts": result.selected_facts,
+        "rejected_facts": result.rejected_facts,
+        "generation_mode": result.generation_mode,
+        "requires_communication": result.requires_communication,
+        "no_message_reason": result.no_message_reason,
+        "sensitive_facts_removed": result.sensitive_facts_removed,
         "validation": {
             "passed": result.validation.passed,
             "issues": result.validation.issues,

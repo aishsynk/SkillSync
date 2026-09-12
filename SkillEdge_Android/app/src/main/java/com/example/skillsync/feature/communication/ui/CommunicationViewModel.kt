@@ -138,13 +138,23 @@ class CommunicationViewModel : ViewModel() {
         val issues = (validationMap["issues"] as? List<*>)
             ?.mapNotNull { it as? String } ?: emptyList()
         val purpose = live["purpose"] as? String ?: _uiState.value.purpose
+        val factsUsed = (live["facts_used"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+        val selectedFacts = (live["selected_facts"] as? List<*>)?.mapNotNull { it as? String } ?: factsUsed
+        val rejectedFacts = (live["rejected_facts"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList()
+        val genMode = live["generation_mode"] as? String ?: "INTELLIGENT_ENGINE"
+        val requiresComm = live["requires_communication"] as? Boolean ?: true
+        val noReason = live["no_message_reason"] as? String
         return GeneratedMessage(
             text = live["message"] as? String ?: "",
             validation = ValidationResult(passed, issues),
-            factsUsed = (live["facts_used"] as? List<*>)
-                ?.mapNotNull { it as? String } ?: emptyList(),
+            factsUsed = factsUsed,
             purpose = purpose,
             tone = live["tone"] as? String ?: "",
+            selectedFacts = selectedFacts,
+            rejectedFacts = rejectedFacts,
+            generationMode = genMode,
+            requiresCommunication = requiresComm,
+            noMessageReason = noReason,
         )
     }
 

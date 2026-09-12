@@ -10,22 +10,23 @@ object CommunicationGenerator {
             ?.mapValues { it.value ?: "" } ?: emptyMap()
 
         val recipient = CommunicationRecipient(
-            name = recipientMap?.get("name") as? String ?: "",
-            type = recipientMap?.get("type") as? String ?: "",
-            relationship = recipientMap?.get("relationship") as? String ?: "",
+            name = (recipientMap?.get("name") as? String ?: "").trim(),
+            type = (recipientMap?.get("type") as? String ?: "").trim(),
+            relationship = (recipientMap?.get("relationship") as? String ?: "").trim(),
         )
         val context = CommunicationContext(
             recipient = recipient,
             channel = request["channel"] as? String ?: "MS_TEAMS_OR_VIBER",
             purpose = request["purpose"] as? String ?: "",
-            userMessage = request["userMessage"] as? String ?: "",
-            myMessage = request["myMessage"] as? String ?: "",
-            relatedEntityType = request["relatedEntityType"] as? String ?: "",
-            relatedEntityId = request["relatedEntityId"] as? String ?: "",
+            userMessage = ((request["userMessage"] ?: request["user_message"]) as? String ?: "").trim(),
+            myMessage = ((request["myMessage"] ?: request["my_message"]) as? String ?: "").trim(),
+            relatedEntityType = (request["relatedEntityType"] ?: request["related_entity_type"]) as? String ?: "",
+            relatedEntityId = (request["relatedEntityId"] ?: request["related_entity_id"]) as? String ?: "",
             verifiedContext = verifiedContext,
             userOverrides = overrides,
         )
 
+        // Step 1: Intent Analysis
         val intent = analyze(
             context.userMessage,
             context.myMessage,
@@ -34,30 +35,61 @@ object CommunicationGenerator {
             purposeHint = context.purpose.ifBlank { (context.userOverrides["purpose"] as? String).orEmpty() },
         )
 
-        var text = compose(intent, context)
-        var validation = validate(text)
-        if (!validation.passed && text.length > MAX_LENGTH) {
-            text = truncate(text)
-            validation = validate(text)
+        // Step 2 & 3: Context Selection & Situation Evaluation
+        val plan = CommunicationContextSelector.evaluateAndSelect(
+            userMessage = context.userMessage,
+            myMessage = context.myMessage,
+            recipientName = recipient.name,
+            recipientType = recipient.type,
+            recipientRelationship = recipient.relationship,
+            purposeHint = context.purpose,
+            verifiedContext = context.verifiedContext,
+            inferredIntent = intent,
+        )
+
+        // Step 4: Check for NO_MEANINGFUL_MESSAGE
+        if (!plan.requiresCommunication) {
+            return GeneratedMessage(
+                text = NO_MEANINGFUL_MESSAGE,
+                validation = ValidationResult(passed = true, issues = emptyList()),
+                factsUsed = emptyList(),
+                purpose = plan.purpose,
+                tone = plan.tone,
+                selectedFacts = emptyList(),
+                rejectedFacts = plan.rejectedFacts,
+                generationMode = "DETERMINISTIC_GENERATOR",
+                requiresCommunication = false,
+                noMessageReason = plan.noMessageReason,
+                sensitiveFactsRemoved = plan.sensitiveFactsRemoved,
+            )
         }
 
-        val facts = mutableListOf<String>()
-        val opp = verifiedContext["opportunity"] as? Map<*, *>
-        if (opp != null) {
-            val om = opp.mapKeys { it.key.toString() }
-            for (key in listOf("course_code", "course", "location", "country", "decision")) {
-                val v = om[key]
-                if (v != null && v.toString().isNotBlank()) facts.add("opportunity.$key=$v")
-            }
+        // Step 5: Natural Message Generation
+        val text = CommunicationComposer.composeFromPlan(plan)
+        val genMode = "DETERMINISTIC_GENERATOR"
+
+        // Step 6: Validation
+        var validation = validate(text, plan)
+        var finalText = text
+        if (!validation.passed && finalText.length > MAX_LENGTH) {
+            finalText = truncate(finalText)
+            validation = validate(finalText, plan)
         }
-        if (intent.deadlineText.isNotEmpty()) facts.add("deadline=${intent.deadlineText}")
+
+        val factsUsed = plan.selectedFacts.map { "${it.key}=${it.value}" }
 
         return GeneratedMessage(
-            text = text,
+            text = finalText,
             validation = validation,
-            factsUsed = facts,
-            purpose = intent.purpose,
-            tone = intent.tone,
+            factsUsed = factsUsed,
+            purpose = plan.purpose,
+            tone = plan.tone,
+            selectedFacts = factsUsed,
+            rejectedFacts = plan.rejectedFacts,
+            generationMode = genMode,
+            requiresCommunication = true,
+            noMessageReason = null,
+            sensitiveFactsRemoved = plan.sensitiveFactsRemoved,
         )
     }
 }

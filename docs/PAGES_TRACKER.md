@@ -2,7 +2,7 @@
 
 Master progress record for the full-product transformation across all **31 user-visible screens**, **12 inner/modal surfaces**, **6 core workflows**, and **9 communication surfaces**.
 
-Baseline Release: **SkillSync Release v3.80.1.176** (Build 176)
+Baseline Release: **SkillSync Release v3.80.3.178** (Build 178)
 
 ### Lifecycle State Vocabulary
 - `NOT AUDITED` — Screen/workflow not yet evaluated.
@@ -68,10 +68,10 @@ Baseline Release: **SkillSync Release v3.80.1.176** (Build 176)
 ## WAVE 5 — Commercial Opportunities & Pipeline
 | Screen / Surface | Type | File Path | State |
 |---|---|---|---|
-| Opportunities (List) | Parent Tab | `feature/opportunity/ui/OpportunityListScreen.kt` | **PARENT PASS** |
-| Opportunity Detail | Inner Screen | `feature/opportunity/ui/OpportunityDetailScreen.kt` | **PARENT PASS** |
-| Opportunity Guardian | Inner Screen | `feature/opportunity/ui/OpportunityGuardianScreen.kt` | AUDITED |
-| Pipeline Radar | Inner Screen | `feature/pipeline/ui/PipelineRadarScreen.kt` | AUDITED |
+| Opportunities (List) | Parent Tab | `feature/opportunity/ui/OpportunityListScreen.kt` | **VERIFIED** |
+| Opportunity Detail | Inner Screen | `feature/opportunity/ui/OpportunityDetailScreen.kt` | **VERIFIED** |
+| Opportunity Guardian | Inner Screen | `feature/guardian/ui/OpportunityGuardianScreen.kt` | **VERIFIED** |
+| Pipeline Radar | Inner Screen | `feature/report/ui/PipelineRadarScreen.kt` | **VERIFIED** |
 
 ---
 

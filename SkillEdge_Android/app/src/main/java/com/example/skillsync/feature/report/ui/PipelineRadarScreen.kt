@@ -1,7 +1,6 @@
 package com.example.skillsync.feature.report.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,19 +11,13 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.skillsync.R
-import com.example.skillsync.theme.*
 import com.example.skillsync.core.ui.list
 import com.example.skillsync.core.ui.str
-import androidx.compose.material3.Text
+import com.example.skillsync.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,39 +40,29 @@ fun PipelineRadarScreen(
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text("Pre-Demand Radar", fontWeight = FontWeight.Bold, color = sk.bodyText, style = MaterialTheme.typography.titleLarge)
-                            Text("Advance Sales SC pipeline (14–30d horizon)", color = sk.sky, style = MaterialTheme.typography.labelSmall)
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(painterResource(R.drawable.ic_back), "Back", tint = sk.ice)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                SkillSyncTopBar(
+                    title = "Pre-Demand Radar",
+                    subtitle = "Advance Sales Pipeline (14–30d Horizon)",
+                    onBack = onBack,
                 )
             },
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
                 when (val s = state) {
-                    is PipelineRadarState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = sk.brand)
-                    }
-                    is PipelineRadarState.Error -> Column(
-                        Modifier.fillMaxSize().padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
+                    is PipelineRadarState.Loading -> Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Text("Could not load sales pipeline", color = sk.warn, style = MaterialTheme.typography.titleSmall)
-                        Spacer(Modifier.height(8.dp))
-                        Text(s.message, color = sk.subText, style = MaterialTheme.typography.bodySmall)
-                        Spacer(Modifier.height(16.dp))
-                        Button(onClick = { vm.refresh() }, colors = ButtonDefaults.buttonColors(containerColor = sk.brand)) {
-                            Text("Retry")
-                        }
+                        SkillSyncLoadingState()
+                    }
+                    is PipelineRadarState.Error -> Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        SkillSyncErrorState(
+                            message = s.message,
+                            onRetry = { vm.refresh() },
+                        )
                     }
                     is PipelineRadarState.Success -> {
                         val d = s.data
@@ -98,41 +81,39 @@ fun PipelineRadarScreen(
                                 contentPadding = PaddingValues(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
+                                // Pulse Metric Strip
                                 item {
-                                    Surface(
-                                        color = sk.surface1.copy(alpha = 0.85f),
-                                        shape = RoundedCornerShape(Radii.card),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, sk.glassBorder),
-                                        modifier = Modifier.fillMaxWidth(),
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     ) {
-                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                                Text("ADVANCE PIPELINE PULSE", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)
-                                                ToneChip("Early Warning", tint = sk.cyan)
-                                            }
-                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                                PulseMetric(label = "Signed Orders", value = total.toString(), tint = sk.sky, modifier = Modifier.weight(1f))
-                                                PulseMetric(label = "Team Covered", value = covered.toString(), tint = sk.good, modifier = Modifier.weight(1f))
-                                                PulseMetric(label = "Action Needed", value = uncovered.toString(), tint = if (uncovered > 0) sk.warn else sk.subText, modifier = Modifier.weight(1f))
-                                            }
-                                        }
+                                        SkillSyncMetric(
+                                            label = "Signed Orders",
+                                            value = total.toString(),
+                                            tint = sk.sky,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        SkillSyncMetric(
+                                            label = "Team Covered",
+                                            value = covered.toString(),
+                                            tint = sk.good,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        SkillSyncMetric(
+                                            label = "Action Needed",
+                                            value = uncovered.toString(),
+                                            tint = if (uncovered > 0) sk.warn else sk.subText,
+                                            modifier = Modifier.weight(1f),
+                                        )
                                     }
                                 }
 
                                 if (items.isEmpty()) {
                                     item {
-                                        Surface(
-                                            color = sk.surface2.copy(alpha = 0.6f),
-                                            shape = RoundedCornerShape(Radii.card),
-                                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                                        ) {
-                                            Text(
-                                                "No pending advance Service Confirmations on the radar.",
-                                                color = sk.subText,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                modifier = Modifier.padding(24.dp),
-                                            )
-                                        }
+                                        SkillSyncEmptyState(
+                                            title = "No Pending Confirmations",
+                                            description = "No pending advance Service Confirmations currently detected on the radar.",
+                                        )
                                     }
                                 } else {
                                     items(items) { itemMap ->
@@ -149,22 +130,6 @@ fun PipelineRadarScreen(
 }
 
 @Composable
-private fun PulseMetric(label: String, value: String, tint: Color, modifier: Modifier = Modifier) {
-    val sk = MaterialTheme.skill
-    Surface(
-        color = sk.surface2.copy(alpha = 0.5f),
-        shape = RoundedCornerShape(Radii.kpi),
-        border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-        modifier = modifier,
-    ) {
-        Column(Modifier.padding(vertical = 10.dp, horizontal = 12.dp)) {
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = tint)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = sk.subText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-@Composable
 private fun PipelineItemCard(item: Map<*, *>, onOpenTrainer: (String, String) -> Unit) {
     val sk = MaterialTheme.skill
     val scId = item.str("sc_id")
@@ -176,88 +141,89 @@ private fun PipelineItemCard(item: Map<*, *>, onOpenTrainer: (String, String) ->
     val action = item.str("recommended_action")
     val isCovered = count > 0
 
-    Surface(
-        color = sk.surface1.copy(alpha = 0.88f),
-        shape = RoundedCornerShape(Radii.card),
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (isCovered) sk.cardBorder else sk.warn.copy(alpha = 0.35f)),
+    SkillSyncCard(
         modifier = Modifier.fillMaxWidth(),
+        severity = if (isCovered) null else Severity.Warning,
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = scId,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = sk.cyan,
-                )
-                ToneChip(
-                    text = if (leadDays <= 1) "Signed Today" else "Signed ${leadDays}d ago",
-                    tint = if (leadDays > 14) sk.amber else sk.sky,
-                )
-            }
-
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
-                text = courseName,
+                text = if (scId.startsWith("SC", ignoreCase = true)) "Confirmed Order #$scId" else "Order Reference #$scId",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
-                color = sk.bodyText,
+                color = sk.cyan,
             )
+            ToneChip(
+                text = if (leadDays <= 1) "Signed Today" else "Signed ${leadDays}d ago",
+                tint = if (leadDays > 14) sk.amber else sk.sky,
+            )
+        }
 
-            if (csm.isNotBlank()) {
-                Text("CSM: $csm", style = MaterialTheme.typography.labelSmall, color = sk.subText)
-            }
+        Text(
+            text = courseName,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            color = sk.frost,
+        )
 
-            HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f))
+        if (csm.isNotBlank()) {
+            Text(
+                text = "Client Success Lead: $csm",
+                style = MaterialTheme.typography.bodySmall,
+                color = sk.subText,
+            )
+        }
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text("Team Candidates", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
-                    if (isCovered) {
-                        Text(
-                            "${count} trainer${if (count == 1) "" else "s"} match skill",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = sk.good,
-                        )
-                    } else {
-                        Text("0 trainers skilled", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, color = sk.warn)
-                    }
-                }
+        HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f))
 
-                Surface(
-                    color = (if (isCovered) sk.sky else sk.warn).copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(Radii.chip),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, (if (isCovered) sk.sky else sk.warn).copy(alpha = 0.28f)),
-                ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column {
+                Text("Team Readiness", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+                if (isCovered) {
                     Text(
-                        text = action,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium,
-                        color = if (isCovered) sk.sky else sk.warn,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        "${count} verified trainer${if (count == 1) "" else "s"} available",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = sk.good,
+                    )
+                } else {
+                    Text(
+                        "0 trainers skilled · Staffing required",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = sk.warn,
                     )
                 }
             }
 
-            if (trainers.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 2.dp)) {
-                    trainers.take(3).forEach { t ->
-                        val tName = t.str("name")
-                        val tEmail = t.str("email")
-                        Surface(
-                            color = sk.surface2.copy(alpha = 0.7f),
-                            shape = RoundedCornerShape(6.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-                            modifier = Modifier.clickable { onOpenTrainer(tEmail, tName) },
-                        ) {
-                            Text(
-                                text = tName,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = sk.ice,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                            )
-                        }
-                    }
+            if (action.isNotBlank()) {
+                ToneChip(
+                    text = action,
+                    tint = if (isCovered) sk.sky else sk.warn,
+                )
+            }
+        }
+
+        if (trainers.isNotEmpty()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(top = 4.dp),
+            ) {
+                trainers.take(3).forEach { t ->
+                    val tName = t.str("name")
+                    val tEmail = t.str("email")
+                    ToneChip(
+                        text = tName,
+                        tint = sk.ice,
+                        modifier = Modifier.pressable { onOpenTrainer(tEmail, tName) },
+                    )
                 }
             }
         }

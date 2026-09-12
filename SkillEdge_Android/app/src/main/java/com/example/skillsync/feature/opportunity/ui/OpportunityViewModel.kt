@@ -300,6 +300,11 @@ class OpportunityViewModel : ViewModel() {
     }
 
     fun updateDocumentStatus(id: String, status: String) {
+        val updated = _uiState.value.opportunities.map {
+            if (it.id == id) it.copy(documentStatus = status, status = if (status == "snoozed" || status == "seen") status else it.status)
+            else it
+        }
+        _uiState.value = _uiState.value.copy(opportunities = updated)
         viewModelScope.launch {
             try {
                 repository.updateOpportunityDocument(id, mapOf("status" to status))
@@ -308,14 +313,46 @@ class OpportunityViewModel : ViewModel() {
     }
 
     fun acceptOpportunity(id: String) {
+        val updated = _uiState.value.opportunities.map {
+            if (it.id == id) it.copy(status = "accepted", decision = "ACCEPTED")
+            else it
+        }
+        _uiState.value = _uiState.value.copy(
+            opportunities = updated,
+            summary = _uiState.value.summary.copy(
+                accepted = _uiState.value.summary.accepted + 1,
+                detected = (_uiState.value.summary.detected - 1).coerceAtLeast(0)
+            )
+        )
         viewModelScope.launch {
             try { repository.acceptOpportunity(id) } catch (_: Exception) {}
         }
     }
 
     fun declineOpportunity(id: String) {
+        val updated = _uiState.value.opportunities.map {
+            if (it.id == id) it.copy(status = "declined", decision = "DECLINED")
+            else it
+        }
+        _uiState.value = _uiState.value.copy(
+            opportunities = updated,
+            summary = _uiState.value.summary.copy(
+                declined = _uiState.value.summary.declined + 1,
+                detected = (_uiState.value.summary.detected - 1).coerceAtLeast(0)
+            )
+        )
         viewModelScope.launch {
             try { repository.declineOpportunity(id) } catch (_: Exception) {}
         }
+    }
+
+    fun toggleTrustedSource(manager: String, index: Int, enabled: Boolean) {
+        val currentSources = _uiState.value.guardianConfig.trustedSources
+        if (index !in currentSources.indices) return
+        val updated = currentSources.toMutableList()
+        updated[index] = updated[index].copy(enabled = enabled)
+        val newConfig = _uiState.value.guardianConfig.copy(trustedSources = updated)
+        _uiState.value = _uiState.value.copy(guardianConfig = newConfig)
+        updateGuardianConfig(manager, newConfig)
     }
 }

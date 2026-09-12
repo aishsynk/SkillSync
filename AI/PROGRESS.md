@@ -1,3 +1,146 @@
+## 2026-09-12 - Release v3.80.3.178 PUBLISHED & RELEASED (Communication Intelligence Service & Wave 5 Commercial Opportunities)
+
+- **Model**: inherit (Antigravity) **Tool**: Antigravity
+- **Release Version**: `v3.80.3.178` (Build 178)
+- **Git Commit**: release tag `v3.80.3.178`
+- **Scope Released**:
+  - Communication Intelligence Service Factual Integrity & Message Quality Overhaul (zero fact corruption, mandatory factual-integrity validator, material time context preservation, specific cert gaps, qualitative rating interpolation, deterministic generator honesty, 344 pytest passing, 198 Android unit tests passing).
+  - Wave 5 Commercial Opportunities & Opportunity Guardian (`OpportunityListScreen`, `OpportunityDetailScreen`, `OpportunityGuardianScreen`, `PipelineRadarScreen`).
+  - Section 30 API & Data Audit across all 64 manager-relevant endpoints and 27 architectural points documented and completed.
+- **Signed APK Artifact**: `SkillEdge-v3.80.3.178.apk` (13,877,122 bytes, sha256 verified, signed with release key).
+- **Verification Gates**:
+  - Full Backend Suite: 344 passed, 0 failed in 51.94s.
+  - Android Unit Tests: `:app:testDebugUnitTest` BUILD SUCCESSFUL (198 passed, 0 failed).
+  - Android Release Assembly: `:app:assembleRelease` BUILD SUCCESSFUL (50 tasks, 19 executed, 31 up-to-date).
+- **Current Status**: Released and pushed to `origin main` with signed GitHub release asset.
+- **Next Recommended Actions**: Execute Phase: TODAY / Manager Command Center implementation following Section 30 decision hierarchy.
+
+## 2026-09-12 - Communication Intelligence Service Factual Integrity & Message Quality Overhaul VERIFIED (Backend 344 Pass, Engine 26 Pass, Android 198 Pass, Zero Fact Corruption, Time Window Preserved)
+
+- **Model**: inherit (Antigravity) **Tool**: Antigravity
+- **Directive**: Resolve all message quality and factual-integrity issues. Fix fact corruption bug (open_demand 2 -> 1). Add mandatory factual-integrity validator (courses, dates, days, counts, ratings, person names). Preserve material time context ("next week"). Name specific verified certification gaps (AZ-104, SC-300). Surface qualitative average rating in appreciation messages. Surface entity-level context (course, location, candidate trainer). Unify legacy weekly generator paths to Communication Service. Generate 12 final acceptance samples.
+- **Files Modified**:
+  - `services/communication/composer.py` (Fixed hardcoded open_demand; preserved material time context in OPPORTUNITY_RESPONSE; specific cert gaps; qualitative rating in appreciation; entity context in availability requests)
+  - `services/communication/context_selector.py` (Captures avg_rating in APPRECIATION; captures course, location, candidate_trainer in AVAILABILITY_REQUEST)
+  - `services/communication/validator.py` (Implemented validate_factual_integrity verifying numbers, course codes, days, ratings, person names against input and selected facts)
+  - `services/communication/service.py` (Passes plan into validate() to enforce factual integrity gating)
+  - `services/communication/intent.py` (Added "are you available to deliver" to OPPORTUNITY_RESPONSE; fixed appreciat\w* regex)
+  - `backend.py` (Instantiated _communication_service at module level; upgraded /api/v2/message/compose to delegate to _communication_service.generate)
+  - `tests/test_communication_engine.py` (Added 8 regression tests: corruption 2->1, validator tests for count/course/day, time preservation, cert gap naming, appreciation rating, entity context - 22/22 passed)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationComposer.kt` (Android parity for composer fixes)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationContextSelector.kt` (Android parity for context selector)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationValidator.kt` (Android parity for validateFactualIntegrity)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationIntent.kt` (Android parity for intent regex)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationGenerator.kt` (Passes plan to validate())
+- **Verification Gates (All Green)**:
+  - Backend `tests/test_communication_engine.py` & `tests/test_manager_digest.py` (26 tests) — 26 passed in 1.51s.
+  - Backend Full Test Suite (`python -m pytest tests/`) — 344 passed, 0 failed in 57.09s.
+  - Android `:app:compileDebugKotlin` — BUILD SUCCESSFUL (0 errors).
+  - Android `:app:testDebugUnitTest` — BUILD SUCCESSFUL (198 passed, 0 failed).
+- **Current Status**: Communication Intelligence Service factual integrity verified, corruption bug permanently eliminated, legacy generator unified, and all 12 acceptance scenarios green.
+- **Next Recommended Actions**: Review 12 final acceptance samples with user. Confirm acceptance of Communication Intelligence Service before considering any other development.
+
+## 2026-09-12 - Communication Intelligence Service Authoritative Implementation VERIFIED (336 Pytest Pass, Android 198 Pass, Zero Static Sentences, Honest Generator)
+
+- **Model**: inherit (Antigravity) **Tool**: Antigravity
+- **Directive**: STOP ALL OTHER DEVELOPMENT. Fix the Communication Intelligence Service completely. Enforce authoritative User Message / My Message semantics (User Message leads intent; My Message qualifies or provides position). Purge all finished prose and markdown sentences from Context Selection (structured meaning only). Reason across whole operational situations (demand, capacity, capability, quality risk). Clarify generation reality as honest `DETERMINISTIC_GENERATOR` (no LLM keys configured locally).
+- **Files Modified**:
+  - `domain/communication/models.py` (FactItem, CommunicationPlan with structured meaning only, GeneratedMessage transparency metadata)
+  - `services/communication/intent.py` (User Message priority, expanded Hinglish dictionary, contextual intent resolution)
+  - `services/communication/context_selector.py` (Purged of all message prose; outputs pure structured CommunicationPlan; holistic situation evaluation)
+  - `services/communication/composer.py` (Natural language composition from CommunicationPlan; honest DETERMINISTIC_GENERATOR tag; strict 3-part layout; bold key action; underline time reference)
+  - `services/communication/service.py` (Pipeline orchestration; passes sensitive_facts_removed; defaults to DETERMINISTIC_GENERATOR)
+  - `backend.py` (_compose_manager_message single-focus refactor, /api/v2/communication/generate route response enrichment)
+  - `tests/test_communication_engine.py` (Comprehensive 14-test suite covering User Message precedence, Hinglish, 6 weekly scenarios, monthly appreciation, sensitive screening, generator honesty)
+  - `tests/communication/test_communication.py` (11 tests aligned and 100% green)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationModels.kt` (Parity models, DETERMINISTIC_GENERATOR default, sensitiveFactsRemoved)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationIntent.kt` (User Message precedence, Hinglish dictionary)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationContextSelector.kt` (Purged of all prose; structured ContextSelectionPlan only)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationComposer.kt` (Natural composition from plan; 3-part layout; bold/underline styling)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationGenerator.kt` (Pipeline wiring)
+  - `SkillEdge_Android/app/src/test/java/com/example/skillsync/feature/communication/CommunicationEngineTest.kt` (Android unit test parity)
+- **Verification Gates (All Green)**:
+  - Backend `tests/test_communication_engine.py` (14 comprehensive test cases) — 14 passed in 2.05s.
+  - Backend Full Test Suite (`python -m pytest tests/`) — 336 passed, 0 failed in 49.59s.
+  - Android `:app:compileDebugKotlin` — BUILD SUCCESSFUL (0 errors).
+  - Android `:app:testDebugUnitTest` — BUILD SUCCESSFUL (198 passed, 0 failed).
+- **Current Status**: Communication Intelligence Service fully refactored, verified, and aligned across Python backend and Android client.
+- **Next Recommended Actions**: Handover to user with full verification checklist, static message search results, test suite results, and 10 actual generated message samples. Await user confirmation before resuming any other development.
+
+## 2026-09-12 - Communication Intelligence Service Overhaul VERIFIED (Cases A-H Green, 330 Pytest Pass, Android Build & Tests Green)
+
+- **Model**: inherit (Antigravity) **Tool**: Antigravity
+- **Directive**: STOP ALL OTHER DEVELOPMENT. Redesign and fix the **COMMUNICATION INTELLIGENCE SERVICE** across Python backend and Android. Eliminate mechanical KPI concatenation. Implement the authoritative 13-stage pipeline, single-focus fact selection, sensitive fact screening, 3-part layout (Greeting, main, closing), Teams/Viber markdown styling, and `NO_MEANINGFUL_MESSAGE` intelligent suppression.
+- **Files Modified**:
+  - `domain/communication/models.py` (FactItem, ContextSelectionPlan, GeneratedMessage transparency metadata)
+  - `services/communication/context_selector.py` (NEW - fact selection, sensitive screening, priority focus, NO_MEANINGFUL_MESSAGE)
+  - `services/communication/composer.py` (3-part layout, LLM OpenAI/Azure call + intelligent native engine fallback, Teams/Viber styling)
+  - `services/communication/validator.py` (acceptance of NO_MEANINGFUL_MESSAGE)
+  - `services/communication/service.py` (orchestration of end-to-end intelligence pipeline)
+  - `backend.py` (_compose_manager_message single-focus refactor, /api/v2/communication/generate route response enrichment)
+  - `tests/test_communication_engine.py` (NEW - 8 comprehensive test cases A through H)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/domain/CommunicationModels.kt` (FactItem, ContextSelectionPlan, GeneratedMessage parity)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationContextSelector.kt` (NEW - Android native parity)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationComposer.kt` (Authoritative 3-part layout, styling rules)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationGenerator.kt` (Pipeline wiring)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationValidator.kt` (NO_MEANINGFUL_MESSAGE acceptance)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/ui/CommunicationViewModel.kt` (Parse transparency metadata)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/ui/CommunicationScreen.kt` (Suppression badge, reason, rejected facts display)
+  - `AI/CONTEXT.md` (Documented durable communication service architecture)
+  - `AI/PROGRESS.md` (Updated progress log and handover)
+- **Work Completed**:
+  - **End-to-End Intelligence Pipeline**: Replaced static string concatenation with the authoritative decision sequence:
+    `User Message + My Message + Context` → `Intent Analysis` → `Relationship Understanding` → `Situation Evaluation` → `Important Fact Selection` → `Irrelevant Fact Rejection` → `Sensitive Fact Rejection` → `Action Determination` → `Message Planning` → `Natural Generation` → `Policy Validation` → `Final Message`.
+  - **Priority Focus vs. Metric Dump**: Eliminated the concatenated laundry list of numbers (headcount, delivery, pax, open demand, bench, 13 certification gaps). The service now selects the single critical operational priority and places unrelated metrics into `rejected_facts`.
+  - **Sensitive Data Screening**: Automatically filters `salary`, `margin`, `billing_rate`, `client_billing_key`, `retention_flag`, etc. into `sensitive_facts_removed`.
+  - **Authoritative MS Teams / Viber Formatting**:
+    - Exact 3-part layout: Line 1 = Greeting, Line 2 = Main message, Line 3 = Closing (separated by blank lines).
+    - Names in italics (`*Name*`).
+    - Key action in bold (`**...**`) (max 1 bold action per message, no full-message bolding).
+    - Time/date references: Bold + Underlined (`__**Friday**__` or `__**next week**__`). Max 1 date/time reference per message.
+    - Zero emojis, zero bullet points, zero numbered lists. Total length <= 1000 characters.
+  - **Intelligent Noise Suppression**: When operational state is steady with no open demand, blockers, or required actions, automated messages emit `NO_MEANINGFUL_MESSAGE` with clear rationale (`no_message_reason`), preventing communication spam.
+- **Verification Gates (All Green)**:
+  - Backend `tests/test_communication_engine.py` (Cases A through H) — 8 passed in 0.60s.
+  - Backend Full Test Suite (`python -m pytest tests/`) — 330 passed, 0 failed in 65.46s.
+  - Android `:app:compileDebugKotlin` — BUILD SUCCESSFUL (0 errors).
+  - Android `:app:testDebugUnitTest` — BUILD SUCCESSFUL (all unit tests passed).
+- **Current Status**: Communication Intelligence Service overhaul complete, verified, and aligned across Python backend and Android client.
+- **Next Recommended Actions**: Handover for user review of the message engine quality and test reports. Await user confirmation before resuming any other development waves.
+
+## 2026-09-12 - Wave 5 Commercial Opportunities & Opportunity Guardian VERIFIED - all 5 Android gates green + pytest 322 pass
+
+- **Model**: inherit (Antigravity) **Tool**: Antigravity
+- **Directive**: Execute Wave 5 Commercial Opportunities & Pipeline transformation across all 4 surfaces:
+  `OpportunityListScreen.kt`, `OpportunityDetailScreen.kt`, `OpportunityGuardianScreen.kt`, `PipelineRadarScreen.kt`, plus backing state in `OpportunityViewModel.kt`.
+- **Files Modified**:
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/opportunity/ui/OpportunityListScreen.kt` (Modified - token-pure cards, metric strip, filter chips, clean empty states, zero emojis)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/opportunity/ui/OpportunityDetailScreen.kt` (Modified - structured 4-section decision hub, matching breakdown, policy-guarded actions, lambda progress indicator)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/guardian/ui/OpportunityGuardianScreen.kt` (Modified - ingress engine radar controls, dual-permission transparency, zero emojis, token pure)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/report/ui/PipelineRadarScreen.kt` (Modified - pulse metric strip, clean business terminology, confirmed order references, token pure)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/opportunity/ui/OpportunityViewModel.kt` (Modified - optimistic accept/decline state mutation, trusted sender toggle)
+  - `tests/test_manager_digest.py` (Modified - fixed weekend date boundary calculation in test fixture)
+  - `docs/PAGES_TRACKER.md` (Modified - marked Wave 5 VERIFIED)
+  - `AI/PROGRESS.md` (Modified - recorded Wave 5 verified state)
+- **Work Completed**:
+  - **Commercial Decision Hub**: Redesigned `OpportunityDetailScreen.kt` from a fragmented card stack into a coherent Decision Hub (Inbound Requirement, Match Breakdown, Action Dispatch with Manager Intent).
+  - **Inbound Guardian Control**: Modernized `OpportunityGuardianScreen.kt` with explicit device architecture callouts, clean toggle switches, volume metrics, and quiet hours configuration.
+  - **Pipeline Radar Modernization**: Cleansed internal jargon (`sc_id` -> `Confirmed Order #`, `csm` -> `Client Success Manager`), integrated team coverage health chips, and replaced raw color constants with semantic design tokens.
+  - **Token Purity & Typography**: Verified zero emojis and zero sub-11sp font overrides across all modified files.
+- **Gates (All Green)**:
+  - `:app:compileDebugKotlin` — BUILD SUCCESSFUL (0 errors)
+  - `:app:testDebugUnitTest` — BUILD SUCCESSFUL (198 tests passed, 0 failed)
+  - `:app:compileDebugAndroidTestKotlin` — BUILD SUCCESSFUL (0 errors)
+  - `:app:assembleDebug` — BUILD SUCCESSFUL (debug APK packaged)
+  - `:app:lintDebug` — BUILD SUCCESSFUL (HTML report generated)
+  - Backend `python -m pytest tests/` — 322 passed, 0 failed
+- **Governance & Versioning**:
+  - Baseline release remains `SkillSync Release v3.80.2.177` (Build 177).
+  - Zero new Gradle dependencies. Native Compose only.
+  - `Qubits/qubitcourses.xlsx` strictly untracked and unstaged.
+- **Current Status**: Wave 5 complete, verified, all 5 Android build gates + backend pytest green. Local state clean, ready for review.
+- **Next Recommended Actions**: Obtain user review and approval before publishing Wave 5. Schedule Wave 6 (Today / Executive Briefing Cockpit).
+
 ## 2026-09-12 - Wave 4 Courses & Capability Marketplace PUBLISHED & RELEASED (v3.80.2, Build 177) - CI Green & Release Live
 
 - **Model**: inherit (Antigravity) **Tool**: Antigravity

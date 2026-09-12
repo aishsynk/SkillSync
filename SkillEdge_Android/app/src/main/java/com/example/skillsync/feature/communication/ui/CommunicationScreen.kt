@@ -190,14 +190,34 @@ fun CommunicationScreen(
                         ) {
                             Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("DRAFT", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                Text(
-                                    result.text,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.White,
-                                )
-                                Text("Purpose: ${result.purpose}  ·  Tone: ${result.tone}", style = MaterialTheme.typography.labelSmall)
-                                if (result.factsUsed.isNotEmpty()) {
-                                    Text("Facts used: ${result.factsUsed.joinToString(", ")}", style = MaterialTheme.typography.labelSmall)
+                                if (!result.requiresCommunication || result.text == "NO_MEANINGFUL_MESSAGE") {
+                                    Text(
+                                        "NO MEANINGFUL MESSAGE REQUIRED",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF7CE38B),
+                                    )
+                                    Text(
+                                        result.noMessageReason ?: "Operations are steady. Suppressing unnecessary broadcast noise.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Color.White,
+                                    )
+                                    if (result.rejectedFacts.isNotEmpty()) {
+                                        Text("Suppressed unneeded metrics: ${result.rejectedFacts.joinToString(", ")}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
+                                    }
+                                } else {
+                                    Text(
+                                        result.text,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Color.White,
+                                    )
+                                    Text("Purpose: ${result.purpose}  ·  Tone: ${result.tone}  ·  Engine: ${result.generationMode}", style = MaterialTheme.typography.labelSmall)
+                                    if (result.selectedFacts.isNotEmpty()) {
+                                        Text("Facts used: ${result.selectedFacts.joinToString(", ")}", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                    if (result.rejectedFacts.isNotEmpty()) {
+                                        Text("Suppressed metrics: ${result.rejectedFacts.joinToString(", ")}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
+                                    }
                                 }
                                 if (result.validation.passed) {
                                     Text("✓ Passes house-style validation", color = Color(0xFF7CE38B))

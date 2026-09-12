@@ -1,26 +1,19 @@
 package com.example.skillsync.feature.opportunity.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.skillsync.R
-import com.example.skillsync.theme.AuroraBackground
-import com.example.skillsync.theme.Radii
-import com.example.skillsync.theme.skill
+import com.example.skillsync.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OpportunityDetailScreen(
     managerEmail: String,
@@ -38,7 +31,7 @@ fun OpportunityDetailScreen(
 
     val opp = uiState.opportunities.find { it.id == opportunityId }
 
-    LaunchedEffect(opp) {
+    LaunchedEffect(opp?.id) {
         if (opp != null) {
             viewModel.matchOpportunity(managerEmail, opp)
         }
@@ -51,164 +44,407 @@ fun OpportunityDetailScreen(
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                TopAppBar(
-                    title = { Text("OPPORTUNITY DETAIL", color = sk.frost, fontWeight = FontWeight.Bold) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                painterResource(R.drawable.ic_back),
-                                contentDescription = "Back",
-                                tint = sk.ice,
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                SkillSyncTopBar(
+                    title = "Decision Hub",
+                    subtitle = if (opp != null) "Opportunity #SE-${opp.id}" else "Opportunity Detail",
+                    onBack = onBack,
                 )
             },
         ) { padding ->
             if (opp == null) {
-                LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-                    item { Text("Loading opportunity details...", color = sk.subText, modifier = Modifier.padding(16.dp)) }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    SkillSyncLoadingState()
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(padding),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
+                    // SECTION 1: Inbound Requirement & Commercial Context
                     item {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-                            shape = RoundedCornerShape(Radii.card),
+                        SkillSyncCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            severity = when {
+                                opp.isCritical -> Severity.Critical
+                                opp.isHighOpportunity -> Severity.Warning
+                                else -> null
+                            },
                         ) {
-                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("OPPORTUNITY #SE-${opp.id}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = sk.frost)
-                                Text("${opp.course} · ${opp.location}, ${opp.country}", style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
-                                Text("${opp.datesStart} – ${opp.datesEnd}", style = MaterialTheme.typography.labelSmall, color = sk.cyan)
-                                Text("Sender: ${opp.sender} (${opp.sourceApp} → ${opp.sourceGroup})", style = MaterialTheme.typography.bodySmall, color = sk.subText)
-                                Text("Detected: ${opp.detectedAt}", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
-                                Text("Status: ${opp.status.uppercase()}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = sk.sky)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "INBOUND REQUIREMENT",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = sk.labelText,
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    if (opp.isCritical) {
+                                        ToneChip("CRITICAL", tint = sk.crit)
+                                    } else if (opp.isHighOpportunity) {
+                                        ToneChip("HIGH URGENCY", tint = sk.warn)
+                                    }
+                                    val statusTint = when (opp.status.lowercase()) {
+                                        "accepted" -> sk.good
+                                        "declined" -> sk.crit
+                                        "snoozed" -> sk.amber
+                                        else -> sk.sky
+                                    }
+                                    ToneChip(opp.status.uppercase(), tint = statusTint)
+                                }
+                            }
+
+                            Text(
+                                text = opp.course.ifBlank { opp.courseCode.ifBlank { opp.title } },
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = sk.frost,
+                            )
+
+                            if (opp.courseCode.isNotBlank() && opp.courseCode != opp.course) {
+                                Text(
+                                    text = "Course Code: ${opp.courseCode}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = sk.cyan,
+                                )
+                            }
+
+                            HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f))
+
+                            // Logistics & Location
+                            val locationDetails = listOf(opp.location, opp.country).filter { it.isNotBlank() }.joinToString(", ")
+                            if (locationDetails.isNotBlank()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text("Location", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                                    Text(locationDetails, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, fontWeight = FontWeight.Medium)
+                                }
+                            }
+
+                            // Dates & Schedule
+                            if (opp.datesStart.isNotBlank()) {
+                                val datesDisplay = if (opp.datesEnd.isNotBlank() && opp.datesEnd != opp.datesStart) {
+                                    "${opp.datesStart} – ${opp.datesEnd}"
+                                } else opp.datesStart
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text("Schedule Window", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                                    Text(datesDisplay, style = MaterialTheme.typography.bodySmall, color = sk.cyan, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+
+                            // Sender & Inbound Channel
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("Requester", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                                Text("${opp.sender} (${opp.sourceApp})", style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
+                            }
+
+                            // Document Handling Status
+                            val docStatus = opp.documentStatus.lowercase()
+                            if (docStatus.isNotBlank() && docStatus != "none") {
+                                HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text("Curriculum Document", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                                    when (docStatus) {
+                                        "awaiting_user_share", "mentioned" -> ToneChip("AWAITING SHARE", tint = sk.amber)
+                                        "analysing" -> ToneChip("ANALYSING SYLLABUS", tint = sk.cyan)
+                                        "analysed" -> ToneChip("ANALYSED", tint = sk.good)
+                                        "failed" -> ToneChip("ANALYSIS FAILED", tint = sk.warn)
+                                        else -> ToneChip(docStatus.uppercase(), tint = sk.subText)
+                                    }
+                                }
                             }
                         }
                     }
 
+                    // SECTION 2: Capability Match & Recommendation Band
                     item {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-                            shape = RoundedCornerShape(Radii.card),
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                val score = if (match.matchScore > 0) match.matchScore else opp.skillMatchScore
-                                Text("CAPABILITY MATCH", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = sk.frost)
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    LinearProgressIndicator(
-                                        progress = (score / 100f).coerceIn(0f, 1f),
-                                        modifier = Modifier.weight(1f).height(8.dp),
-                                        color = if (score >= 80) sk.good else if (score >= 50) sk.warn else sk.crit,
-                                        trackColor = sk.surface3,
+                        val score = if (match.matchScore > 0) match.matchScore else opp.skillMatchScore
+                        val recommendationBand = when {
+                            score >= 90 -> "STRONGLY ACCEPT"
+                            score >= 75 -> "ACCEPT WITH PREPARATION"
+                            score >= 60 -> "REVIEW QUICKLY"
+                            score >= 40 -> "HIGH PREPARATION"
+                            score > 0 -> "NOT RECOMMENDED"
+                            else -> "INSUFFICIENT EVIDENCE"
+                        }
+                        val bandTint = when {
+                            score >= 90 -> sk.good
+                            score >= 75 -> sk.cyan
+                            score >= 60 -> sk.amber
+                            score >= 40 -> sk.warn
+                            else -> sk.crit
+                        }
+
+                        SkillSyncCard(Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "CAPABILITY MATCH",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = sk.labelText,
+                                )
+                                ToneChip(
+                                    text = recommendationBand,
+                                    tint = bandTint,
+                                )
+                            }
+
+                            // Score & Bar
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                LinearProgressIndicator(
+                                    progress = { (score / 100f).coerceIn(0f, 1f) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(10.dp),
+                                    color = bandTint,
+                                    trackColor = sk.surface3,
+                                )
+                                Text(
+                                    text = "$score%",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = bandTint,
+                                )
+                            }
+
+                            val verdict = match.verdict.ifBlank { opp.verdict }
+                            if (verdict.isNotBlank()) {
+                                Text(
+                                    text = "Assessment: $verdict",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = sk.bodyText,
+                                )
+                            }
+
+                            val confidence = match.confidence.ifBlank { opp.confidence }
+                            val prepHours = match.preparationHours.ifBlank { opp.preparationHours }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                if (confidence.isNotBlank()) {
+                                    Text(
+                                        text = "Confidence: $confidence",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = sk.subText,
                                     )
-                                    Text("$score%", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = sk.bodyText)
                                 }
-                                val verdict = match.verdict.ifBlank { opp.verdict }
-                                if (verdict.isNotBlank()) Text("Verdict: $verdict", style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
-                                val conf = match.confidence.ifBlank { opp.confidence }
-                                if (conf.isNotBlank()) Text("Confidence: $conf", style = MaterialTheme.typography.bodySmall, color = sk.subText)
-                                val prep = match.preparationHours.ifBlank { opp.preparationHours }
-                                if (prep.isNotBlank()) Text("Preparation: $prep", style = MaterialTheme.typography.bodySmall, color = sk.amber)
-                                val gap = match.majorGap.ifBlank { opp.majorGap }
-                                if (gap.isNotBlank()) Text("Major gap: $gap", style = MaterialTheme.typography.bodySmall, color = sk.crit)
+                                if (prepHours.isNotBlank() && prepHours != "0") {
+                                    Text(
+                                        text = "Estimated Preparation: $prepHours",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = sk.amber,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
                             }
                         }
                     }
 
-                    val strong = match.strongAreas.ifEmpty { opp.strongAreas }
-                    if (strong.isNotEmpty()) {
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-                                shape = RoundedCornerShape(Radii.card),
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text("STRONG AREAS", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = sk.good)
-                                    strong.forEach { area ->
-                                        Text("• $area", style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
+                    // SECTION 3: Evidence & Gap Breakdown
+                    val strongList = match.strongAreas.ifEmpty { opp.strongAreas }
+                    val weakList = match.weakAreas.ifEmpty { opp.weakAreas }
+                    val majorGap = match.majorGap.ifBlank { opp.majorGap }
+
+                    item {
+                        SkillSyncCard(Modifier.fillMaxWidth()) {
+                            Text(
+                                text = "EVIDENCE & PREPARATION ANALYSIS",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = sk.labelText,
+                            )
+
+                            if (strongList.isNotEmpty()) {
+                                Text(
+                                    text = "Verified Capability Evidence",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = sk.good,
+                                )
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    strongList.forEach { area ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(
+                                                text = area,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = sk.bodyText,
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                            ToneChip("EVIDENCE VERIFIED", tint = sk.good)
+                                        }
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    text = "No direct verified delivery or certification record on file. Absence of proof is not assumed as delivery readiness.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = sk.subText,
+                                )
+                            }
+
+                            if (weakList.isNotEmpty() || majorGap.isNotBlank()) {
+                                HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f))
+                                Text(
+                                    text = "Preparation Areas & Gaps",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = sk.warn,
+                                )
+                                if (majorGap.isNotBlank()) {
+                                    Text(
+                                        text = "Critical Gap: $majorGap",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = sk.crit,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    weakList.forEach { area ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(
+                                                text = area,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = sk.bodyText,
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                            ToneChip("PREPARATION NEEDED", tint = sk.amber)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
 
-                    val weak = match.weakAreas.ifEmpty { opp.weakAreas }
-                    if (weak.isNotEmpty()) {
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = sk.cardBg),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-                                shape = RoundedCornerShape(Radii.card),
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text("PREPARATION REQUIRED", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = sk.warn)
-                                    weak.forEach { area ->
-                                        Text("• $area", style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
-                                    }
-                                }
-                            }
-                        }
-                    }
-
+                    // SECTION 4: Decision & Communication Actions
                     item {
-                        Button(
-                            onClick = { onGenerateResponse(opp.id) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
-                            shape = RoundedCornerShape(Radii.chip),
-                        ) {
-                            Text("GENERATE RESPONSE", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color.White)
-                        }
-                    }
+                        SkillSyncCard(Modifier.fillMaxWidth()) {
+                            Text(
+                                text = "MANAGER DECISION & RESPONSE",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = sk.labelText,
+                            )
 
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
+                            // Communication Response Button
                             Button(
-                                onClick = { viewModel.acceptOpportunity(opp.id) },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = sk.good),
+                                onClick = { onGenerateResponse(opp.id) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
                                 shape = RoundedCornerShape(Radii.chip),
                             ) {
-                                Text("ACCEPT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text(
+                                    "GENERATE TAILORED RESPONSE",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = sk.frost,
+                                )
                             }
-                            OutlinedButton(
-                                onClick = { viewModel.declineOpportunity(opp.id) },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(Radii.chip),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = sk.crit),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, sk.crit.copy(alpha = 0.5f)),
+
+                            HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f))
+
+                            // Decision Action Grid
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                Text("DECLINE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                            }
-                            OutlinedButton(
-                                onClick = { viewModel.updateDocumentStatus(opp.id, "snoozed") },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(Radii.chip),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = sk.warn),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, sk.warn.copy(alpha = 0.5f)),
-                            ) {
-                                Text("SNOOZE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                            }
-                            OutlinedButton(
-                                onClick = { viewModel.updateDocumentStatus(opp.id, "seen") },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(Radii.chip),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = sk.sky),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, sk.sky.copy(alpha = 0.5f)),
-                            ) {
-                                Text("SEEN", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                Button(
+                                    onClick = { viewModel.acceptOpportunity(opp.id) },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = sk.good),
+                                    shape = RoundedCornerShape(Radii.chip),
+                                ) {
+                                    Text(
+                                        "ACCEPT",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = sk.frost,
+                                    )
+                                }
+
+                                OutlinedButton(
+                                    onClick = { viewModel.declineOpportunity(opp.id) },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(Radii.chip),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = sk.crit),
+                                    border = BorderStroke(1.dp, sk.crit.copy(alpha = 0.5f)),
+                                ) {
+                                    Text(
+                                        "DECLINE",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+
+                                OutlinedButton(
+                                    onClick = { viewModel.updateDocumentStatus(opp.id, "snoozed") },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(Radii.chip),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = sk.warn),
+                                    border = BorderStroke(1.dp, sk.warn.copy(alpha = 0.5f)),
+                                ) {
+                                    Text(
+                                        "SNOOZE",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+
+                                OutlinedButton(
+                                    onClick = { viewModel.updateDocumentStatus(opp.id, "seen") },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(Radii.chip),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = sk.sky),
+                                    border = BorderStroke(1.dp, sk.sky.copy(alpha = 0.5f)),
+                                ) {
+                                    Text(
+                                        "SEEN",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
                             }
                         }
                     }

@@ -12,12 +12,15 @@ def _iso(d):
     return d.strftime("%Y-%m-%d")
 
 
+_now = datetime.utcnow().date()
+_this_week_monday = _now - timedelta(days=_now.weekday())
+
 FAKE_PRIORITIES = {
     "manager": MANAGER, "generated_at": "x", "counts": {},
     "items": [
         {"id": "unstaffed_demand:D1", "kind": "unstaffed_demand", "title": "Unstaffed: AZ-104",
          "detail": "...", "severity": "high",
-         "due": _iso(datetime.utcnow().date() + timedelta(days=2)),
+         "due": _iso(_this_week_monday + timedelta(days=1)),
          "target_type": "demand", "target_id": "D1"},
         {"id": "overload:t@x", "kind": "overload", "title": "Beta Two is overloaded",
          "detail": "Utilisation at 96%.", "severity": "high", "due": "",

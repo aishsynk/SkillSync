@@ -1,5 +1,32 @@
 # SkillEdge / Manager OS — Project Context
 
+## Communication Intelligence Service Architecture (effective 2026-09-12)
+
+- **Authoritative Pipeline**:
+  `User Message + My Message + Current Context` → `Intent Analysis` → `Recipient/Relationship Understanding` → `Situation Evaluation` → `Important Fact Selection` → `Irrelevant Fact Rejection` → `Sensitive Fact Rejection` → `Action Determination` → `Message Planning` → `Natural Generation (LLM or Intelligent Native Engine)` → `Policy/Formatting Validation` → `Final Message`.
+- **User Message / My Message Precedence**:
+  - If `user_message` is present, it is the PRIMARY conversational intent (what is being responded to).
+  - If `user_message` is empty, derive intent from `my_message`.
+  - When both exist, `user_message` defines inbound context while `my_message` defines the sender's position, qualifiers, and instructions.
+- **Clean Separation of Concerns**:
+  `ContextSelector` outputs structured meaning only (`CommunicationPlan` / `ContextSelectionPlan`) with zero finished prose or markdown sentences. `Composer` generates the natural language.
+- **Single-Priority Focus vs. Metric Dump**:
+  Automated communications evaluate the entire operational situation (demand, capacity, capability, quality risk) and select ONLY the 1–2 critical actionable facts. Irrelevant facts (e.g. participant counts or certification gaps during an unstaffed batch alert) are rejected into `rejected_facts`.
+- **Sensitive Fact Screening**:
+  All sensitive keys (`salary`, `margin`, `billing_rate`, `client_billing_key`, `retention_flag`, etc.) are removed before message planning and reported in `sensitive_facts_removed`.
+- **Authoritative Formatting Policy (MS Teams & Viber)**:
+  - Layout: Exact 3-part layout (Line 1: Greeting, Line 2: Main message, Line 3: Closing) separated by blank lines (`\n\n`).
+  - Names: Italics only (`*Name*`).
+  - Key Action: Bold only (`**Action**`), max 1 bold action per message. Never bold the entire message.
+  - Dates & Timeframes: Bold + Underlined (`__**Friday**__` or `__**next week**__`). Max 1 date/time reference per message. Never underline non-date text.
+  - Prohibitions: Zero emojis, zero bullet points, zero numbered lists, no conversational filler.
+- **Intelligent Suppression**:
+  When baseline operations are steady with no unstaffed batches, critical blockers, or immediate actions required, automated messages return `NO_MEANINGFUL_MESSAGE` with `requires_communication=False` and an explicit `no_message_reason`.
+- **Generator Reality Transparency**:
+  In standard environments without OpenAI or Azure keys configured, the service honestly reports `generation_mode="DETERMINISTIC_GENERATOR"`.
+- **Parity Across Backend & Android**:
+  The Python service (`services/communication/`) and Android native engine (`feature/communication/engine/`) share identical architecture, models, selection rules, and validation logic.
+
 ## Demand detail — assignment level & team-skill panel (effective v3.72.0)
 
 - RMS `unallocated` field **`assignment_sl`** (a number 1-10) = the skill level a trainer must

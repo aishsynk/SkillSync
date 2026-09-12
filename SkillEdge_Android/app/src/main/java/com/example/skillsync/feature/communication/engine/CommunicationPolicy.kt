@@ -1,6 +1,7 @@
 package com.example.skillsync.feature.communication.engine
 
 const val MAX_LENGTH = 1000
+const val NO_MEANINGFUL_MESSAGE = "NO_MEANINGFUL_MESSAGE"
 
 val TONES = listOf(
     "professional", "firm", "corrective", "advisory", "appreciative",
