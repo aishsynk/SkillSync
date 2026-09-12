@@ -139,4 +139,40 @@ class BatchShareTest {
         assertTrue(plain("Niharika  Niharika").startsWith("Hi Niharika,"))
         assertTrue(plain().startsWith("Hi Team,"))
     }
+
+    @Test
+    fun composeWithIntent_embedsManagerIntentWhenProvided() {
+        val intentText = "Urgent requirement for client delivery next week."
+        val msg = BatchShare.composeWithIntent(batch, recipient = "Abhinav Samant", myMessage = intentText)
+        assertTrue(msg.startsWith("Hi Abhinav,\n\nUrgent requirement for client delivery next week."))
+        assertTrue(msg.contains("Course : PL-300T00: Design and Manage Analytics Solutions Using Power BI"))
+        assertTrue(msg.contains("Schedule : 01 Oct 2026 to 05 Oct 2026"))
+    }
+
+    @Test
+    fun composeWithIntent_stripsCustomerFinancialsAndPrivateData() {
+        val msg = BatchShare.composeWithIntent(batch, recipient = "Team")
+        // CommunicationPurpose.BATCH_INVITATION allowlist permits course_title, batch_id, schedule, mode, location
+        // Customer name is stripped from broadcast invitation to protect commercial privacy
+        assertFalse(msg.contains("Customer : Microsoft"))
+    }
+
+    @Test
+    fun composeExternalStaffingRequest_formatsCleanInquiryWithoutMarginLeaks() {
+        val req = BatchShare.composeExternalStaffingRequest(
+            courseName = "AZ-104: Microsoft Azure Administrator",
+            dates = "10 Nov 2026 to 14 Nov 2026",
+            deliveryMode = "Virtual Instructor-Led",
+            location = "London, UK",
+            myMessage = "We are seeking a certified Azure trainer.",
+        )
+        assertTrue(req.contains("Dear Trainer / Partner,"))
+        assertTrue(req.contains("We are seeking a certified Azure trainer."))
+        assertTrue(req.contains("Course / Technology : AZ-104: Microsoft Azure Administrator"))
+        assertTrue(req.contains("Target Schedule : 10 Nov 2026 to 14 Nov 2026"))
+        assertTrue(req.contains("Delivery Mode : Virtual Instructor-Led"))
+        assertTrue(req.contains("Location : London, UK"))
+        assertFalse(req.contains("margin"))
+        assertFalse(req.contains("rate"))
+    }
 }

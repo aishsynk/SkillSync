@@ -8,6 +8,8 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.core.net.toUri
 import androidx.compose.material3.Text
+import com.example.skillsync.feature.communication.engine.CommunicationContextFilter
+import com.example.skillsync.feature.communication.engine.CommunicationPurpose
 
 /**
  * Builds the trainer-facing broadcast for an unallocated assignment.
@@ -80,6 +82,102 @@ object BatchShare {
     ): String = build(batch, recipient,
         bold = { "<b>$it</b>" }, italic = { "<i>$it</i>" }, underline = { "<u>$it</u>" })
         .replace("\n", "<br>")
+
+    /**
+     * Intent-aware message composition backed by [CommunicationContextFilter].
+     *
+     * Injects the manager's personalized intent note when provided, and strictly
+     * enforces the allowlist/denylist rules for [purpose].
+     */
+    fun composeWithIntent(
+        batch: Batch,
+        recipient: String = "Team",
+        myMessage: String = "",
+        purpose: CommunicationPurpose = CommunicationPurpose.BATCH_INVITATION,
+    ): String {
+        val rawContext = mapOf(
+            "course_title" to batch.courseName,
+            "batch_id" to batch.reference,
+            "start_date" to batch.startDate,
+            "end_date" to batch.endDate,
+            "delivery_mode" to batch.deliveryMode,
+            "daily_timing" to batch.sessionTime,
+            "location" to batch.location,
+            "customer" to batch.vendor,
+            "language" to batch.language,
+            "participants" to batch.participants,
+            "assignment_level" to batch.assignmentLevel,
+            "toc_url" to batch.tocUrl,
+        )
+        // Strictly sanitize per purpose (strips margins, financial IDs, billing codes)
+        val sanitized = CommunicationContextFilter.sanitize(purpose, rawContext)
+
+        val cleanBatch = batch.copy(
+            courseName = sanitized["course_title"] as? String ?: batch.courseName,
+            reference = sanitized["batch_id"] as? String ?: "",
+            startDate = sanitized["start_date"] as? String ?: batch.startDate,
+            endDate = sanitized["end_date"] as? String ?: batch.endDate,
+            deliveryMode = sanitized["delivery_mode"] as? String ?: batch.deliveryMode,
+            sessionTime = sanitized["daily_timing"] as? String ?: batch.sessionTime,
+            location = sanitized["location"] as? String ?: batch.location,
+            vendor = sanitized["customer"] as? String ?: "",
+            language = sanitized["language"] as? String ?: batch.language,
+            participants = sanitized["participants"] as? String ?: batch.participants,
+            assignmentLevel = sanitized["assignment_level"] as? String ?: batch.assignmentLevel,
+            tocUrl = sanitized["toc_url"] as? String ?: batch.tocUrl,
+        )
+
+        val baseMessage = composeMessage(cleanBatch, recipient)
+        return if (myMessage.isNotBlank()) {
+            "Hi ${greetingName(recipient)},\n\n${myMessage.trim()}\n\n" +
+                baseMessage.substringAfter("New assignment open for allocation.\n\n")
+        } else {
+            baseMessage
+        }
+    }
+
+    /**
+     * Composes a professional external trainer staffing request for vendor/freelance outreach.
+     * Sanitized via EXTERNAL_STAFFING_REQUEST (zero margin, zero internal budget leak).
+     */
+    fun composeExternalStaffingRequest(
+        courseName: String,
+        dates: String = "",
+        deliveryMode: String = "",
+        location: String = "",
+        myMessage: String = "",
+    ): String {
+        val rawContext = mapOf(
+            "course_title" to courseName,
+            "required_technology" to courseName,
+            "start_date" to dates,
+            "delivery_mode" to deliveryMode,
+            "location" to location,
+        )
+        val sanitized = CommunicationContextFilter.sanitize(CommunicationPurpose.EXTERNAL_STAFFING_REQUEST, rawContext)
+        val safeCourse = sanitized["course_title"] as? String ?: courseName
+        val safeMode = sanitized["delivery_mode"] as? String ?: deliveryMode
+        val safeLoc = sanitized["location"] as? String ?: location
+
+        return buildString {
+            appendLine("Dear Trainer / Partner,")
+            appendLine()
+            if (myMessage.isNotBlank()) {
+                appendLine(myMessage.trim())
+                appendLine()
+            } else {
+                appendLine("We have an upcoming training requirement and are checking availability across our trainer network.")
+                appendLine()
+            }
+            appendLine("Course / Technology : $safeCourse")
+            if (dates.isNotBlank()) appendLine("Target Schedule : $dates")
+            if (safeMode.isNotBlank()) appendLine("Delivery Mode : $safeMode")
+            if (safeLoc.isNotBlank()) appendLine("Location : $safeLoc")
+            appendLine()
+            appendLine("If you are available and interested, please share your updated profile and availability.")
+            appendLine("Thank you.")
+        }.trim()
+    }
 
     private fun build(
         b: Batch,

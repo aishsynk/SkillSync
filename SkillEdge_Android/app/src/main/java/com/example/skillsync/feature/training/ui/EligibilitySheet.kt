@@ -278,7 +278,7 @@ private fun BlockedRow(
                                 colors = ButtonDefaults.buttonColors(containerColor = sk.teal),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                             ) {
-                                Text("Mark skill", style = MaterialTheme.typography.labelMedium, color = Color.White)
+                                Text("Mark skill", style = MaterialTheme.typography.labelMedium, color = sk.frost)
                             }
                         }
                         "book_exam" -> FixTag("Book an exam / mock — no in-app action yet", sk.amber)

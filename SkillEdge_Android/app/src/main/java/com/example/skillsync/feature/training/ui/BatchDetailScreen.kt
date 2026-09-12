@@ -163,21 +163,10 @@ fun BatchDetailScreen(
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text("Demand detail", fontWeight = FontWeight.SemiBold, color = sk.frost)
-                            Text(
-                                "Ref ${batch.str("demand_id")}", color = sk.labelText,
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(painterResource(R.drawable.ic_back), "Back", tint = sk.frost)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                com.example.skillsync.theme.SkillSyncTopBar(
+                    title = "Demand Detail",
+                    subtitle = "Ref ${batch.str("demand_id")}".takeIf { batch.str("demand_id").isNotBlank() },
+                    onBack = onBack,
                 )
             },
         ) { pv ->
@@ -207,8 +196,8 @@ fun BatchDetailScreen(
                         )
                         Spacer(Modifier.height(6.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (batch.bool("is_fast_track") || operationalContext?.course?.isFastTrack == true) { Chip("⚡ Fast-Track (No Exam)", sk.aqua); Spacer(Modifier.width(6.dp)) }
-                            if (batch.bool("is_priority")) { Chip("★ Priority", sk.teal); Spacer(Modifier.width(6.dp)) }
+                            if (batch.bool("is_fast_track") || operationalContext?.course?.isFastTrack == true) { Chip("Fast-Track (No Exam)", sk.aqua); Spacer(Modifier.width(6.dp)) }
+                            if (batch.bool("is_priority")) { Chip("Priority", sk.teal); Spacer(Modifier.width(6.dp)) }
                             if (batch.str("tentative").equals("Yes", true)) { Chip("Tentative", sk.amber); Spacer(Modifier.width(6.dp)) }
                             if (batch.str("third_party").equals("Yes", true)) { Chip("Third party", sk.indigo) }
                         }
@@ -359,7 +348,7 @@ fun BatchDetailScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                "📚 Courseware & Curriculum",
+                                "Courseware & Curriculum",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = sk.frost,
@@ -371,7 +360,7 @@ fun BatchDetailScreen(
                                     border = androidx.compose.foundation.BorderStroke(1.dp, sk.teal.copy(alpha = 0.4f)),
                                 ) {
                                     Text(
-                                        "⚡ Fast-Track (No Exam)",
+                                        "Fast-Track (No Exam)",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = sk.teal,
                                         fontWeight = FontWeight.Bold,
@@ -425,9 +414,9 @@ fun BatchDetailScreen(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     ) {
                                         Text(
-                                            "Slides PDF ↗",
+                                            "Slides PDF",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = Color.White,
+                                            color = sk.frost,
                                             fontWeight = FontWeight.Bold,
                                         )
                                     }
@@ -451,7 +440,7 @@ fun BatchDetailScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
-                                    Text("👥 Enrolled Participants", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = sk.frost)
+                                    Text("Enrolled Participants", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = sk.frost)
                                     Surface(
                                         color = Color(0xFF0284C7).copy(alpha = 0.2f),
                                         shape = RoundedCornerShape(6.dp),
@@ -462,7 +451,6 @@ fun BatchDetailScreen(
                                             style = MaterialTheme.typography.labelSmall,
                                             color = Color(0xFF38BDF8),
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 10.sp,
                                         )
                                     }
                                 }
@@ -524,7 +512,6 @@ fun BatchDetailScreen(
                                                 student.company,
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = sk.subText,
-                                                fontSize = 10.sp,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                             )
                                         }
@@ -607,7 +594,7 @@ fun BatchDetailScreen(
                                             )
                                         } else if (isClientReq) {
                                             Text(
-                                                "⭐ Client Requested Trainer",
+                                                "Client Requested Trainer",
                                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                                 color = sk.amber,
                                             )
@@ -659,7 +646,7 @@ fun BatchDetailScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
                     ) {
-                        Text("Search Wider Trainer Network 🌐", style = MaterialTheme.typography.labelMedium, color = sk.cyan, fontWeight = FontWeight.SemiBold)
+                        Text("Search Wider Trainer Network", style = MaterialTheme.typography.labelMedium, color = sk.cyan, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
@@ -703,6 +690,7 @@ fun BatchDetailScreen(
         MessagePreviewDialog(
             message = messageFor(shareTarget),
             recipient = shareTarget?.first,
+            batch = shareBatch,
             onDismiss = { showMessagePreview = false },
             onCopy = { text ->
                 // Only pass the HTML variant when the text is untouched; once it
@@ -760,21 +748,21 @@ fun BatchDetailScreen(
 /**
  * Shows the exact text before it leaves the app, and lets the manager edit it.
  *
- * Copy is the primary action, not a Viber deep link. `viber://forward?text=`
- * carries the body inside a URI and Viber truncates it at roughly a hundred
- * characters, so complete messages arrived cut off mid sentence with their
- * meaning lost. The clipboard has no such limit.
+ * Backed by CommunicationContextPolicy (AVAILABLE DATA != MESSAGE CONTENT).
+ * Supports manager intent input to guide the context drafting.
  */
 @Composable
 private fun MessagePreviewDialog(
     message: String,
     recipient: String?,
+    batch: BatchShare.Batch,
     onDismiss: () -> Unit,
     onCopy: (String) -> Unit,
     onShare: (String) -> Unit,
 ) {
     val sk = MaterialTheme.skill
     var text by remember(message) { mutableStateOf(message) }
+    var managerIntent by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -792,7 +780,7 @@ private fun MessagePreviewDialog(
             }
         },
         title = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     if (recipient != null) "Message $recipient" else "Message the team",
                     style = MaterialTheme.typography.titleLarge,
@@ -801,16 +789,50 @@ private fun MessagePreviewDialog(
                     "${text.length} of 1000 characters · paste into Viber or Teams",
                     style = MaterialTheme.typography.labelSmall, color = sk.subText,
                 )
+                Surface(
+                    color = sk.teal.copy(alpha = 0.14f),
+                    shape = RoundedCornerShape(6.dp),
+                    border = androidx.compose.foundation.BorderStroke(0.5.dp, sk.teal.copy(alpha = 0.3f)),
+                    modifier = Modifier.padding(top = 4.dp),
+                ) {
+                    Text(
+                        "Policy: Sanitized (Commercial IDs & Private Notes Filtered)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.teal,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                }
             }
         },
         text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                textStyle = MaterialTheme.typography.bodySmall,
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp, max = 360.dp),
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = managerIntent,
+                    onValueChange = { intent ->
+                        managerIntent = intent
+                        text = BatchShare.composeWithIntent(
+                            batch = batch,
+                            recipient = recipient ?: "Team",
+                            myMessage = intent,
+                        )
+                    },
+                    label = { Text("My Message (Manager Intent)") },
+                    placeholder = { Text("e.g. Urgent requirement, please confirm if available") },
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text("Message Preview") },
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 320.dp),
+                )
+            }
         },
     )
 }

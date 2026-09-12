@@ -210,9 +210,14 @@ fun NetworkStaffingSheet(
                                             Button(
                                                 onClick = {
                                                     try {
+                                                        val body = BatchShare.composeExternalStaffingRequest(
+                                                            courseName = courseName,
+                                                            location = location,
+                                                        )
                                                         val intent = Intent(Intent.ACTION_SENDTO).apply {
                                                             data = Uri.parse("mailto:$email")
                                                             putExtra(Intent.EXTRA_SUBJECT, "Staffing Opportunity: $courseName")
+                                                            putExtra(Intent.EXTRA_TEXT, body)
                                                         }
                                                         context.startActivity(intent)
                                                     } catch (_: Exception) {}
@@ -221,7 +226,7 @@ fun NetworkStaffingSheet(
                                                 modifier = Modifier.weight(1f),
                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                             ) {
-                                                Text("Email ✉", style = MaterialTheme.typography.labelSmall, color = Color.White)
+                                                Text("Email", style = MaterialTheme.typography.labelSmall, color = sk.frost, fontWeight = FontWeight.SemiBold)
                                             }
                                         }
 
@@ -237,7 +242,7 @@ fun NetworkStaffingSheet(
                                                 modifier = Modifier.weight(1f),
                                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                             ) {
-                                                Text("Call 📞", style = MaterialTheme.typography.labelSmall, color = Color.Black)
+                                                Text("Call", style = MaterialTheme.typography.labelSmall, color = sk.surface1, fontWeight = FontWeight.Bold)
                                             }
                                         }
                                     }

@@ -149,8 +149,8 @@ fun MarkSkillDialog(
                         steps = 8,
                     )
                     Text(
-                        "1 is lowest, 10 is highest. Keep at 4 or below unless you can fully deliver.",
-                        style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 10.sp,
+                        "1 is lowest, 10 is highest. Keep at 4 or below unless you can fully deliver without co-trainer support.",
+                        style = MaterialTheme.typography.labelSmall, color = sk.subText,
                     )
                 }
 
@@ -161,8 +161,8 @@ fun MarkSkillDialog(
                     )
                 }
                 Text(
-                    "This writes to RMS and is visible to the allocation team.",
-                    style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 10.sp,
+                    "Recorded skills update RMS immediately and feed the allocation ranking algorithm. Certified trainers take precedence.",
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
                 )
             }
         },

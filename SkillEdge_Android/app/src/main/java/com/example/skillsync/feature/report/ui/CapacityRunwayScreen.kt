@@ -54,23 +54,10 @@ fun CapacityRunwayScreen(
     Scaffold(
         containerColor = sk.pageBg,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Capacity Runway", fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(
-                            "Next 8 weeks — demand vs capacity",
-                            color = Color.White.copy(alpha = 0.78f),
-                            fontSize = 13.sp,
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_back), "Back", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = sk.heroBg),
+            com.example.skillsync.theme.SkillSyncTopBar(
+                title = "Capacity Runway",
+                subtitle = "Next 8 weeks — demand vs capacity",
+                onBack = onBack,
             )
         },
     ) { padding ->
@@ -220,7 +207,7 @@ private fun WeekBars(weeks: List<RunwayWeek>, sk: SkillColors) {
                     Text(
                         humanDate(w.weekStart),
                         color = sk.subText,
-                        fontSize = 9.sp,
+                        fontSize = 11.sp,
                         textAlign = TextAlign.Center,
                         maxLines = 1,
                         modifier = Modifier.weight(1f),
@@ -241,7 +228,7 @@ private fun WeekBars(weeks: List<RunwayWeek>, sk: SkillColors) {
 private fun LegendDot(color: Color, label: String, sk: SkillColors) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(color))
-        Text(label, color = sk.subText, fontSize = 10.sp)
+        Text(label, color = sk.subText, fontSize = 11.sp)
     }
 }
 
@@ -268,7 +255,7 @@ private fun UpskillCard(u: RunwayUpskill, sk: SkillColors, onOpenTrainer: (Strin
                             .background(sk.sky.copy(alpha = 0.15f))
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                     ) {
-                        Text(u.examCode, color = sk.sky, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(u.examCode, color = sk.sky, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 Text(

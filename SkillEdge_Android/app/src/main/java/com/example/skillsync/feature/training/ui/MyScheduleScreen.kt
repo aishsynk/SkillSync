@@ -87,19 +87,10 @@ fun MyScheduleScreen(
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text("My schedule", style = MaterialTheme.typography.headlineSmall, color = sk.bodyText)
-                            Text("YOUR OWN DELIVERY · LEAVE BANDS", style = MaterialTheme.typography.labelSmall, color = sk.sky)
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(painterResource(R.drawable.ic_back), "Back", tint = sk.ice)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                com.example.skillsync.theme.SkillSyncTopBar(
+                    title = "My Schedule",
+                    subtitle = "YOUR OWN DELIVERY · LEAVE BANDS",
+                    onBack = onBack,
                 )
             },
         ) { pad ->
