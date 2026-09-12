@@ -1,33 +1,33 @@
-## 2026-09-11 - Wave 4 Courses / Capability Marketplace SHIPPED - all 5 Android gates green + pytest 322 pass
+## 2026-09-12 - Wave 4 Courses & Capability Marketplace PUBLISHED & RELEASED (v3.80.2, Build 177) - CI Green & Release Live
 
 - **Model**: inherit (Antigravity) **Tool**: Antigravity
-- **Directive**: Execute Wave 4 Courses / Capability Marketplace transformation across `CoursesTab.kt`, `CourseCurriculumSheet.kt`, and `CommunicationContextPolicy.kt`.
-- **Files Modified / Created**:
-  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/CoursesTab.kt` (Modified - token pure, ToneChips, SkillSyncCard, evidence tags CERTIFIED/DELIVERED, 100% test assertions preserved)
-  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/CourseCurriculumSheet.kt` (Modified - 4-tab structure: Modules, Capability & Readiness, Public Schedules, Resources; Single-point-of-failure risk warnings, evidence checks, sanitized manager-intent PreparationRequestDialog, >= 11sp typography)
-  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationContextPolicy.kt` (Modified - added COURSE_PREPARATION_REQUEST, CAPABILITY_DEVELOPMENT_REQUEST, CURRICULUM_SHARE with strict allowlists and denylists)
-  - `docs/PAGES_TRACKER.md` (Modified - marked Wave 4 VERIFIED)
-  - `AI/PROGRESS.md` (Modified - recorded Wave 4 verified state)
-- **Work Completed**:
-  - **Capability & Curriculum Integration**: Connected course discovery directly to enterprise capability evidence. Added a 4-tab drawer structure ("Modules", "Capability & Readiness", "Public Schedules", "Resources") to `CourseCurriculumSheet.kt`.
-  - **Evidence-Based Ownership & Single-Point-of-Failure Warnings**: Surfaced verified trainer capability backing (`CERTIFIED`, `${o.delivered} DELIVERED`) or `"Insufficient evidence"`. Added automated single-point-of-failure risk callouts (`"SINGLE POINT OF FAILURE: Only 1 trainer in your team is verified to deliver this curriculum."`) to highlight organizational delivery risks.
-  - **Course Preparation Intent & Policy Sanitization**: Built `PreparationRequestDialog` allowing managers to compose targeted preparation requests with "My Message (Manager Intent)" and live policy sanitization badges, filtering private evaluation or commercial margin fields before dispatch.
-  - **Communication Policy Governance**: Added `COURSE_PREPARATION_REQUEST`, `CAPABILITY_DEVELOPMENT_REQUEST`, and `CURRICULUM_SHARE` to `CommunicationContextPolicy.kt` with explicit field allowlists (`course_title`, `course_code`, `vendor`, `prerequisites`, `target_completion_date`, `manager_intent_note`) and denylists (`private_evaluation`, `salary`, `margin`, `client_billing_key`, `retention_flag`).
+- **Directive**: Close Wave 4, publish verified work to origin/main, verify GitHub CI/CD, verify Release APK and backend health, and proceed to Wave 5.
+- **Git Commit Chain**:
+  - `f1ff533` feat(wave1): product design foundation and application shell
+  - `c46ade2` feat(wave2): plan and operational batch fulfillment journey
+  - `2aa4fa6` feat(wave3): people and trainer capability and readiness journey
+  - `411bbf1` ui: transform courses and capability marketplace (v3.80.2, Build 177)
+- **Files Modified in Wave 4**:
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/CoursesTab.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/CourseCurriculumSheet.kt`
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationContextPolicy.kt`
+  - `SkillEdge_Android/app/build.gradle.kts` (versionName = "3.80.2", versionCode = 177)
+  - `docs/PAGES_TRACKER.md`
+  - `AI/PROGRESS.md`
+- **Work Completed & Verified**:
+  - **Capability & Curriculum Integration**: Connected course discovery to enterprise capability evidence. Added a 4-tab drawer structure ("Modules", "Capability & Readiness", "Public Schedules", "Resources") to `CourseCurriculumSheet.kt`.
+  - **Evidence-Based Ownership & SPOF Alerts**: Surfaced verified trainer capability backing (`CERTIFIED`, `${o.delivered} DELIVERED`) or `"Insufficient evidence"`. Added automated single-point-of-failure risk callouts (`"SINGLE POINT OF FAILURE: Only 1 trainer in your team is verified to deliver this curriculum."`).
+  - **Course Preparation Intent & Policy Sanitization**: Built `PreparationRequestDialog` allowing managers to compose targeted preparation requests with "My Message (Manager Intent)" and live policy sanitization badges.
+  - **Communication Policy Governance**: Added `COURSE_PREPARATION_REQUEST`, `CAPABILITY_DEVELOPMENT_REQUEST`, and `CURRICULUM_SHARE` to `CommunicationContextPolicy.kt` with explicit field allowlists and denylists.
   - **Typography & Token Purity**: Completely excised sub-11sp font overrides (`10.sp`), removed all emojis (`🏷️`, `↗`, etc.) and raw colors (`Color.White`, `Color.Black`), replacing them with `SkillSyncCard`, `ToneChip`, `Radii.chip`, and theme tokens.
-  - **100% Test Contract Invariance**: Preserved all exact text anchors asserted by `ScreenRenderTest.kt` (`"Course catalogue"`, `"Assign skill by course name"`, `"Single owner"`, `"Single owner only"`, `"2 of 2 courses"`, `"1 of 2 courses"`, `"PL-300T00: Design and Manage Analytics Solutions Using Power BI"`, `"Power BI Data Analyst Associate"`, `"2/2 certified"`, `"2 trainers can deliver"`, `"1 trainer can deliver"`).
-- **Gates (All Green)**:
-  - `:app:compileDebugKotlin` — BUILD SUCCESSFUL (0 errors)
-  - `:app:testDebugUnitTest` — BUILD SUCCESSFUL (198 tests passed, 0 failed)
-  - `:app:compileDebugAndroidTestKotlin` — BUILD SUCCESSFUL (0 errors)
-  - `:app:assembleDebug` — BUILD SUCCESSFUL (debug APK packaged)
-  - `:app:lintDebug` — BUILD SUCCESSFUL (HTML report generated)
-  - Backend `python -m pytest` — 322 passed, 0 failed
-- **Governance & Versioning**:
-  - Baseline release remains `SkillSync Release v3.80.1.176` (Build 176).
-  - Zero new Gradle dependencies. Native Compose only.
-  - `Qubits/qubitcourses.xlsx` strictly untracked and unstaged.
-- **Current Status**: Wave 4 complete, verified, all 5 Android build gates + backend pytest green.
-- **Next Recommended Actions**: Handover complete. Wave 5 (Commercial Opportunities & Pipeline: `OpportunityListScreen.kt`, `OpportunityDetailScreen.kt`, `OpportunityGuardianScreen.kt`, `PipelineRadarScreen.kt`) ready to be scheduled upon user approval.
+  - **100% Test Contract Invariance**: Preserved all exact text anchors asserted by `ScreenRenderTest.kt`.
+- **Publication & CI/CD Verification**:
+  - **Push**: Pushed to `origin/main` (`c022262..411bbf1`), remote HEAD synced to `411bbf16f4b3b62b0599f46456ade9f74e10d065`.
+  - **GitHub Actions Run ID**: `34670497686` (Android CI/CD)
+  - **CI Workflow Status**: `completed`, conclusion: `success` (run time 4m 32s).
+  - **Release Artifact**: GitHub Release `v3.80.2.177` (Latest) generated and published with signed `SkillEdge-v3.80.2.177.apk` (asset uploaded).
+  - **Backend Health**: `https://skilledge-backend-fpcl.onrender.com/healthz` responding with status `ok` (v6.1.0).
+- **Current Status**: Wave 4 closed and live. Wave 5 (Commercial Opportunities & Opportunity Guardian) underway.
 
 ## 2026-09-11 - Wave 3 People & Trainer Capability & Readiness SHIPPED - all 5 Android gates green + pytest 322 pass
 
