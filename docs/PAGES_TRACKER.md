@@ -1,71 +1,106 @@
-# SkillEdge Android — Page Transformation Tracker
+# SkillSync — Product Redesign & Workflow Transformation Tracker
 
-Per-page record for the Phase 0 UI/UX Transformation. Each page is redone one at a time
-(foundation → shell → Home first), with all gates green (`compileDebugKotlin`,
-`testDebugUnitTest` ≥ 195 passing, `compileDebugAndroidTestKotlin`, `assembleDebug`,
-`lintDebug`) and a stop-and-report after each page.
+Master progress record for the full-product transformation across all **31 user-visible screens**, **12 inner/modal surfaces**, **6 core workflows**, and **9 communication surfaces**.
 
-Status legend: **PENDING** → **IN PROGRESS** → **DONE** (tokens + states + gates);
-**ADOPTED** = flag from audit (needs restore-against-history before redesign).
+Baseline Release: **SkillSync Release v3.80.1.176** (Build 176)
 
-| # | Screen | File | Audit flags | Status |
+### Lifecycle State Vocabulary
+- `NOT AUDITED` — Screen/workflow not yet evaluated.
+- `AUDITED` — Information architecture, state models, and disclosure risks mapped.
+- `FOUNDATION READY` — Global tokens, shell, and shared component primitives established.
+- `PARENT PASS` — Top-level tab/workspace visually modernized; inner workflows pending.
+- `INNER FLOW IN PROGRESS` — Detail screens, dialogs, sheets, and actions actively being modernized.
+- `WORKFLOW COMPLETE` — Entire parent-to-inner journey, actions, and communication modernized.
+- `VERIFIED` — All 5 Android build gates green + backend test suite passing.
+- `RELEASED` — Shipped in an approved production build.
+
+---
+
+## WAVE 1 — Product Design Foundation & Application Shell (ACTIVE)
+| Component | Scope / Path | State | Verification / Notes |
+|---|---|---|---|
+| Design Tokens & Color Ramp | `theme/Color.kt`, `theme/Surfaces.kt` | **FOUNDATION READY** | Retired legacy plum/brass in Aurora & glass; deep slate + quiet blue/cyan sheen |
+| Shared Component System | `theme/SkillSyncComponents.kt` | **FOUNDATION READY** | Primitives for TopBar, Header, Card, Metric, Chip, Button, Input, List, States |
+| Application Shell | `feature/home/MainScreen.kt` | **FOUNDATION READY** | 11sp navbar typography, 48dp touch targets, notification bell action wired |
+| Global Operational States | `theme/SkillSyncComponents.kt` | **FOUNDATION READY** | Loading (shimmer), Empty (actionable), Error (retry), Offline banner, Info banner |
+| Communication Context Policy | `feature/communication/engine/CommunicationContextPolicy.kt` | **FOUNDATION READY** | `AVAILABLE DATA != MESSAGE CONTENT` allowlists & denylists established |
+| Visual Catalog & Previews | `theme/SkillSyncDesignCatalog.kt` | **FOUNDATION READY** | Compose preview surface covering all Wave 1 components and states |
+
+---
+
+## WAVE 2 — Plan / Operational Batch Fulfillment (VERIFIED)
+| Screen / Surface | Type | File Path | State | Verification / Notes |
 |---|---|---|---|---|
-| 1 | Login | `feature/auth/ui/LoginScreen.kt` | none | PENDING |
-| 2 | Today / Manager Brief | `feature/home/ManagerCommandCentre.kt` (+`DashboardSections.kt`) | 69 raw hex; 9sp badges; 12 duplicate ExecDeck tiles | **DONE** (tokens + DeckTile + 9sp→labelSmall; **V2 modernisation**: AnimatedCount on Pulse/hero/badge, press feedback unify, shimmer loading; gates green) |
-| 3 | People & Capability | `feature/home/TeamTab.kt`, `TeamMemberCard.kt`, `TeamCalendarScreen.kt` | hex/emoji; 9sp; KPI dup with Home | **DONE** (100% token pure, emoji→corporate symbols, sub-11sp removed, ShimmerBox loading, all gates green) |
-| 4 | Demand & Planning | `feature/training/ui/AllocationDeskScreen.kt` | raw field labels | **DONE** (100% token pure, zero Color.White/hex, zero sub-11sp, emojis removed, pressable cards/chips, 259 lines dead code pruned, branded empty state, all gates green) |
-| 5 | Capability Marketplace | `feature/home/CoursesTab.kt` + curriculum sheet | emoji; jargon | PENDING |
-| 6 | Manager Actions | `feature/home/ActionsInbox.kt` | none | PENDING |
-| 7 | Search & Command | `feature/home/Version2Workspaces.kt` | emoji prompts; scope tokens | PENDING |
-| 8 | Delivery Operations | `feature/home/DeliveryOperationsWorkspace.kt` | in-shell | PENDING |
-| 9 | Opportunities (tab) | `feature/home/MainScreen.kt` OPPORTUNITIES branch | **ADOPTED** — no-op filters & actions | **DONE** (Dynamic manager profile, detail navigation wired to OpportunityDetailScreen) |
-| 10 | This Week (Priorities) | `feature/report/ui/PrioritiesScreen.kt` | `onOpenX={}` 4 no-ops | PENDING |
-| 11 | Batch Detail | `feature/training/ui/BatchDetailScreen.kt` | hardcoded shape; raw fields; emoji | PENDING |
-| 12 | Trainer 360 | `feature/training/ui/Trainer360Screen.kt` | monolith; hardcoded date + literals | PENDING |
-| 13 | Trainer Practice | `feature/training/ui/TrainerPracticeScreen.kt` | none major | PENDING |
-| 14 | Copilot | `feature/ai/ui/CopilotScreen.kt` | token-pure reference | PENDING |
-| 15 | Weekly Report | `feature/report/ui/WeeklyReportScreen.kt` | debug labels; raw hex; no empty state | PENDING |
-| 16 | HR Monthly Report | `feature/report/ui/HrMonthlyReportScreen.kt` | hardcoded date, "Raw Value", "Qubits", 10sp | PENDING |
-| 17 | Benchmark | `feature/report/ui/BenchmarkScreen.kt` | raw verdicts | PENDING |
-| 18 | Accounts | `feature/report/ui/AccountsScreen.kt` | blank-email dead nav; 8×4dp chips | PENDING |
-| 19 | Pipeline Radar | `feature/report/ui/PipelineRadarScreen.kt` | `sc_id`/CSM jargon; <48dp chips | PENDING |
-| 20 | Delivery Compliance | `feature/report/ui/DeliveryComplianceScreen.kt` | "Assignment #id" jargon | PENDING |
-| 21 | Capacity Runway | `feature/report/ui/CapacityRunwayScreen.kt` | 9–10sp labels | PENDING |
-| 22 | Ramp | `feature/report/ui/RampScreen.kt` | 9sp; partial clickability | PENDING |
-| 23 | Skill Requests | `feature/report/ui/SkillRequestsScreen.kt` | fallback course_id jargon | PENDING |
-| 24 | My Schedule | `feature/training/ui/MyScheduleScreen.kt` | `off_bands` raw keys; missing from BackHandler | PENDING |
-| 25 | Viber Automation | `feature/viber/ui/ViberAutomationScreen.kt` | console styling; 23 hex; no error/empty | PENDING |
-| 26 | Opportunity Guardian | `feature/guardian/ui/OpportunityGuardianScreen.kt` | **ADOPTED** — match never called; noops | PENDING |
-| 27 | Opportunity List | `feature/opportunity/ui/OpportunityListScreen.kt` | **ADOPTED** — only detail wired; Color.Red/Yellow | **DONE** (Tokenized, filter chips wired, empty states, match progress bar, action navigation) |
-| 28 | Opportunity Detail | `feature/opportunity/ui/OpportunityDetailScreen.kt` | **ADOPTED** — Accept/Decline/Snooze/MarkSeen no-ops | **DONE** (Tokenized, status banner, wired action buttons Accept/Decline/Snooze/MarkSeen, match breakdown) |
-| 29 | Communication Intelligence | `feature/communication/ui/*.kt` | shipped; labels polished only | PENDING |
-| 30 | Capability Graph | `feature/capability/ui/CapabilityGraphScreen.kt` | **ADOPTED** — hardcoded "Aishwar"; emoji | **DONE** (Dynamic manager derived from email, tokenized frost headers, typography aligned) |
-| 31 | Skill Profile | `feature/capability/ui/SkillProfileScreen.kt` | raw topic names; block-char bars | PENDING |
+| Plan (Allocation Desk) | Parent Tab | `feature/training/ui/AllocationDeskScreen.kt` | **VERIFIED** | Modernized workspace, token pure, pressable tactile feedback |
+| Batch Detail | Inner Screen | `feature/training/ui/BatchDetailScreen.kt` | **VERIFIED** | Consolidated Decision Hub, SkillSyncTopBar, intent-aware MessagePreviewDialog |
+| Eligibility & Match Verification | Inner Sheet | `feature/training/ui/EligibilitySheet.kt` | **VERIFIED** | Honest blocker analysis, token pure, clean dismiss button |
+| Mark Skill Certification | Modal Dialog | `feature/training/ui/MarkSkillDialog.kt` | **VERIFIED** | >= 11sp typography, clear explanation of RMS record effect |
+| Batch Broadcast Share | Communication Engine | `feature/training/ui/BatchShare.kt` | **VERIFIED** | Intent composition, CommunicationContextPolicy allowlist/denylist sanitization |
+| External Vendor Staffing | Modal Sheet | `feature/training/ui/NetworkStaffingSheet.kt` | **VERIFIED** | Prefilled policy-sanitized staffing request body, no emoji buttons |
+| Capacity Runway | Inner Screen | `feature/report/ui/CapacityRunwayScreen.kt` | **VERIFIED** | SkillSyncTopBar, >= 11sp typography, zero raw Color.White |
+| My Schedule | Inner Screen | `feature/training/ui/MyScheduleScreen.kt` | **VERIFIED** | SkillSyncTopBar, design token typography and list styling |
 
-## Shell & system (not pages)
+---
 
-- `app/MainActivity.kt` — edge-to-edge, notification permission. No change needed.
-- `feature/home/MainScreen.kt` — **DONE**: raw-hex retired in TopAppBar/AppNavBar/ActionsTab;
-  dead `if(false)` block + orphaned helpers removed; no version bump. Remaining: `fontSize 9.sp`
-  overrides at 1213/1227/1438/1674 (badge labels; next pass).
-- `navigation/NavigationKeys.kt` / `Navigation.kt` — **DONE**: `MySchedule` added to BackHandler
-  (20 pushed screens now covered).
-- `theme/*.kt` — token source. Aurora plum/brass open decision documented in DESIGN_SYSTEM.md.
+## WAVE 3 — People / Trainer Capability & Readiness (VERIFIED)
+| Screen / Surface | Type | File Path | State | Verification / Notes |
+|---|---|---|---|---|
+| People (Team Directory) | Parent Tab | `feature/home/TeamTab.kt` | **VERIFIED** | Clean search/filters, >= 11sp typography, zero raw Color.White |
+| Team Member Card | Component | `feature/home/TeamMemberCard.kt` | **VERIFIED** | Evidence-based status, honest readiness pills, pressable feedback |
+| Team Calendar | Inner Screen | `feature/home/TeamCalendarScreen.kt` | **VERIFIED** | Category emojis excised (🌴, 📦, 🎯, 🎤, 🏖️ replaced with ToneChips), >= 11sp typography |
+| Trainer 360 | Inner Screen | `feature/training/ui/Trainer360Screen.kt` | **VERIFIED** | SkillSyncTopBar, emoji-free verdicts, sanitized manager evaluation via CommunicationContextFilter |
+| Skill Assign Flow | Modal Sheet | `feature/home/SkillAssignFlow.kt` | **VERIFIED** | Explicit RMS Key 255 provenance banner, exact write-warning contract preserved |
+| Skill Profile | Inner Screen | `feature/capability/ui/SkillProfileScreen.kt` | **VERIFIED** | Evidence badges (CERTIFIED, DELIVERED, BUILT), Compose ProgressIndicators, "Insufficient evidence" fallback |
+| Trainer Practice | Inner Screen | `feature/training/ui/TrainerPracticeScreen.kt` | **VERIFIED** | SkillSyncTopBar, SkillSyncEmptyState, learner voice scope banner |
+| Capability Graph | Inner Screen | `feature/capability/ui/CapabilityGraphScreen.kt` | **VERIFIED** | Full card-based network breakdown, ToneChips with theme tokens, honest gap indicators |
 
-## Follow-up (queued)
+---
 
-- `DashboardSections.kt` — **DONE**: ~900 lines of orphaned legacy composables pruned (ProfileHeader, CommandHero, TeamReadinessSummaryCard, TeamRiskSummaryCard, TeamCapacityAlertCard, TeamAnalytics, TeamCapacityForecastCard). Kept ProfileMenuBottomSheet & Trainer360 trend projection utilities.
-- TeamTab, TeamCalendarScreen, TeamMemberCard — **DONE**: 100% token pure, zero raw hex, emojis replaced with corporate symbols, sub-11sp removed.
-- Remaining queued: NotificationCenter, ActionsInbox, Version2Workspaces, CourseCurriculumSheet.
+## WAVE 4 — Courses / Capability Marketplace (VERIFIED)
+| Screen / Surface | Type | File Path | State | Verification / Notes |
+|---|---|---|---|---|
+| Courses (Catalog) | Parent Tab | `feature/home/CoursesTab.kt` | **VERIFIED** | ToneChips, SkillSyncCards, evidence tags (CERTIFIED/DELIVERED), 100% test contract anchors preserved |
+| Course Curriculum Drawer | Modal Sheet | `feature/home/CourseCurriculumSheet.kt` | **VERIFIED** | 4-tab structure (Modules, Capability & Readiness, Public Schedules, Resources), single-owner SPOF alerts, sanitized PreparationRequestDialog |
+| Course Communication Policy | Communication Engine | `feature/communication/engine/CommunicationContextPolicy.kt` | **VERIFIED** | Added COURSE_PREPARATION_REQUEST, CAPABILITY_DEVELOPMENT_REQUEST, CURRICULUM_SHARE with strict allowlists/denylists |
 
-## Per-page checklist (run every page)
+---
 
-1. Inspect: read the file end-to-end; purpose, data source.
-2. Swap raw `Color(0x…)` / emoji / 9–10sp / off-token `colorScheme.primary` → tokens + design
-   components; keep values and spacing identical unless a state needs real content.
-3. Implement every missing state (LOADING / CONTENT / EMPTY / ERROR / OFFLINE) with real data.
-4. Gates: compileDebugKotlin → testDebugUnitTest (≥195) → compileDebugAndroidTestKotlin →
-   assembleDebug → lintDebug.
-5. Small-screen check + a11y (48dp, contentDescription, no <11sp).
-6. Document: update this tracker + PROGRESS.md; before/after summary to the user; stop.
-7. CRLF discipline: never stage pure line-ending changes; commit only the page diff.
+## WAVE 5 — Commercial Opportunities & Pipeline
+| Screen / Surface | Type | File Path | State |
+|---|---|---|---|
+| Opportunities (List) | Parent Tab | `feature/opportunity/ui/OpportunityListScreen.kt` | **PARENT PASS** |
+| Opportunity Detail | Inner Screen | `feature/opportunity/ui/OpportunityDetailScreen.kt` | **PARENT PASS** |
+| Opportunity Guardian | Inner Screen | `feature/opportunity/ui/OpportunityGuardianScreen.kt` | AUDITED |
+| Pipeline Radar | Inner Screen | `feature/pipeline/ui/PipelineRadarScreen.kt` | AUDITED |
+
+---
+
+## WAVE 6 — Today / Executive Briefing Cockpit
+| Screen / Surface | Type | File Path | State |
+|---|---|---|---|
+| Today (Command Centre) | Parent Tab | `feature/home/ManagerCommandCentre.kt` | **PARENT PASS** |
+| Weekly Executive Report | Inner Screen | `feature/report/ui/WeeklyReportScreen.kt` | AUDITED |
+| HR Monthly Report | Inner Screen | `feature/report/ui/HrMonthlyReportScreen.kt` | AUDITED |
+| Priorities Radar | Inner Screen | `feature/priorities/ui/PrioritiesScreen.kt` | AUDITED |
+| Copilot Chat Sheet | Floating Sheet | `feature/copilot/ui/CopilotChatSheet.kt` | AUDITED |
+| Notification Center | Modal Sheet | `feature/home/NotificationCenter.kt` | AUDITED |
+
+---
+
+## WAVE 7 — Delivery Operations & Governance
+| Screen / Surface | Type | File Path | State |
+|---|---|---|---|
+| Delivery Operations | Parent Tab | `feature/delivery/ui/DeliveryOperationsWorkspace.kt` | AUDITED |
+| Delivery Compliance | Inner Screen | `feature/compliance/ui/DeliveryComplianceScreen.kt` | AUDITED |
+| Viber Automation | Inner Screen | `feature/viber/ui/ViberAutomationScreen.kt` | AUDITED (Legacy regex dispatch) |
+| Accounts Directory | Inner Screen | `feature/accounts/ui/AccountsScreen.kt` | AUDITED |
+| Competency Benchmark | Inner Screen | `feature/benchmark/ui/BenchmarkScreen.kt` | AUDITED |
+
+---
+
+## WAVE 8 — Cross-Product Command & Supporting Surfaces
+| Screen / Surface | Type | File Path | State |
+|---|---|---|---|
+| Actions Inbox | Supporting Tab | `feature/home/ActionsInbox.kt` | AUDITED |
+| Universal Command Search | Omnibox | `feature/search/ui/UniversalCommandSearch.kt` | AUDITED |
+| Login / Authentication | Auth Screen | `feature/auth/ui/LoginScreen.kt` | AUDITED |

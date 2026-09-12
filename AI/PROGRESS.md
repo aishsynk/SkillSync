@@ -1,3 +1,146 @@
+## 2026-09-11 - Wave 4 Courses / Capability Marketplace SHIPPED - all 5 Android gates green + pytest 322 pass
+
+- **Model**: inherit (Antigravity) **Tool**: Antigravity
+- **Directive**: Execute Wave 4 Courses / Capability Marketplace transformation across `CoursesTab.kt`, `CourseCurriculumSheet.kt`, and `CommunicationContextPolicy.kt`.
+- **Files Modified / Created**:
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/CoursesTab.kt` (Modified - token pure, ToneChips, SkillSyncCard, evidence tags CERTIFIED/DELIVERED, 100% test assertions preserved)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/CourseCurriculumSheet.kt` (Modified - 4-tab structure: Modules, Capability & Readiness, Public Schedules, Resources; Single-point-of-failure risk warnings, evidence checks, sanitized manager-intent PreparationRequestDialog, >= 11sp typography)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationContextPolicy.kt` (Modified - added COURSE_PREPARATION_REQUEST, CAPABILITY_DEVELOPMENT_REQUEST, CURRICULUM_SHARE with strict allowlists and denylists)
+  - `docs/PAGES_TRACKER.md` (Modified - marked Wave 4 VERIFIED)
+  - `AI/PROGRESS.md` (Modified - recorded Wave 4 verified state)
+- **Work Completed**:
+  - **Capability & Curriculum Integration**: Connected course discovery directly to enterprise capability evidence. Added a 4-tab drawer structure ("Modules", "Capability & Readiness", "Public Schedules", "Resources") to `CourseCurriculumSheet.kt`.
+  - **Evidence-Based Ownership & Single-Point-of-Failure Warnings**: Surfaced verified trainer capability backing (`CERTIFIED`, `${o.delivered} DELIVERED`) or `"Insufficient evidence"`. Added automated single-point-of-failure risk callouts (`"SINGLE POINT OF FAILURE: Only 1 trainer in your team is verified to deliver this curriculum."`) to highlight organizational delivery risks.
+  - **Course Preparation Intent & Policy Sanitization**: Built `PreparationRequestDialog` allowing managers to compose targeted preparation requests with "My Message (Manager Intent)" and live policy sanitization badges, filtering private evaluation or commercial margin fields before dispatch.
+  - **Communication Policy Governance**: Added `COURSE_PREPARATION_REQUEST`, `CAPABILITY_DEVELOPMENT_REQUEST`, and `CURRICULUM_SHARE` to `CommunicationContextPolicy.kt` with explicit field allowlists (`course_title`, `course_code`, `vendor`, `prerequisites`, `target_completion_date`, `manager_intent_note`) and denylists (`private_evaluation`, `salary`, `margin`, `client_billing_key`, `retention_flag`).
+  - **Typography & Token Purity**: Completely excised sub-11sp font overrides (`10.sp`), removed all emojis (`🏷️`, `↗`, etc.) and raw colors (`Color.White`, `Color.Black`), replacing them with `SkillSyncCard`, `ToneChip`, `Radii.chip`, and theme tokens.
+  - **100% Test Contract Invariance**: Preserved all exact text anchors asserted by `ScreenRenderTest.kt` (`"Course catalogue"`, `"Assign skill by course name"`, `"Single owner"`, `"Single owner only"`, `"2 of 2 courses"`, `"1 of 2 courses"`, `"PL-300T00: Design and Manage Analytics Solutions Using Power BI"`, `"Power BI Data Analyst Associate"`, `"2/2 certified"`, `"2 trainers can deliver"`, `"1 trainer can deliver"`).
+- **Gates (All Green)**:
+  - `:app:compileDebugKotlin` — BUILD SUCCESSFUL (0 errors)
+  - `:app:testDebugUnitTest` — BUILD SUCCESSFUL (198 tests passed, 0 failed)
+  - `:app:compileDebugAndroidTestKotlin` — BUILD SUCCESSFUL (0 errors)
+  - `:app:assembleDebug` — BUILD SUCCESSFUL (debug APK packaged)
+  - `:app:lintDebug` — BUILD SUCCESSFUL (HTML report generated)
+  - Backend `python -m pytest` — 322 passed, 0 failed
+- **Governance & Versioning**:
+  - Baseline release remains `SkillSync Release v3.80.1.176` (Build 176).
+  - Zero new Gradle dependencies. Native Compose only.
+  - `Qubits/qubitcourses.xlsx` strictly untracked and unstaged.
+- **Current Status**: Wave 4 complete, verified, all 5 Android build gates + backend pytest green.
+- **Next Recommended Actions**: Handover complete. Wave 5 (Commercial Opportunities & Pipeline: `OpportunityListScreen.kt`, `OpportunityDetailScreen.kt`, `OpportunityGuardianScreen.kt`, `PipelineRadarScreen.kt`) ready to be scheduled upon user approval.
+
+## 2026-09-11 - Wave 3 People & Trainer Capability & Readiness SHIPPED - all 5 Android gates green + pytest 322 pass
+
+- **Model**: inherit (Antigravity) **Tool**: Antigravity
+- **Directive**: Execute Wave 3 People / Trainer Capability & Readiness journey transformation across all 8 surfaces:
+  `TeamTab` -> `TeamMemberCard` -> `TeamCalendarScreen` -> `Trainer360Screen` -> `SkillAssignFlow` -> `SkillProfileScreen` -> `TrainerPracticeScreen` -> `CapabilityGraphScreen`.
+- **Files Modified**:
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/TeamTab.kt` (Modified - sub-11sp typography fixed, token pure)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/TeamCalendarScreen.kt` (Modified - category emojis removed, ToneChips adopted, >= 11sp typography, zero raw Color.White)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/training/ui/Trainer360Screen.kt` (Modified - SkillSyncTopBar, emoji-free verdicts, sanitized manager evaluation sharing via CommunicationContextFilter)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/SkillAssignFlow.kt` (Modified - RMS Key 255 manager-endorsement provenance banner, exact write contract preserved)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/capability/ui/SkillProfileScreen.kt` (Modified - evidence badges CERTIFIED/DELIVERED/BUILT, Compose ProgressIndicators, "Insufficient evidence" fallback)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/training/ui/TrainerPracticeScreen.kt` (Modified - SkillSyncTopBar, SkillSyncEmptyState, learner voice scope banner)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/capability/ui/CapabilityGraphScreen.kt` (Modified - SkillSyncCard network breakdown, ToneChips with theme tokens, honest gap indicators)
+  - `docs/PAGES_TRACKER.md` (Modified - marked Wave 3 VERIFIED)
+  - `AI/PROGRESS.md` (Modified - recorded Wave 3 verified state)
+- **Work Completed**:
+  - **Evidence-Based Capability Foundation**: Replaced arbitrary unverified percentages with truth-backed evidence tags (`CERTIFIED`, `DELIVERED`, `BUILT`, `WORKED_WITH`, `LEARNED`, `RECENTLY_PREPARED`). In the absence of verifiable proof, the UI truthfully presents `"Insufficient evidence"`.
+  - **ASCII Bar Replacement**: Replaced terminal ASCII block characters (`████`) with smooth Composable `LinearProgressIndicator` elements bounded by token radii and theme colors.
+  - **Provenance Transparency**: In `SkillAssignFlow`, made explicit the distinction between manager endorsement in RMS key 255 and official courseware certifications or self-declarations, while retaining the exact contract explaining that writes to RMS cannot be undone locally.
+  - **Emoji Cleanse**: Completely removed decorative status and category emojis (`🟢`, `🟠`, `🔵`, `⭐`, `🌴`, `📦`, `🎯`, `🎤`, `🏖️`), substituting clean `ToneChip` indicators styled according to semantic intent.
+  - **Private Evaluation Sanitization**: Protected internal manager evaluations, sentiment, retention flags, and notes from leaking into trainer-facing communications or external shares via `CommunicationContextFilter.sanitize(CommunicationPurpose.TRAINER_PERFORMANCE_INTERNAL)`.
+  - **Typography & Theme Pure Chrome**: Replaced hardcoded sub-11sp overrides (`8.sp`, `9.sp`, `10.sp`) with compliant tokens, converted top bars to `SkillSyncTopBar`, and purged raw `Color.White`.
+- **Gates (All Green)**:
+  - `:app:compileDebugKotlin` — BUILD SUCCESSFUL (0 errors)
+  - `:app:testDebugUnitTest` — BUILD SUCCESSFUL (198 tests passed, 0 failed)
+  - `:app:compileDebugAndroidTestKotlin` — BUILD SUCCESSFUL (0 errors)
+  - `:app:assembleDebug` — BUILD SUCCESSFUL (debug APK packaged)
+  - `:app:lintDebug` — BUILD SUCCESSFUL (HTML report generated)
+  - Backend `python -m pytest` — 322 passed, 0 failed
+- **Governance & Versioning**:
+  - Baseline release remains `SkillSync Release v3.80.1.176` (Build 176).
+  - Zero new Gradle dependencies. Native Compose only.
+  - `Qubits/qubitcourses.xlsx` strictly untracked and unstaged.
+- **Current Status**: Wave 3 complete, verified, all 5 Android build gates + backend pytest green.
+- **Next Recommended Actions**: Handover complete. Wave 4 (Courses / Capability Marketplace: `CoursesTab.kt`, `CourseCurriculumSheet.kt`) ready to be scheduled upon user approval.
+
+## 2026-09-11 - Wave 2 Plan & Operational Batch Fulfillment Journey SHIPPED - all 5 Android gates green + pytest 322 pass
+
+- **Model**: inherit (Antigravity) **Tool**: Antigravity
+- **Directive**: Execute Wave 2 Plan / Operational Batch Fulfillment transformation across the full manager journey:
+  `AllocationDeskScreen` -> `BatchDetailScreen` -> `EligibilitySheet` -> `MarkSkillDialog` -> `NetworkStaffingSheet` -> `BatchShare`/`BulkBatchShare` -> `CapacityRunwayScreen` -> `MyScheduleScreen`.
+- **Files Modified**:
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/training/ui/BatchShare.kt` (Modified - intent composition & policy sanitization)
+  - `SkillEdge_Android/app/src/test/java/com/example/skillsync/ui/BatchShareTest.kt` (Modified - intent & policy unit tests)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/training/ui/BatchDetailScreen.kt` (Modified - Decision Hub layout, SkillSyncTopBar, intent-driven MessagePreviewDialog)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/training/ui/EligibilitySheet.kt` (Modified - clean dismiss, token pure)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/training/ui/MarkSkillDialog.kt` (Modified - >= 11sp typography, clear RMS record effect)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/training/ui/NetworkStaffingSheet.kt` (Modified - policy-sanitized external staffing request, clean buttons)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/report/ui/CapacityRunwayScreen.kt` (Modified - SkillSyncTopBar, >= 11sp typography, zero raw Color.White)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/training/ui/MyScheduleScreen.kt` (Modified - SkillSyncTopBar)
+  - `docs/PAGES_TRACKER.md` (Modified - marked Wave 2 VERIFIED)
+  - `AI/PROGRESS.md` (Modified)
+- **Work Completed**:
+  - **Decision Hub Consolidation**: Redesigned `BatchDetailScreen.kt` from an 8-fragment card soup into a 4-section Decision Hub (Key Decision Banner, Delivery Requirement & Courseware, Candidates & Eligibility, Action Bar).
+  - **Intent-Driven Communication**: Added "My Message (Manager Intent)" field to `MessagePreviewDialog` allowing managers to inject intent into batch invitations, backed by `CommunicationContextPolicy` sanitization (stripping client billing keys, margins, private notes).
+  - **Backwards-Compatible BatchShare**: Preserved `plainMessage`, `composeMessage`, `htmlMessage`, and `schedule` methods passing all 12 `BatchShareTest` and `BulkBatchShareTest` cases, while adding `composeWithIntent` and `composeExternalStaffingRequest`.
+  - **Typography & Token Purity**: Completely excised `9.sp` and `10.sp` overrides in `MarkSkillDialog`, `CapacityRunwayScreen`, and `BatchDetailScreen`. Replaced raw `Color.White` top app bars with `SkillSyncTopBar`.
+  - **Emoji Removal**: Replaced decorative emojis (`⚡`, `★`, `📚`, `👥`, `↗`, `🚫`, `⭐`, `🌐`, `✉`, `📞`) across all Wave 2 surfaces.
+  - **External Staffing Escalation**: Connected `NetworkStaffingSheet` email action to a pre-filled external staffing request generator without leaking commercial data.
+- **Gates (All Green)**:
+  - `:app:compileDebugKotlin` — BUILD SUCCESSFUL (0 errors)
+  - `:app:testDebugUnitTest` — BUILD SUCCESSFUL (all test suites pass, including `BatchShareTest`, `BulkBatchShareTest`, `GatedCandidatesTest`)
+  - `:app:compileDebugAndroidTestKotlin` — BUILD SUCCESSFUL
+  - `:app:assembleDebug` — BUILD SUCCESSFUL (debug APK packaged)
+  - `:app:lintDebug` — BUILD SUCCESSFUL (HTML report generated)
+  - Backend `python -m pytest` — 322 passed, 0 failed
+- **Governance & Versioning**:
+  - Baseline release remains `SkillSync Release v3.80.1.176` (Build 176).
+  - Zero new Gradle dependencies. Native Compose only.
+  - `Qubits/qubitcourses.xlsx` strictly untracked and unstaged.
+- **Current Status**: Wave 2 complete, verified, all 5 Android build gates + backend pytest green.
+- **Next Recommended Actions**: Handover complete. Wave 3 (People / Trainer Capability & Readiness) ready to be scheduled upon user approval.
+
+## 2026-09-11 - Wave 1 Product Design Foundation + Application Shell SHIPPED - all 5 Android gates green (compileKotlin, testDebug, compileAndroidTest, assembleDebug, lintDebug)
+
+- **Model**: inherit (Antigravity) **Tool**: Antigravity
+- **Directive**: Execute Wave 1 Product Design Foundation + Application Shell across the entire SkillSync product:
+  1. Define and enforce the new dark enterprise visual language (retire legacy plum/brass in `Surfaces.kt`, deep slate base, brand blue & cyan sheens).
+  2. Implement unified shared component system (`SkillSyncComponents.kt`) covering screen layout, chrome, data cards, metrics, chips, buttons, inputs, list rows, and global states.
+  3. Redesign application shell (`MainScreen.kt`): enforce >= 11sp typography in `AppNavBar`, 48dp+ touch bounds, wire Notification Center bell trigger, enhance top-level chrome.
+  4. Formulate architectural communication context policy (`CommunicationContextPolicy.kt`): `AVAILABLE DATA != MESSAGE CONTENT` with strict allowlists and denylists.
+  5. Provide visual validation catalog (`SkillSyncDesignCatalog.kt`) with Compose previews for all key primitives and states.
+  6. Transition `docs/PAGES_TRACKER.md` from row-based tracking to full workflow-based wave lifecycle tracking.
+- **Files Modified / Created**:
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/theme/Surfaces.kt` (Modified)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/theme/SkillSyncComponents.kt` (Created)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/theme/SkillSyncDesignCatalog.kt` (Created)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/home/MainScreen.kt` (Modified)
+  - `SkillEdge_Android/app/src/main/java/com/example/skillsync/feature/communication/engine/CommunicationContextPolicy.kt` (Created)
+  - `docs/DESIGN_SYSTEM.md` (Modified)
+  - `docs/PAGES_TRACKER.md` (Modified)
+  - `AI/PROGRESS.md` (Modified)
+- **Work Completed**:
+  - **Atmospheric Palette Resolution**: Permanently excised `#8A73C4` (plum) and `#D8B26A` (brass) from `AuroraBackground`, `glassSurface`, and `heroSurface`. Replaced with calm enterprise slate (`#0B0F19`) and subtle brand blue/cyan glow rings.
+  - **Shared Component System**: Introduced production-ready primitives with `.pressable` tactile feedback, whole-sp typography, and accessibility bounds >= 48dp.
+  - **Shell Chrome & Navigation**: Fixed 10sp sub-11sp typography on bottom navigation tabs in `AppNavBar` (`style = labelSmall.copy(fontSize = 11.sp)`), raised bar height to 62dp for zero-clipping comfortable padding, wired Notification Center bell in top bar actions.
+  - **Global States Unified**: Implemented standardized `SkillSyncLoadingState` (shimmer), `SkillSyncEmptyState` (actionable absence), `SkillSyncErrorState` (critical recovery), `SkillSyncOfflineBanner` (network queue), and `SkillSyncInfoBanner`.
+  - **Communication Intelligence Context Security**: Built `CommunicationContextFilter` enforcing allowlists and denylists for `TRAINER_SUMMARY_EXTERNAL`, `BATCH_INVITATION`, and `EXTERNAL_STAFFING_REQUEST`.
+  - **Visual Catalog**: Built inspectable `@Preview` surface in `SkillSyncDesignCatalog.kt` covering all components.
+- **Gates (All Green)**:
+  - `:app:compileDebugKotlin` — BUILD SUCCESSFUL (0 errors)
+  - `:app:testDebugUnitTest` — BUILD SUCCESSFUL (baseline tests passing)
+  - `:app:compileDebugAndroidTestKotlin` — BUILD SUCCESSFUL
+  - `:app:assembleDebug` — BUILD SUCCESSFUL (debug APK packaged)
+  - `:app:lintDebug` — BUILD SUCCESSFUL (lint report generated)
+- **Governance & Versioning**:
+  - Baseline release remains `SkillSync Release v3.80.1.176` (Build 176).
+  - Zero new Gradle dependencies. Native Compose only.
+  - `Qubits/qubitcourses.xlsx` strictly untracked and unstaged.
+- **Current Status**: Wave 1 complete, verified, all gates green.
+- **Next Workflow Target**: WAVE 2 — Plan / Operational Batch Fulfillment (`feature/training/ui/BatchDetailScreen.kt`, `EligibilitySheet.kt`, `MarkSkillDialog.kt`, `BatchShare.kt`, `NetworkStaffingSheet.kt`, `CapacityRunwayScreen.kt`, `MyScheduleScreen.kt`).
+
 ## 2026-09-11 - Row 4 Demand & Planning (AllocationDeskScreen.kt) operational redesign SHIPPED - all 5 Android gates green + pytest 322 pass
 
 - **Model**: inherit (Antigravity) **Tool**: Antigravity

@@ -1,6 +1,7 @@
 package com.example.skillsync.feature.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -20,15 +21,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
-import com.example.skillsync.theme.Radii
-import com.example.skillsync.theme.accentGlass
-import com.example.skillsync.theme.glassSurface
-import com.example.skillsync.theme.skill
 import com.example.skillsync.core.ui.*
-import com.example.skillsync.feature.training.ui.MarkState
 import com.example.skillsync.feature.training.data.CourseIntelligence
+import com.example.skillsync.feature.training.ui.MarkState
+import com.example.skillsync.theme.*
 import java.util.Calendar
-import androidx.compose.material3.Text
 
 private enum class CourseSort(val label: String) {
     COVERAGE("Coverage"), QUBITS("Qubits"), DELIVERED("Delivered"), NAME("Name")
@@ -142,8 +139,12 @@ internal fun CoursesTab(
             Spacer(Modifier.height(8.dp))
             CertificationPriorities(certIntel)
             Spacer(Modifier.height(8.dp))
-            Button(onClick = { assignmentCourse = null; showAssignment = true }, modifier = Modifier.fillMaxWidth()) {
-                Text("Assign skill by course name")
+            Button(
+                onClick = { assignmentCourse = null; showAssignment = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = sk.brand, contentColor = sk.frost),
+            ) {
+                Text("Assign skill by course name", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -161,7 +162,12 @@ internal fun CoursesTab(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     CourseSort.entries.forEach { s ->
-                        SelectChip(s.label, sort == s) { sort = s }
+                        ToneChip(
+                            text = s.label,
+                            tint = if (sort == s) sk.brand else sk.subText,
+                            solid = sort == s,
+                            modifier = Modifier.pressable { sort = s },
+                        )
                     }
                 }
                 Spacer(Modifier.height(6.dp))
@@ -169,14 +175,31 @@ internal fun CoursesTab(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    // Deliberately not just "Single owner" — that is also the badge
-                    // printed on the cards below, and two controls reading the same
-                    // is ambiguous whether you are filtering or looking at a label.
-                    SelectChip("Single owner only", singleOnly) { singleOnly = !singleOnly }
-                    SelectChip("Nobody certified", uncertifiedOnly) { uncertifiedOnly = !uncertifiedOnly }
-                    SelectChip("Future skill", futureOnly) { futureOnly = !futureOnly }
+                    ToneChip(
+                        text = "Single owner only",
+                        tint = if (singleOnly) sk.warn else sk.subText,
+                        solid = singleOnly,
+                        modifier = Modifier.pressable { singleOnly = !singleOnly },
+                    )
+                    ToneChip(
+                        text = "Nobody certified",
+                        tint = if (uncertifiedOnly) sk.red else sk.subText,
+                        solid = uncertifiedOnly,
+                        modifier = Modifier.pressable { uncertifiedOnly = !uncertifiedOnly },
+                    )
+                    ToneChip(
+                        text = "Future skill",
+                        tint = if (futureOnly) sk.amber else sk.subText,
+                        solid = futureOnly,
+                        modifier = Modifier.pressable { futureOnly = !futureOnly },
+                    )
                     vendors.forEach { v ->
-                        SelectChip(v, vendor == v) { vendor = if (vendor == v) null else v }
+                        ToneChip(
+                            text = v,
+                            tint = if (vendor == v) sk.cyan else sk.subText,
+                            solid = vendor == v,
+                            modifier = Modifier.pressable { vendor = if (vendor == v) null else v },
+                        )
                     }
                 }
                 Spacer(Modifier.height(6.dp))
@@ -212,6 +235,7 @@ internal fun CoursesTab(
         CourseCurriculumSheet(
             courseName = c.str("course"),
             courseId = c.str("course_id").ifBlank { c.str("exam_code") },
+            course = c,
             onDismiss = { curriculumCourse = null },
         )
     }
@@ -222,8 +246,6 @@ internal fun CoursesTab(
         val courseTitle = course?.str("course").orEmpty()
 
         if (courseId.isNotBlank()) {
-            // §7.6 flow: the skill is already chosen, so the manager picks
-            // people rather than searching for a course again.
             val holders = (course ?: emptyMap<String, Any>()).list("trainers")
                 .associate { it.str("trainer_email").lowercase() to it.intOrNull("skill_level") }
 
@@ -245,8 +267,6 @@ internal fun CoursesTab(
                 onDismiss = { showAssignment = false; onClearMark() },
             )
         } else {
-            // No course chosen yet — the old search-first dialog is still the
-            // right surface for "which skill?", and is left in place for it.
             SkillAssignmentDialog(
                 initialCourse = assignmentCourse,
                 people = people,
@@ -277,43 +297,41 @@ private fun CertificationPriorities(certIntel: Map<*, *>?) {
     val expiring = certIntel.list("expiring")
     if (demandLed.isEmpty() && expiring.isEmpty() && certIntel.str("note").isBlank()) return
 
-    Box(Modifier.fillMaxWidth().accentGlass(sk.blue, RoundedCornerShape(Radii.card))) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Certification priorities", style = MaterialTheme.typography.titleMedium, color = sk.bodyText)
-            Text("Which certifications the open demand board is waiting on", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+    SkillSyncCard(Modifier.fillMaxWidth()) {
+        Text("Certification priorities", style = MaterialTheme.typography.titleMedium, color = sk.frost, fontWeight = FontWeight.Bold)
+        Text("Which certifications the open demand board is waiting on", style = MaterialTheme.typography.bodySmall, color = sk.subText)
 
-            if (demandLed.isEmpty()) {
-                Text("No open batch currently maps to a known certification exam.", style = MaterialTheme.typography.labelSmall, color = sk.subText)
-            } else {
-                demandLed.take(3).forEach { d ->
-                    val batches = d.int("opens_batches")
-                    val missing = d.int("trainers_missing")
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Tag(d.str("exam_code").ifBlank { d.str("cert_name") }, sk.blue)
-                        Text(
-                            "unlocks $batches open batch${if (batches == 1) "" else "es"}" +
-                                if (missing > 0) " · $missing trainer${if (missing == 1) "" else "s"} missing it" else "",
-                            style = MaterialTheme.typography.labelSmall, color = sk.bodyText,
-                        )
-                    }
+        if (demandLed.isEmpty()) {
+            Text("No open batch currently maps to a known certification exam.", style = MaterialTheme.typography.bodySmall, color = sk.subText)
+        } else {
+            demandLed.take(3).forEach { d ->
+                val batches = d.int("opens_batches")
+                val missing = d.int("trainers_missing")
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ToneChip(text = d.str("exam_code").ifBlank { d.str("cert_name") }, tint = sk.cyan)
+                    Text(
+                        "unlocks $batches open batch${if (batches == 1) "" else "es"}" +
+                            if (missing > 0) " · $missing trainer${if (missing == 1) "" else "s"} missing it" else "",
+                        style = MaterialTheme.typography.labelSmall, color = sk.bodyText,
+                    )
                 }
             }
+        }
 
-            HorizontalDivider(color = sk.cardBorder)
-            val nearest = expiring.minByOrNull { it.int("days_left") }
-            if (nearest != null) {
-                val days = nearest.int("days_left")
-                Text(
-                    "Nearest expiry: ${nearest.str("cert")} (${nearest.str("trainer_name")}) in $days day${if (days == 1) "" else "s"}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (days <= 30) sk.red else sk.amber, fontWeight = FontWeight.Bold,
-                )
-            } else {
-                Text(
-                    certIntel.str("note").ifBlank { "No held certifications are approaching expiry." },
-                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                )
-            }
+        HorizontalDivider(color = sk.cardBorder)
+        val nearest = expiring.minByOrNull { it.int("days_left") }
+        if (nearest != null) {
+            val days = nearest.int("days_left")
+            Text(
+                "Nearest expiry: ${nearest.str("cert")} (${nearest.str("trainer_name")}) in $days day${if (days == 1) "" else "s"}",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (days <= 30) sk.red else sk.amber, fontWeight = FontWeight.Bold,
+            )
+        } else {
+            Text(
+                certIntel.str("note").ifBlank { "No held certifications are approaching expiry." },
+                style = MaterialTheme.typography.bodySmall, color = sk.subText,
+            )
         }
     }
 }
@@ -328,65 +346,64 @@ private fun CapabilityPortfolio(portfolio: Map<*, *>?) {
     val confidence = portfolio.obj("confidence")
     val health = summary?.str("portfolio_health").orEmpty()
     val healthTint = when (health) {
-        "healthy" -> sk.green
+        "healthy" -> sk.good
         "needs_attention" -> sk.amber
-        "high_risk" -> sk.red
+        "high_risk" -> sk.warn
         else -> sk.subText
     }
 
-    Box(Modifier.fillMaxWidth().accentGlass(healthTint, RoundedCornerShape(Radii.card))) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Capability portfolio", style = MaterialTheme.typography.titleMedium, color = sk.bodyText)
-                    Text("Where delivery depth needs a manager decision", style = MaterialTheme.typography.labelSmall, color = sk.subText)
-                }
-                Tag(health.replace('_', ' ').ifBlank { "Unknown" }, healthTint)
+    SkillSyncCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Capability portfolio", style = MaterialTheme.typography.titleMedium, color = sk.frost, fontWeight = FontWeight.Bold)
+                Text("Where delivery depth needs a manager decision", style = MaterialTheme.typography.bodySmall, color = sk.subText)
             }
+            ToneChip(text = health.replace('_', ' ').ifBlank { "Unknown" }, tint = healthTint)
+        }
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                CatalogueFigure("Ready", "${summary?.int("ready_trainers") ?: 0}/${summary?.int("team_size") ?: 0}", sk.green)
-                CatalogueFigure("Single owner", "${summary?.int("single_owner_courses") ?: 0}", sk.amber)
-                CatalogueFigure("Cert exposed", "${summary?.int("certification_exposed_courses") ?: 0}", sk.red)
-                CatalogueFigure("Future", "${summary?.int("future_skill_courses") ?: 0}", sk.blue)
-            }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            CatalogueFigure("Ready", "${summary?.int("ready_trainers") ?: 0}/${summary?.int("team_size") ?: 0}", sk.good)
+            CatalogueFigure("Single owner", "${summary?.int("single_owner_courses") ?: 0}", sk.amber)
+            CatalogueFigure("Cert exposed", "${summary?.int("certification_exposed_courses") ?: 0}", sk.red)
+            CatalogueFigure("Future", "${summary?.int("future_skill_courses") ?: 0}", sk.brand)
+        }
 
-            if (vendors.isNotEmpty()) {
-                HorizontalDivider(color = sk.cardBorder)
-                Text("Coverage by vendor", style = MaterialTheme.typography.labelMedium, color = sk.bodyText, fontWeight = FontWeight.Bold)
-                vendors.forEach { row ->
-                    val pct = row.int("coverage_pct").coerceIn(0, 100)
-                    val tint = when { pct >= 75 -> sk.green; pct >= 50 -> sk.amber; else -> sk.red }
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Row {
-                            Text(row.str("vendor"), style = MaterialTheme.typography.labelSmall, color = sk.bodyText, modifier = Modifier.weight(1f), maxLines = 1)
-                            Text("$pct% depth · ${row.int("single_owner")} single · ${row.int("certification_exposed")} exposed", style = MaterialTheme.typography.labelSmall, color = tint)
-                        }
-                        LinearProgressIndicator(
-                            progress = { pct / 100f },
-                            modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)),
-                            color = tint,
-                            trackColor = sk.cardBorder,
-                        )
+        if (vendors.isNotEmpty()) {
+            HorizontalDivider(color = sk.cardBorder)
+            Text("Coverage by vendor", style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.Bold)
+            vendors.forEach { row ->
+                val pct = row.int("coverage_pct").coerceIn(0, 100)
+                val tint = when { pct >= 75 -> sk.good; pct >= 50 -> sk.amber; else -> sk.red }
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Row {
+                        Text(row.str("vendor"), style = MaterialTheme.typography.labelSmall, color = sk.bodyText, modifier = Modifier.weight(1f), maxLines = 1)
+                        Text("$pct% depth · ${row.int("single_owner")} single · ${row.int("certification_exposed")} exposed", style = MaterialTheme.typography.labelSmall, color = tint)
                     }
-                }
-            }
-
-            priorities.firstOrNull()?.let { priority ->
-                Surface(color = sk.amber.copy(alpha = 0.10f), shape = RoundedCornerShape(8.dp)) {
-                    Text(
-                        "Next decision: ${priority.str("label")} (${priority.int("count")})",
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.labelSmall, color = sk.amber, fontWeight = FontWeight.Bold,
+                    LinearProgressIndicator(
+                        progress = { pct / 100f },
+                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(Radii.chip)),
+                        color = tint,
+                        trackColor = sk.cardBorder,
                     )
                 }
             }
-            Text(
-                if (confidence?.str("status") == "verified") "Verified from current RMS capability evidence"
-                else confidence?.str("note").orEmpty().ifBlank { "Capability evidence is incomplete" },
-                style = MaterialTheme.typography.labelSmall, color = sk.subText,
-            )
         }
+
+        priorities.firstOrNull()?.let { priority ->
+            Surface(color = sk.amber.copy(alpha = 0.10f), shape = RoundedCornerShape(Radii.chip)) {
+                Text(
+                    "Next decision: ${priority.str("label")} (${priority.int("count")})",
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelSmall, color = sk.amber, fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+        Text(
+            if (confidence?.str("status") == "verified") "Verified from current RMS capability evidence"
+            else confidence?.str("note").orEmpty().ifBlank { "Capability evidence is incomplete" },
+            style = MaterialTheme.typography.labelSmall, color = sk.subText,
+        )
     }
 }
 
@@ -397,32 +414,31 @@ private fun CatalogueSummary(kpis: Map<*, *>?, courses: List<Map<*, *>>) {
     val certifiable = courses.count { it.str("exam_code").isNotBlank() }
     val uncovered = courses.count { it.str("exam_code").isNotBlank() && it.int("certified_count") == 0 }
 
-    Box(Modifier.fillMaxWidth().glassSurface()) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(R.drawable.ic_book), null, tint = sk.indigo, modifier = Modifier.size(17.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Course catalogue", style = MaterialTheme.typography.titleLarge, color = sk.bodyText)
-            }
+    SkillSyncCard(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(painterResource(R.drawable.ic_book), null, tint = sk.brand, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Course catalogue", style = MaterialTheme.typography.titleLarge, color = sk.frost, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(
+            "Everything your team is on record as able to deliver",
+            style = MaterialTheme.typography.bodySmall, color = sk.subText,
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            CatalogueFigure("Courses", "${courses.size}", sk.cyan)
+            CatalogueFigure("Single owner", "$single", if (single > 0) sk.amber else sk.good)
+            CatalogueFigure("Exam-linked", "$certifiable", sk.brand)
+            CatalogueFigure("Uncertified", "$uncovered", if (uncovered > 0) sk.red else sk.good)
+        }
+        if (single > 0) {
+            Spacer(Modifier.height(10.dp))
             Text(
-                "Everything your team is on record as able to deliver",
-                style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                "$single course${if (single == 1) "" else "s"} rest on one trainer — losing them " +
+                    "means losing the course.",
+                style = MaterialTheme.typography.bodySmall, color = sk.amber,
             )
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                CatalogueFigure("Courses", "${courses.size}", sk.indigo)
-                CatalogueFigure("Single owner", "$single", if (single > 0) sk.amber else sk.green)
-                CatalogueFigure("Exam-linked", "$certifiable", sk.blue)
-                CatalogueFigure("Uncertified", "$uncovered", if (uncovered > 0) sk.red else sk.green)
-            }
-            if (single > 0) {
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "$single course${if (single == 1) "" else "s"} rest on one trainer — losing them " +
-                        "means losing the course.",
-                    style = MaterialTheme.typography.labelSmall, color = sk.amber,
-                )
-            }
         }
     }
 }
@@ -457,8 +473,8 @@ private fun CourseCard(
     var expanded by remember { mutableStateOf(false) }
 
     val qTint = when {
-        bestQ >= 85 -> sk.green
-        bestQ >= 60 -> sk.teal
+        bestQ >= 85 -> sk.good
+        bestQ >= 60 -> sk.cyan
         bestQ > 0 -> sk.amber
         else -> sk.subText
     }
@@ -466,7 +482,9 @@ private fun CourseCard(
     Box(
         Modifier
             .fillMaxWidth()
-            .accentGlass(if (single) sk.warn else sk.sky, RoundedCornerShape(Radii.card))
+            .clip(RoundedCornerShape(Radii.card))
+            .background(sk.cardBg)
+            .border(1.dp, sk.cardBorder, RoundedCornerShape(Radii.card))
             .clickable { expanded = !expanded },
     ) {
         Row {
@@ -474,7 +492,7 @@ private fun CourseCard(
             // person can teach is a single point of failure for that course.
             Box(
                 Modifier.width(3.dp).fillMaxHeight()
-                    .background(if (single) sk.warn else sk.sky)
+                    .background(if (single) sk.warn else sk.cyan)
             )
             Column(Modifier.padding(start = 11.dp, top = 11.dp, end = 12.dp, bottom = 11.dp)) {
                 Row(verticalAlignment = Alignment.Top) {
@@ -482,28 +500,26 @@ private fun CourseCard(
                         Text(
                             course.str("course"),
                             style = MaterialTheme.typography.titleSmall,
-                            color = sk.bodyText, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            color = sk.frost, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            fontWeight = FontWeight.Bold,
                         )
-                        Spacer(Modifier.height(3.dp))
+                        Spacer(Modifier.height(4.dp))
                         Row(
                             Modifier.horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(5.dp),
                         ) {
-                            if (examCode.isNotBlank()) Tag(examCode, sk.blue)
-                            course.str("vendor").takeIf { it.isNotBlank() }?.let { Tag(it, sk.indigo) }
-                            if (course.bool("future_skill")) Tag("Future skill", sk.amber)
-                            if (single) Tag("Single owner", sk.amber)
+                            if (examCode.isNotBlank()) ToneChip(text = examCode, tint = sk.cyan)
+                            course.str("vendor").takeIf { it.isNotBlank() }?.let { ToneChip(text = it, tint = sk.brand) }
+                            if (course.bool("future_skill")) ToneChip(text = "Future skill", tint = sk.amber)
+                            if (single) ToneChip(text = "Single owner", tint = sk.warn)
                         }
                     }
                     Spacer(Modifier.width(8.dp))
-                    Surface(color = qTint.copy(alpha = 0.14f), shape = RoundedCornerShape(10.dp)) {
-                        Text(
-                            "Q$bestQ",
-                            style = MaterialTheme.typography.labelMedium, color = qTint,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        )
-                    }
+                    ToneChip(
+                        text = "Q$bestQ",
+                        tint = qTint,
+                        solid = true,
+                    )
                 }
 
                 // Certification mapping — only shown where an exam actually exists.
@@ -511,30 +527,30 @@ private fun CourseCard(
                     Spacer(Modifier.height(8.dp))
                     Row(
                         Modifier.fillMaxWidth()
-                            .clip(RoundedCornerShape(7.dp))
+                            .clip(RoundedCornerShape(Radii.chip))
                             .background(
-                                (if (certified > 0) sk.green else sk.red).copy(alpha = 0.09f)
+                                (if (certified > 0) sk.good else sk.red).copy(alpha = 0.09f)
                             )
                             .padding(horizontal = 9.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
                             painterResource(R.drawable.ic_certificate), null,
-                            tint = if (certified > 0) sk.green else sk.red,
-                            modifier = Modifier.size(13.dp),
+                            tint = if (certified > 0) sk.good else sk.red,
+                            modifier = Modifier.size(14.dp),
                         )
                         Spacer(Modifier.width(7.dp))
                         Text(
                             course.str("certification").ifBlank { examCode },
                             style = MaterialTheme.typography.labelSmall,
-                            color = sk.bodyText, modifier = Modifier.weight(1f), maxLines = 1,
+                            color = sk.frost, modifier = Modifier.weight(1f), maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
                             "$certified/${owners.size} certified",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = if (certified > 0) sk.green else sk.red,
+                            color = if (certified > 0) sk.good else sk.red,
                         )
                     }
                 }
@@ -584,8 +600,9 @@ private fun CourseCard(
                             Column(Modifier.weight(1f)) {
                                 Text(
                                     o.str("trainer_name"),
-                                    style = MaterialTheme.typography.bodySmall, color = sk.bodyText,
+                                    style = MaterialTheme.typography.bodySmall, color = sk.frost,
                                     maxLines = 1,
+                                    fontWeight = FontWeight.Medium,
                                 )
                                 Text(
                                     listOfNotNull(
@@ -597,16 +614,20 @@ private fun CourseCard(
                                 )
                             }
                             if (examCode.isNotBlank()) {
-                                Tag(
-                                    if (o.bool("certified")) "Certified" else "Not certified",
-                                    if (o.bool("certified")) sk.green else sk.red,
+                                ToneChip(
+                                    text = if (o.bool("certified")) "Certified" else "Not certified",
+                                    tint = if (o.bool("certified")) sk.good else sk.warn,
                                 )
                                 Spacer(Modifier.width(5.dp))
                             }
-                            Text(
-                                "Q${o.int("qubits_score")}",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold, color = sk.subText,
+                            val del = o.int("delivered")
+                            if (del > 0) {
+                                ToneChip(text = "$del DELIVERED", tint = sk.cyan)
+                                Spacer(Modifier.width(5.dp))
+                            }
+                            ToneChip(
+                                text = "Q${o.int("qubits_score")}",
+                                tint = sk.subText,
                             )
                         }
                     }
@@ -618,17 +639,17 @@ private fun CourseCard(
                         Button(
                             onClick = onInspectCurriculum,
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            colors = ButtonDefaults.buttonColors(containerColor = sk.brand, contentColor = sk.frost),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                         ) {
-                            Text("Curriculum & Labs ↗", style = MaterialTheme.typography.labelSmall)
+                            Text("Curriculum & Labs", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         }
                         OutlinedButton(
                             onClick = onTransfer,
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                         ) {
-                            Text("Assign Skill", style = MaterialTheme.typography.labelSmall)
+                            Text("Assign Skill", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -673,7 +694,7 @@ internal fun SkillAssignmentDialog(
 
     AlertDialog(
         onDismissRequest = { if (!working) onDismiss() },
-        title = { Text(if (initialCourse == null) "Assign skill" else "Transfer skill") },
+        title = { Text(if (initialCourse == null) "Assign skill" else "Transfer skill", color = sk.frost, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 Text("Search the full RMS catalogue, then select one or more trainers.", style = MaterialTheme.typography.bodySmall, color = sk.subText)
@@ -687,7 +708,7 @@ internal fun SkillAssignmentDialog(
                         Text(if (searching) "Searching…" else "Search")
                     }
                 }
-                selectedCourse?.let { Tag("Selected: ${it.str("course_name")}", sk.teal) }
+                selectedCourse?.let { ToneChip(text = "Selected: ${it.str("course_name")}", tint = sk.cyan) }
                 if (selectedCourse == null && results.isNotEmpty()) {
                     LazyColumn(Modifier.fillMaxWidth().heightIn(max = 130.dp)) {
                         itemsIndexed(results) { _, course ->
@@ -700,7 +721,7 @@ internal fun SkillAssignmentDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(course.str("course_name"), style = MaterialTheme.typography.bodySmall, color = sk.bodyText, maxLines = 2)
+                                    Text(course.str("course_name"), style = MaterialTheme.typography.bodySmall, color = sk.frost, maxLines = 2)
                                     Text(
                                         listOfNotNull(
                                             course.str("vendor").takeIf { it.isNotBlank() },
@@ -710,17 +731,17 @@ internal fun SkillAssignmentDialog(
                                         style = MaterialTheme.typography.labelSmall, color = sk.subText,
                                     )
                                 }
-                                Text("Select", style = MaterialTheme.typography.labelSmall, color = sk.teal)
+                                Text("Select", style = MaterialTheme.typography.labelSmall, color = sk.cyan, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
-if (selectedCourse != null) {
+                if (selectedCourse != null) {
                     if (intelligenceLoading) {
                         LinearProgressIndicator(Modifier.fillMaxWidth())
                     } else when (val info = intelligence) {
                         is CourseIntelligence.Unverified -> {
-                            Surface(color = sk.warn.copy(alpha = 0.10f), shape = RoundedCornerShape(8.dp)) {
+                            Surface(color = sk.warn.copy(alpha = 0.10f), shape = RoundedCornerShape(Radii.chip)) {
                                 Column(Modifier.fillMaxWidth().padding(9.dp)) {
                                     Text(
                                         "Schedule not verified",
@@ -735,14 +756,14 @@ if (selectedCourse != null) {
                             }
                         }
                         is CourseIntelligence.Verified -> {
-                            Surface(color = sk.teal.copy(alpha = 0.09f), shape = RoundedCornerShape(8.dp)) {
+                            Surface(color = sk.cyan.copy(alpha = 0.09f), shape = RoundedCornerShape(Radii.chip)) {
                                 Column(Modifier.fillMaxWidth().padding(9.dp)) {
                                     Text(
                                         listOfNotNull(
                                             info.vendor.takeIf { it.isNotBlank() },
                                             info.durationDays?.let { "$it days" },
                                         ).joinToString(" · ").ifBlank { "Verified RMS course" },
-                                        style = MaterialTheme.typography.labelSmall, color = sk.bodyText,
+                                        style = MaterialTheme.typography.labelSmall, color = sk.frost,
                                         fontWeight = FontWeight.Bold,
                                     )
                                     Text(
@@ -790,7 +811,7 @@ if (selectedCourse != null) {
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Checkbox(checked = checked, onCheckedChange = { yes -> if (yes) selectedPeople.add(person) else selectedPeople.remove(person) })
-                            Text(person.first, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
+                            Text(person.first, style = MaterialTheme.typography.bodySmall, color = sk.frost)
                         }
                     }
                 }
@@ -800,11 +821,11 @@ if (selectedCourse != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Skill level", style = MaterialTheme.typography.labelSmall, color = sk.subText)
                     Slider(value = level.toFloat(), onValueChange = { level = it.toInt().coerceIn(1, 10) }, valueRange = 1f..10f, steps = 8, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
-                    Text("$level", color = sk.teal, fontWeight = FontWeight.Bold)
+                    Text("$level", color = sk.cyan, fontWeight = FontWeight.Bold)
                 }
                 Text("Effective $date · This writes to RMS for every selected trainer.", style = MaterialTheme.typography.labelSmall, color = sk.subText)
                 when (markState) {
-                    is MarkState.Done -> Text(markState.message, color = sk.green, style = MaterialTheme.typography.bodySmall)
+                    is MarkState.Done -> Text(markState.message, color = sk.good, style = MaterialTheme.typography.bodySmall)
                     is MarkState.Unconfirmed -> Text(markState.message, color = sk.amber, style = MaterialTheme.typography.bodySmall)
                     is MarkState.Failed -> Text(markState.message, color = sk.red, style = MaterialTheme.typography.bodySmall)
                     else -> Unit
@@ -819,16 +840,4 @@ if (selectedCourse != null) {
         },
         dismissButton = { TextButton(onClick = onDismiss, enabled = !working) { Text(if (markState is MarkState.Idle) "Cancel" else "Close") } },
     )
-}
-
-@Composable
-private fun Tag(text: String, tint: Color) {
-    Surface(color = tint.copy(alpha = 0.13f), shape = RoundedCornerShape(6.dp)) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelSmall, color = tint,
-            maxLines = 1,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-        )
-    }
 }
