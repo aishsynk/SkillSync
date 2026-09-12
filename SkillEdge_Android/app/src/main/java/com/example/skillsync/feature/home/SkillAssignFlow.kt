@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.skillsync.R
@@ -322,13 +323,27 @@ private fun PreviewStep(chosen: List<SkillCandidate>, level: Int, onLevel: (Int)
 
     SkillCard(Modifier.fillMaxWidth(), severity = Severity.Warning) {
         Text(
+            "Provenance: Manager Endorsement (RMS Key 255)",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = sk.warn,
+        )
+        Text(
+            "This creates a manager-verified skill endorsement, distinct from self-declared skills or official certification records.",
+            style = MaterialTheme.typography.bodySmall,
+            color = sk.bodyText,
+        )
+        Text(
             "This writes to production RMS and cannot be undone.",
-            style = MaterialTheme.typography.bodyMedium, color = sk.bodyText,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = sk.warn,
         )
         Text(
             "RMS has no remove or edit endpoint, so a wrong entry has to be " +
                 "corrected by the RMS team rather than in this app.",
-            style = MaterialTheme.typography.bodySmall, color = sk.subText,
+            style = MaterialTheme.typography.bodySmall,
+            color = sk.subText,
         )
     }
 

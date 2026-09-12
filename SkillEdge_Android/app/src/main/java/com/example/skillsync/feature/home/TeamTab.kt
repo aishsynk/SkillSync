@@ -529,7 +529,7 @@ private fun FilterGroup(title: String, content: @Composable () -> Unit) {
             title.uppercase(),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.skill.subText,
-            fontWeight = FontWeight.Bold, fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
         )
         Spacer(Modifier.height(6.dp))
         Row(
@@ -568,7 +568,7 @@ internal fun SearchField(value: String, onValueChange: (String) -> Unit, placeho
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        placeholder = { Text(placeholder, fontSize = 12.sp) },
+        placeholder = { Text(placeholder, style = MaterialTheme.typography.bodyMedium) },
         leadingIcon = {
             Icon(
                 painterResource(R.drawable.ic_search), null,
@@ -578,7 +578,7 @@ internal fun SearchField(value: String, onValueChange: (String) -> Unit, placeho
         trailingIcon = if (value.isNotEmpty()) {
             {
                 TextButton(onClick = { onValueChange("") }, contentPadding = PaddingValues(6.dp)) {
-                    Text("Clear", fontSize = 10.sp)
+                    Text("Clear", style = MaterialTheme.typography.labelSmall)
                 }
             }
         } else null,

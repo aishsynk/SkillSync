@@ -184,7 +184,7 @@ fun TeamCalendarScreen(
                     list.add(
                         CalendarEventItem(
                             id = "leave_${trainerEmail}_$leaveDate",
-                            title = "🌴 Leave: $trainerName",
+                            title = "Leave: $trainerName",
                             category = EventCategory.LEAVE,
                             startDate = leaveDate,
                             endDate = leaveDate,
@@ -393,7 +393,7 @@ private fun CalendarTopHeader(
                             Text(
                                 mode.label,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = if (isSelected) Color.White else sk.subText,
+                                color = if (isSelected) sk.frost else sk.subText,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             )
                         }
@@ -478,25 +478,25 @@ private fun EventCategoryFilterBar(
             onClick = { onSelectCategory(null) },
         )
         FilterPill(
-            label = "📦 Deliveries ($deliveryCount)",
+            label = "Deliveries ($deliveryCount)",
             selected = selectedCategory == EventCategory.DELIVERY,
             tint = EventCategory.DELIVERY.color,
             onClick = { onSelectCategory(if (selectedCategory == EventCategory.DELIVERY) null else EventCategory.DELIVERY) },
         )
         FilterPill(
-            label = "🎯 Mocks ($mockCount)",
+            label = "Mocks ($mockCount)",
             selected = selectedCategory == EventCategory.MOCK,
             tint = EventCategory.MOCK.color,
             onClick = { onSelectCategory(if (selectedCategory == EventCategory.MOCK) null else EventCategory.MOCK) },
         )
         FilterPill(
-            label = "🎤 Webinars ($webinarCount)",
+            label = "Webinars ($webinarCount)",
             selected = selectedCategory == EventCategory.WEBINAR,
             tint = EventCategory.WEBINAR.color,
             onClick = { onSelectCategory(if (selectedCategory == EventCategory.WEBINAR) null else EventCategory.WEBINAR) },
         )
         FilterPill(
-            label = "🏖️ Leaves ($leaveCount)",
+            label = "Leaves ($leaveCount)",
             selected = selectedCategory == EventCategory.LEAVE,
             tint = EventCategory.LEAVE.color,
             onClick = { onSelectCategory(if (selectedCategory == EventCategory.LEAVE) null else EventCategory.LEAVE) },
@@ -652,14 +652,14 @@ private fun MonthWeekRow(
                         text = "${dayDate.dayOfMonth}",
                         style = MaterialTheme.typography.labelSmall,
                         color = when {
-                            isSelected -> Color.White
+                            isSelected -> sk.frost
                             isToday -> sk.sky
                             !isCurrentMonth -> sk.subText.copy(alpha = 0.3f)
                             isWeekend -> sk.subText.copy(alpha = 0.6f)
                             else -> sk.bodyText
                         },
                         fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            )
+                    )
                 }
             }
         }
@@ -700,8 +700,7 @@ private fun MonthWeekRow(
                         Text(
                             text = if (isMultiDay) "${ev.category.icon} ${ev.title}" else "● ${ev.title}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White,
-                            fontSize = 9.sp,
+                            color = sk.cardBg,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -720,7 +719,6 @@ private fun MonthWeekRow(
                     "+${weekEvents.size - 3} more",
                     style = MaterialTheme.typography.labelSmall,
                     color = sk.cyan,
-                    fontSize = 9.sp,
                     modifier = Modifier.padding(start = 4.dp),
                 )
             }
@@ -854,7 +852,7 @@ private fun WeekScheduleView(
                         "${date.dayOfMonth}",
                         style = MaterialTheme.typography.titleSmall,
                         color = when {
-                            isSelected -> Color.White
+                            isSelected -> sk.frost
                             isToday -> sk.sky
                             isWeekend -> sk.subText.copy(alpha = 0.7f)
                             else -> sk.bodyText
@@ -874,7 +872,7 @@ private fun WeekScheduleView(
                             Text(
                                 ev.title,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color.White, fontSize = 8.sp, lineHeight = 10.sp,
+                                color = sk.cardBg,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis,
                             )
@@ -882,7 +880,7 @@ private fun WeekScheduleView(
                     }
                     if (dayEvents.size > 4) {
                         Text("+${dayEvents.size - 4}", style = MaterialTheme.typography.labelSmall,
-                            color = sk.cyan, fontSize = 9.sp)
+                            color = sk.cyan)
                     }
                 }
                 if (idx < 6) {
@@ -1026,7 +1024,6 @@ private fun EventCardRow(
                         style = MaterialTheme.typography.labelSmall,
                         color = event.category.color,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 9.sp,
                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
                     )
                 }

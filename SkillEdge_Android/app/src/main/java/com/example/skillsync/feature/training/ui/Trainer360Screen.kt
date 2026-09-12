@@ -42,6 +42,10 @@ import com.example.skillsync.theme.skill
 import com.example.skillsync.core.ui.*
 import com.example.skillsync.feature.home.projectNextUtilization
 import com.example.skillsync.core.network.TrainerIndexDto
+import com.example.skillsync.theme.SkillSyncTopBar
+import com.example.skillsync.theme.SkillSyncCard
+import com.example.skillsync.feature.communication.engine.CommunicationContextFilter
+import com.example.skillsync.feature.communication.engine.CommunicationPurpose
 import androidx.compose.material3.Text
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,33 +97,15 @@ fun Trainer360Screen(
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text(
-                                trainerName.ifBlank { "Trainer 360" },
-                                fontWeight = FontWeight.Bold,
-                                color = sk.bodyText,
-                                style = MaterialTheme.typography.titleLarge,
-                            )
-                            Text(
-                                trainerEmail,
-                                color = sk.sky,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(painterResource(R.drawable.ic_back), "Back", tint = sk.ice)
-                        }
-                    },
+                SkillSyncTopBar(
+                    title = trainerName.ifBlank { "Trainer 360" },
+                    subtitle = trainerEmail,
+                    onBack = onBack,
                     actions = {
                         IconButton(onClick = { showCopilot = true }) {
                             Icon(painterResource(R.drawable.ic_alert), "Ask Copilot about this trainer", tint = sk.ice)
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 )
             },
         ) { padding ->
@@ -809,12 +795,12 @@ private fun DeliveryReadinessSection(
     val recs         = metrics?.list("delivery_recommendations").orEmpty()
     val confidence   = metrics?.intOrNull("delivery_confidence")
 
-    val (labelColor, labelEmoji) = when (label) {
-        "Ready"            -> sk.green  to "🟢"
-        "Ready with Prep"  -> sk.teal   to "🟡"
-        "Needs Mentoring" -> sk.amber  to "🟠"
-        "Hold"             -> sk.red    to "🔴"
-        else               -> sk.subText to "⌓"
+    val (labelColor, labelGlyph) = when (label) {
+        "Ready"           -> sk.green  to "●"
+        "Ready with Prep" -> sk.teal   to "●"
+        "Needs Mentoring" -> sk.amber  to "●"
+        "Hold"            -> sk.red    to "●"
+        else              -> sk.subText to "○"
     }
     val capacityColor = when (capacity) {
         "Overloaded"   -> sk.red
@@ -852,7 +838,7 @@ private fun DeliveryReadinessSection(
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
                     ) {
                         Text(
-                            "$labelEmoji $label",
+                            "$labelGlyph $label",
                             style = MaterialTheme.typography.titleSmall,
                             color = labelColor,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
@@ -1274,11 +1260,11 @@ private fun RiskSection(metrics: Map<*, *>?, feedback: Map<*, *>?) {
     val negCount = feedback?.int("negative_total") ?: 0
     val hrNeg = feedback?.int("hr_negative") ?: 0
 
-    val (riskColor, riskEmoji) = when (riskLevel) {
-        "High"   -> sk.red    to "🔴"
-        "Medium" -> sk.amber  to "🟡"
-        "Low"    -> sk.green  to "🟢"
-        else     -> sk.subText to "⌓"
+    val (riskColor, riskGlyph) = when (riskLevel) {
+        "High"   -> sk.red    to "●"
+        "Medium" -> sk.amber  to "●"
+        "Low"    -> sk.green  to "●"
+        else     -> sk.subText to "○"
     }
 
     SectionCard("Feedback Risk", "Incidents and HR flags") {
@@ -1302,7 +1288,7 @@ private fun RiskSection(metrics: Map<*, *>?, feedback: Map<*, *>?) {
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
                     ) {
                         Text(
-                            "$riskEmoji $riskLevel Risk",
+                            "$riskGlyph $riskLevel Risk",
                             style = MaterialTheme.typography.titleSmall,
                             color = riskColor,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
@@ -1431,7 +1417,12 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
                         .padding(horizontal = Space.md, vertical = Space.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("⭐", fontSize = 14.sp)
+                    Icon(
+                        painterResource(R.drawable.ic_check),
+                        contentDescription = null,
+                        tint = sk.amber,
+                        modifier = Modifier.size(16.dp),
+                    )
                     Spacer(Modifier.width(Space.sm))
                     Column(Modifier.weight(1f)) {
                         Text(
@@ -1457,7 +1448,12 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
                             .padding(horizontal = Space.md, vertical = Space.sm),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("⭐", fontSize = 14.sp)
+                        Icon(
+                            painterResource(R.drawable.ic_check),
+                            contentDescription = null,
+                            tint = sk.amber,
+                            modifier = Modifier.size(16.dp),
+                        )
                         Spacer(Modifier.width(Space.sm))
                         Column(Modifier.weight(1f)) {
                             Text(
@@ -1707,7 +1703,7 @@ private fun ManagerEvaluationCard(
                 border = androidx.compose.foundation.BorderStroke(1.dp, sk.good.copy(alpha = 0.35f)),
             ) {
                 Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("🟢 STRENGTH", style = MaterialTheme.typography.labelSmall, color = sk.good, fontWeight = FontWeight.Bold)
+                    Text("STRENGTH", style = MaterialTheme.typography.labelSmall, color = sk.good, fontWeight = FontWeight.Bold)
                     Text(strength, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
                 }
             }
@@ -1720,7 +1716,7 @@ private fun ManagerEvaluationCard(
                 border = androidx.compose.foundation.BorderStroke(1.dp, sk.warn.copy(alpha = 0.35f)),
             ) {
                 Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("🟠 AREA OF IMPROVEMENT", style = MaterialTheme.typography.labelSmall, color = sk.warn, fontWeight = FontWeight.Bold)
+                    Text("AREA OF IMPROVEMENT", style = MaterialTheme.typography.labelSmall, color = sk.warn, fontWeight = FontWeight.Bold)
                     Text(improvement, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
                 }
             }
@@ -1733,7 +1729,7 @@ private fun ManagerEvaluationCard(
                 border = androidx.compose.foundation.BorderStroke(1.dp, sk.cyan.copy(alpha = 0.35f)),
             ) {
                 Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("🔵 MANAGER'S VERDICT", style = MaterialTheme.typography.labelSmall, color = sk.cyan, fontWeight = FontWeight.Bold)
+                    Text("MANAGER'S VERDICT", style = MaterialTheme.typography.labelSmall, color = sk.cyan, fontWeight = FontWeight.Bold)
                     Text(verdict, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
                 }
             }
@@ -1754,9 +1750,14 @@ private fun ManagerEvaluationCard(
 
                 Button(
                     onClick = {
+                        val sanitized = CommunicationContextFilter.sanitize(
+                            CommunicationPurpose.TRAINER_PERFORMANCE_INTERNAL,
+                            mapOf("evaluation" to formatted, "trainer_name" to name)
+                        )
+                        val safeText = sanitized["evaluation"]?.toString() ?: formatted
                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, formatted)
+                            putExtra(Intent.EXTRA_TEXT, safeText)
                             putExtra(Intent.EXTRA_SUBJECT, "Manager Evaluation — $name")
                         }
                         context.startActivity(Intent.createChooser(shareIntent, "Share Evaluation"))
@@ -1765,7 +1766,7 @@ private fun ManagerEvaluationCard(
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
                 ) {
-                    Text("Share Review", fontSize = 12.sp, color = Color.White)
+                    Text("Share Review", fontSize = 12.sp, color = sk.frost)
                 }
             }
         }
@@ -1848,7 +1849,7 @@ private fun TrainerIndexCard(
                             "${totalScore.toInt()} Points",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Color.White,
+                            color = sk.frost,
                         )
                         Text(
                             index.confidence_note.ifBlank { "Calculated by the server from available RMS evidence." },
@@ -1870,13 +1871,13 @@ private fun TrainerIndexCard(
 
             // High level category meters
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                CategoryMeterRow("📈 Utilization & Consistency", "${utilPts.toInt()} / 550 pts", (utilPts / 550.0).toFloat().coerceIn(0f, 1f), sk.cyan, sk)
-                CategoryMeterRow("🤖 Quality & Beast AI", "${(qiPts + beastAiPts).toInt()} / 500 pts", ((qiPts + beastAiPts) / 500.0).toFloat().coerceIn(0f, 1f), sk.sky, sk)
-                CategoryMeterRow("📜 Capability & Certs", "${(firstTimePts + certPts + instructorPts).toInt()} / 600 pts", ((firstTimePts + certPts + instructorPts) / 600.0).toFloat().coerceIn(0f, 1f), sk.good, sk)
-                CategoryMeterRow("🌐 Mobility & Operations", "${(roamingPts + nightPts + custPts + centrePts).toInt()} / 600 pts", ((roamingPts + nightPts + custPts + centrePts) / 600.0).toFloat().coerceIn(0f, 1f), sk.amber, sk)
-                CategoryMeterRow("⏳ Tenure & Commitments", "${(tenurePts + priorExpPts + visaPts).toInt()} / 200 pts", ((tenurePts + priorExpPts + visaPts) / 200.0).toFloat().coerceIn(0f, 1f), sk.teal, sk)
+                CategoryMeterRow("Utilization & Consistency", "${utilPts.toInt()} / 550 pts", (utilPts / 550.0).toFloat().coerceIn(0f, 1f), sk.cyan, sk)
+                CategoryMeterRow("Quality & Beast AI", "${(qiPts + beastAiPts).toInt()} / 500 pts", ((qiPts + beastAiPts) / 500.0).toFloat().coerceIn(0f, 1f), sk.sky, sk)
+                CategoryMeterRow("Capability & Certs", "${(firstTimePts + certPts + instructorPts).toInt()} / 600 pts", ((firstTimePts + certPts + instructorPts) / 600.0).toFloat().coerceIn(0f, 1f), sk.good, sk)
+                CategoryMeterRow("Mobility & Operations", "${(roamingPts + nightPts + custPts + centrePts).toInt()} / 600 pts", ((roamingPts + nightPts + custPts + centrePts) / 600.0).toFloat().coerceIn(0f, 1f), sk.amber, sk)
+                CategoryMeterRow("Tenure & Commitments", "${(tenurePts + priorExpPts + visaPts).toInt()} / 200 pts", ((tenurePts + priorExpPts + visaPts) / 200.0).toFloat().coerceIn(0f, 1f), sk.teal, sk)
                 if (negFeedbackPts < 0 || hrIncidentPts < 0) {
-                    CategoryMeterRow("⚠️ Deductions & Incidents", "${(negFeedbackPts + if (hrIncidentPts < 0) hrIncidentPts else 0.0).toInt()} pts", 1f, sk.crit, sk)
+                    CategoryMeterRow("Deductions & Incidents", "${(negFeedbackPts + if (hrIncidentPts < 0) hrIncidentPts else 0.0).toInt()} pts", 1f, sk.crit, sk)
                 }
             }
         }
