@@ -69,11 +69,20 @@ import kotlinx.serialization.Serializable
 /** "My Skill Profile" — certifications, technologies, courses, experience, labs, confidence. */
 @Serializable data class SkillProfile(val email: String) : NavKey
 
-/** "Communication Intelligence" — drafts a professional Teams/Viber message, with history. */
+/**
+ * "Communication Intelligence" — drafts a professional Teams/Viber message, with history.
+ *
+ * [initialRecipientType]/[initialRecipientName]/[initialPurpose] pre-fill the composer when it is
+ * opened from a context that already knows who/what the message is about (Today, Trainer 360,
+ * People) — the shared generation pipeline is unchanged, only the starting form state.
+ */
 @Serializable data class Communication(
     val email: String,
     val relatedEntityId: String = "",
     val relatedEntityType: String = "",
+    val initialRecipientType: String = "",
+    val initialRecipientName: String = "",
+    val initialPurpose: String = "",
 ) : NavKey
 
 

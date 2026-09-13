@@ -470,6 +470,114 @@ class ScreenRenderTest {
         org.junit.Assert.assertNotNull(opened)
     }
 
+    // ── Today Communication Command Centre ────────────────────────────────────
+
+    @Test
+    fun today_communicateSectionRendersFourActions() {
+        compose.setContent { SkillSyncTheme { Dashboard() } }
+        // SectionHeading renders its title uppercased, matching every other section on Today.
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("COMMUNICATE"))
+        compose.onNodeWithText("COMMUNICATE").assertExists()
+        listOf("Team", "Trainer", "Weekly", "Monthly").forEach {
+            compose.onNodeWithText(it).assertExists()
+        }
+    }
+
+    @Test
+    fun today_teamActionOpensSharedComposerWithTeamRecipient() {
+        var captured: List<String>? = null
+        compose.setContent {
+            SkillSyncTheme {
+                DashboardTab(
+                    data = dashboardPayload(), profile = managerProfile(), capability = capabilityPayload(),
+                    capabilityLoading = false, email = "aishwar.c@koenig-solutions.com",
+                    onTrainerClick = { _, _ -> }, onOpenProfile = {}, onDrill = {},
+                    onOpenCommunication = { recipientType, recipientName, purpose, relatedType, relatedId ->
+                        captured = listOf(recipientType, recipientName, purpose, relatedType, relatedId)
+                    },
+                )
+            }
+        }
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Team"))
+        compose.onNodeWithText("Team").performClick()
+        org.junit.Assert.assertEquals(listOf("TEAM", "", "GENERAL_PROFESSIONAL", "", ""), captured)
+    }
+
+    @Test
+    fun today_trainerActionOpensPickerThenSharedComposerWithSelectedTrainer() {
+        // The roster offered is the real trainer_operations_df roster, not a
+        // hardcoded list — proven by asserting the fixture's actual name.
+        var captured: List<String>? = null
+        compose.setContent {
+            SkillSyncTheme {
+                DashboardTab(
+                    data = dashboardPayload(), profile = managerProfile(), capability = capabilityPayload(),
+                    capabilityLoading = false, email = "aishwar.c@koenig-solutions.com",
+                    onTrainerClick = { _, _ -> }, onOpenProfile = {}, onDrill = {},
+                    onOpenCommunication = { recipientType, recipientName, purpose, relatedType, relatedId ->
+                        captured = listOf(recipientType, recipientName, purpose, relatedType, relatedId)
+                    },
+                )
+            }
+        }
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Trainer"))
+        compose.onNodeWithText("Trainer").performClick()
+        compose.onNodeWithText("Abhinav Samant").performClick()
+        org.junit.Assert.assertEquals(
+            listOf("INDIVIDUAL", "Abhinav Samant", "GENERAL_PROFESSIONAL", "", ""), captured,
+        )
+    }
+
+    /**
+     * Weekly/Monthly must route to the existing report screens — the ones
+     * already backed by the real /api/v2/message/compose flow — never spin up
+     * a second, independent generator on Today.
+     */
+    @Test
+    fun today_weeklyAndMonthlyRouteToExistingReportScreensNotANewPipeline() {
+        var openedWeekly = false
+        var openedHr = false
+        compose.setContent {
+            SkillSyncTheme {
+                DashboardTab(
+                    data = dashboardPayload(), profile = managerProfile(), capability = capabilityPayload(),
+                    capabilityLoading = false, email = "aishwar.c@koenig-solutions.com",
+                    onTrainerClick = { _, _ -> }, onOpenProfile = {}, onDrill = {},
+                    onOpenWeeklyReport = { openedWeekly = true },
+                    onOpenHrReport = { openedHr = true },
+                )
+            }
+        }
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Weekly"))
+        compose.onNodeWithText("Weekly").performClick()
+        org.junit.Assert.assertTrue(openedWeekly)
+        compose.onNodeWithText("Monthly").performClick()
+        org.junit.Assert.assertTrue(openedHr)
+    }
+
+    @Test
+    fun today_unallocatedDemandOffersAskAvailabilityWithRealDemandId() {
+        var captured: List<String>? = null
+        compose.setContent {
+            SkillSyncTheme {
+                DashboardTab(
+                    data = dashboardPayload(), profile = managerProfile(), capability = capabilityPayload(),
+                    capabilityLoading = false, email = "aishwar.c@koenig-solutions.com",
+                    onTrainerClick = { _, _ -> }, onOpenProfile = {}, onDrill = {},
+                    onOpenCommunication = { recipientType, recipientName, purpose, relatedType, relatedId ->
+                        captured = listOf(recipientType, recipientName, purpose, relatedType, relatedId)
+                    },
+                )
+            }
+        }
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Ask availability"))
+        compose.onNodeWithText("Ask availability").performClick()
+        // demand_id "264455" is the real fixture id from unallocated_demand_df — never invented.
+        org.junit.Assert.assertEquals(
+            listOf("TEAM", "", "AVAILABILITY_REQUEST", "demand", "264455"), captured,
+        )
+    }
+
     /** Regression: a missing utilisation must read "—", never a confident 0%. */
     @Test
     fun trainerCard_showsDashWhenUtilisationMissing() {

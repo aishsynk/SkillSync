@@ -58,15 +58,22 @@ fun CommunicationScreen(
     managerEmail: String,
     relatedEntityId: String = "",
     relatedEntityType: String = "",
+    initialRecipientType: String = "",
+    initialRecipientName: String = "",
+    initialPurpose: String = "",
     onBack: () -> Unit,
     viewModel: CommunicationViewModel = viewModel(),
 ) {
     val ui by viewModel.uiState.collectAsState()
     val clipboard = LocalClipboardManager.current
+    val shareContext = androidx.compose.ui.platform.LocalContext.current
 
-    LaunchedEffect(relatedEntityId) {
+    LaunchedEffect(relatedEntityId, initialRecipientType, initialRecipientName, initialPurpose) {
         if (relatedEntityId.isNotBlank()) {
             viewModel.setRelated(relatedEntityType, relatedEntityId)
+        }
+        if (initialRecipientType.isNotBlank() || initialRecipientName.isNotBlank() || initialPurpose.isNotBlank()) {
+            viewModel.setInitial(initialRecipientType, initialRecipientName, initialPurpose)
         }
         viewModel.loadHistory(managerEmail)
     }
@@ -231,6 +238,18 @@ fun CommunicationScreen(
                                         clipboard.setText(AnnotatedString(result.text))
                                         viewModel.save(managerEmail, "COPIED")
                                     }) { Text("COPY + SAVE") }
+                                    OutlinedButton(onClick = {
+                                        // The native share sheet only hands the text to another
+                                        // app (Teams, Viber, whatever the manager picks) — it is
+                                        // not delivery confirmation, so this is SHARED_EXTERNALLY,
+                                        // never SENT.
+                                        val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(android.content.Intent.EXTRA_TEXT, result.text)
+                                        }
+                                        shareContext.startActivity(android.content.Intent.createChooser(sendIntent, null))
+                                        viewModel.save(managerEmail, "SHARED_EXTERNALLY")
+                                    }) { Text("SHARE") }
                                     OutlinedButton(onClick = { viewModel.save(managerEmail, "DRAFT") }) { Text("SAVE DRAFT") }
                                     OutlinedButton(onClick = { viewModel.clearResult() }) { Text("CLEAR") }
                                 }

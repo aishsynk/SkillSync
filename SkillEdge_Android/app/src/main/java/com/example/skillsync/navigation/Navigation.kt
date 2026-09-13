@@ -223,6 +223,16 @@ fun MainNavigation() {
                 onOpenViberAutomation = { current = ViberAutomation(screen.email) },
                 onOpenSkillRequests = { current = SkillRequests(screen.email) },
                 onOpenMySchedule = { current = MySchedule(screen.email) },
+                onOpenCommunication = { recipientType, recipientName, purpose, relatedType, relatedId ->
+                    current = Communication(
+                        email = screen.email,
+                        relatedEntityId = relatedId,
+                        relatedEntityType = relatedType,
+                        initialRecipientType = recipientType,
+                        initialRecipientName = recipientName,
+                        initialPurpose = purpose,
+                    )
+                },
                 onOpenOpportunityGuardian = { current = OpportunityGuardian(screen.email) },
                 onOpenOpportunities = { current = OpportunityList(screen.email) },
                 onOpenOpportunityDetail = { id -> current = OpportunityDetail(screen.email, id) },
@@ -360,11 +370,14 @@ fun MainNavigation() {
                 managerEmail = screen.email,
                 relatedEntityId = screen.relatedEntityId,
                 relatedEntityType = screen.relatedEntityType,
+                initialRecipientType = screen.initialRecipientType,
+                initialRecipientName = screen.initialRecipientName,
+                initialPurpose = screen.initialPurpose,
                 onBack = {
                     current = if (screen.relatedEntityType == "OPPORTUNITY" && screen.relatedEntityId.isNotBlank()) {
                         OpportunityDetail(screen.email, screen.relatedEntityId)
                     } else {
-                        Main(screen.email, HomeTab.OPPORTUNITIES)
+                        Main(screen.email, HomeTab.DASHBOARD)
                     }
                 },
             )

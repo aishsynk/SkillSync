@@ -3,12 +3,19 @@ package com.example.skillsync.feature.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +46,7 @@ import java.util.Locale
  * list inside another (that nested-LazyColumn crash is what commit 064a4c6
  * had to fix on the previous layout).
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun ManagerCommandCentre(
       email: String,
@@ -69,6 +77,13 @@ fun ManagerCommandCentre(
       pendingSkillRequests: Int = 0,
       onBatchClick: (String) -> Unit = {},
       calendarReadiness: Map<String, Map<String, Any>> = emptyMap(),
+      /**
+       * (recipientType, recipientName, purpose, relatedEntityType, relatedEntityId) — routes into
+       * the one shared Communication Intelligence composer (`CommunicationScreen`). Today only
+       * ever supplies a starting point; the manager still reviews, edits, and sends nothing
+       * automatically. No second generation pipeline is created here.
+       */
+      onOpenCommunication: (String, String, String, String, String) -> Unit = { _, _, _, _, _ -> },
 ) {
     val sk = MaterialTheme.skill
     val name = profile?.get("name")?.toString()?.ifBlank { null } ?: email.substringBefore("@")
@@ -176,10 +191,10 @@ fun ManagerCommandCentre(
             unallocatedDemand.take(3).forEach { b ->
                 val cName = b.str("course_name").ifBlank { "Unnamed course" }
                 val mode = b.str("delivery_mode").ifBlank { "mode tbc" }
-                add(Triple("$cName needs a trainer", mode, Severity.Critical))
+                add(AttentionItem("$cName needs a trainer", mode, Severity.Critical, demandId = b.str("demand_id")))
             }
             if (pendingSkillRequests > 0) {
-                add(Triple("$pendingSkillRequests skill request${if (pendingSkillRequests == 1) "" else "s"} pending", "Awaiting your review", Severity.Info))
+                add(AttentionItem("$pendingSkillRequests skill request${if (pendingSkillRequests == 1) "" else "s"} pending", "Awaiting your review", Severity.Info))
             }
         }
         Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
@@ -191,12 +206,64 @@ fun ManagerCommandCentre(
                 StateNote("Nothing needs you right now — the queue is clear.")
             } else {
                 SkillCard(modifier = Modifier.fillMaxWidth(), padding = Space.sm) {
-                    attentionItems.forEachIndexed { i, (title, subtitle, sev) ->
-                        AttentionRow(title, subtitle, sev, onClick = onOpenDemand)
+                    attentionItems.forEachIndexed { i, item ->
+                        AttentionRow(
+                            item.title, item.subtitle, item.severity,
+                            onClick = onOpenDemand,
+                            onAskAvailability = if (item.demandId.isNotBlank()) {
+                                {
+                                    onOpenCommunication(
+                                        "TEAM", "", "AVAILABILITY_REQUEST",
+                                        "demand", item.demandId,
+                                    )
+                                }
+                            } else null,
+                        )
                         if (i < attentionItems.lastIndex) {
                             HorizontalDivider(color = sk.cardBorder, thickness = 1.dp)
                         }
                     }
+                }
+            }
+        }
+
+        val trainerNames = remember(ops) {
+            ops.mapNotNull { it.str("trainer_name").takeIf(String::isNotBlank) }.distinct()
+        }
+        var showTrainerPicker by remember { mutableStateOf(false) }
+        Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+            SectionHeading("Communicate")
+            SkillCard(modifier = Modifier.fillMaxWidth(), padding = Space.sm) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                    CommunicateAction("Team", Modifier.weight(1f)) {
+                        onOpenCommunication("TEAM", "", "GENERAL_PROFESSIONAL", "", "")
+                    }
+                    CommunicateAction("Trainer", Modifier.weight(1f)) { showTrainerPicker = true }
+                    CommunicateAction("Weekly", Modifier.weight(1f), onClick = onOpenWeeklyReport)
+                    CommunicateAction("Monthly", Modifier.weight(1f), onClick = onOpenHrReport)
+                }
+            }
+        }
+        if (showTrainerPicker) {
+            ModalBottomSheet(onDismissRequest = { showTrainerPicker = false }, containerColor = sk.cardBg) {
+                Column(Modifier.fillMaxWidth().padding(Space.lg), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                    Text("Message a trainer", style = MaterialTheme.typography.titleMedium, color = sk.frost)
+                    if (trainerNames.isEmpty()) {
+                        StateNote("No trainers on your roster yet.")
+                    } else {
+                        LazyColumn(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                            items(trainerNames) { trainerName ->
+                                SkillSyncListItem(
+                                    title = trainerName,
+                                    onClick = {
+                                        showTrainerPicker = false
+                                        onOpenCommunication("INDIVIDUAL", trainerName, "GENERAL_PROFESSIONAL", "", "")
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(Space.md))
                 }
             }
         }
@@ -384,8 +451,22 @@ private fun ProgressTrack(fraction: Float, tint: Color) {
     }
 }
 
+private data class AttentionItem(
+    val title: String,
+    val subtitle: String,
+    val severity: Severity,
+    /** Real `demand_id` when this item is an unallocated batch — powers "Ask availability". Blank for non-demand items (e.g. skill requests), which get no communication shortcut. */
+    val demandId: String = "",
+)
+
 @Composable
-private fun AttentionRow(title: String, subtitle: String, severity: Severity, onClick: () -> Unit) {
+private fun AttentionRow(
+    title: String,
+    subtitle: String,
+    severity: Severity,
+    onClick: () -> Unit,
+    onAskAvailability: (() -> Unit)? = null,
+) {
     val sk = MaterialTheme.skill
     Row(
         Modifier
@@ -400,7 +481,31 @@ private fun AttentionRow(title: String, subtitle: String, severity: Severity, on
             Text(title, style = MaterialTheme.typography.titleSmall, color = sk.frost, maxLines = 1)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = sk.subText, maxLines = 1)
         }
+        if (onAskAvailability != null) {
+            Spacer(Modifier.width(Space.xs))
+            ToneChip(
+                text = "Ask availability",
+                tint = sk.sky,
+                modifier = Modifier.pressable(onAskAvailability),
+            )
+            Spacer(Modifier.width(Space.xs))
+        }
         ToneChip(text = severity.label, tint = severity.tint())
+    }
+}
+
+@Composable
+private fun CommunicateAction(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val sk = MaterialTheme.skill
+    Box(
+        modifier
+            .clip(RoundedCornerShape(Radii.chip))
+            .background(sk.surface2)
+            .pressable(onClick)
+            .padding(vertical = Space.sm),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = sk.frost, fontWeight = FontWeight.SemiBold)
     }
 }
 

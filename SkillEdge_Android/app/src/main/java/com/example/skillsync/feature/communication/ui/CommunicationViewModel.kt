@@ -57,6 +57,21 @@ class CommunicationViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(relatedEntityType = type, relatedEntityId = id)
     }
 
+    /**
+     * Pre-fills the composer from a context that already knows who/what the message concerns
+     * (Today, Trainer 360, People). Applied once, on first composition — the manager can still
+     * change any field before generating; this only saves them retyping what the caller already
+     * knew. Blank arguments leave the corresponding field at its default.
+     */
+    fun setInitial(recipientType: String, recipientName: String, purpose: String) {
+        val s = _uiState.value
+        _uiState.value = s.copy(
+            recipientType = recipientType.ifBlank { s.recipientType },
+            recipientName = recipientName.ifBlank { s.recipientName },
+            purpose = purpose.ifBlank { s.purpose },
+        )
+    }
+
     fun clearResult() {
         _uiState.value = _uiState.value.copy(result = null, usedServer = false, error = null, lastSavedId = null)
     }
