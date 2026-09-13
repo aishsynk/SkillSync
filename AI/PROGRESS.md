@@ -210,6 +210,20 @@ human curator to review the 8 DRAFT profiles first.
    `APPROVED` does Phase 2 (matching engine) have real data to build against.
 2. Separately, still pending: resolve the light-first-vs-Design-V2 Today-screen direction, and the
    uncommitted report-screen/scratch-script cleanup from the 2026-09-13T03:38 handover — neither
-   was touched by the capability-foundation work.
+   was touched by the capability-foundation work, and neither was committed/pushed this turn
+   (deliberately scoped out of this release).
 3. Do not start Phase 2 (matching engine) without explicit approval, per the release-gate
    instruction that established this checkpoint.
+
+## 6. Release record
+- **Committed:** `4bf55d2` — "feat: Capability Intelligence Foundation Phase 1 — remove
+  fabricated trainer data" (17 files, capability-foundation scope only; the pre-existing
+  uncommitted Android/report-screen/scratch-script changes were deliberately left out of this
+  commit).
+- **Tagged:** `phase1-capability-foundation-2026-09-13` (annotated).
+- **Pushed:** `origin/main` (`064a4c6..4bf55d2`) and the tag, both confirmed pushed successfully.
+- **Not independently verified this session:** live Render backend deployment/health after the
+  push (this session used no deployment or log-access tool) and no APK was built (none needed —
+  no Android source changed). If `backend.py` pushes auto-deploy to Render per the existing
+  2026-09-04 publication authorization, that deploy would now be in flight; confirm its outcome
+  separately before treating the fabrication fix as live in production.
