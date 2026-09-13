@@ -774,7 +774,7 @@ private fun WeeklyReporteeLiveCard(
                         shape = RoundedCornerShape(Radii.chip),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66818CF8)),
                     ) {
-                        Text("🚀 Auto-Send", style = MaterialTheme.typography.labelMedium, color = Color(0xFF818CF8))
+                        Text("Auto-Send", style = MaterialTheme.typography.labelMedium, color = Color(0xFF818CF8))
                     }
                 }
             }

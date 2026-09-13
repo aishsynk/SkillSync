@@ -606,7 +606,7 @@ private fun ReporteeSnapshotCard(
                             border = androidx.compose.foundation.BorderStroke(1.dp, sk.good.copy(alpha = 0.35f)),
                         ) {
                             Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("🟢 STRENGTH", style = MaterialTheme.typography.labelSmall, color = sk.good, fontWeight = FontWeight.Bold)
+                                Text("STRENGTH", style = MaterialTheme.typography.labelSmall, color = sk.good, fontWeight = FontWeight.Bold)
                                 Text(rep.structuredFeedback.strength, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
                             }
                         }
@@ -621,7 +621,7 @@ private fun ReporteeSnapshotCard(
                             border = androidx.compose.foundation.BorderStroke(1.dp, sk.warn.copy(alpha = 0.35f)),
                         ) {
                             Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("🟠 AREA OF IMPROVEMENT", style = MaterialTheme.typography.labelSmall, color = sk.warn, fontWeight = FontWeight.Bold)
+                                Text("AREA OF IMPROVEMENT", style = MaterialTheme.typography.labelSmall, color = sk.warn, fontWeight = FontWeight.Bold)
                                 Text(rep.structuredFeedback.areaOfImprovement, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
                             }
                         }
@@ -636,7 +636,7 @@ private fun ReporteeSnapshotCard(
                             border = androidx.compose.foundation.BorderStroke(1.dp, sk.cyan.copy(alpha = 0.35f)),
                         ) {
                             Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("🔵 OTHER FEEDBACK / MANAGER'S VERDICT", style = MaterialTheme.typography.labelSmall, color = sk.cyan, fontWeight = FontWeight.Bold)
+                                Text("OTHER FEEDBACK / MANAGER'S VERDICT", style = MaterialTheme.typography.labelSmall, color = sk.cyan, fontWeight = FontWeight.Bold)
                                 Text(rep.structuredFeedback.otherFeedback, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
                             }
                         }
@@ -657,7 +657,7 @@ private fun ReporteeSnapshotCard(
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Column {
-                                        Text("🏆 HR TRAINER INDEX (TI – 13/08/26)", style = MaterialTheme.typography.labelSmall, color = sk.amber, fontWeight = FontWeight.Bold)
+                                        Text("HR TRAINER INDEX (TI – 13/08/26)", style = MaterialTheme.typography.labelSmall, color = sk.amber, fontWeight = FontWeight.Bold)
                                         Text("${rep.trainerIndex.tier} (${rep.trainerIndex.totalScore.toInt()} pts)", style = MaterialTheme.typography.bodyMedium, color = sk.bodyText, fontWeight = FontWeight.Bold)
                                     }
                                     ToneChip("Inspect 20 Criteria ↗", sk.amber)

@@ -1,5 +1,44 @@
 # SkillEdge / Manager OS — Decisions
 
+## 2026-09-13 - Technical debt: no deployed build identifier — `/healthz` cannot confirm which commit is live {#build-info-tech-debt}
+
+- **Gap found during Phase 1 production verification:** `/healthz` returns a hand-written static
+  `"version": "6.1.0"` string, not a git commit SHA or build timestamp. There is no way, from the
+  running service alone, to confirm which commit is actually deployed — verification of the
+  2026-09-13 capability-foundation release (`4bf55d2`/`642cb6d`) is blocked on this for item 8
+  specifically (see `AI/PHASE1_CAPABILITY_FOUNDATION_2026_09_13.md` and the production-verification
+  turn in session history). Render dashboard access or an API token can answer it manually today;
+  the service itself cannot.
+- **Decision:** record as technical debt only. **Not implemented now** — this is a hold-period
+  documentation entry, not a code change.
+- **Proposed future mechanism (design only, not built):** extend `/healthz`'s response with a
+  small, explicitly non-sensitive `build` object:
+  ```json
+  {
+    "status": "ok", "service": "SkillSync Backend", "version": "6.1.0",
+    "build": {
+      "app_version": "6.1.0",
+      "git_commit": "4bf55d2",
+      "build_timestamp": "2026-09-13T18:40:00Z",
+      "environment": "production"
+    }
+  }
+  ```
+  - `git_commit`: short SHA, populated from Render's own `RENDER_GIT_COMMIT` env var (Render sets
+    this automatically per deploy — no new secret or manual step needed) via `_ev`-style env read
+    with an empty-string fallback so local dev without that var doesn't break.
+  - `build_timestamp`: set once at process start (`datetime.utcnow().isoformat()` captured at
+    import time into a module-level constant), not recomputed per request — a build time, not a
+    request time.
+  - `environment`: from an existing or new `SKILLEDGE_ENV` env var (`production`/`staging`/`dev`),
+    defaulting to `"unknown"` rather than guessing.
+  - **Explicitly excluded, per "non-sensitive metadata only":** no RMS credential state, no
+    `_ev_fallbacks` list (that already exists behind `?rms=1` and is a separate, intentionally
+    gated diagnostic), no database paths, no internal hostnames.
+- **How to apply:** implement only when explicitly requested — not part of this hold, not part of
+  Phase 1 closure, and not a prerequisite for it (Phase 1 closure per the operator's own five
+  conditions relies on manual Render dashboard verification this hold period, not on this).
+
 ## 2026-09-13 - `_capability_for()` fabricates capability data for 8 named trainers and any trainer with empty RMS data — flagged, not yet fixed {#capability-intelligence-foundation}
 
 - **Finding (Phase 0 of the capability-intelligence foundation work):** `_capability_for()`

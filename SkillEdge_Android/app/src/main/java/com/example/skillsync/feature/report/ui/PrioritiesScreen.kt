@@ -322,7 +322,7 @@ private fun BulkSharePreviewDialog(
                 TextButton(onClick = onDismiss) { Text("Cancel") }
                 TextButton(onClick = { onShare(text) }) { Text("Share") }
                 TextButton(onClick = { onAutoViber(text) }) {
-                    Text("🚀 Auto-Viber", color = Color(0xFF818CF8), fontWeight = FontWeight.Bold)
+                    Text("Auto-Viber", color = Color(0xFF818CF8), fontWeight = FontWeight.Bold)
                 }
             }
         },
@@ -430,7 +430,7 @@ private fun PriorityCard(item: PriorityItem, sk: SkillColors, onClick: () -> Uni
                             Text(
                                 item.severity.replaceFirstChar { it.uppercase() },
                                 color = stripe,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                             )
                         }

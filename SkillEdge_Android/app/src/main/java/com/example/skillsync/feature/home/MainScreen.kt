@@ -1052,6 +1052,7 @@ internal fun DashboardTab(
                     onDrill = onDrill,
                     onTrainerClick = onTrainerClick,
                     onOpenProfile = onOpenProfile,
+                    onOpenMySchedule = onOpenMySchedule,
                     onOpenNotifications = onOpenNotifications,
                     onOpenDemand = onOpenDemand,
                     onOpenWeeklyReport = onOpenWeeklyReport,

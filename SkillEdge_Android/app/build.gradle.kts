@@ -24,8 +24,9 @@ android {
         applicationId = "com.example.skillsync"
         minSdk = 24
         targetSdk = 34
-        versionCode = 179
-        versionName = "3.80.4"
+        versionCode = 180
+        versionName = "3.80.5"
+        manifestPlaceholders["appName"] = "SkillSync"
     }
 
     signingConfigs {
@@ -49,6 +50,8 @@ android {
 
     buildTypes {
         debug {
+            applicationIdSuffix = ".debug"
+            manifestPlaceholders["appName"] = "SkillSync Debug"
             // Sign debug builds with the exact same release keystore so that local builds,
             // debug APKs, and release APKs share an identical certificate and can update
             // seamlessly over each other without ever prompting for an uninstall!
