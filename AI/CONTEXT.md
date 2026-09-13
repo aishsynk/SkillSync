@@ -1,5 +1,101 @@
 # SkillEdge / Manager OS — Project Context
 
+## Design V2 (Advanced) — reference visual direction (proposed 2026-09-13, not yet implemented)
+
+- **Status:** Visual proposal only (published as a Claude Artifact), not yet reflected in any
+  `.kt` source. It is the reference direction for future UI work and **conflicts with** the
+  uncommitted light-first `ManagerCommandCentre.kt` WIP already in the working tree — see
+  `AI/DECISIONS.md` for the unresolved-conflict note before doing further screen work.
+- **Base palette:** dark-only "Command Centre" theme — navy `#0B1F5E` → royal `#144EA6` →
+  azure `#1976D2` → brand `#2196F3` → sky `#42A5F5` → cyan `#00BCD4`/aqua `#26C6DA`, on
+  elevation surfaces `#0D1117`/`#121826`/`#172030`/`#1E293B`. Status hues (warning amber
+  `#F0A828`, critical rose `#F0556B`, opportunity violet `#B388FF`) are semantic-only, never
+  reused as brand/accent. No light-theme variant — a deliberate single-theme commitment.
+- **Widget vocabulary** (translated from Color Admin's admin-dashboard depth, not copied
+  visually): comparison-to-last-period stat cards (every KPI shows a vs-last-week delta, not
+  a bare number); an **Allocation Funnel** (open demand → matched → scheduled → delivered)
+  replacing a flat KPI count; ranked lists with a trailing stat (top-utilised trainers,
+  top-exposure courses); a regional coverage breakdown (flag + bar + %) for international
+  exposure; a certification-renewal **campaign card** (progress bar + days-left + one CTA);
+  a dense sortable data table reserved for tablet/foldable width only.
+- **Nav architecture:** five bottom tabs — `Today` (command centre) / `Plan` (demand &
+  capacity) / `People` (intelligence centre, drills into Trainer 360) / `Delivery`
+  (operations console) / `More` (grouped operations drawer: Courses, Opportunities,
+  Calendar, Tasks, Approvals, Reports, Communication, Skills & Certifications, Settings —
+  global search/copilot lives in the top bar, not in `More`).
+- **Motion split:** iOS-side rules (spring dismiss, rubber-band scroll, haptic on commit, no
+  bounce on value count-up) and Material-side rules (ripple confined to tap target,
+  shared-element container transform card→detail, FastOutSlowIn tab/enter transitions) are
+  applied per-interaction, not blended into one generic animation style.
+- **Artifact:** `https://claude.ai/code/artifact/c6a9ec1d-057d-4f72-b3c2-c500bb9599dc`
+  ("Manager Operations OS") — full token table, ten-screen phone-frame mockups, and build
+  order live there; this entry is the durable summary for future sessions that can't open it.
+
+## Capability Intelligence Foundation, Phase 1 (implemented 2026-09-13)
+
+- **New layer, backend only, no routes wired yet:** `domain/capability/models.py` (dataclasses:
+  `Capability`, `CapabilityAlias`, `CapabilityRelationship`, `CourseCapabilityRequirement`,
+  `CourseCapabilityProfile`, `CapabilityEvidence`, `TrainerCapability`; enums `RelationshipType`,
+  `EvidenceType`, `MappingStatus`), `repositories/capability_store.py` (`CapabilityStore`, SQLite,
+  6 tables, same `contextmanager`/WAL/`available` convention as `OpportunityStore`), and
+  `services/capability/capability_service.py` (`CapabilityService` — the only path allowed to
+  gate what counts as "authoritative"). Instantiated in `backend.py` as `_capability_repository`/
+  `_capability_service`, next to the other stores — not consumed by any endpoint yet.
+- **Course identity is the RMS numeric `Cid`, never title or `course_code`** — both were
+  confirmed live (2026-09-13 Phase 0 probe) to be unreliable: `course_code` frequently blank/
+  inconsistently cased, multiple catalogue rows can share a title (e.g. "DP-700T00..." vs. the
+  1-day "DP-700 Exam Prep", different Cids).
+- **Evidence-gated by construction, not convention:** `CapabilityStore.trainer_capabilities()`
+  only ever returns rows with at least one linked `capability_evidence` row — there is no write
+  path that creates a "verified" trainer capability without evidence attached in the same
+  transaction. This is the literal implementation of "NO VERIFIED DATA → NO CAPABILITY CLAIM."
+- **Approval lifecycle:** `DRAFT → REVIEW_REQUIRED → APPROVED → DEPRECATED`. Only `APPROVED`
+  is in `MappingStatus.AUTHORITATIVE`; `CapabilityService.get_course_capability_profile(...,
+  authoritative_only=True)` (the default, and what any future matcher must use) returns `None`
+  for anything else. `approve_course_capability` refuses a blank approver.
+- **8 validation courses seeded as DRAFT only** (`scripts/seed_capability_foundation.py`, run
+  manually, not at import time): DP-700 (Cid 18301), DP-600 (15509), AI-102 (9716), AZ-104 (9055),
+  SC-300 (9748), CCNA (11405), AWS Solutions Architect Associate (899), CISSP (742). Requirements
+  drawn from each vendor's public exam-objectives pages, not from course titles.
+  `source="agent_authored_pending_human_review"` — none are `APPROVED`; a named human curator
+  must review each before it may influence any future allocation decision.
+- **Fabrication removed:** `_capability_for()` (backend.py) no longer contains the 8 named-
+  trainer hardcoded profiles or the generic AZ-104/MCT fallback. Empty RMS data now produces an
+  honest state: `courses: []`, `avg_qubits: None` (not `0`), `utilization: None` (not a guessed
+  `82`), `capability_data_available: False`. See `AI/DECISIONS.md` for the removal decision and
+  `tests/test_capability_foundation.py` for the regression tests (including the two named
+  fabrication tests and a static source-scan asserting the removed emails never reappear).
+- **What Phase 1 explicitly does NOT do:** no scoring, no ranking, no semantic/LLM extraction, no
+  Plan UI change, no bulk migration of existing RMS `trainerDetails` rows into
+  `trainer_capabilities` (that requires normalization/confidence decisions deferred to the
+  matching-engine phase — see `AI/PLAN_MATCHING_ENGINE_AUDIT_2026_09_13.md` §L).
+
+## Manager-as-trainer personal calendar already exists server-side (`_personal_calendar_build`, backend.py:7131)
+
+- `_personal_calendar_build(email)` is explicitly written to be identity-agnostic: "the same for
+  a trainer or a manager who also delivers." It calls the real RMS `prevUpcoming` endpoint
+  (api_key 16, "Previous & Upcomming Assignments" — request fields `Startdate/Enddate/Email`,
+  response carries the misspelled `StarDate`, not `StartDate`; both are handled via fallback)
+  and returns `{email, assignments, current, upcoming, past (last 10), off_bands, utilisation_series,
+  generated_at}`, each assignment shaped `{course, vendor, mode, participants, start_date, end_date,
+  location, state}`.
+- Android already has a full screen for this — `MyScheduleScreen.kt` /
+  `MyScheduleViewModel` calling `RetrofitClient.instance.trainerCalendar(email)` — reached via
+  `onOpenMySchedule`, previously wired only into the profile menu.
+- `onOpenProfile` on the Today header already opens **Trainer360Screen for the signed-in
+  manager's own email** (`onTrainerClick(email, name)` in `MainScreen.kt`'s `DashboardTab`) — so
+  "My Profile" for a manager who also trains was already Trainer 360, not a screen that needed
+  building from scratch.
+- 2026-09-13: `onOpenMySchedule` is now also forwarded into `ManagerCommandCentre` (Today) and
+  surfaced as a "Your schedule" row directly on Today, not only inside the profile menu — see
+  [[decision-manager-as-trainer-today-entry]].
+- **RMS doc reliability warning** (from a full pass over
+  `trainer_portal_api_details/*.txt`, 2026-09-13): roughly a third of those 36 files document
+  their response as the literal placeholder `"[...results...]"` — no real field names at all
+  (`Get_Utilization`, `Upcoming_Assignments`, `Get_Unique_Certifications_Count_Value`, and 8
+  others). Do not write UI or backend code against an assumed schema for those without a live
+  authenticated probe first — see [[feedback_verification_standards]].
+
 ## Communication Intelligence Service Architecture (effective 2026-09-12)
 
 - **Authoritative Pipeline**:

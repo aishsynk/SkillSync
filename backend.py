@@ -111,7 +111,9 @@ from action_store import ActionStore, SessionRevocationStore
 from reportee_store import ReporteeStore
 from dev_plan_store import DevPlanStore
 from repositories.opportunity_store import OpportunityStore
+from repositories.capability_store import CapabilityStore
 from services.communication.service import CommunicationService
+from services.capability.capability_service import CapabilityService
 
 app = Flask(__name__)
 CORS(app)
@@ -3836,64 +3838,15 @@ def _capability_for(r, policy=None):
         certs  = f_certs.result()
         series = _util_series(f_util.result())
 
-    if not caps:
-        known_courses = {
-            "subhashish.bhattacharjee@koenig-solutions.com": [
-                {"course": "DP-203: Data Engineering on Microsoft Azure", "vendor": "Microsoft", "qubits_score": 94, "skill_level": 4, "approved": True, "delivered": 28, "future_skill": False},
-                {"course": "AZ-305: Designing Microsoft Azure Infrastructure Solutions", "vendor": "Microsoft", "qubits_score": 92, "skill_level": 4, "approved": True, "delivered": 19, "future_skill": False},
-                {"course": "AZ-104: Microsoft Azure Administrator", "vendor": "Microsoft", "qubits_score": 90, "skill_level": 4, "approved": True, "delivered": 34, "future_skill": False},
-            ],
-            "sachin.khanna@koenig-solutions.com": [
-                {"course": "Generative AI Architecture Masterclass", "vendor": "Public Tech Series", "qubits_score": 98, "skill_level": 5, "approved": True, "delivered": 42, "future_skill": False},
-                {"course": "AI-102: Designing and Implementing a Microsoft Azure AI Solution", "vendor": "Microsoft", "qubits_score": 95, "skill_level": 4, "approved": True, "delivered": 22, "future_skill": False},
-                {"course": "AWS Certified Solutions Architect - Associate", "vendor": "Amazon Web Services", "qubits_score": 91, "skill_level": 4, "approved": True, "delivered": 31, "future_skill": False},
-            ],
-            "neha.sharma@koenig-solutions.com": [
-                {"course": "SC-100: Microsoft Cybersecurity Architect", "vendor": "Microsoft", "qubits_score": 92, "skill_level": 4, "approved": True, "delivered": 16, "future_skill": False},
-                {"course": "AZ-500: Microsoft Azure Security Technologies", "vendor": "Microsoft", "qubits_score": 88, "skill_level": 4, "approved": True, "delivered": 24, "future_skill": False},
-                {"course": "SC-900: Microsoft Security, Compliance, and Identity Fundamentals", "vendor": "Microsoft", "qubits_score": 95, "skill_level": 4, "approved": True, "delivered": 40, "future_skill": False},
-            ],
-            "rohit.agarwal@koenig-solutions.com": [
-                {"course": "CKA: Certified Kubernetes Administrator", "vendor": "Linux Foundation", "qubits_score": 96, "skill_level": 5, "approved": True, "delivered": 36, "future_skill": False},
-                {"course": "CKAD: Certified Kubernetes Application Developer", "vendor": "Linux Foundation", "qubits_score": 94, "skill_level": 4, "approved": True, "delivered": 25, "future_skill": False},
-                {"course": "Docker & Container Operations", "vendor": "Linux Foundation", "qubits_score": 90, "skill_level": 4, "approved": True, "delivered": 30, "future_skill": False},
-            ],
-            "amit.kumar@koenig-solutions.com": [
-                {"course": "PL-300: Microsoft Power BI Data Analyst", "vendor": "Microsoft", "qubits_score": 88, "skill_level": 4, "approved": True, "delivered": 14, "future_skill": False},
-                {"course": "DP-900: Microsoft Azure Data Fundamentals", "vendor": "Microsoft", "qubits_score": 92, "skill_level": 4, "approved": True, "delivered": 26, "future_skill": False},
-            ],
-            "vikas.sharma@koenig-solutions.com": [
-                {"course": "AZ-104: Microsoft Azure Administrator", "vendor": "Microsoft", "qubits_score": 92, "skill_level": 4, "approved": True, "delivered": 38, "future_skill": False},
-                {"course": "MS-900: Microsoft 365 Fundamentals", "vendor": "Microsoft", "qubits_score": 94, "skill_level": 4, "approved": True, "delivered": 45, "future_skill": False},
-            ],
-            "priyanshu.sharma@koenig-solutions.com": [
-                {"course": "AWS Certified Solutions Architect - Associate", "vendor": "Amazon Web Services", "qubits_score": 94, "skill_level": 4, "approved": True, "delivered": 29, "future_skill": False},
-                {"course": "AWS Certified SysOps Administrator - Associate", "vendor": "Amazon Web Services", "qubits_score": 90, "skill_level": 4, "approved": True, "delivered": 18, "future_skill": False},
-            ],
-            "aishwar.singh@koenig-solutions.com": [
-                {"course": "AZ-305: Designing Microsoft Azure Infrastructure Solutions", "vendor": "Microsoft", "qubits_score": 96, "skill_level": 5, "approved": True, "delivered": 35, "future_skill": False},
-                {"course": "AZ-104: Microsoft Azure Administrator", "vendor": "Microsoft", "qubits_score": 94, "skill_level": 4, "approved": True, "delivered": 42, "future_skill": False},
-            ],
-        }
-        caps = known_courses.get(email, [
-            {"course": "AZ-104: Microsoft Azure Administrator", "vendor": "Microsoft", "qubits_score": 90, "skill_level": 4, "approved": True, "delivered": 20, "future_skill": False}
-        ])
-
+    # No hardcoded per-trainer or generic fallback data here. When RMS has no
+    # capability/certification rows for this person, that is a real, honest
+    # "no data" state — it must never be silently replaced with an invented
+    # course, score, or certification (see AI/DECISIONS.md,
+    # "Nah-fabrication rule" and the 2026-09-13 capability-foundation entry
+    # that removed the previous fabricated fallbacks).
     held_certs = certs.get("held", [])
-    if not held_certs:
-        known_certs = {
-            "subhashish.bhattacharjee@koenig-solutions.com": [{"name": "MCT"}, {"name": "DP-203"}, {"name": "AZ-305"}],
-            "sachin.khanna@koenig-solutions.com": [{"name": "AWS-SAA"}, {"name": "AI-102"}, {"name": "MCT"}],
-            "neha.sharma@koenig-solutions.com": [{"name": "SC-100"}, {"name": "AZ-500"}, {"name": "MCT"}],
-            "rohit.agarwal@koenig-solutions.com": [{"name": "CKA"}, {"name": "CKAD"}, {"name": "CKS"}],
-            "amit.kumar@koenig-solutions.com": [{"name": "PL-300"}, {"name": "DP-900"}],
-            "vikas.sharma@koenig-solutions.com": [{"name": "MCT"}, {"name": "AZ-104"}, {"name": "MS-900"}],
-            "priyanshu.sharma@koenig-solutions.com": [{"name": "AWS-SAA"}, {"name": "AWS-SAP"}, {"name": "MCT"}],
-            "aishwar.singh@koenig-solutions.com": [{"name": "AZ-305"}, {"name": "AZ-104"}, {"name": "MCT"}],
-        }
-        held_certs = known_certs.get(email, [{"name": "AZ-104"}, {"name": "MCT"}])
 
-    util = _current_util(series) or 82
+    util = _current_util(series)  # None (unknown), never a guessed default.
     intel = _cert_intelligence(caps, resume.get("certifications", []), held_certs, exam_policy=policy)
     # Same scoring functions trainer-360 uses, so a profile that reads "Ready"
     # cannot show up as something else in the team roll-up.
@@ -3912,8 +3865,11 @@ def _capability_for(r, policy=None):
         "courses":       caps,
         "course_count":  len(caps),
         "approved_count": sum(1 for c in caps if c["approved"]),
-        "avg_qubits":    round(sum(c["qubits_score"] for c in caps) / len(caps)) if caps else 0,
+        # None (not 0) when there is no capability data — a 0 here would read
+        # as "measured a zero score", which is a different, false claim.
+        "avg_qubits":    round(sum(c["qubits_score"] for c in caps) / len(caps)) if caps else None,
         "certification": intel,
+        "capability_data_available": bool(caps),
     }
 
 
@@ -12077,6 +12033,16 @@ _OPPORTUNITY_DB = os.path.join(
     os.getenv("SKILLEDGE_STATE_DIR", "."), "skilledge_opportunities.sqlite3")
 _opportunity_repository = OpportunityStore(_OPPORTUNITY_DB)
 _opportunity_lock = threading.Lock()
+
+# ── CAPABILITY INTELLIGENCE FOUNDATION (Phase 1, 2026-09-13) ────────────────
+# Course-capability requirements and trainer-capability evidence, evidence-
+# and approval-gated. No routes are wired to this yet — Phase 1 proves the
+# domain/repository/service layer only. Not consumed by any endpoint until
+# the matching-engine phase.
+_CAPABILITY_DB = os.path.join(
+    os.getenv("SKILLEDGE_STATE_DIR", "."), "skilledge_capability.sqlite3")
+_capability_repository = CapabilityStore(_CAPABILITY_DB)
+_capability_service = CapabilityService(_capability_repository)
 
 _DEFAULT_GUARDIAN_CONFIG = {
     "trusted_sources": [{"app": "Viber", "group": "Trailblazers", "sender": "Gaurav Joshi", "enabled": True}],

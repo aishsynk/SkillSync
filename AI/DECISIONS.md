@@ -1,10 +1,122 @@
 # SkillEdge / Manager OS — Decisions
 
+## 2026-09-13 - `_capability_for()` fabricates capability data for 8 named trainers and any trainer with empty RMS data — flagged, not yet fixed {#capability-intelligence-foundation}
+
+- **Finding (Phase 0 of the capability-intelligence foundation work):** `_capability_for()`
+  (backend.py:3818-3917) — used by three live endpoints, `/api/v2/data/team-capability` (+legacy
+  `/api/data/team-capability`), `/api/v2/capability/portfolio`, and `/api/v2/capability/cert-intel`
+  — contains a hardcoded `known_courses`/`known_certs` dict of **8 named trainer email
+  addresses**, each with fully invented course/vendor/qubits-score/skill-level/cert data, used
+  whenever RMS returns no capability rows for that trainer (`if not caps:` / `if not held_certs:`).
+  Worse: both dicts have a **generic fallback** (`known_courses.get(email, [{"course": "AZ-104"...
+  }])` / `known_certs.get(email, [{"name": "AZ-104"}, {"name": "MCT"}])`) that hands **any**
+  trainer with empty RMS data the same fabricated AZ-104/MCT record, not just the 8 named ones.
+- **This directly contradicts the existing "Nah-fabrication rule" decision below** (capability
+  exports must show honest empty states, never guessed values) — it predates that rule and was
+  missed when it was written, or was added after and not caught.
+- **Not fixed yet — decision is to remove, not patch, and not replace with new fabrication:**
+  when `caps`/`held_certs` come back empty, the correct behavior is to return the same honest-
+  empty-state shape (`courses: [], course_count: 0, certification: {..., "status": "no_data"}` or
+  equivalent) that the rest of the capability-reporting surface already uses, per the existing
+  Nah-fabrication decision — not a new hardcoded substitute. Removal is in-scope for the
+  capability-intelligence foundation work, not a separate fix, since it sits inside the same
+  function this initiative is redesigning.
+- **How to apply:** do not read `/api/v2/data/team-capability`, `/api/v2/capability/portfolio`,
+  or `/api/v2/capability/cert-intel` output as ground truth for the 8 listed emails (or for any
+  trainer whose RMS `trainerDetails` legitimately has no rows) until this is removed — their
+  "capability" data may currently be fabricated rather than absent.
+
+## 2026-09-13 - Surface "Your schedule" directly on Today instead of building a new manager-as-trainer feature {#decision-manager-as-trainer-today-entry}
+
+- **Decision:** Before building anything new for "the manager is also a trainer" (his own
+  deliveries/leave/mocks belonging on his calendar and profile like any trainer's), checked
+  whether it already existed. It did: `backend.py`'s `_personal_calendar_build` is explicitly
+  written identity-agnostic ("the same for a trainer or a manager who also delivers"), Android
+  already has `MyScheduleScreen`/`MyScheduleViewModel` calling it, and the Today header's
+  `onOpenProfile` already opens Trainer 360 for the signed-in manager's own email. None of that
+  needed rebuilding.
+- **What was actually missing:** `onOpenMySchedule` was wired into `DashboardTab` but never
+  forwarded into `ManagerCommandCentre` (Today), so the only way to reach a manager's own
+  schedule was the profile-menu dropdown — invisible unless you already knew to look. Fixed by
+  forwarding the callback and adding a "Your schedule" row directly on Today
+  (`ManagerCommandCentre.kt`).
+- **Rationale:** Building a parallel new screen would have duplicated a feature that already
+  exists, was already correctly designed for this exact dual-role case, and already calls a
+  verified real RMS-backed endpoint. The gap was navigational, not architectural.
+- **Superseded temptation:** the Design V2 Artifact proposal's "My Profile" mockup (with a
+  combined Manager+Trainer panel) is *design inspiration only* for how Trainer 360 could look
+  when `managerEmail == trainerEmail`; it is not a new screen to build, since Trainer 360 already
+  serves this role structurally.
+
+## 2026-09-13 - Design V2 conflict resolved: implement the dark Command Centre, supersede the light-first Today screen
+
+- **Decision:** Operator instructed to proceed with implementation. `ManagerCommandCentre.kt`
+  (Today) was rewritten on the existing dark token/component system (`theme/Color.kt`,
+  `theme/DesignSystem.kt`, `theme/SkillSyncComponents.kt`) rather than the light-first white
+  layout from the prior session. The light-first direction is superseded on this screen.
+- **Scope discipline:** only the Today screen was touched this pass, per the existing
+  [[feedback_one_page_per_release]] rule — no other screen was redesigned in the same pass.
+- **No fabricated data:** the backend intentionally leaves `readiness_trend` blank when it has
+  no history (see `backend.py` comment at the `manager_kpis` dict). The new comparison-KPI
+  widget renders no delta at all when the trend string is blank, rather than inventing one —
+  consistent with the existing evidence-only / no-fabrication policy elsewhere in this file.
+- **Bug caught before it shipped:** the initial draft used a `LazyColumn` inside
+  `ManagerCommandCentre`, which is already rendered as a single item inside `MainScreen.kt`'s
+  own `LazyColumn` — that would have reintroduced the nested-scrolling-list crash commit
+  `064a4c6` had already fixed once. Corrected to a plain `Column` before compiling.
+- **Open item, not resolved here:** `ScreenRenderTest` has 12 pre-existing failures asserting a
+  richer Dashboard spec (hero, drill-through, "Explore the detail", real-availability section,
+  international demand badge, Allocate CTA) that neither the light-first version nor this Design
+  V2 pass implements. Whether to build that spec next or update the tests is an operator call,
+  not assumed here — see `AI/PROGRESS.md` handover.
+
+## 2026-09-13 - Design V2 (Advanced) dark Command Centre adopted as the reference UI direction — conflicts with in-flight light-first WIP, unresolved
+
+- **Decision:** A dark, glass "Command Centre" visual system (navy/royal/azure/brand/sky/cyan,
+  single dark theme, no light variant) fused with Color Admin's widget depth (comparison stat
+  cards, allocation funnel, ranked lists, regional breakdown, campaign card) and split
+  iOS/Material motion rules is adopted as the **reference design direction** for the manager
+  app going forward. Delivered as a Claude Artifact proposal, not yet implemented in code. Full
+  spec recorded in `AI/CONTEXT.md`.
+- **Conflict, explicitly flagged, not resolved:** the working tree already carries an
+  **uncommitted** "light-first enterprise" rewrite of `ManagerCommandCentre.kt` (white/Notion-
+  style, from the prior Antigravity/Gemini session, 2026-09-13T03:38) built on the opposite
+  premise (light theme, not dark). The two directions are mutually exclusive. Do not implement
+  further screens against either direction until the operator explicitly picks one — building
+  on both wastes work and risks shipping an inconsistent app.
+- **Rationale:** The operator asked for a premium, admin-panel-depth manager OS and reviewed/
+  approved the dark Command Centre proposal in this session; that supersedes the prior session's
+  light-first instruction *as a design direction*, but since the light-first code was never
+  reverted or committed, the conflict must be resolved by the operator, not assumed by an agent.
+- **Baseline unaffected:** v3.80.3.178 (Communication Intelligence Service & Wave 5) remains the
+  last stable, non-beta released version. Neither the light-first WIP nor Design V2 has shipped;
+  both are pre-release work sitting ahead of that baseline.
+
 ## 2026-09-10 - Opportunity matching is evidence-based, not score-threshold based (supersedes the 2026-09-05 mapping)
 
-- **Decision:** `match_opportunity` no longer maps one number to a verdict. Each demand aspect (course match, dates, location/travel, mode, participants, documents, skill level, international/critical flags) produces an evidence item with strength `STRONG | MODERATE | GAP`; the verdict and a discrete decision (`accept | decline | pending | insufficient_evidence | escalate`) are derived from the evidence set. `escalate` fires only when the opportunity is both international and critical.
-- **Rationale:** A percentage alone hid *why* an opportunity was or was not accepted. The evidence trail gives the manager an auditable reason (e.g. "dates conflict: no verified events", "no document attached → insufficient evidence") and prevents the UI from showing fabricated reasons. The device renders the server's verdict; it never re-derives one.
+- **CORRECTED 2026-09-13** (Phase 0 fact-check, [[capability-intelligence-foundation]]): this
+  entry originally described a design intent, not shipped behavior, and was inaccurate as a
+  record of what `match_opportunity` (backend.py:12426-12554) actually does. Verified against the
+  only commit that has ever touched the function (`00025ed`, 2026-09-10 — the same day as this
+  entry) and a repo-wide search for the other evidence dimensions: no richer version was ever
+  implemented or later removed. **What is actually live:** one evidence item per topic
+  (course-match / certification-code / technology-name match, strength `STRONG | MODERATE | GAP`),
+  plus the `escalate` rule (fires only when the opportunity is both international and critical).
+  **Not implemented, anywhere in the repo:** separate evidence items for dates, location/travel,
+  mode, participants, or documents — despite being named below. `decision` values
+  `accept | decline | pending | insufficient_evidence | escalate` are real.
+- **Original (aspirational) decision text, kept for history:** "`match_opportunity` no longer
+  maps one number to a verdict. Each demand aspect (course match, dates, location/travel, mode,
+  participants, documents, skill level, international/critical flags) produces an evidence item
+  with strength `STRONG | MODERATE | GAP`..."
+- **Rationale (still valid for the part that shipped):** a percentage alone hid *why* an
+  opportunity was or was not accepted; the course/cert evidence item plus the escalate rule give
+  an auditable reason for that one dimension. The broader multi-dimension evidence trail described
+  above remains a legitimate future improvement, not a regression to chase — it was never built.
 - **Supersedes:** the 2026-09-05 "Opportunity-friendly decision model" entry (score buckets 90/75/60/40).
+- **How to apply:** don't cite the original decision text as current backend behavior. If the
+  fuller evidence model is wanted, it's new work (dates/location/mode/participants/documents each
+  need their own evidence-building logic added to `match_opportunity`), not a bug fix.
 
 ## 2026-09-10 - Critical opportunities are never silenced by quiet hours
 
