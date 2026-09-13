@@ -1,4 +1,4 @@
-package com.example.skillsync.feature.home
+﻿package com.example.skillsync.feature.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -58,7 +58,7 @@ fun ManagerCommandCentre(
     val unstaffedDemand = demand.take(3)
     val activeBatches = batches.filter { it.str("engagement_state") == "active" }
     
-    LazyColumn(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(bg)
@@ -66,16 +66,13 @@ fun ManagerCommandCentre(
         verticalArrangement = Arrangement.spacedBy(32.dp)
     ) {
         // HEADER
-        item {
             Column {
                 Text("Today", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(todayDate, fontSize = 14.sp, color = textSecondary)
             }
-        }
 
         // NEEDS YOUR ATTENTION
-        item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Needs your attention", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
                 
@@ -106,10 +103,8 @@ fun ManagerCommandCentre(
                     )
                 }
             }
-        }
 
         // TODAY'S OPERATIONS
-        item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Today's operations", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
                 
@@ -127,10 +122,8 @@ fun ManagerCommandCentre(
                     Text("No active deliveries scheduled today.", fontSize = 14.sp, color = textSecondary)
                 }
             }
-        }
 
         // WATCHLIST
-        item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Watchlist", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
                 
@@ -138,16 +131,13 @@ fun ManagerCommandCentre(
                 HorizontalDivider(color = dividerColor, thickness = 1.dp)
                 WatchlistRow("Certification expiry risk", "2 key certifications expiring in 30 days")
             }
-        }
 
         // COMING UP
-        item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Coming up", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
                 
                 WatchlistRow("AZ-500 Bootcamp", "Starts next Monday - 14 attendees")
             }
-        }
     }
 }
 
