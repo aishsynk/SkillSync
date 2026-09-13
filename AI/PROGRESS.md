@@ -227,3 +227,34 @@ human curator to review the 8 DRAFT profiles first.
   no Android source changed). If `backend.py` pushes auto-deploy to Render per the existing
   2026-09-04 publication authorization, that deploy would now be in flight; confirm its outcome
   separately before treating the fabrication fix as live in production.
+
+## 7. Official numbered releases this session (v3.80.4.179 → v3.80.6.181)
+
+Three official releases were cut this session, each scoped to exactly one slice, per the CI
+process already established (`.github/workflows/android-release.yml`: push to `main` with a
+non-ignored path change → build → sign → tag → GitHub Release, fully automated):
+
+| Release | Commit | Scope | Android tests | Backend tests |
+|---|---|---|---|---|
+| v3.80.4.179 | `4bf55d2`/`642cb6d` | Capability foundation (backend only, no Android change) | unchanged (12 pre-existing failures) | 358/358 |
+| v3.80.5.180 | `a388daf` | Today screen rebuilt on Design V2 (dark Command Centre) | 198 run, 12 pre-existing failures, 0 new | n/a (no backend change) |
+| **v3.80.6.181** | **`e7a79c8`** | **Today Communication Command Centre** (Communicate section: Team/Trainer/Weekly/Monthly, Ask Availability, Share→SHARED_EXTERNALLY) | **203 run (198 baseline + 5 new), 12 pre-existing failures, 0 new** | **358/358** |
+
+**v3.80.6.181 — verified facts, not assumed:**
+- Tag `v3.80.6.181` and GitHub Release "SkillSync Release v3.80.6.181" exist:
+  https://github.com/aishsynk/SkillSync/releases/tag/v3.80.6.181
+- Asset `SkillEdge-v3.80.6.181.apk`, 13,827,626 bytes, SHA-256
+  `87877abedf594fbf7b4f13d22844da5ddcfe8c4fac6e46e27c1222d3db594c5d` — downloaded and verified
+  independently this session (not just trusted from Gradle source).
+- `aapt dump badging` on the downloaded APK confirms `versionCode='181'`,
+  `versionName='3.80.6'`, `package='com.example.skillsync'` — matches source, verified at the
+  binary level.
+- `apksigner verify --print-certs` confirms the same signing certificate SHA-256
+  (`c6868b14bec9982642d908a5d4f535116daaf4e932a1e5ac27ed957671a41808`) as v3.80.5.180 — seamless
+  update over the previous install is confirmed, not assumed.
+- Files included: 7 Communication/navigation Kotlin files + `build.gradle.kts` (version bump) +
+  1 new AI doc. Deliberately excluded: `AI/PLAN_V2_AUDIT_AND_DESIGN_2026_09_13.md` (out-of-scope
+  doc), all `fix*.py`/`*.ps1`/`update_mcc.py` scratch files (still untracked, untouched).
+- **Not verified this session:** Render backend deployment status (no backend file changed in
+  this release, so no backend deploy was expected to trigger — `backend.py` is in the CI
+  workflow's `paths-ignore` list and this release touched no backend file).
