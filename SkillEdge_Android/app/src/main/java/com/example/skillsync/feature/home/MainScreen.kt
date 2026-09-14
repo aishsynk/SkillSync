@@ -333,7 +333,7 @@ fun MainScreen(
                                     )
                                     .border(1.dp, MaterialTheme.skill.sky.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
                                 contentAlignment = Alignment.Center,
-                            ) { InTouchLogo(size = 22.dp) }
+                            ) { SkillSyncLogo(size = 22.dp) }
                             Spacer(Modifier.width(12.dp))
                             val showBrief = tab == HomeTab.DASHBOARD && briefCollapsed
                             val briefLine = remember(state) {
@@ -351,7 +351,7 @@ fun MainScreen(
                             ) { collapsed ->
                                 Column {
                                     Text(
-                                        if (collapsed) "TODAY · THE BRIEF" else "INTOUCH · EXECUTIVE CONSOLE",
+                                        if (collapsed) "TODAY · THE BRIEF" else "SKILLEDGE · EXECUTIVE CONSOLE",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.tertiary,
                                     )
