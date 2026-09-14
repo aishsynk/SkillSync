@@ -37,7 +37,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.R
-import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.data.ScheduleRepository
 import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.NumericStyle
 import com.example.skillsync.theme.Radii
@@ -51,7 +51,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-class MyScheduleViewModel : ViewModel() {
+class MyScheduleViewModel(
+    private val repository: ScheduleRepository = ScheduleRepository(),
+) : ViewModel() {
     private val _data = MutableStateFlow<Map<String, Any>?>(null)
     val data: StateFlow<Map<String, Any>?> = _data
     private val _loading = MutableStateFlow(true)
@@ -66,7 +68,7 @@ class MyScheduleViewModel : ViewModel() {
         _loading.value = true
         _error.value = null
         try {
-            _data.value = RetrofitClient.instance.trainerCalendar(email)
+            _data.value = repository.myCalendar(email)
         } catch (e: Exception) {
             _error.value = e.message ?: "Could not load your schedule"
         }

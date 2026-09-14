@@ -2,8 +2,7 @@ package com.example.skillsync.feature.report.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.skillsync.core.network.RetrofitClient
-import com.example.skillsync.core.network.SkillRequestResolve
+import com.example.skillsync.core.data.SkillRequestsRepository
 import com.example.skillsync.core.ui.rows
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,7 +12,9 @@ import kotlinx.coroutines.launch
  * Pending reportee skill-level elevation requests. A manager approves (which
  * performs the real, verified RMS write on the backend) or denies each one.
  */
-class SkillRequestsViewModel : ViewModel() {
+class SkillRequestsViewModel(
+    private val repository: SkillRequestsRepository = SkillRequestsRepository(),
+) : ViewModel() {
 
     private val _requests = MutableStateFlow<List<Map<*, *>>>(emptyList())
     val requests: StateFlow<List<Map<*, *>>> = _requests
@@ -29,7 +30,7 @@ class SkillRequestsViewModel : ViewModel() {
             _loading.value = true
             _error.value = null
             try {
-                _requests.value = RetrofitClient.instance.skillRequests().rows("requests")
+                _requests.value = repository.pending().rows("requests")
             } catch (e: Exception) {
                 _error.value = e.localizedMessage ?: "Could not load skill requests"
             } finally {
@@ -41,9 +42,7 @@ class SkillRequestsViewModel : ViewModel() {
     fun resolve(id: String, approve: Boolean, onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch {
             try {
-                val res = RetrofitClient.instance.resolveSkillRequest(
-                    id, SkillRequestResolve(if (approve) "approve" else "deny"),
-                )
+                val res = repository.resolve(id, approve)
                 val ok = res["success"] == true
                 onResult(
                     ok,

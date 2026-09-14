@@ -55,6 +55,30 @@ enum class ReadinessBand(val label: String) { READY("Ready"), DEVELOPING("Develo
 /** Matches trainer_operations_df.feedback_risk verbatim — no capability fetch needed. */
 enum class RiskBand(val label: String) { HIGH("High"), MEDIUM("Medium"), LOW("Low") }
 
+/**
+ * `capacity_bucket` has two independent backend producers with different
+ * vocabularies — the dashboard/team-ops path (backend.py _capacity_bucket
+ * area, ~line 2776: Unknown/Stretched/Balanced/Light/On Bench) and the
+ * reportee-snapshot path (~line 12939: Stretched/Delivering/On Bench/Steady).
+ * This band is the union of every value either can emit. [from] must map an
+ * unrecognized string to [UNKNOWN] — never to a known, positive-looking
+ * state — since this value drives severity/colour and manager decisions.
+ */
+enum class CapacityBand(val label: String) {
+    ON_BENCH("On Bench"),
+    LIGHT("Light"),
+    BALANCED("Balanced"),
+    STEADY("Steady"),
+    DELIVERING("Delivering"),
+    STRETCHED("Stretched"),
+    UNKNOWN("Unknown");
+
+    companion object {
+        fun from(raw: String?): CapacityBand =
+            entries.firstOrNull { it.label.equals(raw?.trim(), ignoreCase = true) } ?: UNKNOWN
+    }
+}
+
 data class TeamFilters(
     val query: String = "",
     val sort: TeamSort = TeamSort.HEALTH,

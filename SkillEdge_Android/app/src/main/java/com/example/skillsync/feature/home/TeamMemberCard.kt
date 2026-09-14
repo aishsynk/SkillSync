@@ -349,12 +349,16 @@ internal fun teamCardSeverity(
 ): Severity {
     val gaps = capability?.obj("certification")?.int("gap_count") ?: 0
     val exclusions = (calendarAvailability?.get("client_exclusions") as? Number)?.toInt() ?: 0
+    val capacity = CapacityBand.from(trainer.str("capacity_bucket"))
     return when {
         trainer.str("feedback_risk").equals("High", true) -> Severity.Critical
         exclusions > 0 -> Severity.Critical
         gaps > 0 -> Severity.Warning
-        trainer.str("capacity_bucket").equals("Stretched", true) -> Severity.Warning
-        trainer.str("capacity_bucket").equals("On Bench", true) -> Severity.Watch
+        capacity == CapacityBand.STRETCHED -> Severity.Warning
+        capacity == CapacityBand.ON_BENCH -> Severity.Watch
+        // Unknown must never read as "Good" — that would tell a manager a
+        // trainer's load is fine when it was simply never measured.
+        capacity == CapacityBand.UNKNOWN -> Severity.Watch
         openActionCount > 0 -> Severity.Info
         else -> Severity.Good
     }

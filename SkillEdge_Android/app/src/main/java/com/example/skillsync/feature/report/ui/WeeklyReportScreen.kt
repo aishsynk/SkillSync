@@ -57,6 +57,7 @@ import com.example.skillsync.theme.ToneChip
 import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
 import com.example.skillsync.core.ui.*
+import com.example.skillsync.feature.home.CapacityBand
 import androidx.compose.material3.Text
 
 /**
@@ -634,11 +635,14 @@ private fun WeeklyReporteeLiveCard(
     // The rewritten text takes precedence when present; otherwise the variant.
     val activeText = rewritten.ifBlank { variantMessage }
 
+    val capacity = CapacityBand.from(rep.capacityBucket)
     val severity = when {
         rep.feedbackRisk.equals("High", true) -> Severity.Critical
         rep.certGaps > 0 -> Severity.Warning
-        rep.capacityBucket.equals("Stretched", true) -> Severity.Warning
-        rep.capacityBucket.equals("On Bench", true) -> Severity.Watch
+        capacity == CapacityBand.STRETCHED -> Severity.Warning
+        capacity == CapacityBand.ON_BENCH -> Severity.Watch
+        // Unknown must never read as "Good" — see TeamMemberCard.teamCardSeverity.
+        capacity == CapacityBand.UNKNOWN -> Severity.Watch
         else -> Severity.Good
     }
 

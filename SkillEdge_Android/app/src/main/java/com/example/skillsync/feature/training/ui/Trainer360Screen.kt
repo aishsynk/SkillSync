@@ -382,8 +382,13 @@ private fun ProfileOverview(
     val risk = metrics?.str("risk_bucket")?.ifBlank { metrics.str("risk_level") }.orEmpty()
     val gaps = certs?.intOrNull("gap_count") ?: certs?.list("gaps")?.size ?: 0
     val assignments = delivery?.list("assignments").orEmpty()
-    val current = assignments.firstOrNull { it.str("status").ifBlank { it.str("state") }.lowercase() in setOf("current", "active", "in progress", "ongoing") }
-    val upcoming = assignments.filter { it.str("status").ifBlank { it.str("state") }.lowercase() in setOf("upcoming", "planned", "scheduled", "confirmed") }
+    // Backend only ever sets "state" on these assignment dicts (never "status"),
+    // and only to current/upcoming/past/completed/unknown — confirmed against
+    // every producer (backend.py ~4607, ~7111). The wider literal sets this
+    // used to check ("active", "in progress", "planned", "scheduled", ...)
+    // could never match anything the backend sends; removed as dead code.
+    val current = assignments.firstOrNull { it.str("state").lowercase() == "current" }
+    val upcoming = assignments.filter { it.str("state").lowercase() == "upcoming" }
     val health = when {
         risk.lowercase() in setOf("high", "critical") || actions.any { it.str("priority").lowercase() in setOf("high", "critical") } -> "Attention"
         readiness != null && readiness >= 80 && gaps == 0 -> "Healthy"
