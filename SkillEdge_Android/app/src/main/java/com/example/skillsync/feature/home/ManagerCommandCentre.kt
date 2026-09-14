@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -25,10 +26,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.skillsync.R
 import com.example.skillsync.core.notification.NotifyEvent
+import com.example.skillsync.core.ui.Avatar
 import com.example.skillsync.core.ui.intOrNull
 import com.example.skillsync.core.ui.str
 import com.example.skillsync.theme.*
@@ -113,7 +117,9 @@ fun ManagerCommandCentre(
     val internationalBatches = kpis?.intOrNull("international_batches") ?: 0
 
     val unallocatedDemand = demand.filter { it.str("trainer_name").isBlank() }
-    val activeBatches = batches.filter { it.str("engagement_state") == "active" }
+    // Backend truth is "current" (backend.py _engagement_state), never "active" —
+    // this filter previously read "active" and so always matched zero rows.
+    val activeBatches = batches.filter { it.str("engagement_state") == "current" }
     val upcomingBatches = batches.filter { it.str("engagement_state") == "upcoming" }
 
     // Honest availability — from RMS-verified leave/commitment days
@@ -191,23 +197,89 @@ fun ManagerCommandCentre(
             }
         }
 
+        // ── Needs you today — right after the hero, ahead of Pulse: these are
+        // actions, and the manager should see them before browsing metrics. ──
+        run {
+            val attentionItems = buildList {
+                unallocatedDemand.take(3).forEach { b ->
+                    val cName = b.str("course_name").ifBlank { "Unnamed course" }
+                    val mode = b.str("delivery_mode").ifBlank { "mode tbc" }
+                    add(AttentionItem("$cName needs a trainer", mode, Severity.Critical, demandId = b.str("demand_id")))
+                }
+                if (pendingSkillRequests > 0) {
+                    add(AttentionItem("$pendingSkillRequests skill request${if (pendingSkillRequests == 1) "" else "s"} pending", "Awaiting your review", Severity.Info))
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                SectionHeading(
+                    "Needs you today",
+                    trailing = if (attentionItems.isNotEmpty()) "review →" else null,
+                )
+                if (attentionItems.isEmpty()) {
+                    StateNote("Nothing needs you right now — the queue is clear.")
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                        attentionItems.forEach { item ->
+                            Box(Modifier.fillMaxWidth().accentGlass(item.severity.tint()).pressable(onOpenDemand)) {
+                                ActionRow(
+                                    title = item.title,
+                                    modifier = Modifier.padding(horizontal = Space.md),
+                                    supportingText = item.subtitle,
+                                    tint = item.severity.tint(),
+                                    primaryActionLabel = if (item.demandId.isNotBlank()) "Ask availability" else null,
+                                    onPrimaryAction = if (item.demandId.isNotBlank()) {
+                                        {
+                                            onOpenCommunication(
+                                                "TEAM", "", "AVAILABILITY_REQUEST",
+                                                "demand", item.demandId,
+                                            )
+                                        }
+                                    } else null,
+                                    secondaryContent = { ToneChip(text = item.severity.label, tint = item.severity.tint()) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // ── Pulse: icon grid ─────────────────────────────────────────────────
         Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             SectionHeading("Pulse", trailing = if (fromCache) "cached" else "live")
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                PulseTile("👥", "Strength", teamStrength.toString(), Modifier.weight(1f))
                 PulseTile(
-                    "⚡", "Utilisation", utilisation?.let { "$it%" } ?: "—", Modifier.weight(1f),
+                    R.drawable.ic_people, "Strength", teamStrength.toString(), Modifier.weight(1f),
+                    onClick = {
+                        onDrill(
+                            Drill(
+                                "Team strength", "Your roster",
+                                ops.map {
+                                    DrillRow(
+                                        it.str("trainer_name").ifBlank { it.str("official_email") },
+                                        listOfNotNull(
+                                            it.intOrNull("current_utilization")?.let { u -> "$u% utilised" },
+                                            it.str("capacity_bucket").takeIf(String::isNotBlank),
+                                        ).joinToString(" · ").ifBlank { "Not yet measured" },
+                                        it.str("official_email").takeIf(String::isNotBlank),
+                                    )
+                                },
+                            ),
+                        )
+                    },
+                )
+                PulseTile(
+                    R.drawable.ic_trend, "Utilisation", utilisation?.let { "$it%" } ?: "—", Modifier.weight(1f),
                     delta = utilisationTrend, onClick = onOpenCapacityRunway,
                 )
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 PulseTile(
-                    "🛡️", "Cert coverage", certCoverage?.let { "$it%" } ?: "—", Modifier.weight(1f),
+                    R.drawable.ic_certificate, "Cert coverage", certCoverage?.let { "$it%" } ?: "—", Modifier.weight(1f),
                     tint = if ((certCoverage ?: 100) < 60) sk.warn else null, onClick = onOpenPriorities,
                 )
                 PulseTile(
-                    "⚠️", "At risk", atRisk.toString(), Modifier.weight(1f),
+                    R.drawable.ic_alert, "At risk", atRisk.toString(), Modifier.weight(1f),
                     tint = if (atRisk > 0) sk.crit else sk.good, onClick = onOpenPriorities,
                 )
             }
@@ -272,49 +344,6 @@ fun ManagerCommandCentre(
             }
         }
 
-        val attentionItems = buildList {
-            unallocatedDemand.take(3).forEach { b ->
-                val cName = b.str("course_name").ifBlank { "Unnamed course" }
-                val mode = b.str("delivery_mode").ifBlank { "mode tbc" }
-                add(AttentionItem("$cName needs a trainer", mode, Severity.Critical, demandId = b.str("demand_id")))
-            }
-            if (pendingSkillRequests > 0) {
-                add(AttentionItem("$pendingSkillRequests skill request${if (pendingSkillRequests == 1) "" else "s"} pending", "Awaiting your review", Severity.Info))
-            }
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-            SectionHeading(
-                "Needs you today",
-                trailing = if (attentionItems.isNotEmpty()) "review →" else null,
-            )
-            if (attentionItems.isEmpty()) {
-                StateNote("Nothing needs you right now — the queue is clear.")
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-                    attentionItems.forEach { item ->
-                        Box(Modifier.fillMaxWidth().accentGlass(item.severity.tint()).pressable(onOpenDemand)) {
-                            ActionRow(
-                                title = item.title,
-                                modifier = Modifier.padding(horizontal = Space.md),
-                                supportingText = item.subtitle,
-                                tint = item.severity.tint(),
-                                primaryActionLabel = if (item.demandId.isNotBlank()) "Ask availability" else null,
-                                onPrimaryAction = if (item.demandId.isNotBlank()) {
-                                    {
-                                        onOpenCommunication(
-                                            "TEAM", "", "AVAILABILITY_REQUEST",
-                                            "demand", item.demandId,
-                                        )
-                                    }
-                                } else null,
-                                secondaryContent = { ToneChip(text = item.severity.label, tint = item.severity.tint()) },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
         val trainerNames = remember(ops) {
             ops.mapNotNull { it.str("trainer_name").takeIf(String::isNotBlank) }.distinct()
         }
@@ -356,9 +385,11 @@ fun ManagerCommandCentre(
             }
         }
 
-        // ── Delivery schedule ────────────────────────────────────────────────
+        // ── Delivery outlook — a real chronological feed (active, then
+        // upcoming), not another KPI tile group. Each row states what it
+        // actually is (its engagement_state), never a guessed time. ──────────
         Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-            SectionHeading("Delivery schedule", trailing = "Full calendar →")
+            SectionHeading("Delivery outlook", trailing = "Full calendar →")
             SkillCard(modifier = Modifier.fillMaxWidth().pressable(onOpenDelivery)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     MiniStat("Delivering", activeBatches.size.toString(), sk.good)
@@ -366,19 +397,26 @@ fun ManagerCommandCentre(
                     MiniStat("On leave", onLeaveCount.toString(), sk.warn)
                 }
             }
-            if (activeBatches.isEmpty()) {
-                StateNote("No active deliveries right now.")
+            val feed = (activeBatches.map { it to "Active now" } + upcomingBatches.take(3).map { it to "Upcoming" })
+            if (feed.isEmpty()) {
+                StateNote("No active or upcoming deliveries right now.")
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-                    activeBatches.forEach { b ->
-                        val cName = b.str("course_name").ifBlank { "Unnamed course" }
-                        val trainer = b.str("trainer_name").ifBlank { "Unassigned" }
-                        val mode = b.str("delivery_mode").ifBlank { "Virtual" }
-                        SkillSyncListItem(
-                            title = cName,
-                            subtitle = "$trainer · $mode",
-                            onClick = { onBatchClick(b.str("demand_id")) },
-                        )
+                SkillCard(modifier = Modifier.fillMaxWidth(), padding = Space.md) {
+                    Column {
+                        feed.forEachIndexed { i, (b, stateLabel) ->
+                            val cName = b.str("course_name").ifBlank { "Unnamed course" }
+                            val trainer = b.str("trainer_name").ifBlank { "Unassigned" }
+                            val mode = b.str("delivery_mode").ifBlank { "Virtual" }
+                            TimelineItem(
+                                title = cName,
+                                modifier = Modifier.pressable { onBatchClick(b.str("demand_id")) },
+                                supportingText = "$trainer · $mode",
+                                timestamp = stateLabel,
+                                tint = if (stateLabel == "Active now") sk.good else sk.sky,
+                                isFirst = i == 0,
+                                isLast = i == feed.lastIndex,
+                            )
+                        }
                     }
                 }
             }
@@ -407,7 +445,9 @@ fun ManagerCommandCentre(
                             Modifier.fillMaxWidth().clickable { onTrainerClick(email, trainerName) }.padding(Space.sm),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = sk.subText, modifier = Modifier.width(20.dp))
+                            Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = sk.subText, modifier = Modifier.width(16.dp))
+                            Avatar(name = trainerName, photoUrl = null, size = 32.dp)
+                            Spacer(Modifier.width(Space.sm))
                             Column(Modifier.weight(1f)) {
                                 Text(trainerName, style = MaterialTheme.typography.titleSmall, color = sk.frost)
                                 if (bucket.isNotBlank()) Text(bucket, style = MaterialTheme.typography.labelSmall, color = sk.subText)
@@ -420,26 +460,39 @@ fun ManagerCommandCentre(
             }
         }
 
-        // ── Operations — every executive console, one tap away ──────────────
-        Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+        // ── Operations — an executive launchpad, grouped by domain rather
+        // than nine identical buttons of equal visual weight. ────────────────
+        Column(verticalArrangement = Arrangement.spacedBy(Space.md)) {
             SectionHeading("Operations")
-            val ops2 = listOf(
-                Triple("This week", "Priorities, ranked", onOpenPriorities),
-                Triple("Pipeline radar", "Signed demand incoming", onOpenPipelineRadar),
-                Triple("Delivery compliance", "Recording & audit", onOpenDeliveryCompliance),
-                Triple("HR monthly review", "Trainer index breakdown", onOpenHrReport),
-                Triple("Capacity runway", "8-week demand gap", onOpenCapacityRunway),
-                Triple("Accounts book", "Client concentration", onOpenAccounts),
-                Triple("Team copilot", "Ask about your team", onOpenCopilot),
-                Triple("Viber automation", "Auto-dispatch queue", onOpenViberAutomation),
-                Triple("Skill requests", "Reportee-level requests", onOpenSkillRequests),
+            data class OpTile(val title: String, val subtitle: String, val icon: Int, val onClick: () -> Unit)
+            val groups = listOf(
+                "Planning" to listOf(
+                    OpTile("This week", "Priorities, ranked", R.drawable.ic_calendar, onOpenPriorities),
+                    OpTile("Pipeline radar", "Signed demand incoming", R.drawable.ic_search, onOpenPipelineRadar),
+                    OpTile("Capacity runway", "8-week demand gap", R.drawable.ic_trend, onOpenCapacityRunway),
+                ),
+                "Delivery" to listOf(
+                    OpTile("Delivery compliance", "Recording & audit", R.drawable.ic_check, onOpenDeliveryCompliance),
+                    OpTile("Accounts book", "Client concentration", R.drawable.ic_book, onOpenAccounts),
+                ),
+                "People" to listOf(
+                    OpTile("HR monthly review", "Trainer index breakdown", R.drawable.ic_people, onOpenHrReport),
+                    OpTile("Skill requests", "Reportee-level requests", R.drawable.ic_gap, onOpenSkillRequests),
+                ),
+                "Automation" to listOf(
+                    OpTile("Team copilot", "Ask about your team", R.drawable.ic_inbox, onOpenCopilot),
+                    OpTile("Viber automation", "Auto-dispatch queue", R.drawable.ic_share, onOpenViberAutomation),
+                ),
             )
-            for (row in ops2.chunked(2)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    row.forEach { (title, subtitle, onClick) ->
-                        OperationTile(title, subtitle, Modifier.weight(1f), onClick)
+            groups.forEach { (domain, tiles) ->
+                Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                    Text(domain.uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+                    for (row in tiles.chunked(2)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                            row.forEach { t -> OperationTile(t.title, t.subtitle, t.icon, Modifier.weight(1f), t.onClick) }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
                     }
-                    if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
@@ -483,7 +536,7 @@ private fun CommandHeader(
                 .pressable(onOpenNotifications),
             contentAlignment = Alignment.Center,
         ) {
-            Text("🔔", style = MaterialTheme.typography.titleSmall)
+            Icon(painterResource(R.drawable.ic_alert), contentDescription = "Notifications", tint = sk.frost, modifier = Modifier.size(18.dp))
             if (unreadCount > 0) {
                 Box(
                     Modifier
@@ -507,7 +560,7 @@ private fun CommandHeader(
 
 @Composable
 private fun PulseTile(
-    glyph: String,
+    icon: Int,
     label: String,
     value: String,
     modifier: Modifier = Modifier,
@@ -518,7 +571,7 @@ private fun PulseTile(
     val sk = MaterialTheme.skill
     SkillCard(modifier = modifier.pressable(onClick), padding = Space.md) {
         IconSlot(tint = tint ?: sk.sky, size = 26.dp) {
-            Text(glyph, style = MaterialTheme.typography.titleSmall)
+            Icon(painterResource(icon), contentDescription = null, tint = tint ?: sk.sky, modifier = Modifier.size(14.dp))
         }
         Text(value, style = MaterialTheme.typography.headlineSmall, color = tint ?: sk.frost, fontWeight = FontWeight.Bold)
         Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.labelText)
@@ -537,9 +590,12 @@ private fun MiniStat(label: String, value: String, tint: Color) {
 }
 
 @Composable
-private fun OperationTile(title: String, subtitle: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun OperationTile(title: String, subtitle: String, icon: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val sk = MaterialTheme.skill
     SkillCard(modifier = modifier.pressable(onClick), padding = Space.md) {
+        IconSlot(tint = sk.sky, size = 26.dp) {
+            Icon(painterResource(icon), contentDescription = null, tint = sk.sky, modifier = Modifier.size(14.dp))
+        }
         Text(title, style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.SemiBold, maxLines = 1)
         Text(subtitle, style = MaterialTheme.typography.labelSmall, color = sk.subText, maxLines = 1)
     }

@@ -111,6 +111,12 @@ class ScreenRenderTest {
             "unknown_status" to 0.0,
             "open_actions" to 1.0,
             "open_demand" to 12.0,
+            // Capacity balance renders only when the payload actually reports a
+            // split — these were missing, so "Capacity balance" never appeared
+            // and every test asserting on it or on section order failed.
+            "bench_trainers" to 0.0,
+            "optimal_trainers" to 1.0,
+            "stretched_trainers" to 1.0,
         ),
         "trainer_operations_df" to listOf(trainerOps()),
         "trainer_current_state_df" to listOf(stateDelivering()),
