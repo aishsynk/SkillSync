@@ -104,8 +104,30 @@ fun MainNavigation() {
         com.example.skillsync.core.storage.NotificationDestinationStore.consumed()
     }
 
+    // A share intent may arrive before login completes (e.g. cold-start to the
+    // share sheet). Hold the payload until we are on a logged-in shell, then
+    // route into the capture screen and consume it so a stale share can never
+    // resurface on the next launch.
+    val pendingLinkedInShare by com.example.skillsync.core.storage.LinkedInShareStore.pending.collectAsState()
+    LaunchedEffect(isLoggedIn, pendingLinkedInShare) {
+        val payload = pendingLinkedInShare ?: return@LaunchedEffect
+        if (isLoggedIn == true && current !is LinkedInCapture) {
+            val email = com.example.skillsync.core.data.SessionManager.getEmail()
+            if (!email.isNullOrBlank()) {
+                val previousTab = (current as? Main)?.tab
+                current = LinkedInCapture(
+                    email = email,
+                    sharedText = payload.text,
+                    source = LinkedInCaptureSource.SHARE_INTENT,
+                    previousTab = previousTab,
+                )
+                com.example.skillsync.core.storage.LinkedInShareStore.consume()
+            }
+        }
+    }
+
     // Hardware/gesture back returns from a pushed detail screen to the shell.
-    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot || current is HrReport || current is Priorities || current is CapacityRunway || current is Ramp || current is Accounts || current is Benchmark || current is PipelineRadar || current is DeliveryCompliance || current is ViberAutomation || current is SkillRequests || current is MySchedule || current is OpportunityGuardian || current is OpportunityList || current is OpportunityDetail || current is CapabilityGraph || current is SkillProfile) {
+    BackHandler(enabled = current is Trainer360 || current is BatchDetail || current is WeeklyReport || current is Copilot || current is HrReport || current is Priorities || current is CapacityRunway || current is Ramp || current is Accounts || current is Benchmark || current is PipelineRadar || current is DeliveryCompliance || current is ViberAutomation || current is SkillRequests || current is MySchedule || current is OpportunityGuardian || current is OpportunityList || current is OpportunityDetail || current is CapabilityGraph || current is SkillProfile || current is LinkedInCapture) {
         current = when (val c = current) {
             is Trainer360 -> Main(c.email, HomeTab.TEAM)
             is SkillRequests -> Main(c.email, HomeTab.DASHBOARD)
@@ -127,6 +149,7 @@ fun MainNavigation() {
             is OpportunityDetail -> Main(c.email, HomeTab.OPPORTUNITIES)
             is CapabilityGraph -> Main(c.email, HomeTab.OPPORTUNITIES)
             is SkillProfile -> Main(c.email, HomeTab.OPPORTUNITIES)
+            is LinkedInCapture -> Main(c.email, c.previousTab ?: HomeTab.DASHBOARD)
             else -> c
         }
     }
@@ -231,6 +254,13 @@ fun MainNavigation() {
                         initialRecipientType = recipientType,
                         initialRecipientName = recipientName,
                         initialPurpose = purpose,
+                    )
+                },
+                onOpenLinkedInCapture = {
+                    current = LinkedInCapture(
+                        email = screen.email,
+                        source = LinkedInCaptureSource.IN_APP,
+                        previousTab = screen.tab,
                     )
                 },
                 onOpenOpportunityGuardian = { current = OpportunityGuardian(screen.email) },
@@ -389,6 +419,16 @@ fun MainNavigation() {
                     } else {
                         Main(screen.email, HomeTab.DASHBOARD)
                     }
+                },
+            )
+
+            is LinkedInCapture -> com.example.skillsync.feature.linkedin.ui.LinkedInCaptureScreen(
+                email = screen.email,
+                sharedText = screen.sharedText,
+                source = screen.source,
+                onBack = {
+                    current = Main(screen.email, screen.previousTab ?: HomeTab.DASHBOARD)
+                    com.example.skillsync.core.storage.LinkedInShareStore.consume()
                 },
             )
 

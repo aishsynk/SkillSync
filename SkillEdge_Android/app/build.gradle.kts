@@ -18,6 +18,12 @@ run {
 }
 
 android {
+    // LinkedIn capture backend base URL, injected at build time so no host
+    // leaks into source. Defaults to empty → the screen shows "not configured".
+    val linkedinBaseUrl = (project.findProperty("linkedinBackendBaseUrl") as? String).orEmpty()
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+
     namespace = "com.example.skillsync"
     compileSdk = 36
     defaultConfig {
@@ -27,6 +33,7 @@ android {
         versionCode = 182
         versionName = "3.80.7"
         manifestPlaceholders["appName"] = "SkillSync"
+        buildConfigField("String", "LINKEDIN_BASE_URL", "\"$linkedinBaseUrl\"")
     }
 
     signingConfigs {
@@ -80,7 +87,7 @@ android {
     buildFeatures {
       compose = true
       aidl = false
-      buildConfig = false
+      buildConfig = true
       shaders = false
     }
 

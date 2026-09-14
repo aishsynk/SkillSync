@@ -258,3 +258,100 @@ non-ignored path change → build → sign → tag → GitHub Release, fully aut
 - **Not verified this session:** Render backend deployment status (no backend file changed in
   this release, so no backend deploy was expected to trigger — `backend.py` is in the CI
   workflow's `paths-ignore` list and this release touched no backend file).
+
+# Session Handover Summary - Phase 6B LinkedIn Capture client implemented (unreleased)
+
+## 1. What was completed
+
+The Android client for the Phase 6A LinkedIn capture backend was implemented, wired, and tested
+against the existing gates — **a work-in-progress feature, deliberately not cut as a release and
+not pushed**. Human-in-the-loop only: the app never posts, reacts, or comments on its own.
+
+- **Entries (2):** a `SEND`/`text/plain` share-intent route on `MainActivity`
+  (`LinkedInShareStore.accept` in `onCreate` + `onNewIntent`, transient in-memory
+  `MutableStateFlow`, consumed immediately after navigation routes), and a glass "Analyse a
+  LinkedIn post" card added as a normal item in the dashboard `LazyColumn`
+  (`DashboardTab`, ManagerCommandCentre untouched).
+- **Flow:** capture (share or paste) → editable preview (`LinkedInCaptureScreen` Editing stage,
+  author/post-URL fields, validation chips, existing-client-side URL-only block with the exact
+  backend 422 contract string `CAPTURE_TEXT_REQUIRED: LinkedIn shared only a post link...`) →
+  `POST api/v1/captures/analyse` via a dedicated `LinkedInApiClient` (own OkHttpClient,
+  40/60/40s timeouts, `isConfigured` guard) → Result stage renders action/reaction/comment
+  with manual-review and sensitive-content banners, copy-comment (clipboard + "Copied"
+  feedback), open-post (guarded `ACTION_VIEW`, `<queries>` block in manifest), analyse-another,
+  done (backs to previous tab / dashboard).
+- **Backend integration details:** base URL via `buildConfigField("LINKEDIN_BASE_URL")` from
+  gradle property `-PlinkedinBackendBaseUrl` (empty default ⇒ "not configured" UI error; no
+  placeholder host); debug-only cleartext via `app/src/debug/res/xml/network_security_config.xml`
+  + debug manifest overlay for `10.0.2.2`/`localhost`/`127.0.0.1`; relationship/interaction
+  omitted (backend `UNKNOWN`); traceability is metadata-only `Log` (`capture_id`, `text_length`,
+  `content_hash` — never the post text).
+- **Tests (31 new, all green):** `LinkedInCaptureParserTest` (12), `LinkedInCaptureRepositoryTest`
+  (4, Retrofit-style fake `Call`, `runTest`), `LinkedInCaptureViewModelTest` (10, dispatcher-cont
+  rolled, `StandardTestDispatcher` + `advanceUntilIdle`), `LinkedInCaptureScreenRenderTest` (5,
+  Robolectric + compose rule directly invoking `internal` status content composables; includes a
+  dashboard entry-card click test against the real `DashboardTab`).
+
+## 2. Current Status
+
+- `:app:compileDebugKotlin` + `:app:compileDebugUnitTestKotlin`: pass (one accepted pre-existing
+  deprecation warning: `LocalClipboardManager`, matches existing repo usage).
+- `:app:testDebugUnitTest`: **254 run, 11 failed — exactly the pre-existing baseline set**
+  (7 `ScreenRenderTest` dashboard spec + 4 `PilotScreenshotTest` Compose timeouts), **0 new
+  failures**, all 31 new LinkedIn tests pass.
+- `:app:lintDebug`: **delta 0** vs established baseline (6 errors / 79 warnings / 3 hints) — two
+  new warnings introduced then fixed (QueryPermissionsNeeded → manifest `<queries>`; UseKtx →
+  `String.toUri()`).
+- `:app:assembleDebug`: pass.
+- Not cut as a release; no tag, no push.
+
+## 3. Files Modified/Created This Session (LinkedIn capture scope only)
+
+- New main source: `core/network/LinkedInApi.kt` (DTOs, snake_case Gson),
+  `core/network/LinkedInApiClient.kt`, `feature/linkedin/engine/LinkedInAnalysis.kt`,
+  `feature/linkedin/engine/LinkedInCaptureParser.kt` (normalize/extract/detect/`buildRequest` +
+  `LinkedInAnalysisMapper` + `LinkedInLabels`), `feature/linkedin/data/LinkedInCaptureRepository.kt`,
+  `feature/linkedin/ui/LinkedInCaptureViewModel.kt`, `feature/linkedin/ui/LinkedInCaptureScreen.kt`,
+  `core/storage/LinkedInShareStore.kt`.
+- Modified: `navigation/NavigationKeys.kt` (`LinkedInCapture` + `LinkedInCaptureSource`),
+  `navigation/Navigation.kt`, `app/MainActivity.kt`, `app/src/main/AndroidManifest.xml` (SEND
+  filter + `<queries>`), `app/build.gradle.kts` (buildConfig + `LINKEDIN_BASE_URL` field),
+  `feature/home/MainScreen.kt`/`DashboardTab` (entry card + `onOpenLinkedInCapture`).
+- Debug-only: `app/src/debug/AndroidManifest.xml`, `app/src/debug/res/xml/network_security_config.xml`.
+- New tests: `app/src/test/java/com/example/skillsync/feature/linkedin/` (4 files listed above).
+- Deliberately untouched: backend (`Personal\incipit\personal\Linkedin\` remains read-only phase
+  6A reference), `AgentTest`/pilot/screenshot fixtures, AI/scratch scripts, `AI/DECISIONS.md` updated
+  separately this session.
+
+## 4. Known Issues / Blockers
+
+- **No device or emulator available this session:** manual/E2E scenarios (share-intent landing,
+  back-handling, result actions, cold-start clipboard, real backend round-trip) are **not
+  verified** — unit/render-test coverage is the evidence so far.
+- **Backend integration not live:** the backend has no deployed base URL yet; integration is only
+  exercised via hand-rolled fake `Call` in the repository tests. A real round-trip needs
+  `./gradlew … -PlinkedinBackendBaseUrl=…` against a deployed Phase 6A backend.
+- Accessibility-service capture (reading a visible post without share) is Phase 7 and **out of
+  scope** for this work; notifications/live-capture phases remain open.
+
+## 5. Next Recommended Actions
+
+1. Debug-build integration smoke: run the app with `-PlinkedinBackendBaseUrl` against a local or
+   deployed Phase 6A backend, then record real capture_id-based traceability in logs.
+2. Decide when/where to cut Phase 6B as a numbered release with the CI pipeline.
+3. Phase 7 spec review: accessibility-service capture scope, notification tap routes, and the
+   no-text-persistence guarantee, before any implementation turns.
+
+## 6. Baseline record (reconfirmed this session)
+
+- Pre-existing unit-test failures (11, never fixed/masked): 7 `ScreenRenderTest`
+  dashboard_* spec gaps; 4 `PilotScreenshotTest` Compose timeouts.
+- Lint baseline: 6 errors / 79 warnings / 3 hints (all pre-existing, unchanged).
+
+## 7. Phase 6A backend reference (recap, read-only)
+
+`Personal\incipit\personal\Linkedin\` holds the implemented Phase 6A engine
+(`docs/LINKEDIN_CAPTURE_INTEGRATION.md`): `/api/v1/captures/analyse`, capture lifecycle
+(CAPTURE_METADATA-only telemetry), decision pipeline (HUMAN → RELATIONSHIP → INTERACTION →
+COMMENT_VALIDATION), `comment_validation=PASS`, and the 422 contract for URL-only captures. The
+Android DTOs/mappers mirror that contract exactly.

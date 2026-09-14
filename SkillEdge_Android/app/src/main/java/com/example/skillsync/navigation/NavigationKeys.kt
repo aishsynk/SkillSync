@@ -85,6 +85,23 @@ import kotlinx.serialization.Serializable
     val initialPurpose: String = "",
 ) : NavKey
 
+/**
+ * "LinkedIn Engagement Copilot" — analyses a shared LinkedIn post and hands
+ * back a decision + comment. [sharedText] is non-null when entered from a
+ * share intent; [source] names the entry so the screen can pre-fill correctly.
+ */
+@Serializable data class LinkedInCapture(
+    val email: String,
+    val sharedText: String? = null,
+    val source: String = LinkedInCaptureSource.IN_APP,
+    val previousTab: String? = null,
+) : NavKey
+
+object LinkedInCaptureSource {
+    const val SHARE_INTENT = com.example.skillsync.feature.linkedin.engine.LinkedInCapture.ENTRY_SHARE_INTENT
+    const val IN_APP = com.example.skillsync.feature.linkedin.engine.LinkedInCapture.ENTRY_IN_APP
+}
+
 
 object HomeTab {
     const val DASHBOARD = "today"

@@ -1,6 +1,34 @@
 # SkillEdge / Manager OS — Decisions
 
-## 2026-09-14 - `/api/v2/team/readiness` fabrication removed (same class as `_capability_for()`)
+## 2026-09-14 - Phase 6B LinkedIn capture client: human-in-the-loop, metadata-only telemetry, no auto-posting
+
+- **Scope:** Android client consuming the Phase 6A engine (`POST /api/v1/captures/analyse`). The
+  app proposes reactions/comments/copies; a human always executes. No post action is ever
+  performed automatically (no accessibility automation — Phase 7, deferred).
+- **Entries are (1) the share intent and (2) a dashboard card** — no floating button, no
+  notification route yet. Share intent lands via `LinkedInShareStore.accept()` in `MainActivity`
+  (`onCreate` + `onNewIntent`), consumed once after nav routes; the store is transient
+  in-memory, deliberately not persisted.
+- **Backend address is a build-time config, not runtime:** `LINKEDIN_BASE_URL` BuildConfig field
+  fed by gradle property `-PlinkedinBackendBaseUrl`. Empty default ⇒ the UI shows a "not
+  configured" hint — no placeholder host, no silent prod-shaped endpoint. Cleartext HTTP
+  (`10.0.2.2`/`localhost`/`127.0.0.1`) is **debug variant only** via
+  `network_security_config.xml`; release is HTTPS-only.
+- **URI-only captures are blocked on the client too:** the exact backend 422 contract string
+  (`CAPTURE_TEXT_REQUIRED: LinkedIn shared only a post link. …`) is surfaced client-side before
+  any request, so the user is told to paste the visible post text up front.
+- **Relationship/interaction context is omitted from requests** (backend derives `UNKNOWN`):
+  the debug build has no session/token plumbing to the capture API and there is no trusted
+  relationship graph on-device. Post text and author name are editable preview state only.
+- **Telemetry is metadata-only:** `Log` events carry `capture_id`, `text_length`, `content_hash`
+  — never the post text — matching the Phase 6A CAPTURE_METADATA-only rule. `LocalClipboardManager`
+  (deprecated API, used elsewhere in the app) accepted for copy feedback.
+- **Gate evidence:** 254 unit tests / 11 pre-existing failures (0 new); lint delta 0
+  (6E/79W/3H baseline); `assembleDebug` green. New-warning fixes this session: `<queries>`
+  manifest block for guarded `ACTION_VIEW`, KTX `String.toUri()`.
+- **Not decided yet / open:** (a) when to cut Phase 6B as a numbered release once a backend
+  URL exists; (b) whether accessibility-service capture (Phase 7) will ship against the same
+  422-policy.
 
 - **Finding:** `v2_team_readiness` (backend.py) contained a hardcoded 8-named-person fallback
   roster used whenever RMS returned no reportees for a manager, and a synthetic leave date
