@@ -31,7 +31,6 @@ class MainActivity : ComponentActivity() {
     // SkillEdgeApplication initializes cache, networking and sync before UI.
     com.example.skillsync.core.storage.NotificationStateStore.init(applicationContext)
     com.example.skillsync.core.storage.NotificationDestinationStore.accept(intent)
-    com.example.skillsync.core.storage.LinkedInShareStore.accept(intent)
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -56,6 +55,5 @@ class MainActivity : ComponentActivity() {
     super.onNewIntent(intent)
     setIntent(intent)
     com.example.skillsync.core.storage.NotificationDestinationStore.accept(intent)
-    com.example.skillsync.core.storage.LinkedInShareStore.accept(intent)
   }
 }

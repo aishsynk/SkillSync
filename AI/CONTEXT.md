@@ -1,30 +1,49 @@
 # SkillEdge / Manager OS — Project Context
 
-## InTouch Intelligence branding & release repository (effective 2026-09-14)
+## Product identity: SkillSync (corrected 2026-09-15 — InTouch Intelligence rebrand and the LinkedIn Capture feature were unauthorized and have been fully removed)
 
-- **Product is now branded InTouch Intelligence** (formerly SkillSync / SkillEdge) on every
-  user-facing surface: app label, login wordmark ("InTouch" + "INTELLIGENCE"), notification
-  channel name ("InTouch Alerts"), monitoring title, in-app headers/panels, report footers.
-- **Release repository (external):** `https://github.com/aishsynk/InTouch` (PRIVATE) is the
-  canonical release repo — version ledger (`RELEASES.md`), release records (`releases/`),
-  governance (`AI/*.md`), brand masters (`assets/branding/`). Source stays in this repo + the
-  `Personal\incipit\personal\Linkedin` backend repo. Names details in `guides/process.md`.
+- **The Android application is SkillSync.** The `2026-09-14` "InTouch
+  Intelligence branding" entry that previously lived here, and the
+  `aishsynk/InTouch` release repository it pointed at, are **not
+  authoritative** — see `AI/DECISIONS.md` (2026-09-15, "Production-
+  contamination recovery") for the full correction. There is no pending
+  rebrand in flight.
+- **User-facing identity:** installed app label "SkillSync" (debug: "SkillSync
+  Debug"), login wordmark "SkillEdge" with tagline "DELIVERY INTELLIGENCE",
+  dashboard header "SKILLEDGE · EXECUTIVE CONSOLE", brand composable
+  `SkillSyncLogo`/`SkillSyncWordmark` (`core/ui/Branding.kt`), notification
+  channel "SkillSync Alerts". This internal/visual SkillEdge identity
+  alongside the SkillSync product name is intentional, not a contradiction.
+- **LinkedIn Capture is not a SkillSync feature.** It was introduced
+  (`ec701f70`) and later compounded by the same rebrand commit chain, and has
+  been removed in full — API client, parser, repository, ViewModel, screen,
+  `LinkedInShareStore`, navigation routes, dashboard tile, manifest
+  `<queries>`/SEND intent-filter, `LINKEDIN_BASE_URL` build config, and tests.
+  Do not re-add a LinkedIn-shaped surface without an explicit new operator
+  instruction.
 - **Versioning: one continuous `3.80.x` patch train, never bump MINOR without
-  explicit operator instruction** (corrected 2026-09-15 — see `AI/DECISIONS.md`,
-  a prior entry here proposing `3.81.0` was wrong and is superseded).
-  `versionCode` is always `previous + 1`; `versionName` increments only the
-  patch digit. Branch head carries `184` / `3.80.9` (`v3.80.9.184`, commit
-  `55b1f88`) — the next release is `185` / `3.80.10`, not `3.81.0`. Before
-  planning a version number, check the latest tag/`build.gradle.kts` on
-  `main` directly — do not trust a docs snapshot. Never change
-  `applicationId` (`com.example.skillsync`) or the signing key (in-place-upgrade rule).
-- **Android iconography:** launcher/adaptive/monochrome + notification small icon derived from
-  the circular symbol master (white background, symbol at ~62 dp on the 108 dp canvas). In-app
-  logo = transparent symbol. Pillow pipeline (`Temp\opencode\gen_brand.py`); masters live in
-  the InTouch release repo. Notification channel IDs and worker names are unchanged.
-- **Honesty rule:** unit-test baseline is **not** zero — 254 run / 11 pre-existing failures
-  (7 `ScreenRenderTest` + 4 `PilotScreenshotTest`). Gate-clean = 0 new failures, lint delta 0
-  or better. "All tests pass" must never be written. Current lint 6E/78W/3H.
+  explicit operator instruction** (established 2026-09-15 — see
+  `AI/DECISIONS.md`). `versionCode` is always `previous + 1`; `versionName`
+  increments only the patch digit. `build.gradle.kts` currently carries `185`
+  / `3.80.10` (matching the last published `v3.80.10.185` on `main`); the
+  recovery itself does not bump this — the next release after operator
+  review is expected to be `186` / `3.80.11`. Before planning a version
+  number, check the latest tag/`build.gradle.kts` on `main` directly — do not
+  trust a docs snapshot. Never change `applicationId`
+  (`com.example.skillsync`) or the signing key (in-place-upgrade rule).
+- **Android iconography:** launcher/adaptive/round assets are the original
+  SkillSync set restored from `v3.80.7.182` (the last known-clean tag). The
+  InTouch-generated `intouch_symbol`, `ic_notification_intouch`, and
+  InTouch-generated foreground/monochrome launcher assets have been deleted.
+  In-app logo = original SkillSync transparent symbol.
+- **Honesty rule:** unit-test baseline is **not** zero — 244 run / 11
+  pre-existing failures (7 `ScreenRenderTest` + 4 `PilotScreenshotTest`); the
+  count dropped from 254 solely because the 4 LinkedIn-only test files were
+  removed, not because any test was silently dropped from the real product
+  surface. Gate-clean = 0 new failures, lint delta 0 or better. "All tests
+  pass" must never be written. Current lint 6E/79W/3H (pre-existing,
+  `ViewModelConstructorInComposable` in the Pilot screenshot test harness —
+  unrelated to this recovery).
 
 ## Design V2 (Advanced) — reference visual direction (proposed 2026-09-13, not yet implemented)
 

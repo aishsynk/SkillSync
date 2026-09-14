@@ -18,12 +18,6 @@ run {
 }
 
 android {
-    // LinkedIn capture backend base URL, injected at build time so no host
-    // leaks into source. Defaults to empty → the screen shows "not configured".
-    val linkedinBaseUrl = (project.findProperty("linkedinBackendBaseUrl") as? String).orEmpty()
-        .replace("\\", "\\\\")
-        .replace("\"", "\\\"")
-
     namespace = "com.example.skillsync"
     compileSdk = 36
     defaultConfig {
@@ -32,8 +26,7 @@ android {
         targetSdk = 34
         versionCode = 185
         versionName = "3.80.10"
-        manifestPlaceholders["appName"] = "InTouch Intelligence"
-        buildConfigField("String", "LINKEDIN_BASE_URL", "\"$linkedinBaseUrl\"")
+        manifestPlaceholders["appName"] = "SkillSync"
     }
 
     signingConfigs {
@@ -58,7 +51,7 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
-            manifestPlaceholders["appName"] = "InTouch Intelligence Debug"
+            manifestPlaceholders["appName"] = "SkillSync Debug"
             // Sign debug builds with the exact same release keystore so that local builds,
             // debug APKs, and release APKs share an identical certificate and can update
             // seamlessly over each other without ever prompting for an uninstall!

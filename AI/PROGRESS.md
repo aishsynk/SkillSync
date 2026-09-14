@@ -968,3 +968,75 @@ Backend: 370 passed (369 + 1 new), 0 regressions. Android: 275 unit tests
 3. C5/C6: `MessageTransport` abstraction, rebuild Viber Automation into the
    Communication Dispatch Centre.
 4. Not pushed to `main`, not released.
+
+## 8b. Phase 6D — Production contamination recovery (2026-09-15)
+
+**Context:** operator identified `v3.80.10.185` (pushed to `main`) as a
+production-contamination incident: the "InTouch Intelligence" rebrand
+(Phase 6C, §8) and the LinkedIn Capture feature (Phase 6B, §2 above) were
+never authorized product identity/features. SkillSync is the product; the
+existing SkillEdge internal/visual identity (login wordmark, tagline,
+dashboard header) is intentional and was never meant to be replaced.
+
+**Process:** audited full git history from `v3.80.5.180` (original SkillSync
+Design V2 baseline) through `main`@`f1fab17`, classifying every file touched
+by either contaminating commit (`ec701f70` LinkedIn, `3783626`+`4db056a`
+InTouch rebrand) into KEEP / REMOVE / RESTORE-FROM-TAG / MANUAL-MERGE against
+`v3.80.7.182` (last known-clean SkillSync tag). Recovery was performed on
+branch `recovery-skillsync-identity` (never touching `main` directly, no
+destructive reset).
+
+**Removed in full (LinkedIn Capture, `ec701f70`):** `core/network/LinkedInApi.kt`,
+`core/network/LinkedInApiClient.kt`, `core/storage/LinkedInShareStore.kt`,
+the `feature/linkedin/` package (repository, parser/engine, screen,
+ViewModel), its 4 test files under `src/test/.../feature/linkedin/`, the
+debug-only `AndroidManifest.xml`/`network_security_config.xml` pair, the
+manifest `<queries>`/SEND intent-filter block, `MainActivity`'s
+`LinkedInShareStore.accept()` calls, `NavigationKeys.kt`'s `LinkedInCapture`/
+`LinkedInCaptureSource`, `Navigation.kt`'s LinkedIn routing/back-handling
+branches, the dashboard "Analyse a LinkedIn post" tile and
+`onOpenLinkedInCapture` plumbing in `MainScreen.kt`, and the
+`LINKEDIN_BASE_URL`/`linkedinBackendBaseUrl` block in `build.gradle.kts`.
+
+**Removed/restored (InTouch rebrand, `3783626`+`4db056a`):** deleted
+`intouch_symbol.png`, `ic_notification_intouch` (5 densities), and the
+InTouch-generated `ic_launcher_foreground`/`ic_launcher_monochrome` PNGs (5
+densities each); restored the original SkillSync launcher/adaptive assets
+(`ic_launcher_background.xml`, `ic_launcher_foreground.xml`,
+`mipmap-anydpi-v26/ic_launcher*.xml`, and the per-density `ic_launcher.png`/
+`ic_launcher_round.png` sets) from `v3.80.7.182`; restored `Branding.kt`
+(`SkillSyncLogo`/`SkillSyncWordmark`) from the same tag; reverted
+`strings.xml` (`app_name` → `SkillSync`), `LoginScreen.kt`
+(`InTouchLogo`/`InTouchWordmark` → `SkillSyncLogo`/`SkillSyncWordmark`),
+`MainScreen.kt` ("INTOUCH · EXECUTIVE CONSOLE" → "SKILLEDGE · EXECUTIVE
+CONSOLE", `InTouchLogo` → `SkillSyncLogo`), `LocalNotificationService.kt`/
+`MonitoringService.kt`/`NotificationEngine.kt`/`CourseCurriculumSheet.kt`/
+`CopilotChatSheet.kt`/`TrainerReport.kt`/`SkillSyncDesignCatalog.kt` (brand
+strings), `NotifyAndLoginTest.kt` (tagline assertion), and `build.gradle.kts`
+(`manifestPlaceholders["appName"]` → `SkillSync`/`SkillSync Debug`).
+
+**Explicitly preserved unchanged:** all Communication Intelligence C0–C4 work
+(recipient resolution, Today/Priorities integration), the full Design V2
+visual system (readiness hero, Pulse grid, Top Performers, Operations
+launchpad, dark surface/icon-family treatment), the Test Orchestrator/Test
+Storage CI additions, `package`/`applicationId` (`com.example.skillsync`),
+and the existing release signing key. `versionCode`/`versionName` held at
+`185`/`3.80.10` (no bump this pass, per operator instruction) pending review.
+
+**Verification:** `compileDebugKotlin` clean, `compileReleaseKotlin` clean,
+`assembleRelease` produced a signed APK. Android unit tests: 244 run (down
+from 275 solely because the 4 LinkedIn-only test files were removed), same
+11 pre-existing failures (7 `ScreenRenderTest` + 4 `PilotScreenshotTest`), 0
+new failures. Backend: 370/370 passed, matching baseline exactly. Lint: 6
+errors (all pre-existing, `ViewModelConstructorInComposable` in the Pilot
+screenshot test harness, unrelated to this recovery), lint delta 0.
+Repository-wide search for `InTouch`/`intouch_`/`LinkedIn`/
+`LINKEDIN_BASE_URL`/`LinkedInCapture`/`LinkedInShareStore` confirmed clean
+across `SkillEdge_Android/`; `AGENTS.md`'s stale "InTouch Intelligence"
+product-type line corrected to SkillSync.
+
+**Not done (awaiting operator review, per explicit instruction):** no version
+bump, no push to `main`, no release. Real-emulator screenshot capture for
+Today/This Week via `PilotScreenshotInstrumentedTest` has not been run this
+pass. Expected version after approval: `186` / `3.80.11`, continuing the
+same patch train — not a MINOR bump.

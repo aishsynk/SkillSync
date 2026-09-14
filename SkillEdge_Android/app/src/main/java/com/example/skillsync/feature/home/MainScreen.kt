@@ -75,7 +75,6 @@ fun MainScreen(
     onOpenSkillRequests: () -> Unit = {},
     onOpenMySchedule: () -> Unit = {},
     onOpenCommunication: (String, String, String, String, String) -> Unit = { _, _, _, _, _ -> },
-    onOpenLinkedInCapture: () -> Unit = {},
     onOpenOpportunityGuardian: () -> Unit = {},
     onOpenOpportunities: () -> Unit = {},
     onOpenOpportunityDetail: (String) -> Unit = {},
@@ -333,7 +332,7 @@ fun MainScreen(
                                     )
                                     .border(1.dp, MaterialTheme.skill.sky.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
                                 contentAlignment = Alignment.Center,
-                            ) { InTouchLogo(size = 22.dp) }
+                            ) { SkillSyncLogo(size = 22.dp) }
                             Spacer(Modifier.width(12.dp))
                             val showBrief = tab == HomeTab.DASHBOARD && briefCollapsed
                             val briefLine = remember(state) {
@@ -351,7 +350,7 @@ fun MainScreen(
                             ) { collapsed ->
                                 Column {
                                     Text(
-                                        if (collapsed) "TODAY · THE BRIEF" else "INTOUCH · EXECUTIVE CONSOLE",
+                                        if (collapsed) "TODAY · THE BRIEF" else "SKILLEDGE · EXECUTIVE CONSOLE",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.tertiary,
                                     )
@@ -642,7 +641,6 @@ HomeTab.SEARCH -> UniversalCommandSearch(
                                         onOpenProfile = { onTrainerClick(email, profile?.str("name").orEmpty()) },
                                         onOpenMySchedule = onOpenMySchedule,
                                         onOpenCommunication = onOpenCommunication,
-                                        onOpenLinkedInCapture = onOpenLinkedInCapture,
                                         onLogout = { showLogoutConfirm = true },
                                         onDrill = { drill = it },
                                         onLoadCapability = { viewModel.ensureCapability(email, context) },
@@ -954,7 +952,6 @@ internal fun DashboardTab(
     onOpenProfile: () -> Unit,
     onOpenMySchedule: () -> Unit = {},
     onOpenCommunication: (String, String, String, String, String) -> Unit = { _, _, _, _, _ -> },
-    onOpenLinkedInCapture: () -> Unit = {},
     onLogout: () -> Unit = {},
     onDrill: (Drill) -> Unit,
     onLoadCapability: () -> Unit = {},
@@ -1065,48 +1062,6 @@ internal fun DashboardTab(
                     onBatchClick = onBatchClick,
                     calendarReadiness = calendarReadiness,
                 )
-            }
-        }
-
-        item {
-            Appear(2) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .glassSurface()
-                        .pressable(onClick = onOpenLinkedInCapture)
-                        .padding(horizontal = com.example.skillsync.theme.Space.lg, vertical = com.example.skillsync.theme.Space.md),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconSlot(tint = MaterialTheme.skill.brand, size = 40.dp) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_share),
-                            contentDescription = null,
-                            tint = MaterialTheme.skill.brand,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(com.example.skillsync.theme.Space.md))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "Analyse a LinkedIn post",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.skill.frost,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            "Paste a post or share it into SkillSync for a decision and a comment you can copy.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.skill.subText,
-                        )
-                    }
-                    Icon(
-                        painter = painterResource(R.drawable.ic_chevron),
-                        contentDescription = null,
-                        tint = MaterialTheme.skill.subText,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
             }
         }
 
