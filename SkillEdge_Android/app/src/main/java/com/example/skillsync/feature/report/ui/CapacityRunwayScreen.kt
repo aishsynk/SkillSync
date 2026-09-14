@@ -21,9 +21,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.R
+import com.example.skillsync.theme.ActionRow
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.SkillColors
 import com.example.skillsync.theme.Space
+import com.example.skillsync.theme.accentGlass
+import com.example.skillsync.theme.glassSurface
+import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -124,12 +128,7 @@ private fun humanDate(iso: String): String = try {
 private fun SummaryLine(s: RunwayState.Success, sk: SkillColors) {
     val sum = s.summary
     val tightest = if (sum.worstWeek.isNotBlank()) humanDate(sum.worstWeek) else "none"
-    Surface(
-        shape = RoundedCornerShape(Radii.card),
-        color = sk.cardBg,
-        border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+    Box(Modifier.fillMaxWidth().glassSurface()) {
         Column(Modifier.padding(Space.lg), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 "You can cover ${sum.totalCoverable} of ${sum.totalDemand} " +
@@ -154,12 +153,7 @@ private fun WeekBars(weeks: List<RunwayWeek>, sk: SkillColors) {
     val maxVal = maxOf(1, weeks.maxOf { maxOf(it.demandBatches, it.teamAvailable) })
     val chartHeight = 120.dp
 
-    Surface(
-        shape = RoundedCornerShape(Radii.card),
-        color = sk.cardBg,
-        border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+    Box(Modifier.fillMaxWidth().glassSurface()) {
         Column(Modifier.padding(Space.md)) {
             Row(
                 Modifier.fillMaxWidth().height(chartHeight),
@@ -232,50 +226,29 @@ private fun LegendDot(color: Color, label: String, sk: SkillColors) {
     }
 }
 
+/** The runway's own row family, on the same shared [ActionRow]/[accentGlass]
+ * pair Today and This Week already use — an "opportunity" tint (sky), not a
+ * severity one, since an upskill suggestion isn't an attention item. */
 @Composable
 private fun UpskillCard(u: RunwayUpskill, sk: SkillColors, onOpenTrainer: (String, String) -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(Radii.card),
-        color = sk.cardBg,
-        border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-        modifier = Modifier
+    val metadata = buildString {
+        if (u.examCode.isNotBlank()) append(u.examCode).append(" · ")
+        append("opens ${u.opensBatches} ${if (u.opensBatches == 1) "batch" else "batches"}")
+        if (u.nearestTrainerName.isNotBlank()) append(" · closest: ${u.nearestTrainerName}")
+    }
+    val clickable = u.nearestTrainer.isNotBlank()
+    Box(
+        Modifier
             .fillMaxWidth()
-            .then(
-                if (u.nearestTrainer.isNotBlank())
-                    Modifier.clickable { onOpenTrainer(u.nearestTrainer, u.nearestTrainerName) }
-                else Modifier
-            ),
+            .accentGlass(sk.sky)
+            .then(if (clickable) Modifier.pressable { onOpenTrainer(u.nearestTrainer, u.nearestTrainerName) } else Modifier),
     ) {
-        Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (u.examCode.isNotBlank()) {
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(sk.sky.copy(alpha = 0.15f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                    ) {
-                        Text(u.examCode, color = sk.sky, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-                Text(
-                    "opens ${u.opensBatches} ${if (u.opensBatches == 1) "batch" else "batches"}",
-                    color = sk.subText,
-                    fontSize = 11.sp,
-                )
-            }
-            Text(
-                u.course,
-                color = sk.bodyText,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(u.why, color = sk.subText, fontSize = 12.sp)
-            if (u.nearestTrainerName.isNotBlank()) {
-                Text("closest: ${u.nearestTrainerName}", color = sk.sky, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-            }
-        }
+        ActionRow(
+            title = u.course,
+            modifier = Modifier.padding(horizontal = Space.md),
+            supportingText = u.why,
+            metadata = metadata,
+            tint = sk.sky,
+        )
     }
 }
