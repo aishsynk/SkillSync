@@ -48,17 +48,26 @@
   repository (version ledger, release records, governance, brand masters). Source remains in
   private working repos. Ledger is **append-only**; corrections are appended, never in place.
 
-## 2026-09-14 — Versioning: documented only now; InTouch RC bumps at cut time
+## 2026-09-15 — Versioning correction: NEVER bump MINOR without explicit instruction; sequence is one continuous patch train
 
-- **Decision:** adopt semantic `MAJOR.MINOR.PATCH` (`versionName`) + monotonic `versionCode`;
-  **documented this session**. Source carries the branch-head version **`184` / `3.80.9`**
-  (kept from the v3.80.9.184 CI cut; the branding commit must not regress it). Next
-  InTouch-branded RC cuts as **`185` / `3.81.0`** at RC-cut time.
-- **Correction context:** the operator's original plan anchored the next RC at
-  `183` / `3.81.0`, but `versionCode 183` and `184` were consumed this increment by the
-  Today Design V2 CI cuts (`v3.80.8.183` `8242e6b`, `v3.80.9.184` `55b1f88`). The next free
-  `versionCode` is therefore `185`.
-- Bump happens only at the RC cut, never to "show progress".
+- **Decision (operator correction, stated forcefully — do not relitigate this):**
+  `versionName` stays in the **same `3.80.x` sequence, patch digit only**,
+  every release, indefinitely, until the operator explicitly says otherwise.
+  `versionCode` is always `previous + 1`. The `2026-09-14` entry below
+  proposing a jump to **`3.81.0`** for the next (InTouch-branded) RC was
+  **wrong** and is superseded by this entry. A rebrand is not, by itself, a
+  reason to bump `MINOR` — nothing in `MAJOR.MINOR.PATCH` semantics requires
+  it, and the operator does not want it.
+- **Correct next version:** `versionCode 185` / `versionName "3.80.10"` —
+  continuing directly from the last published `184` / `3.80.9`
+  (`v3.80.9.184`, commit `55b1f88`). Not `3.81.0`.
+- **Why this matters:** two independent work threads in this repo (the Today
+  Design V2 release train and the InTouch rebrand/governance thread) each
+  proposed their own versioning continuation, and they disagreed. Only one
+  sequence exists. Before any thread bumps the version, it must check the
+  latest published release tag/`build.gradle.kts` on `main` — never plan a
+  version number from a stale docs snapshot.
+- Bump happens only at the RC/release cut, never to "show progress".
 - Same `applicationId` (`com.example.skillsync`) + same signing key forever → in-place
   upgrade without an uninstall prompt. Do not change `targetSdk` behaviour related to version.
 - **Why:** production installs exist; a version bump is meaningful only when a candidate is

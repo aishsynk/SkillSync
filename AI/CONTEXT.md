@@ -9,11 +9,15 @@
   canonical release repo — version ledger (`RELEASES.md`), release records (`releases/`),
   governance (`AI/*.md`), brand masters (`assets/branding/`). Source stays in this repo + the
   `Personal\incipit\personal\Linkedin` backend repo. Names details in `guides/process.md`.
-- **Versioning (documented only):** semantic `MAJOR.MINOR.PATCH` + monotonic `versionCode`;
-  bump only at the RC cut. Branch head carries `184` / `3.80.9` (per the v3.80.9.184 CI cut; the
-InTouch branding commit preserves it), next InTouch RC = `185` / `3.81.0` at cut time (codes
-183/184 were consumed by the Today Design V2 cuts). Never
-  change `applicationId` (`com.example.skillsync`) or the signing key (in-place-upgrade rule).
+- **Versioning: one continuous `3.80.x` patch train, never bump MINOR without
+  explicit operator instruction** (corrected 2026-09-15 — see `AI/DECISIONS.md`,
+  a prior entry here proposing `3.81.0` was wrong and is superseded).
+  `versionCode` is always `previous + 1`; `versionName` increments only the
+  patch digit. Branch head carries `184` / `3.80.9` (`v3.80.9.184`, commit
+  `55b1f88`) — the next release is `185` / `3.80.10`, not `3.81.0`. Before
+  planning a version number, check the latest tag/`build.gradle.kts` on
+  `main` directly — do not trust a docs snapshot. Never change
+  `applicationId` (`com.example.skillsync`) or the signing key (in-place-upgrade rule).
 - **Android iconography:** launcher/adaptive/monochrome + notification small icon derived from
   the circular symbol master (white background, symbol at ~62 dp on the 108 dp canvas). In-app
   logo = transparent symbol. Pillow pipeline (`Temp\opencode\gen_brand.py`); masters live in

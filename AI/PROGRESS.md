@@ -691,3 +691,18 @@ regressions**. `compileDebugKotlin`/`compileReleaseKotlin` clean.
    screenshot validation of the rebuilt inner screens.
 5. Reconcile the versioning-plan conflict noted above before any further
    release.
+
+---
+
+## 2026-09-15 — Versioning conflict resolved: operator correction, no MINOR bump
+
+The "next RC = 185/3.81.0" plan two entries above (and its `AI/DECISIONS.md`/
+`AI/CONTEXT.md` counterparts) was **explicitly rejected by the operator**:
+version stays on one continuous `3.80.x` patch sequence — `versionCode`
+always `+1`, `versionName` patch digit only — indefinitely, until told
+otherwise. A rebrand alone is not a reason to bump `MINOR`. `AI/DECISIONS.md`
+and `AI/CONTEXT.md` have been corrected in place (their versioning sections
+now say `185` / `3.80.10` as the next release, not `3.81.0`). This entry
+exists so the append-only log shows the correction landed and why —
+**treat the `185`/`3.81.0` text in the two entries above this one as
+superseded, not authoritative.**
