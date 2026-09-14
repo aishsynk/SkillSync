@@ -96,6 +96,12 @@ android {
         isIncludeAndroidResources = true
         isReturnDefaultValues = true
       }
+      // Test Orchestrator + Test Storage let an instrumented test write output
+      // files (e.g. PilotScreenshotInstrumentedTest's PNGs) that Gradle copies
+      // off the device automatically, before the app-under-test is uninstalled —
+      // a plain adb pull after ./gradlew connectedDebugAndroidTest returns is too
+      // late, since Gradle uninstalls both APKs as soon as the test run finishes.
+      execution = "ANDROIDX_TEST_ORCHESTRATOR"
     }
 }
 
@@ -144,6 +150,10 @@ dependencies {
   androidTestImplementation(libs.androidx.test.ext.junit)
   androidTestImplementation(libs.androidx.test.runner)
   androidTestImplementation(libs.androidx.test.espresso.core)
+  // Test Storage: lets PilotScreenshotInstrumentedTest hand its PNGs to Gradle
+  // via the Test Orchestrator output-copy path instead of a racy adb pull.
+  androidTestImplementation("androidx.test.services:storage:1.5.0")
+  androidTestUtil("androidx.test:orchestrator:1.5.1")
 
   // Navigation
   implementation(libs.androidx.navigation3.ui)

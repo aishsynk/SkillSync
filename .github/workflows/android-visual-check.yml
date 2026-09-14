@@ -4,12 +4,17 @@ name: Design V2 Visual Validation
 # Deliberately separate from android-release.yml: no signing, no version
 # bump, no tag, no GitHub Release.
 #
-# History: PilotScreenshotTest (JVM/Robolectric, captureToImage) deadlocks in
-# WindowCapture.forceRedraw/PixelCopy on both Windows (local) and an
-# ubuntu-latest runner (confirmed via this same workflow) — so Robolectric
-# pixel capture is not usable for this checkpoint regardless of OS. This job
-# instead runs PilotScreenshotInstrumentedTest on a real emulator, where the
-# same captureToImage() call renders through the actual Android framework.
+# History:
+# - PilotScreenshotTest (JVM/Robolectric, captureToImage) deadlocks in
+#   WindowCapture.forceRedraw/PixelCopy on both Windows (local) and an
+#   ubuntu-latest runner (confirmed via this same workflow) — Robolectric
+#   pixel capture is not usable for this checkpoint regardless of OS.
+# - PilotScreenshotInstrumentedTest (real emulator) passed 4/4, but a plain
+#   `adb pull` of getExternalFilesDir() afterwards raced Gradle's own
+#   uninstall of the app-under-test, which runs as soon as the test task
+#   finishes. Test Orchestrator + Test Storage (app/build.gradle.kts) copy the
+#   test's output files off the device before that uninstall happens, landing
+#   them under app/build/outputs/connected_android_test_additional_output/.
 on:
   push:
     branches:
@@ -61,23 +66,13 @@ jobs:
           working-directory: ./SkillEdge_Android
           script: |
             ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.skillsync.ui.PilotScreenshotInstrumentedTest --console=plain
-            mkdir -p app/build/reports/pilot-screenshots
-            adb root || true
-            echo "--- diagnosing external-files layout ---"
-            adb shell run-as com.example.skillsync.debug ls -la files/pilot-screenshots || true
-            adb shell find /storage/emulated/0/Android/data/com.example.skillsync.debug -maxdepth 3 || true
-            adb shell find /sdcard/Android/data -maxdepth 2 -iname "*skillsync*" || true
-            # Debug builds carry applicationIdSuffix ".debug" (app/build.gradle.kts),
-            # so the installed package is com.example.skillsync.debug, not
-            # com.example.skillsync.
-            adb pull /storage/emulated/0/Android/data/com.example.skillsync.debug/files/pilot-screenshots/. app/build/reports/pilot-screenshots/
 
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: design-v2-pilot-screenshots
-          path: SkillEdge_Android/app/build/reports/pilot-screenshots/
+          path: SkillEdge_Android/app/build/outputs/connected_android_test_additional_output/
           if-no-files-found: warn
 
       - name: Upload test report on failure

@@ -7,6 +7,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.services.storage.TestStorage
 import com.example.skillsync.core.data.DataSource
 import com.example.skillsync.core.data.RepositoryResult
 import com.example.skillsync.core.storage.LocalCache
@@ -18,8 +19,6 @@ import com.example.skillsync.feature.report.ui.PrioritiesViewModel
 import com.example.skillsync.theme.SkillSyncTheme
 import org.junit.Rule
 import org.junit.Test
-import java.io.File
-import java.io.FileOutputStream
 
 /**
  * Real-device/emulator screenshots of the D2 pilots for the Design V2 visual
@@ -39,14 +38,20 @@ class PilotScreenshotInstrumentedTest {
 
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
-    private fun outDir(): File {
-        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
-        return File(ctx.getExternalFilesDir(null), "pilot-screenshots").apply { mkdirs() }
-    }
+    /**
+     * Writing to getExternalFilesDir() and adb-pulling afterwards races
+     * Gradle's own cleanup: connectedDebugAndroidTest uninstalls both the app
+     * and the test APK as soon as the instrumentation run finishes, wiping
+     * that directory before the workflow's adb pull step runs (confirmed:
+     * "run-as: unknown package" immediately after a successful, 4/4-passing
+     * test run). Test Storage's output path is copied off the device by the
+     * Test Orchestrator itself, before that uninstall happens.
+     */
+    private val storage = TestStorage()
 
     private fun save(name: String) {
         val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
-        FileOutputStream(File(outDir(), "$name.png")).use { out ->
+        storage.openOutputFile("$name.png").use { out ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
         }
     }
