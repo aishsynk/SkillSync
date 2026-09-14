@@ -10,8 +10,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.services.storage.TestStorage
 import com.example.skillsync.core.data.DataSource
@@ -83,7 +86,11 @@ class PilotScreenshotInstrumentedTest {
         "batch_engagement_df" to listOf(
             mapOf(
                 "demand_id" to "B-1", "course_name" to "AI-102T00: Develop AI Solutions in Azure",
-                "trainer_name" to "Priya Sharma", "engagement_state" to "active", "delivery_mode" to "ILO",
+                "trainer_name" to "Priya Sharma", "engagement_state" to "current", "delivery_mode" to "ILO",
+            ),
+            mapOf(
+                "demand_id" to "B-2", "course_name" to "DP-700T00: Implementing a Data Fabric",
+                "trainer_name" to "Rahul Verma", "engagement_state" to "upcoming", "delivery_mode" to "ILT",
             ),
         ),
         "unallocated_demand_df" to listOf(
@@ -138,7 +145,22 @@ class PilotScreenshotInstrumentedTest {
             }
         }
         compose.waitForIdle()
-        save("today")
+        save("today_top")
+
+        // Mid: past Pulse/Needs You, into Capacity balance / Demand.
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("CAPACITY BALANCE"))
+        compose.waitForIdle()
+        save("today_mid")
+
+        // Lower: Delivery outlook / Certification / Top performers.
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("TOP PERFORMERS"))
+        compose.waitForIdle()
+        save("today_lower")
+
+        // Operations: the launchpad grid at the very bottom.
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("OPERATIONS"))
+        compose.waitForIdle()
+        save("today_operations")
     }
 
     // ── This Week ────────────────────────────────────────────────────────────
