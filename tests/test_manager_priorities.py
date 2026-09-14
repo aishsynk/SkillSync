@@ -103,6 +103,30 @@ class ManagerPrioritiesTests(unittest.TestCase):
         self.assertGreater(items["one_to_one:%s" % T1]["rank_score"],
                            items["unstaffed_demand:D-FAR"]["rank_score"])
 
+    def test_unstaffed_demand_names_a_real_matched_trainer_never_claims_availability(self):
+        """
+        Communication Intelligence rebuild (2026-09-15): a coverable unstaffed
+        item must expose the real, skill-matched candidate (matching_trainers)
+        so a client can address them by name — and must never claim a bench
+        headcount is available from utilisation alone. This is a regression
+        test for a real bug: the previous code appended
+        "X, Y are on the bench" straight into the detail text based only on
+        utilisation < 55%, which is exactly the "LOW UTILISATION != AVAILABLE"
+        violation this rebuild exists to remove.
+        """
+        with patch.object(backend, "_skills",
+                           side_effect=lambda e: [{"course_name": "AZ-104"}] if e == T2 else []):
+            items = {it["id"]: it for it in self._build()["items"]}
+        item = items["unstaffed_demand:D-NEAR"]
+        self.assertTrue(item["coverable"])
+        matches = item.get("matching_trainers", [])
+        self.assertEqual(1, len(matches))
+        self.assertEqual("Beta Two", matches[0]["name"])
+        self.assertTrue(matches[0]["capability_match"])
+        # Never asserted AVAILABLE from utilisation alone.
+        self.assertEqual("UNKNOWN", matches[0]["availability"])
+        self.assertNotIn("on the bench", item["detail"])
+
     def test_action_overdue_severity_and_due(self):
         created = (datetime.utcnow() - timedelta(days=20)).isoformat()
         backend._action_repository.raise_action(MANAGER, {

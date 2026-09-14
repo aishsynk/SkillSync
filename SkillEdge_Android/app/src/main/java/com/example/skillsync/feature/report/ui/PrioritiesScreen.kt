@@ -37,6 +37,7 @@ import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
 import com.example.skillsync.feature.training.ui.BatchShare
+import com.example.skillsync.feature.communication.engine.CommunicationPlanner
 import com.example.skillsync.feature.training.ui.BulkBatchShare
 import com.example.skillsync.core.ui.LocalNotify
 import com.example.skillsync.core.ui.longDate
@@ -392,10 +393,32 @@ private data class CommunicateHint(
 )
 
 private fun communicateHintFor(item: PriorityItem): CommunicateHint? = when (item.kind) {
-    "unstaffed_demand" -> CommunicateHint(
-        recipientType = "TEAM", recipientName = "", purpose = "AVAILABILITY_REQUEST",
-        relatedEntityType = "demand", relatedEntityId = item.targetId,
-    )
+    "unstaffed_demand" -> {
+        // Real, skill-matched candidates from the backend (see
+        // backend.py _match_trainers_for_demand) — never an aggregate
+        // "team is coverable" broadcast when a real person can be named.
+        // Same CommunicationPlanner pattern as Today's unallocated-demand
+        // card (ManagerCommandCentre.kt).
+        val candidates = item.matchingTrainers.map { t ->
+            CommunicationPlanner.CandidateTrainer(
+                name = t.name, email = t.email, capabilityMatch = t.capabilityMatch,
+                availability = when (t.availability) {
+                    "AVAILABLE" -> CommunicationPlanner.AvailabilityState.AVAILABLE
+                    "COMMITTED" -> CommunicationPlanner.AvailabilityState.COMMITTED
+                    else -> CommunicationPlanner.AvailabilityState.UNKNOWN
+                },
+            )
+        }
+        val plan = CommunicationPlanner.planUnallocatedDemand(
+            CommunicationPlanner.DemandFact(demandId = item.targetId, course = item.title.removePrefix("Unstaffed: ")),
+            candidates,
+        ).firstOrNull()
+        CommunicateHint(
+            recipientType = plan?.recipientType ?: "TEAM", recipientName = plan?.recipientName.orEmpty(),
+            purpose = "AVAILABILITY_REQUEST",
+            relatedEntityType = "demand", relatedEntityId = item.targetId,
+        )
+    }
     "one_to_one" -> CommunicateHint(
         recipientType = "INDIVIDUAL", recipientName = item.title.removePrefix("1:1 with "),
         purpose = "GENERAL_PROFESSIONAL", relatedEntityType = "trainer", relatedEntityId = item.targetId,

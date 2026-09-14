@@ -11246,24 +11246,41 @@ def _priorities_build(manager):
 
     # ── opportunity overlay on unstaffed demand ───────────────────────────
     # The pool above already warmed the _skills / utilisation caches for every
-    # trainer, so this re-pass is cache-cheap. An open batch the team can cover
-    # while trainers sit on the bench is a stronger call than a distant one.
+    # trainer, so this re-pass is cache-cheap.
+    #
+    # Per-trainer skill codes (not just a flattened team-wide set) so a real,
+    # named candidate can be attached to each item — see
+    # _match_trainers_for_demand for the same pattern used on the dashboard's
+    # unallocated-demand items. Utilisation below 55% is tracked separately
+    # and is deliberately NEVER used to claim a trainer is available: low
+    # utilisation is not verified availability (see AI/DECISIONS.md,
+    # 2026-09-15, and the master rule this session works under: "LOW
+    # UTILISATION != AVAILABLE"). A previous version of this code appended
+    # "X, Y are on the bench" straight into the message text on that basis —
+    # removed; capability-matched candidates are now exposed as structured
+    # `matching_trainers` (availability always UNKNOWN here, since this pass
+    # has no verified leave/booking check) so the client asks them to
+    # confirm rather than being told a bench headcount is free.
     team_codes = set()
-    bench_names = []
+    team_skill_map = {}
+    low_util_emails = set()
     for (email, name) in team:
         try:
+            codes = set()
             for s in (_skills(email) or []):
                 cn = s.get("course_name")
                 if not cn:
                     continue
                 m = _re.search(r"[A-Z]{2,4}-[0-9]{2,4}", str(cn))
-                team_codes.add(m.group(0).upper() if m else _norm(cn))
+                code = m.group(0).upper() if m else _norm(cn)
+                codes.add(code)
+                team_codes.add(code)
+            team_skill_map[email] = {"name": name, "codes": codes}
             series = _util_series(_util_row(email))
             if series and (series[-1].get("utilization") or 0) < 55:
-                bench_names.append(name.split()[0] if name else email)
+                low_util_emails.add(email)
         except Exception:
             pass
-    _bump = {"low": "medium", "medium": "high", "high": "high"}
     for it in items:
         if it["kind"] != "unstaffed_demand":
             continue
@@ -11275,10 +11292,21 @@ def _priorities_build(manager):
         )
         if coverable:
             it["coverable"] = True
-            if bench_names:
-                it["severity"] = _bump[it["severity"]]
-                it["detail"] += " Your team can cover this and %s %s on the bench." % (
-                    ", ".join(bench_names[:3]), "is" if len(bench_names) == 1 else "are")
+            matches = []
+            for email, info in team_skill_map.items():
+                if not any(
+                    c == code or (len(c) > 6 and (c in _norm(cn) or _norm(cn) in c))
+                    for c in info["codes"]
+                ):
+                    continue
+                matches.append({
+                    "name": info["name"], "email": email,
+                    "capability_match": True,
+                    # Low utilisation is a hint, not a verified fact — never
+                    # reported as AVAILABLE from this signal alone.
+                    "availability": "UNKNOWN",
+                })
+            it["matching_trainers"] = matches
 
     # ── action_overdue ────────────────────────────────────────────────────
     try:

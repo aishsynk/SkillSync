@@ -12,6 +12,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
+/** One real, skill-matched candidate for an unstaffed_demand item — never fabricated. */
+data class PriorityMatchingTrainer(
+    val name: String,
+    val email: String,
+    val capabilityMatch: Boolean,
+    /** "AVAILABLE" | "COMMITTED" | "UNKNOWN" — see backend.py _match_trainers_for_demand. */
+    val availability: String,
+)
+
 /** One actionable item on the manager's "This Week" board. */
 data class PriorityItem(
     val id: String,
@@ -24,6 +33,8 @@ data class PriorityItem(
     val targetId: String,
     val rankScore: Double,
     val coverable: Boolean,
+    /** Real, skill-matched candidates when kind == "unstaffed_demand"; empty otherwise. */
+    val matchingTrainers: List<PriorityMatchingTrainer> = emptyList(),
 ) {
     val targetName: String get() = title
 }
@@ -229,6 +240,17 @@ class PrioritiesViewModel(
                 targetId = it["target_id"]?.toString() ?: "",
                 rankScore = (it["rank_score"] as? Number)?.toDouble() ?: 0.0,
                 coverable = it["coverable"] as? Boolean ?: false,
+                matchingTrainers = (it["matching_trainers"] as? List<*>)
+                    .orEmpty()
+                    .filterIsInstance<Map<*, *>>()
+                    .map { m ->
+                        PriorityMatchingTrainer(
+                            name = m["name"]?.toString().orEmpty(),
+                            email = m["email"]?.toString().orEmpty(),
+                            capabilityMatch = m["capability_match"] == true,
+                            availability = m["availability"]?.toString().orEmpty(),
+                        )
+                    },
             )
         }
     }

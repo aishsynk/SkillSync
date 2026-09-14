@@ -772,6 +772,58 @@ class ScreenRenderTest {
         )
     }
 
+    /**
+     * Communication Intelligence Phase C4b: when the backend's priorities
+     * payload includes a real, skill-matched candidate (backend.py
+     * _match_trainers_for_demand, wired into /api/v2/manager/priorities'
+     * unstaffed_demand items), This Week must address that person by name —
+     * the same rule Today's unallocated-demand card follows.
+     */
+    @Test
+    fun prioritiesScreen_unstaffedDemandWithAMatchedCandidate_addressesThatPersonByName() {
+        LocalCache.init(ApplicationProvider.getApplicationContext())
+        LocalCache.saveMap(
+            "priorities_aishwar.c@koenig-solutions.com",
+            mapOf<String, Any>(
+                "items" to listOf<Map<String, Any>>(
+                    mapOf(
+                        "id" to "unstaffed_demand:DEM-900", "kind" to "unstaffed_demand",
+                        "title" to "Unstaffed: DP-700T00", "detail" to "Open batch 01 Oct needs a trainer.",
+                        "severity" to "high", "due" to "2026-10-01",
+                        "target_type" to "demand", "target_id" to "DEM-900",
+                        "rank_score" to 40.0, "coverable" to true,
+                        "matching_trainers" to listOf(
+                            mapOf(
+                                "name" to "Niharika N", "email" to "niharika@koenig-solutions.com",
+                                "capability_match" to true, "availability" to "AVAILABLE",
+                            ),
+                        ),
+                    ),
+                ),
+                "counts" to mapOf("unstaffed_demand" to 1),
+                "loading" to false,
+                "generated_at" to "2026-09-14T00:00:00Z",
+            ),
+        )
+        var captured: List<String>? = null
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.report.ui.PrioritiesScreen(
+                    managerEmail = "aishwar.c@koenig-solutions.com",
+                    onOpenDemand = {}, onOpenTrainer = { _, _ -> }, onOpenActions = {},
+                    onCommunicate = { recipientType, recipientName, purpose, relatedType, relatedId ->
+                        captured = listOf(recipientType, recipientName, purpose, relatedType, relatedId)
+                    },
+                    onBack = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Communicate").performClick()
+        org.junit.Assert.assertEquals(
+            listOf("INDIVIDUAL", "Niharika N", "AVAILABILITY_REQUEST", "demand", "DEM-900"), captured,
+        )
+    }
+
     @Test
     fun prioritiesScreen_overdueActionOffersNoCommunicateHint() {
         // An action_overdue item is about a task, not a person - it must not
