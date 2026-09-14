@@ -1,0 +1,59 @@
+name: Design V2 Visual Validation
+
+# Isolated diagnostic/checkpoint workflow — proves whether Robolectric's
+# captureToImage() pixel capture works on a Linux runner (it hangs locally on
+# Windows in WindowCapture/forceRedraw/PixelCopy). Deliberately separate from
+# android-release.yml: no signing, no version bump, no tag, no GitHub Release.
+on:
+  push:
+    branches:
+      - design-v2-visual-check
+  pull_request:
+    branches:
+      - design-v2-visual-check
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshot-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: ./SkillEdge_Android
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run PilotScreenshotTest
+        run: ./gradlew :app:testDebugUnitTest --tests "com.example.skillsync.ui.PilotScreenshotTest" --console=plain
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: design-v2-pilot-screenshots
+          path: SkillEdge_Android/app/build/reports/pilot-screenshots/
+          if-no-files-found: warn
+
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: design-v2-pilot-screenshot-test-report
+          path: SkillEdge_Android/app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: warn
