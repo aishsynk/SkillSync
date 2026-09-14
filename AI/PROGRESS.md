@@ -706,3 +706,70 @@ now say `185` / `3.80.10` as the next release, not `3.81.0`). This entry
 exists so the append-only log shows the correction landed and why —
 **treat the `185`/`3.81.0` text in the two entries above this one as
 superseded, not authoritative.**
+
+---
+
+## 2026-09-15 — Communication Intelligence, Phase C3 (partial): aggregate-claim + Viber truthfulness fixes
+
+## 1. What was completed
+- **Fixed the task's literal opening bad example.** `WeeklyMessage.kt`'s
+  `composeTeamMessage()` had `"${count(signals.free, "of you is", "of you
+  are")} available."` — an aggregate headcount asserted as if it named
+  specific available people, immediately followed by asking the team to
+  confirm availability anyway. Removed the claim entirely; the team message
+  now only states the verified unallocated-batch count and asks the team to
+  confirm — never claims a headcount of people are free. Added a regression
+  test (`unallocatedDemandMessage_neverClaimsAnAggregateFreeHeadcount`).
+- **Fixed the Viber SENT-status truthfulness bug identified in the C0
+  audit**, in both places it existed:
+  - `backend.py` `_viber_dispatch_item`: previously returned `"SENT"` on the
+    no-token/simulated path, and also fell through to that same fake-SENT
+    return on a real non-200 API response (only exceptions were caught).
+    Now: real 200 → `SENT`, any other response/exception → `FAILED` with the
+    real reason, no token/recipient → honestly `SKIPPED`.
+  - `ViberDispatcher.kt`: Accessibility/default Intent-dispatch modes marked
+    every item `STATUS_SENT` immediately after firing a share Intent, with no
+    delivery confirmation. Added `ViberOutboxStore.STATUS_SHARED_EXTERNALLY`
+    (mirroring `CommunicationScreen.kt`'s existing correct distinction) and
+    used it for both Intent-dispatch branches. Bot API path now also handles
+    a `SKIPPED` backend response explicitly.
+  - `tests/test_viber_automation.py`'s existing dispatch test was asserting
+    the exact bug (expected `"SENT"` from a request with no token) —
+    replaced with three tests covering the honest SKIPPED/SENT/FAILED paths.
+
+## 2. Current Status
+Two of several Phase C3 items are done (the literal bad example + the Viber
+truthfulness bug). Not yet done: porting `WeeklyMessage.kt`'s per-reportee
+logic and `MessageRewriter.kt`/`BatchShare.kt` to the same discipline, and
+Phase C4 (migrating screens to call `CommunicationPlanner` for real recipient
+resolution — no screen does this yet, `ManagerCommandCentre.kt` still passes
+`"TEAM"` directly for unallocated-demand communications).
+
+## 3. Files Modified
+- `feature/communication/engine/WeeklyMessage.kt`,
+  `feature/communication/CommunicationPlannerTest.kt`'s sibling
+  `WeeklyMessageTest.kt` (new regression test).
+- `backend.py` (`_viber_dispatch_item`), `tests/test_viber_automation.py`
+  (rewrote the dispatch test, added two more).
+- `core/storage/ViberOutboxStore.kt` (new `STATUS_SHARED_EXTERNALLY`),
+  `feature/viber/ViberDispatcher.kt` (use it; handle backend `SKIPPED`).
+- Commits: `67daaff` (message-semantics fix), `2cec74d` (Viber truthfulness
+  fix), both on `main` locally.
+
+## 4. Test Baseline
+Android: 273 unit tests (272 + 1 new), same 11 documented pre-existing
+failures, 0 new regressions. `compileDebugKotlin`/`compileReleaseKotlin`
+clean. Backend: 362 passed (0 regressions), including 2 new Viber dispatch
+tests.
+
+## 5. Next Recommended Actions
+1. Continue C3: apply the same "no aggregate claim, no unverified assertion"
+   review to `MessageRewriter.kt` and `BatchShare.kt`'s local templates.
+2. C4: wire at least one real caller (`ManagerCommandCentre.kt`'s unallocated
+   demand attention item is the natural first case) to
+   `CommunicationPlanner.planUnallocatedDemand` instead of passing
+   `"TEAM"` directly — this is the change that actually makes the specific,
+   candidate-named message type reachable from the app.
+3. Not pushed/released this increment — per the task's "do not release
+   early" instruction, this stays on a validation branch until the operator
+   reviews it.
