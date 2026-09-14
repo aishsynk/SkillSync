@@ -910,3 +910,61 @@ tests (273 + 1 new), same 11 documented pre-existing failures, 0 new.
    `communication-intelligence-c1c2` per the task's "do not release early"
    instruction, coordinate with the parallel InTouch/versioning thread
    before any merge.
+
+---
+
+## 2026-09-15 — Communication Intelligence: extended real recipient resolution to Priorities (This Week)
+
+## 1. What was completed
+Applied the Phase C4 pattern (Today) to `/api/v2/manager/priorities`'
+`unstaffed_demand` items, and found + fixed a **second real "LOW
+UTILISATION != AVAILABLE" violation** in the process: the priorities builder
+was appending `"X, Y are on the bench"` straight into an item's `detail`
+text whenever those trainers' latest utilisation reading was under 55% —
+asserting availability from a load number alone, with zero leave/booking
+verification. Removed. `backend.py`'s coverable/unstaffed_demand overlay now
+tracks per-trainer skill codes (not a flattened team-wide set) so a real
+candidate can be attached as structured `matching_trainers` (capability
+match real; availability always `UNKNOWN` here, since utilisation is not a
+verified check) instead of an unverified prose claim.
+`PrioritiesScreen.kt`'s `communicateHintFor` now parses this and calls
+`CommunicationPlanner.planUnallocatedDemand`, mirroring Today's wiring
+exactly — falls back to `TEAM` only when no real candidate is known.
+
+## 2. Current Status
+Two of Today's/Priorities' screens now use real recipient resolution.
+HR Monthly Report and Weekly Report still build their own local
+templates (`WeeklyMessage.kt`, `MessageRewriter.kt`) — not yet migrated.
+C5–C8 (transport abstraction, Viber Dispatch Centre rebuild, scheduling,
+full emulator screenshot validation) have not started.
+
+## 3. Files Modified
+- `backend.py`: coverable/unstaffed_demand overlay in the priorities
+  builder — removed the bench-name prose injection, added per-trainer
+  `matching_trainers` attachment (reusing the same honesty rules as
+  `_match_trainers_for_demand`).
+- `tests/test_manager_priorities.py`: 1 new test.
+- `feature/report/ui/PrioritiesViewModel.kt`: new `PriorityMatchingTrainer`,
+  `PriorityItem.matchingTrainers`.
+- `feature/report/ui/PrioritiesScreen.kt`: `communicateHintFor`'s
+  `unstaffed_demand` branch now resolves a real plan.
+- `app/src/test/.../ScreenRenderTest.kt`: 1 new end-to-end test; the
+  existing TEAM-fallback test is unchanged and still passes.
+- Commit: `ab2b844` on `main` (local) / pushed to
+  `communication-intelligence-c1c2`.
+
+## 4. Test Baseline
+Backend: 370 passed (369 + 1 new), 0 regressions. Android: 275 unit tests
+(274 + 1 new), same 11 documented pre-existing failures, 0 new.
+`compileDebugKotlin`/`compileReleaseKotlin` clean.
+
+## 5. Next Recommended Actions
+1. Same review pass (real candidates, no utilisation-as-availability claims)
+   for `WeeklyMessage.kt`'s per-reportee logic and `HrMonthlyReportScreen`'s
+   local fallback template.
+2. Multi-candidate picker (still not built — both Today and Priorities
+   currently address only the first resolved candidate when several are
+   equally eligible).
+3. C5/C6: `MessageTransport` abstraction, rebuild Viber Automation into the
+   Communication Dispatch Centre.
+4. Not pushed to `main`, not released.
