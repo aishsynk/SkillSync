@@ -123,9 +123,12 @@ fun composeTeamMessage(
                 )
             }
             body.append(". ")
-            if (signals.free > 0) {
-                body.append("${count(signals.free, "of you is", "of you are")} available. ")
-            }
+            // Deliberately does NOT say "N of you are available" — TeamSignals.free
+            // is an aggregate headcount, not a per-person verified fact, and a
+            // team broadcast must never assert who is available from a raw
+            // count (see CommunicationPlanner.kt for the individual-recipient
+            // path this should use once real candidates are known). The team
+            // is asked to confirm, not told they have already been counted.
             body.append(
                 bold("Please check the demand board and confirm your availability to me by ${nextAvailabilityDeadline(today)}.", style)
             )

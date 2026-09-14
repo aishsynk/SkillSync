@@ -208,6 +208,27 @@ class WeeklyMessageTest {
         assertEquals(a, b)
     }
 
+    // ── Semantic correctness (Communication Intelligence rebuild, Phase C3) ──
+
+    /**
+     * The exact regression this test guards against: TeamSignals.free is an
+     * aggregate headcount with no per-person verification behind it. A team
+     * broadcast must ask people to confirm availability, never assert a count
+     * of "N of you are available" — that was the literal bad example the
+     * rebuild started from ("There are 5 open batches... and 2 of us are free").
+     */
+    @Test
+    fun unallocatedDemandMessage_neverClaimsAnAggregateFreeHeadcount() {
+        val msg = composeTeamMessage(
+            TeamSignals(strength = 10, deployed = 7, free = 3, utilisation = 76, unallocated = 5),
+            MessageStyle.PLAIN, monday,
+        )
+        assertFalse(msg.contains(Regex("""\d+\s+of (us|you)\s+(is|are)""")))
+        assertFalse(msg.contains("free"))
+        // It must still ask the team to act — honesty is not the same as silence.
+        assertTrue(msg.contains("confirm your availability"))
+    }
+
     // ── Closing emphasis ────────────────────────────────────────────────────
 
     @Test
