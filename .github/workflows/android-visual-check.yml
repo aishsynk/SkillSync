@@ -1,9 +1,15 @@
 name: Design V2 Visual Validation
 
-# Isolated diagnostic/checkpoint workflow — proves whether Robolectric's
-# captureToImage() pixel capture works on a Linux runner (it hangs locally on
-# Windows in WindowCapture/forceRedraw/PixelCopy). Deliberately separate from
-# android-release.yml: no signing, no version bump, no tag, no GitHub Release.
+# Isolated diagnostic/checkpoint workflow for the D2 visual checkpoint.
+# Deliberately separate from android-release.yml: no signing, no version
+# bump, no tag, no GitHub Release.
+#
+# History: PilotScreenshotTest (JVM/Robolectric, captureToImage) deadlocks in
+# WindowCapture.forceRedraw/PixelCopy on both Windows (local) and an
+# ubuntu-latest runner (confirmed via this same workflow) — so Robolectric
+# pixel capture is not usable for this checkpoint regardless of OS. This job
+# instead runs PilotScreenshotInstrumentedTest on a real emulator, where the
+# same captureToImage() call renders through the actual Android framework.
 on:
   push:
     branches:
@@ -20,7 +26,7 @@ concurrency:
 jobs:
   screenshot-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     defaults:
       run:
@@ -39,8 +45,24 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Run PilotScreenshotTest
-        run: ./gradlew :app:testDebugUnitTest --tests "com.example.skillsync.ui.PilotScreenshotTest" --console=plain
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run PilotScreenshotInstrumentedTest on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          working-directory: ./SkillEdge_Android
+          script: |
+            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.skillsync.ui.PilotScreenshotInstrumentedTest --console=plain
+            mkdir -p app/build/reports/pilot-screenshots
+            adb pull /storage/emulated/0/Android/data/com.example.skillsync/files/pilot-screenshots/. app/build/reports/pilot-screenshots/ || true
 
       - name: Upload screenshots
         if: always()
@@ -55,5 +77,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: design-v2-pilot-screenshot-test-report
-          path: SkillEdge_Android/app/build/reports/tests/testDebugUnitTest/
+          path: SkillEdge_Android/app/build/reports/androidTests/connected/
           if-no-files-found: warn
