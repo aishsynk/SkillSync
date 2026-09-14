@@ -1,5 +1,6 @@
 package com.example.skillsync.feature.home
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,15 +13,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,13 +37,14 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Today — the Command Centre. Design V2: dark glass system, comparison-to-
- * baseline KPIs, a capacity balance readout, and a severity-ranked attention
- * queue. Every figure below is read from `kpis` / `demand` / `batches` /
- * `actions` as delivered by the backend — nothing here is a placeholder or an
- * invented trend. Where the backend has no baseline for a figure (e.g.
- * `readiness_trend` is deliberately blank when no history exists) the delta
- * is simply omitted rather than fabricated.
+ * Today — the Command Centre. Design V2: dark glass system, a readiness hero,
+ * an icon pulse grid, comparison-to-baseline KPIs, an honest availability
+ * breakdown (leave/commitments, never inferred from utilisation), demand and
+ * delivery summaries, a severity-ranked attention queue, top performers, and
+ * an operations grid to every executive console the manager already has.
+ * Every figure is read from `kpis` / `demand` / `batches` / `capTrainers` /
+ * `calendarReadiness` as delivered by the backend — nothing here is a
+ * placeholder or an invented trend; a missing figure is omitted, not guessed.
  *
  * Rendered as a single item inside the caller's own `LazyColumn` (`MainScreen`)
  * — this stays a plain, non-scrolling `Column` so it never nests one scrolling
@@ -96,6 +101,8 @@ fun ManagerCommandCentre(
     val readinessTrend = kpis?.str("readiness_trend")?.takeIf { it.isNotBlank() }
     val utilisation = kpis?.intOrNull("avg_team_utilization")
     val utilisationTrend = kpis?.str("utilization_trend")?.takeIf { it.isNotBlank() }
+    val teamStrength = kpis?.intOrNull("total_team_members") ?: ops.size
+    val activeTrainers = kpis?.intOrNull("active_trainers")
     val openDemand = kpis?.intOrNull("open_demand") ?: demand.size
     val atRisk = kpis?.intOrNull("high_risk_trainers") ?: kpis?.intOrNull("delivery_risk_count") ?: 0
     val bench = kpis?.intOrNull("bench_trainers") ?: 0
@@ -103,9 +110,37 @@ fun ManagerCommandCentre(
     val stretched = kpis?.intOrNull("stretched_trainers") ?: 0
     val capacityTotal = (bench + optimal + stretched).coerceAtLeast(1)
     val certCoverage = kpis?.intOrNull("cert_coverage_pct")
+    val internationalBatches = kpis?.intOrNull("international_batches") ?: 0
 
     val unallocatedDemand = demand.filter { it.str("trainer_name").isBlank() }
     val activeBatches = batches.filter { it.str("engagement_state") == "active" }
+    val upcomingBatches = batches.filter { it.str("engagement_state") == "upcoming" }
+
+    // Honest availability — from RMS-verified leave/commitment days
+    // (`/api/v2/team/readiness`), never inferred from utilisation. A trainer
+    // with no entry is unverified, not assumed clear.
+    val rosterEmails = remember(ops) {
+        ops.mapNotNull { it.str("official_email").takeIf(String::isNotBlank) }.distinct()
+    }
+    val onLeaveCount = rosterEmails.count { (calendarReadiness[it]?.get("leave_days") as? Number)?.toInt() ?: 0 > 0 }
+    val committedCount = rosterEmails.count { e ->
+        val row = calendarReadiness[e]
+        val leave = (row?.get("leave_days") as? Number)?.toInt() ?: 0
+        val confirmed = (row?.get("confirmed_days") as? Number)?.toInt() ?: 0
+        leave == 0 && confirmed > 0
+    }
+    val checkedCount = rosterEmails.count { calendarReadiness.containsKey(it) }
+    val clearCount = (checkedCount - onLeaveCount - committedCount).coerceAtLeast(0)
+
+    val topPerformers = remember(capTrainers) {
+        capTrainers
+            .mapNotNull { t ->
+                val util = t.intOrNull("utilization") ?: return@mapNotNull null
+                Triple(t.str("trainer_name").ifBlank { return@mapNotNull null }, util, t.str("readiness_bucket"))
+            }
+            .sortedByDescending { it.second }
+            .take(3)
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -120,55 +155,59 @@ fun ManagerCommandCentre(
             onOpenNotifications = onOpenNotifications,
         )
 
-        // Managers who also deliver (assistant managers, trainer-plus) get the
-        // same "where am I on the calendar" entry point a trainer has — reached
-        // here instead of only buried in the profile menu, since on a day he is
-        // teaching that fact belongs on Today, not one tap further away.
         SkillSyncListItem(
             title = "Your schedule",
             subtitle = "Your own deliveries and off-bands, same as any trainer's",
             onClick = onOpenMySchedule,
         )
 
+        // ── Hero: team readiness ring ────────────────────────────────────────
+        SkillCard(modifier = Modifier.fillMaxWidth().pressable(onOpenPriorities)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("TEAM READINESS", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+                    Text(
+                        readiness?.toString() ?: "—",
+                        style = MaterialTheme.typography.displaySmall,
+                        color = sk.frost,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    if (readinessTrend != null) {
+                        Text(readinessTrend, style = MaterialTheme.typography.labelMedium, color = deltaTone(readinessTrend, sk) ?: sk.subText)
+                    }
+                    Spacer(Modifier.height(Space.xs))
+                    Text(
+                        listOfNotNull(
+                            activeTrainers?.let { "$it of $teamStrength deployed" },
+                            utilisation?.let { "utilisation $it%" },
+                            if (openDemand > 0) "$openDemand demand${if (openDemand == 1) "" else "s"} unallocated" else null,
+                        ).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = sk.subText,
+                    )
+                }
+                ReadinessRing(value = readiness, modifier = Modifier.size(72.dp))
+            }
+        }
+
+        // ── Pulse: icon grid ─────────────────────────────────────────────────
         Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-            SectionHeading("This week vs. last", trailing = if (fromCache) "cached" else "live")
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Space.sm),
-            ) {
-                ComparisonStat(
-                    label = "Readiness",
-                    value = readiness?.toString() ?: "—",
-                    delta = readinessTrend,
-                    modifier = Modifier.weight(1f),
-                    onClick = onOpenPriorities,
-                )
-                ComparisonStat(
-                    label = "Utilisation",
-                    value = utilisation?.let { "$it%" } ?: "—",
-                    delta = utilisationTrend,
-                    modifier = Modifier.weight(1f),
-                    onClick = onOpenCapacityRunway,
+            SectionHeading("Pulse", trailing = if (fromCache) "cached" else "live")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                PulseTile("👥", "Strength", teamStrength.toString(), Modifier.weight(1f))
+                PulseTile(
+                    "⚡", "Utilisation", utilisation?.let { "$it%" } ?: "—", Modifier.weight(1f),
+                    delta = utilisationTrend, onClick = onOpenCapacityRunway,
                 )
             }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Space.sm),
-            ) {
-                ComparisonStat(
-                    label = "Open demand",
-                    value = openDemand.toString(),
-                    delta = null,
-                    modifier = Modifier.weight(1f),
-                    onClick = onOpenDemand,
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                PulseTile(
+                    "🛡️", "Cert coverage", certCoverage?.let { "$it%" } ?: "—", Modifier.weight(1f),
+                    tint = if ((certCoverage ?: 100) < 60) sk.warn else null, onClick = onOpenPriorities,
                 )
-                ComparisonStat(
-                    label = "At risk",
-                    value = atRisk.toString(),
-                    delta = null,
-                    severity = if (atRisk > 0) Severity.Critical else Severity.Good,
-                    modifier = Modifier.weight(1f),
-                    onClick = onOpenPriorities,
+                PulseTile(
+                    "⚠️", "At risk", atRisk.toString(), Modifier.weight(1f),
+                    tint = if (atRisk > 0) sk.crit else sk.good, onClick = onOpenPriorities,
                 )
             }
         }
@@ -183,6 +222,51 @@ fun ManagerCommandCentre(
                         LegendDot(sk.sky, "Optimal $optimal")
                         LegendDot(sk.crit, "Stretched $stretched")
                     }
+                }
+            }
+        }
+
+        // ── Who is actually free — honest, from verified leave/commitment days ──
+        if (checkedCount > 0) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                SectionHeading(
+                    "Who is actually free",
+                    conclusion = "$onLeaveCount on leave in the next 90 days, $clearCount with nothing booked.",
+                )
+                SkillCard(modifier = Modifier.fillMaxWidth().pressable(onOpenDelivery)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        MiniStat("Clear", clearCount.toString(), sk.good)
+                        MiniStat("Committed", committedCount.toString(), sk.sky)
+                        MiniStat("On leave", onLeaveCount.toString(), sk.warn)
+                    }
+                    Text(
+                        "From approved leave and confirmed bookings in RMS, not from utilisation.",
+                        style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                    )
+                }
+            }
+        }
+
+        // ── Demand summary ───────────────────────────────────────────────────
+        Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+            SectionHeading(
+                "Demand",
+                conclusion = "${unallocatedDemand.size} unallocated batch${if (unallocatedDemand.size == 1) "" else "es"}" +
+                    (if (internationalBatches > 0) ", $internationalBatches international." else ", none international."),
+            )
+            SkillCard(modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    MiniStat("Unallocated", unallocatedDemand.size.toString(), sk.crit)
+                    MiniStat("International", internationalBatches.toString(), sk.indigo)
+                    MiniStat("Active", activeBatches.size.toString(), sk.good)
+                    MiniStat("Upcoming", upcomingBatches.size.toString(), sk.sky)
+                }
+                if (unallocatedDemand.isNotEmpty()) {
+                    SkillSyncPrimaryButton(
+                        text = "Allocate ${unallocatedDemand.size} open batch${if (unallocatedDemand.size == 1) "" else "es"}",
+                        onClick = onOpenDemand,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
         }
@@ -268,8 +352,16 @@ fun ManagerCommandCentre(
             }
         }
 
+        // ── Delivery schedule ────────────────────────────────────────────────
         Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-            SectionHeading("Today's operations")
+            SectionHeading("Delivery schedule", trailing = "Full calendar →")
+            SkillCard(modifier = Modifier.fillMaxWidth().pressable(onOpenDelivery)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    MiniStat("Delivering", activeBatches.size.toString(), sk.good)
+                    MiniStat("Upcoming", upcomingBatches.size.toString(), sk.sky)
+                    MiniStat("On leave", onLeaveCount.toString(), sk.warn)
+                }
+            }
             if (activeBatches.isEmpty()) {
                 StateNote("No active deliveries right now.")
             } else {
@@ -297,6 +389,53 @@ fun ManagerCommandCentre(
                         Text("$certCoverage%", style = MaterialTheme.typography.titleMedium, color = sk.cyan, fontWeight = FontWeight.Bold)
                     }
                     ProgressTrack(fraction = certCoverage.coerceIn(0, 100) / 100f, tint = sk.cyan)
+                }
+            }
+        }
+
+        // ── Top performers ───────────────────────────────────────────────────
+        if (topPerformers.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                SectionHeading("Top performers", conclusion = "Carrying delivery, ranked by measured utilisation.")
+                SkillCard(modifier = Modifier.fillMaxWidth(), padding = Space.sm) {
+                    topPerformers.forEachIndexed { i, (trainerName, util, bucket) ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { onTrainerClick(email, trainerName) }.padding(Space.sm),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = sk.subText, modifier = Modifier.width(20.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(trainerName, style = MaterialTheme.typography.titleSmall, color = sk.frost)
+                                if (bucket.isNotBlank()) Text(bucket, style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                            }
+                            Text("$util%", style = MaterialTheme.typography.titleMedium, color = sk.cyan, fontWeight = FontWeight.Bold)
+                        }
+                        if (i < topPerformers.lastIndex) HorizontalDivider(color = sk.cardBorder, thickness = 1.dp)
+                    }
+                }
+            }
+        }
+
+        // ── Operations — every executive console, one tap away ──────────────
+        Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+            SectionHeading("Operations")
+            val ops2 = listOf(
+                Triple("This week", "Priorities, ranked", onOpenPriorities),
+                Triple("Pipeline radar", "Signed demand incoming", onOpenPipelineRadar),
+                Triple("Delivery compliance", "Recording & audit", onOpenDeliveryCompliance),
+                Triple("HR monthly review", "Trainer index breakdown", onOpenHrReport),
+                Triple("Capacity runway", "8-week demand gap", onOpenCapacityRunway),
+                Triple("Accounts book", "Client concentration", onOpenAccounts),
+                Triple("Team copilot", "Ask about your team", onOpenCopilot),
+                Triple("Viber automation", "Auto-dispatch queue", onOpenViberAutomation),
+                Triple("Skill requests", "Reportee-level requests", onOpenSkillRequests),
+            )
+            for (row in ops2.chunked(2)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                    row.forEach { (title, subtitle, onClick) ->
+                        OperationTile(title, subtitle, Modifier.weight(1f), onClick)
+                    }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
@@ -359,6 +498,76 @@ private fun CommandHeader(
                 }
             }
         }
+    }
+}
+
+/** A radial progress ring for team readiness — drawn on Canvas, not a Box bar,
+ * since this is the single hero number on the page and earns the extra care. */
+@Composable
+private fun ReadinessRing(value: Int?, modifier: Modifier = Modifier) {
+    val sk = MaterialTheme.skill
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val stroke = Stroke(width = size.minDimension * 0.12f, cap = StrokeCap.Round)
+            drawArc(
+                color = sk.surface3,
+                startAngle = -90f, sweepAngle = 360f, useCenter = false,
+                style = stroke, size = Size(size.width - stroke.width, size.height - stroke.width),
+                topLeft = androidx.compose.ui.geometry.Offset(stroke.width / 2, stroke.width / 2),
+            )
+            if (value != null) {
+                drawArc(
+                    brush = Brush.linearGradient(listOf(sk.azure, sk.cyan)),
+                    startAngle = -90f, sweepAngle = 360f * (value.coerceIn(0, 100) / 100f), useCenter = false,
+                    style = stroke, size = Size(size.width - stroke.width, size.height - stroke.width),
+                    topLeft = androidx.compose.ui.geometry.Offset(stroke.width / 2, stroke.width / 2),
+                )
+            }
+        }
+        Text(
+            value?.toString() ?: "—",
+            style = MaterialTheme.typography.titleMedium,
+            color = sk.frost,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+@Composable
+private fun PulseTile(
+    glyph: String,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    delta: String? = null,
+    tint: Color? = null,
+    onClick: () -> Unit = {},
+) {
+    val sk = MaterialTheme.skill
+    SkillCard(modifier = modifier.pressable(onClick), padding = Space.md) {
+        Text(glyph, style = MaterialTheme.typography.titleMedium)
+        Text(value, style = MaterialTheme.typography.headlineSmall, color = tint ?: sk.frost, fontWeight = FontWeight.Bold)
+        Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+        if (delta != null) {
+            Text(delta, style = MaterialTheme.typography.labelSmall, color = deltaTone(delta, sk) ?: sk.subText)
+        }
+    }
+}
+
+@Composable
+private fun MiniStat(label: String, value: String, tint: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleMedium, color = tint, fontWeight = FontWeight.Bold)
+        Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.labelText)
+    }
+}
+
+@Composable
+private fun OperationTile(title: String, subtitle: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val sk = MaterialTheme.skill
+    SkillCard(modifier = modifier.pressable(onClick), padding = Space.md) {
+        Text(title, style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Text(subtitle, style = MaterialTheme.typography.labelSmall, color = sk.subText, maxLines = 1)
     }
 }
 

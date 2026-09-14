@@ -522,7 +522,10 @@ class ScreenRenderTest {
         }
         compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Trainer"))
         compose.onNodeWithText("Trainer").performClick()
-        compose.onNodeWithText("Abhinav Samant").performClick()
+        // "Abhinav Samant" now also appears in the Top Performers row (Today's
+        // richer dashboard) — the picker's own row is the one added last, in
+        // the sheet that just opened.
+        compose.onAllNodesWithText("Abhinav Samant").onLast().performClick()
         org.junit.Assert.assertEquals(
             listOf("INDIVIDUAL", "Abhinav Samant", "GENERAL_PROFESSIONAL", "", ""), captured,
         )
