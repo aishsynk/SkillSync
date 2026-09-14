@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.core.data.RepositoryResult
 import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.core.storage.LocalCache
 import kotlinx.coroutines.delay
@@ -58,6 +59,15 @@ sealed class RunwayState {
  */
 class CapacityRunwayViewModel(
     private val repository: ManagerRepository = ManagerRepository(),
+    /**
+     * See the identical seam on [PrioritiesViewModel] — same reasoning: the
+     * default is the exact production call, tests inject a deterministic
+     * instant lambda so the real network is never attempted.
+     */
+    private val fetchRunway: suspend (String, Boolean) -> RepositoryResult<Map<String, Any>> =
+        { email, fresh -> repository.capacityRunway(email, fresh) },
+    private val maxPollAttempts: Int = 10,
+    private val pollDelayMs: Long = 3_000,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<RunwayState>(RunwayState.Loading)
@@ -102,12 +112,12 @@ class CapacityRunwayViewModel(
                 return@launch
             }
             try {
-                var data: Map<String, Any>? = repository.capacityRunway(email).data
-                repeat(10) {
+                var data: Map<String, Any>? = fetchRunway(email, false).data
+                repeat(maxPollAttempts) {
                     val d = data
                     if (d != null && d["loading"] != true) return@repeat
-                    delay(3_000)
-                    data = repository.capacityRunway(email).data ?: data
+                    delay(pollDelayMs)
+                    data = fetchRunway(email, false).data ?: data
                 }
                 val ready = data
                 when {

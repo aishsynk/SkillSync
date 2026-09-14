@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.core.data.RepositoryResult
 import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.core.storage.LocalCache
 import kotlinx.coroutines.delay
@@ -48,6 +49,23 @@ sealed class PrioritiesState {
  */
 class PrioritiesViewModel(
     private val repository: ManagerRepository = ManagerRepository(),
+    /**
+     * The two network calls this view model makes, behind small injectable
+     * seams. Production callers never pass these — the defaults are the exact
+     * same [repository] calls that ran before this parameter existed, so
+     * production behaviour is unchanged byte-for-byte. Tests (Compose/
+     * Robolectric screenshot capture in particular) inject a deterministic,
+     * instant lambda instead, so the real network is never attempted and the
+     * poll loop below sees `loading = false` on its first check — no
+     * `delay()`, no long-running coroutine for Compose idling to wait on.
+     */
+    private val fetchPriorities: suspend (String, Boolean) -> RepositoryResult<Map<String, Any>> =
+        { email, fresh -> repository.priorities(email, fresh) },
+    private val fetchAllocation: suspend (String, Boolean) -> RepositoryResult<Map<String, Any>> =
+        { email, fresh -> repository.allocation(email, fresh) },
+    /** Poll knobs, same reasoning — production keeps today's 10x/3s values. */
+    private val maxPollAttempts: Int = 10,
+    private val pollDelayMs: Long = 3_000,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<PrioritiesState>(PrioritiesState.Loading)
@@ -99,7 +117,7 @@ class PrioritiesViewModel(
 
         viewModelScope.launch {
             try {
-                val result = repository.allocation(email, fresh)
+                val result = fetchAllocation(email, fresh)
                 val data = result.data
                 // ManagerRepository.allocation caches under "allocation_$email" and
                 // returns either "batches" or "unallocated_demand_df" — accept both.
@@ -169,12 +187,12 @@ class PrioritiesViewModel(
                 return@launch
             }
             try {
-                var data: Map<String, Any>? = repository.priorities(email).data
-                repeat(10) {
+                var data: Map<String, Any>? = fetchPriorities(email, false).data
+                repeat(maxPollAttempts) {
                     val d = data
                     if (d != null && d["loading"] != true) return@repeat
-                    delay(3_000)
-                    data = repository.priorities(email).data ?: data
+                    delay(pollDelayMs)
+                    data = fetchPriorities(email, false).data ?: data
                 }
                 val ready = data
                 when {
