@@ -348,6 +348,159 @@ not pushed**. Human-in-the-loop only: the app never posts, reacts, or comments o
   dashboard_* spec gaps; 4 `PilotScreenshotTest` Compose timeouts.
 - Lint baseline: 6 errors / 79 warnings / 3 hints (all pre-existing, unchanged).
 
+---
+
+# Session Handover Summary — Today Design V2 recovery, D2 screenshot infra, structural audit, P0+P1 hardening, remote validation
+
+- **Date and Time:** 2026-09-14 (session continuation)
+- **Model Used:** Claude Sonnet 5
+- **Tool/Agent Used:** Claude Code
+
+## 1. What was completed this session (chronological)
+
+1. **D2 screenshot testability fix**: `PrioritiesViewModel`/`CapacityRunwayViewModel` gained
+   injectable `fetch*`/poll-cadence constructor params (defaulting to exact prior production
+   behavior) so Compose/Robolectric tests can inject deterministic data instead of hitting the
+   real network, which was deadlocking under Robolectric.
+2. **Robolectric `captureToImage()` proven unusable**: confirmed via a dedicated CI workflow
+   (`.github/workflows/android-visual-check.yml`, branch `design-v2-visual-check`) that
+   `captureToImage()` deadlocks in `WindowCapture.forceRedraw`/`PixelCopy` on **both** Windows
+   (local) and an `ubuntu-latest` runner — an environment limitation, not fixable by more
+   Robolectric config. **Do not return to this path.**
+3. **Real-emulator screenshot pipeline established** (the one to keep using):
+   `PilotScreenshotInstrumentedTest` (androidTest, real Android framework via
+   `createAndroidComposeRule`) + `reactivecircus/android-emulator-runner` (API 34, `google_apis`,
+   x86_64, `pixel_6`) + Android Test Orchestrator/Test Storage (`app/build.gradle.kts`
+   `testOptions.execution = "ANDROIDX_TEST_ORCHESTRATOR"` + `androidx.test.services:storage`) so
+   output PNGs are copied off the device before Gradle uninstalls the app-under-test (a plain
+   `adb pull` afterwards races that uninstall and fails).
+4. **Today screen redesign** (`ManagerCommandCentre.kt`): compared against the pre-V2
+   implementation (commit `411bbf1`, 1632 lines vs. current ~660) to find what richness was lost.
+   Fixed a real production bug (`activeBatches` filtered `engagement_state == "active"`, but the
+   backend only ever emits `"current"` — this zeroed the delivery feed silently). Reordered "Needs
+   you today" to lead (before Pulse, after the hero). Replaced emoji glyphs with real vector icons
+   (`IconSlot` + `ic_people`/`ic_trend`/`ic_certificate`/`ic_alert`). Rebuilt "Delivery outlook" on
+   `TimelineItem` (chronological feed) instead of a flat list. Added `Avatar` identity to Top
+   Performers. Regrouped Operations into Planning/Delivery/People/Automation clusters with icons.
+5. **Full structural/API-contract audit** (4 parallel research passes) across Today's entire
+   navigation graph, backend.py structure, Android project structure, magic-string/API-contract
+   risk, data-fabrication risk, polling patterns, and Communication call sites. Found and fixed as
+   **P0** (commit `9500bc4`): Top Performers → Trainer360 opened the wrong person (manager's own
+   email instead of the tapped trainer's); `DrillSheet`'s "Send Message" button was a no-op that
+   never sent anything; `DeliveryComplianceScreen` defaulted a missing compliance rate to 100%
+   ("fully compliant" instead of unknown); `MyScheduleViewModel` silently swallowed fetch
+   exceptions, rendering a real failure as a false empty schedule.
+6. **P1 architecture hardening** (commit `f214c37`): added `ScheduleRepository` and
+   `SkillRequestsRepository` (small, domain-specific — not one more method on the already-large
+   `ManagerRepository`) so `MyScheduleViewModel`/`SkillRequestsViewModel` no longer call
+   `RetrofitClient.instance` directly. Added a typed `CapacityBand` enum
+   (`feature/home/TeamTab.kt`, next to `ReadinessBand`/`RiskBand`) covering every canonical
+   `capacity_bucket` value from both backend producers (dashboard path: Unknown/Stretched/
+   Balanced/Light/On Bench; reportee-snapshot path: Stretched/Delivering/On Bench/Steady) — an
+   unrecognized value now maps to `UNKNOWN`, and `UNKNOWN` is explicitly routed to `Severity.Watch`
+   (never `Good`) in `TeamMemberCard.kt`/`WeeklyReportScreen.kt`. Removed a confirmed-dead literal
+   set in `Trainer360Screen.kt` (checked against every backend producer of that field — verified
+   dead, not guessed). Added 12 new focused tests.
+7. **Caught and fixed my own mistake**: the P0 commit's `MainScreen.kt` staging was file-level, not
+   hunk-level, and accidentally swept in two unrelated, uncommitted rebrand lines (`SkillSyncLogo`
+   → `InTouchLogo`) that happened to be sitting in the same file. `InTouchLogo` was never committed
+   anywhere, so a clean CI checkout failed to compile. Fixed with a forward commit (`de6b363`) that
+   reverts just those two lines — **no branding/logo/icon work is authorized for this project**,
+   confirmed explicitly by the operator this session; the actual rebrand work remains untouched and
+   uncommitted in the working tree, exactly as it was.
+8. **Remote validation**: pushed committed HEAD only (never `git add .`/`-A`) to a dedicated branch
+   `skilledge-p1-validation`, with an isolated CI workflow
+   (`.github/workflows/android-p1-validation.yml` — compile, focused P1 tests, full suite diffed
+   against the exact known-failure baseline by test name, real-emulator instrumented run, debug
+   APK artifact). **Passed clean**: compile ✅, focused tests ✅, full suite 266 tests / 11 known
+   failures / 0 new / 0 resolved, emulator 4/4, Today screenshots pixel-identical to pre-P1
+   baseline (expected — P1 touched no rendered UI), debug APK built and uploaded as an artifact
+   (not released).
+
+## 2. Current Status
+**D3 APPROVED, not yet started.** P0 and P1 are both complete and remotely validated. Neither is
+merged to `main` and neither has been released — this was deliberately kept as isolated
+validation-branch work per explicit instruction, since `android-release.yml` triggers a real
+GitHub Release on any push to `main`. The operator has not yet chosen between: (A) merge P0+P1 to
+`main` and cut a release now, or (B) proceed to D3 (Pipeline Radar → Delivery Ops → Skill Requests
+→ Live Sentinel) on a development branch and release the larger completed batch later. **Do not
+assume either — ask, or check for a newer instruction, before merging/releasing.**
+
+## 3. Branches / Commits
+- `main` (local): HEAD `de6b363` — **not pushed to origin/main**. Contains, in order:
+  `1191c6f`/`53a3ef6` (Today redesign + screenshot scroll captures), `1ebfd7d`/`7819a66`/`019a9e9`
+  (screenshot infra debugging, superseded by the emulator approach), `9500bc4` (P0), `874ab48`
+  (P1 validation workflow), `f214c37` (P1), `de6b363` (rebrand-line revert fix).
+- `origin/design-v2-visual-check`: the screenshot-infrastructure proving branch (Robolectric
+  failure demo + working emulator pipeline). Historical/diagnostic — not meant to be merged as-is.
+- `origin/skilledge-p1-validation`: HEAD `de6b363` — the exact validated P0+P1 state, CI-green.
+  This is the candidate to merge/release from once the operator decides A vs. B above.
+- `android-release.yml` was **never modified or triggered** this session.
+
+## 4. Files Modified This Session (P0 + P1 scope only — Today redesign files listed separately above)
+- P0 (`9500bc4` + fix `de6b363`): `feature/home/ManagerCommandCentre.kt`,
+  `feature/home/MainScreen.kt`, `feature/report/ui/DeliveryComplianceScreen.kt`,
+  `feature/training/ui/MyScheduleScreen.kt`.
+- P1 (`f214c37`): new `core/data/ScheduleRepository.kt`, new `core/data/SkillRequestsRepository.kt`,
+  `feature/report/ui/SkillRequestsViewModel.kt`, `feature/home/TeamTab.kt` (new `CapacityBand`
+  enum), `feature/home/TeamMemberCard.kt`, `feature/report/ui/WeeklyReportScreen.kt`,
+  `feature/training/ui/Trainer360Screen.kt` (dead-code removal), plus 3 new test files
+  (`SkillRequestsViewModelTest.kt`, `MyScheduleViewModelTest.kt`, `CapacityBandTest.kt`).
+- CI: new `.github/workflows/android-visual-check.yml` (diagnostic, `design-v2-visual-check`
+  branch only) and `.github/workflows/android-p1-validation.yml` (`skilledge-p1-validation`
+  branch only). Neither touches `android-release.yml`.
+- **Deliberately untouched, still uncommitted in the working tree** (confirmed unrelated,
+  pre-existing before this session): app-icon/rebrand assets (`ic_launcher*`, `Branding.kt`'s
+  `InTouchLogo`), LinkedIn-related `build.gradle.kts` changes, `LocalNotificationService.kt`,
+  `MonitoringService.kt`, `NotificationEngine.kt`, `LoginScreen.kt`, `CopilotChatSheet.kt`,
+  `TrainerReport.kt`, `SkillSyncDesignCatalog.kt`, `NotifyAndLoginTest.kt`, and the untracked
+  `fix*.py`/`*.ps1` scratch scripts at the repo root. **No branding/icon/package/signing work is
+  authorized for this project — do not infer it from any of these files.**
+
+## 5. Test Baseline (current, exact)
+266 unit tests, 11 known failures, 0 new:
+- `ScreenRenderTest`: `dashboard_certKpisAreNotZeroBeforeCapabilityLoads`,
+  `dashboard_identifiesTheSignedInManager`, `dashboard_isAManagerCommandCentreNotCriticalPulse`,
+  `dashboard_showsRealAvailabilitySeparatelyFromWorkloadBands`,
+  `dashboard_attentionCardsCarryTheirRecommendedAction`,
+  `dashboard_showsDeliveryAndCapacityDecisions`,
+  `dashboard_usesCompactSemanticKpisAndRestoresTopPerformers` — all reference a removed
+  pre-V2 "Explore the detail" panel / a superseded literal string / a superseded design
+  decision (see the P1 report in conversation for the per-test disposition). One test
+  (`dashboard_followsTheBriefingOrder`) that was failing for a **real** reason (wrong section
+  order) was fixed this session, not just documented.
+- `PilotScreenshotTest` (JVM/Robolectric): `today_screenshot`, `thisWeek_populated_screenshot`,
+  `capacityRunway_screenshot`, `thisWeek_empty_screenshot` — environment limitation
+  (`captureToImage()` deadlock), not a code defect. Use `PilotScreenshotInstrumentedTest` on a
+  real emulator instead; it passes 4/4.
+- `compileDebugKotlin`, `compileReleaseKotlin`, `compileDebugAndroidTestKotlin`: all clean.
+
+## 6. Known Issues / Blockers
+- Operator decision pending: merge+release P0/P1 now, or hold for a larger D3 batch (see §2).
+- The unrelated in-progress work listed in §4 (rebrand, LinkedIn, notifications/login) remains
+  uncommitted and unreconciled — it predates this session and was intentionally not touched.
+- Two lower-priority P1 findings were documented but not fixed (by explicit scope): the
+  `feature/report/ui/` folder bundles 10 unrelated domains under one generic name (classified
+  NON-BLOCKING for D3); `SkillRequestsViewModel.resolve()`'s approve/deny still passes raw
+  strings (verified they match backend exactly, so not a live bug, just not typed).
+
+## 7. Next Recommended Actions
+1. Get an explicit operator decision on merge/release (A) vs. hold-for-D3 (B) — do not assume.
+2. If B: start D3 in this order — Pipeline Radar → Delivery Ops → Skill Requests → Live Sentinel —
+   on a development branch, using Today as the **quality benchmark, not a layout template** (each
+   screen needs its own identity; see the D3 design rule recorded in `AI/DECISIONS.md`).
+3. Before any D3 screen is called done: real-emulator screenshots (not Robolectric), the same
+   audit discipline (repository boundary, typed contracts for business-significant states, no
+   fabricated data) that P0/P1 just established as the project's standard.
+4. If the operator ever wants the rebrand/LinkedIn/notification work reconciled, that is a
+   separate, explicit task — do not fold it into any SkillEdge Design V2 work unprompted.
+
+## 8. Release Record
+No release cut this session. `origin/skilledge-p1-validation` (`de6b363`) is CI-validated and
+release-ready whenever the operator authorizes it.
+
+---
+
 ## 7. Phase 6A backend reference (recap, read-only)
 
 `Personal\incipit\personal\Linkedin\` holds the implemented Phase 6A engine

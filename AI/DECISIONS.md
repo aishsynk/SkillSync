@@ -1,5 +1,70 @@
 # SkillEdge / Manager OS — Decisions
 
+## 2026-09-14 — Real-emulator screenshots are the only screenshot-validation path; Robolectric captureToImage is retired
+
+- **Decision:** all future visual/screenshot validation uses an instrumented test
+  (`createAndroidComposeRule`) run on a real Android emulator (`reactivecircus/android-emulator-
+  runner`, API 34/`google_apis`/x86_64/`pixel_6`) via Android Test Orchestrator + Test Storage.
+  Never use JVM/Robolectric `captureToImage()` for this project again.
+- **Why:** `captureToImage()` deadlocks in `WindowCapture.forceRedraw`/`PixelCopy` under
+  Robolectric — confirmed identically on Windows (local) and an `ubuntu-latest` CI runner. This
+  rules out an OS-specific cause; it is a Robolectric limitation, not something more config can
+  fix. A plain `adb pull` of the instrumented test's output afterwards also fails, because
+  Gradle uninstalls the app-under-test as soon as `connectedDebugAndroidTest` finishes — Test
+  Orchestrator/Test Storage copy files off the device before that uninstall.
+- **Impact:** `PilotScreenshotTest` (JVM) is kept only as a documented, permanently-failing
+  baseline (4 known failures) that proves the limitation; `PilotScreenshotInstrumentedTest`
+  (androidTest) is the real, passing pipeline. Any new screen wanting screenshot coverage should
+  extend the instrumented test, not the JVM one.
+
+## 2026-09-14 — Domain-specific repositories over one growing ManagerRepository
+
+- **Decision:** when a ViewModel is found bypassing the repository layer (calling
+  `RetrofitClient.instance` directly), fix it with a small, domain-specific repository
+  (`ScheduleRepository`, `SkillRequestsRepository`) — not another method appended to
+  `ManagerRepository`, which already owns most manager/team-intelligence domains.
+- **Why:** a personal schedule and a skill-request-approval workflow are not the same domain as
+  manager/team intelligence; growing one repository to own everything makes ownership illegible
+  and turns every future fix into "which method do I add to the big file."
+- **Convention:** these small repositories take `apiProvider: () -> SkillEdgeApi` as a
+  constructor default (same as `ManagerRepository`) and are `open class`/`open fun` specifically
+  so a unit test can fake them directly instead of implementing the ~80-method `SkillEdgeApi`
+  Retrofit interface for one or two calls.
+
+## 2026-09-14 — capacity_bucket is typed; UNKNOWN must never read as Good/healthy
+
+- **Decision:** `capacity_bucket` (two independent backend producers, seven possible values
+  between them: Unknown/Stretched/Balanced/Light/On Bench/Delivering/Steady) is mapped at
+  consumption points through a `CapacityBand` enum (`feature/home/TeamTab.kt`) rather than raw
+  string comparison. `CapacityBand.from(raw)` maps anything unrecognized to `UNKNOWN` — never to
+  a known, positive-looking state — and `UNKNOWN` is explicitly routed to `Severity.Watch`
+  (never `Severity.Good`) everywhere it drives a manager-facing severity color.
+- **Why:** the exact same root cause as the `engagement_state` "active" vs. "current" production
+  bug (a magic string mismatch) was found live in `TeamMemberCard.kt`/`WeeklyReportScreen.kt`,
+  where an unrecognized bucket silently fell through to "Good" — telling a manager a trainer's
+  load was fine when it was simply never measured. This is the project's now-established pattern
+  for any business-significant status field: verify canonical backend values from source, type
+  the ones that drive classification/color/filtering/navigation decisions, and always give
+  "unknown" its own explicit, honest treatment.
+- **Scope boundary:** this is not a mandate to type every backend string — only ones proven to
+  affect a manager decision. `delivery_mode` (free-form RMS text, never compared against a fixed
+  set) and `lifecycle_state` (self-consistent, Android-owned CRUD) were explicitly left as raw
+  strings after the same audit, because typing them would solve no real problem.
+
+## 2026-09-14 — D3 design rule: Today is the quality benchmark, not a layout template
+
+- **Decision:** when Pipeline Radar, Delivery Ops, Skill Requests, and Live Sentinel are built,
+  they inherit Today's Design V2 system (typography, semantic color, icons, motion, state
+  components — `heroSurface`/`accentGlass`/`ActionRow`/`TimelineItem`/`IconSlot`/`Avatar`/etc.)
+  but must each have their own information architecture and identity, not copy Today's section
+  layout. Today = executive command centre; This Week = action inbox; Capacity Runway =
+  planning/analytics; Pipeline Radar = future-demand intelligence; Delivery Ops =
+  scheduling/operations workspace; Skill Requests = request-decision workflow; Live Sentinel =
+  monitoring/compliance.
+- **Why:** the original Design V2 complaint this session started from was screens becoming "three
+  dark pages full of cards" — reusing components is correct, reusing layout is the same mistake
+  in a new coat of paint.
+
 ## 2026-09-14 - Phase 6B LinkedIn capture client: human-in-the-loop, metadata-only telemetry, no auto-posting
 
 - **Scope:** Android client consuming the Phase 6A engine (`POST /api/v1/captures/analyse`). The
