@@ -2,6 +2,12 @@ package com.example.skillsync.ui
 
 import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -16,6 +22,7 @@ import com.example.skillsync.feature.report.ui.CapacityRunwayScreen
 import com.example.skillsync.feature.report.ui.CapacityRunwayViewModel
 import com.example.skillsync.feature.report.ui.PrioritiesScreen
 import com.example.skillsync.feature.report.ui.PrioritiesViewModel
+import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.SkillSyncTheme
 import org.junit.Rule
 import org.junit.Test
@@ -106,14 +113,28 @@ class PilotScreenshotInstrumentedTest {
         LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
         compose.setContent {
             SkillSyncTheme {
-                DashboardTab(
-                    data = dashboardPayload(),
-                    profile = managerProfile(),
-                    capability = capabilityPayload(),
-                    capabilityLoading = false,
-                    email = "aishwar.c@koenig-solutions.com",
-                    onTrainerClick = { _, _ -> }, onOpenProfile = {}, onDrill = {},
-                )
+                // DashboardTab alone has no background — in production it always
+                // renders inside MainScreen's Box(AuroraBackground() + a
+                // transparent Scaffold). Rendering it bare (as this test did
+                // originally) leaves it on the raw white activity background,
+                // which made every light-on-dark Text (e.g. SectionHeading's
+                // "conclusion" line) invisible — a test-fixture gap, not a real
+                // app defect. Reproduce MainScreen's actual container here.
+                Box(Modifier.fillMaxSize()) {
+                    AuroraBackground()
+                    Scaffold(containerColor = Color.Transparent) { padding ->
+                        Box(Modifier.padding(padding)) {
+                            DashboardTab(
+                                data = dashboardPayload(),
+                                profile = managerProfile(),
+                                capability = capabilityPayload(),
+                                capabilityLoading = false,
+                                email = "aishwar.c@koenig-solutions.com",
+                                onTrainerClick = { _, _ -> }, onOpenProfile = {}, onDrill = {},
+                            )
+                        }
+                    }
+                }
             }
         }
         compose.waitForIdle()
