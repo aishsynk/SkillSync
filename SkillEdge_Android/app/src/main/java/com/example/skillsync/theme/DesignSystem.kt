@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,8 +18,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -28,8 +32,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -131,6 +142,114 @@ fun Figure(
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
+    }
+}
+
+// ── Metric family ─────────────────────────────────────────────────────────
+//
+// [Figure] already covers "a value, a label, an optional delta." These cover
+// the rest of the metric vocabulary a screen actually needs — a sparkline, a
+// bounded progress fill, a radial hero ring — as small, composable primitives
+// rather than one configurable MetricCard with a growing parameter list.
+
+/**
+ * A trend line for a real time series only. Renders nothing (not a flat/fake
+ * line) when [values] has fewer than 2 points — a single reading or an empty
+ * series is not a trend, and drawing one would manufacture history that was
+ * never measured. [values] should already be in chronological order.
+ */
+@Composable
+fun MetricSparkline(
+    values: List<Float>,
+    modifier: Modifier = Modifier,
+    tint: Color? = null,
+) {
+    val sk = MaterialTheme.skill
+    val color = tint ?: sk.cyan
+    if (values.size < 2) return
+    val min = values.min()
+    val max = values.max()
+    val span = (max - min).takeIf { it > 0f } ?: 1f
+    Canvas(
+        modifier
+            .semantics { contentDescription = "Trend: ${values.first().toInt()} to ${values.last().toInt()}" },
+    ) {
+        val stepX = size.width / (values.size - 1)
+        val points = values.mapIndexed { i, v ->
+            Offset(i * stepX, size.height - ((v - min) / span) * size.height)
+        }
+        for (i in 0 until points.lastIndex) {
+            drawLine(color, points[i], points[i + 1], strokeWidth = size.height * 0.12f, cap = StrokeCap.Round)
+        }
+        drawCircle(color, radius = size.height * 0.22f, center = points.last())
+    }
+}
+
+/**
+ * A bounded progress fill — the shared implementation behind any "X of Y" or
+ * percentage bar. [fraction] is coerced to 0..1; the caller decides whether an
+ * unknown/no-data state should render this at all (an absent metric should be
+ * omitted, not drawn as a 0% bar that reads as "measured zero").
+ */
+@Composable
+fun MetricProgress(
+    fraction: Float,
+    modifier: Modifier = Modifier,
+    tint: Color? = null,
+    trackHeight: Dp = 6.dp,
+) {
+    val sk = MaterialTheme.skill
+    val clamped = fraction.coerceIn(0f, 1f)
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(trackHeight)
+            .background(sk.track, RoundedCornerShape(Radii.chip))
+            .semantics { contentDescription = "${(clamped * 100).toInt()} percent" },
+    ) {
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(clamped)
+                .background(tint ?: sk.cyan, RoundedCornerShape(Radii.chip)),
+        )
+    }
+}
+
+/**
+ * The one hero ring per screen (see the surface-usage rule on [heroSurface] —
+ * the same "at most one" discipline applies here). [value]/[max] draw the arc;
+ * [value] `null` renders the track only with an em dash, the honest state for
+ * "no reading yet" rather than a ring stuck at zero.
+ */
+@Composable
+fun HeroRing(
+    value: Int?,
+    modifier: Modifier = Modifier,
+    max: Int = 100,
+    centerText: String = value?.toString() ?: "—",
+) {
+    val sk = MaterialTheme.skill
+    Box(modifier.semantics { contentDescription = if (value != null) "$value of $max" else "No reading" }, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val stroke = Stroke(width = size.minDimension * 0.12f, cap = StrokeCap.Round)
+            val inset = stroke.width / 2
+            drawArc(
+                color = sk.surface3,
+                startAngle = -90f, sweepAngle = 360f, useCenter = false,
+                style = stroke, size = Size(size.width - stroke.width, size.height - stroke.width),
+                topLeft = Offset(inset, inset),
+            )
+            if (value != null) {
+                drawArc(
+                    brush = Brush.linearGradient(listOf(sk.azure, sk.cyan)),
+                    startAngle = -90f, sweepAngle = 360f * (value.coerceIn(0, max) / max.toFloat()), useCenter = false,
+                    style = stroke, size = Size(size.width - stroke.width, size.height - stroke.width),
+                    topLeft = Offset(inset, inset),
+                )
+            }
+        }
+        Text(centerText, style = MaterialTheme.typography.titleMedium, color = sk.frost, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
     }
 }
 
@@ -292,7 +411,10 @@ fun ReadableColumn(
 // ── Motion ──────────────────────────────────────────────────────────────────
 
 /**
- * Press feedback for any tappable card: a 0.98 scale over 100ms.
+ * Press feedback for any tappable card: a 0.98 scale on the shared [SkillMotion]
+ * press spring, not a fixed-duration tween — the D1 foundation pass folded this
+ * into the one named motion system rather than leaving it as its own arbitrary
+ * animation spec.
  *
  * Compose's ripple is invisible on a dark translucent surface, so without this
  * a card that opens a drill-down felt identical to one that did nothing.
@@ -303,7 +425,7 @@ fun Modifier.pressable(onClick: () -> Unit): Modifier {
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.98f else 1f,
-        animationSpec = tween(100),
+        animationSpec = SkillMotion.press(),
         label = "press",
     )
     return this

@@ -554,6 +554,119 @@ fun SkillSyncSearchBar(
     )
 }
 
+// ── Action row ───────────────────────────────────────────────────────────────
+
+/**
+ * The reusable operational row: leading marker, title/support/metadata,
+ * trailing value, one primary action, one optional secondary action. This is
+ * the D1 answer to "stop wrapping every list item in a full bordered card" —
+ * This Week, Capacity, Pipeline and Skill Requests all shape into this same
+ * row rather than each screen inventing its own.
+ *
+ * Every slot is optional except [title] — a row with only a title and an
+ * `onClick` still works, so a screen never has to fill fields it doesn't have
+ * data for.
+ */
+@Composable
+fun ActionRow(
+    title: String,
+    modifier: Modifier = Modifier,
+    supportingText: String = "",
+    metadata: String = "",
+    tint: Color? = null,
+    trailingValue: String? = null,
+    primaryActionLabel: String? = null,
+    onPrimaryAction: (() -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
+    secondaryContent: (@Composable () -> Unit)? = null,
+) {
+    val sk = MaterialTheme.skill
+    val clickModifier = if (onClick != null) Modifier.pressable(onClick) else Modifier
+    Row(
+        modifier = modifier.fillMaxWidth().then(clickModifier).padding(vertical = Space.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (tint != null) {
+            Box(Modifier.size(8.dp).clip(CircleShape).background(tint))
+            Spacer(Modifier.width(Space.sm))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = sk.frost, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (supportingText.isNotBlank()) {
+                Text(supportingText, style = MaterialTheme.typography.bodySmall, color = sk.subText, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            if (metadata.isNotBlank()) {
+                Text(metadata, style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+            }
+        }
+        if (trailingValue != null) {
+            Spacer(Modifier.width(Space.sm))
+            Text(trailingValue, style = NumericInline.copy(fontSize = 13.sp), color = sk.frost, fontWeight = FontWeight.SemiBold)
+        }
+        if (primaryActionLabel != null && onPrimaryAction != null) {
+            Spacer(Modifier.width(Space.sm))
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(Radii.chip))
+                    .background(sk.brand.copy(alpha = 0.14f))
+                    .border(1.dp, sk.brand.copy(alpha = 0.30f), RoundedCornerShape(Radii.chip))
+                    .pressable(onPrimaryAction)
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+            ) {
+                Text(primaryActionLabel, color = sk.brand, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        secondaryContent?.invoke()
+    }
+}
+
+// ── Segmented selector ───────────────────────────────────────────────────────
+
+/**
+ * A two-or-more-way segmented choice: filter tabs, view switches, workflow
+ * states. This is the shared implementation behind the live
+ * `TodayWorkspaceSwitch`/`PeopleWorkspaceSwitch` (`Version2Workspaces.kt`) —
+ * D1 promoted their pattern here rather than duplicating it; those two keep
+ * their own names and call sites unchanged, delegating to this underneath.
+ */
+@Composable
+fun SegmentedSelector(
+    options: List<Pair<String, String>>,
+    selected: String,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val sk = MaterialTheme.skill
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radii.chip))
+            .background(sk.surface2)
+            .border(1.dp, sk.cardBorder, RoundedCornerShape(Radii.chip))
+            .padding(3.dp),
+    ) {
+        options.forEach { (key, label) ->
+            val isSelected = key == selected
+            Box(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(Radii.chip - 2.dp))
+                    .background(if (isSelected) sk.brand.copy(alpha = 0.22f) else Color.Transparent)
+                    .pressable { onSelect(key) }
+                    .padding(vertical = Space.sm),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isSelected) sk.frost else sk.subText,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                )
+            }
+        }
+    }
+}
+
 // ── Global States: Loading, Empty, Error, Offline, Banner ───────────────────
 
 @Composable
@@ -671,6 +784,34 @@ fun SkillSyncErrorState(
             text = "Retry",
             onClick = onRetry,
         )
+    }
+}
+
+/**
+ * Some of a screen's data loaded, some didn't — deliberately distinct from
+ * [SkillSyncErrorState] (nothing loaded) per the D1 instruction: "Demand
+ * loaded, availability source unavailable" is not the same fact as "Capacity
+ * screen failed to load," and showing one generic red error card for both
+ * would throw away the data that *did* arrive.
+ */
+@Composable
+fun SkillSyncPartialDataState(
+    message: String,
+    modifier: Modifier = Modifier,
+) {
+    val sk = MaterialTheme.skill
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radii.chip))
+            .background(sk.warn.copy(alpha = 0.10f))
+            .border(1.dp, sk.warn.copy(alpha = 0.26f), RoundedCornerShape(Radii.chip))
+            .padding(Space.md),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(Modifier.padding(top = 2.dp).size(8.dp).clip(CircleShape).background(sk.warn))
+        Spacer(Modifier.width(Space.md))
+        Text(message, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, modifier = Modifier.weight(1f))
     }
 }
 

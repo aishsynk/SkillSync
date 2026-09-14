@@ -51,32 +51,24 @@ internal fun TodayWorkspaceSwitch(selected: String, onSelect: (String) -> Unit) 
     WorkspaceSelector(selected, listOf("BRIEF" to "Briefing", "QUEUE" to "Action queue"), onSelect)
 }
 
+/**
+ * D1 promoted this pattern into the shared `theme.SegmentedSelector` — this
+ * wrapper keeps `TodayWorkspaceSwitch`/`PeopleWorkspaceSwitch`'s existing call
+ * sites and screen padding unchanged, delegating the actual segmented control
+ * to the one shared implementation rather than keeping a second copy of it.
+ */
 @Composable
 private fun WorkspaceSelector(
     selected: String,
     options: List<Pair<String, String>>,
     onSelect: (String) -> Unit,
 ) {
-    val sk = MaterialTheme.skill
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-            .background(sk.surface1, RoundedCornerShape(12.dp)).padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        options.forEach { (key, label) ->
-            TextButton(
-                onClick = { onSelect(key) },
-                modifier = Modifier.weight(1f)
-                    .background(if (selected == key) sk.surface3 else Color.Transparent, RoundedCornerShape(9.dp)),
-            ) {
-                Text(
-                    label,
-                    color = if (selected == key) sk.frost else sk.subText,
-                    fontWeight = if (selected == key) FontWeight.Bold else FontWeight.Medium,
-                )
-            }
-        }
-    }
+    com.example.skillsync.theme.SegmentedSelector(
+        options = options,
+        selected = selected,
+        onSelect = onSelect,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    )
 }
 
 /**

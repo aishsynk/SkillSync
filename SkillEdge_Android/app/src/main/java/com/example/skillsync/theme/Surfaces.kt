@@ -101,6 +101,30 @@ fun AuroraBackground(modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * SURFACE USAGE RULES — pick by what the content IS, not by what looks nice.
+ *
+ *   [heroSurface]   — the one major executive identity/insight per screen (the
+ *                      readiness ring, a screen's single hero number). At most
+ *                      one per screen; using it twice erases the "hero" meaning.
+ *   [frostedGlass]  — temporary, floating or chrome surfaces: a bottom sheet, a
+ *                      dialog, a docked control. NOT every scrolling card — a
+ *                      real-time blur behind a long LazyColumn is the exact
+ *                      performance/legibility trap this rule exists to avoid.
+ *   [accentGlass]   — a surface that carries real severity/intelligence/action
+ *                      meaning (a critical attention row, an AI-context card).
+ *                      If the tint doesn't mean something, use [glassSurface].
+ *   [glassSurface]  — ordinary contained content with no particular emphasis —
+ *                      the default card.
+ *   Plain Row/Column — information that needs no container at all. A section
+ *                      does not automatically need a card; whitespace,
+ *                      dividers and typography can separate sections just as
+ *                      well, and do so more quietly.
+ *
+ * If every surface on a screen ends up [frostedGlass] or [accentGlass],
+ * that's the same "everything looks the same" failure with a different name.
+ */
+
 /** Frosted card surface: rich translucent gradient with top-edge sheen and ice hairline border. */
 fun Modifier.glassSurface(
     shape: Shape = RoundedCornerShape(Radii.card),
