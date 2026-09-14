@@ -13,11 +13,17 @@
   repository (version ledger, release records, governance, brand masters). Source remains in
   private working repos. Ledger is **append-only**; corrections are appended, never in place.
 
-## 2026-09-14 — Versioning: documented only now; bump at RC cut to 183 / 3.81.0
+## 2026-09-14 — Versioning: documented only now; InTouch RC bumps at cut time
 
 - **Decision:** adopt semantic `MAJOR.MINOR.PATCH` (`versionName`) + monotonic `versionCode`;
-  **documented this session, source unchanged** at `182` / `3.80.7`. Next RC cuts as
-  **`183` / `3.81.0`**. Bump happens only at the RC cut, never to "show progress".
+  **documented this session**. Source carries the branch-head version **`184` / `3.80.9`**
+  (kept from the v3.80.9.184 CI cut; the branding commit must not regress it). Next
+  InTouch-branded RC cuts as **`185` / `3.81.0`** at RC-cut time.
+- **Correction context:** the operator's original plan anchored the next RC at
+  `183` / `3.81.0`, but `versionCode 183` and `184` were consumed this increment by the
+  Today Design V2 CI cuts (`v3.80.8.183` `8242e6b`, `v3.80.9.184` `55b1f88`). The next free
+  `versionCode` is therefore `185`.
+- Bump happens only at the RC cut, never to "show progress".
 - Same `applicationId` (`com.example.skillsync`) + same signing key forever → in-place
   upgrade without an uninstall prompt. Do not change `targetSdk` behaviour related to version.
 - **Why:** production installs exist; a version bump is meaningful only when a candidate is

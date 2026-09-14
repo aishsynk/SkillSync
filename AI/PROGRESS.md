@@ -548,8 +548,10 @@ which applied to that branch cut.
     labels. Test assertion `NotifyAndLoginTest` updated to the new tagline.
   - **Internal identifiers preserved** (data compatibility): package
     `com.example.skillsync`, prefs, worker names, channel IDs, class names.
-- **Versioning:** source **unchanged** at `182` / `3.80.7`; next RC documented as
-  `183` / `3.81.0` in `AI/DECISIONS.md` and the InTouch `RELEASES.md`.
+- **Versioning:** source carries the branch-head version **`184` / `3.80.9`** (preserved from
+  the `v3.80.9.184` CI cut; do not regress). Next InTouch RC documented as **`185` / `3.81.0`**
+  — the original 183 anchor was consumed this increment by the `v3.80.8.183` (`8242e6b`) and
+  `v3.80.9.184` (`55b1f88`) Today Design V2 cuts; next free `versionCode` is `185`.
 
 ### 8.2 Gate evidence (this session, current working tree)
 - `:app:compileDebugKotlin` — green.

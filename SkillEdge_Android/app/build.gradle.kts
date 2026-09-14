@@ -30,8 +30,8 @@ android {
         applicationId = "com.example.skillsync"
         minSdk = 24
         targetSdk = 34
-        versionCode = 182
-        versionName = "3.80.7"
+        versionCode = 184
+        versionName = "3.80.9"
         manifestPlaceholders["appName"] = "InTouch Intelligence"
         buildConfigField("String", "LINKEDIN_BASE_URL", "\"$linkedinBaseUrl\"")
     }

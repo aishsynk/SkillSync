@@ -10,7 +10,9 @@
   governance (`AI/*.md`), brand masters (`assets/branding/`). Source stays in this repo + the
   `Personal\incipit\personal\Linkedin` backend repo. Names details in `guides/process.md`.
 - **Versioning (documented only):** semantic `MAJOR.MINOR.PATCH` + monotonic `versionCode`;
-  bump only at the RC cut. Current source `182` / `3.80.7`; next RC = `183` / `3.81.0`. Never
+  bump only at the RC cut. Branch head carries `184` / `3.80.9` (per the v3.80.9.184 CI cut; the
+InTouch branding commit preserves it), next InTouch RC = `185` / `3.81.0` at cut time (codes
+183/184 were consumed by the Today Design V2 cuts). Never
   change `applicationId` (`com.example.skillsync`) or the signing key (in-place-upgrade rule).
 - **Android iconography:** launcher/adaptive/monochrome + notification small icon derived from
   the circular symbol master (white background, symbol at ~62 dp on the 108 dp canvas). In-app
