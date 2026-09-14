@@ -6344,9 +6344,6 @@ def v2_team_readiness():
 
     today = datetime.utcnow().date()
     end = today + timedelta(days=90)
-    mon_this = today - timedelta(days=today.weekday())
-    mon_next = mon_this + timedelta(days=7)
-    fri_next = mon_next + timedelta(days=4)
 
     roster = []
     for r in (_reportees(manager) or []):
@@ -6356,17 +6353,12 @@ def v2_team_readiness():
                 "name": str(r.get("TrainerName") or "").strip(),
             })
 
-    if not roster:
-        roster = [
-            {"name": "Subhashish Bhattacharjee", "email": "subhashish.bhattacharjee@koenig-solutions.com"},
-            {"name": "Sachin Khanna", "email": "sachin.khanna@koenig-solutions.com"},
-            {"name": "Neha Sharma", "email": "neha.sharma@koenig-solutions.com"},
-            {"name": "Rohit Agarwal", "email": "rohit.agarwal@koenig-solutions.com"},
-            {"name": "Amit Kumar", "email": "amit.kumar@koenig-solutions.com"},
-            {"name": "Vikas Sharma", "email": "vikas.sharma@koenig-solutions.com"},
-            {"name": "Priyanshu Sharma", "email": "priyanshu.sharma@koenig-solutions.com"},
-            {"name": "Aishwar Singh", "email": "aishwar.singh@koenig-solutions.com"},
-        ]
+    # No hardcoded fallback roster and no synthetic leave injection: when RMS
+    # has no reportees for this manager, or no leave for a given person, that
+    # is the honest answer. Substituting named individuals or a fabricated
+    # leave date here previously produced a healthy-looking dashboard built
+    # on invented data — the same fabrication class removed from
+    # _capability_for() (see AI/DECISIONS.md, 2026-09-13).
 
     limit = 40
     considered, skipped = roster[:limit], max(0, len(roster) - limit)
@@ -6374,8 +6366,6 @@ def v2_team_readiness():
     def one(person):
         schedule, why = _rc_schedule(person["email"], today, end)
         leave = sorted(schedule.get("leave_dates", set()))
-        if not leave and person["email"] == "neha.sharma@koenig-solutions.com":
-            leave = [fri_next]
         return {
             "trainer_email": person["email"],
             "trainer_name": person["name"],

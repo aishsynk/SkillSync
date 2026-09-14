@@ -457,6 +457,36 @@ class TeamReadinessRoute(unittest.TestCase):
         self.assertEqual(5, body["counts"]["not_checked"])
         self.assertIn("were not", body["note"])
 
+    def test_empty_roster_is_honest_not_a_fabricated_fallback(self):
+        """RMS returning no reportees must produce an honest empty roster, not
+        the 8 hardcoded named individuals this route used to substitute."""
+        with mock.patch.object(backend, "_v2_manager_session", return_value=({}, None)), \
+             mock.patch.object(backend, "_rms", return_value=[]):
+            r = self.client.get("/api/v2/team/readiness?manager=m@k.com")
+        body = r.get_json()
+        self.assertEqual(0, body["counts"]["roster"])
+        self.assertEqual(0, body["counts"]["checked"])
+        self.assertEqual([], body["trainers"])
+        names = {t.get("trainer_name") for t in body["trainers"]}
+        self.assertNotIn("Neha Sharma", names)
+        self.assertNotIn("Subhashish Bhattacharjee", names)
+
+    def test_no_synthetic_leave_is_injected_for_any_named_trainer(self):
+        """A trainer with genuinely no leave on record must show zero leave
+        days, even when their email is neha.sharma@... — this route used to
+        inject a fabricated leave date for that one address specifically."""
+        roster = [{"OffEmail": "neha.sharma@koenig-solutions.com", "TrainerName": "Neha Sharma"}]
+        with mock.patch.object(backend, "_v2_manager_session", return_value=({}, None)), \
+             mock.patch.object(backend, "_rms", return_value=roster), \
+             mock.patch.object(backend, "_rc_schedule",
+                               return_value=({"leave_dates": set(), "confirmed_dates": {date(2026, 9, 20)},
+                                              "tentative_dates": set(), "dnc_clients": set(),
+                                              "specified_clients": set(), "modes": ["ILO"], "rows": 5}, "")):
+            r = self.client.get("/api/v2/team/readiness?manager=m@k.com")
+        body = r.get_json()
+        self.assertEqual(0, body["trainers"][0]["leave_days"])
+        self.assertEqual([], body["trainers"][0]["next_leave"])
+
     def test_an_unverified_trainer_is_counted_not_assumed_clear(self):
         roster = [{"OffEmail": "a@k.com", "TrainerName": "A"}]
         with mock.patch.object(backend, "_v2_manager_session", return_value=({}, None)), \

@@ -1,5 +1,22 @@
 # SkillEdge / Manager OS — Decisions
 
+## 2026-09-14 - `/api/v2/team/readiness` fabrication removed (same class as `_capability_for()`)
+
+- **Finding:** `v2_team_readiness` (backend.py) contained a hardcoded 8-named-person fallback
+  roster used whenever RMS returned no reportees for a manager, and a synthetic leave date
+  injected specifically for `neha.sharma@koenig-solutions.com` when RMS showed none. This is the
+  same fabrication class already removed from `_capability_for()` (2026-09-13 entry above), found
+  while wiring this exact endpoint's data into Today's "Who is actually free" section.
+- **Fix:** both removed. An empty RMS roster now returns an honestly empty `trainers: []` /
+  `counts.roster: 0`, not 8 invented people; a trainer with no recorded leave shows
+  `leave_days: 0`, regardless of email.
+- **Regression tests added:** `test_empty_roster_is_honest_not_a_fabricated_fallback`,
+  `test_no_synthetic_leave_is_injected_for_any_named_trainer`
+  (`tests/test_certification_and_allocation.py`). Full backend suite: 360/360 passing.
+- **How to apply:** any UI reading `/api/v2/team/readiness` (Today's availability section,
+  Team Health) must already treat an empty/zero response as a legitimate "nothing to report"
+  state, not a bug — it already does (checked-count-gated rendering).
+
 ## 2026-09-13 - Technical debt: no deployed build identifier — `/healthz` cannot confirm which commit is live {#build-info-tech-debt}
 
 - **Gap found during Phase 1 production verification:** `/healthz` returns a hand-written static
