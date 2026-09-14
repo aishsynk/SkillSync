@@ -305,6 +305,16 @@ fun MainNavigation() {
                 onOpenRamp = { current = Ramp(screen.email) },
                 onOpenPipelineRadar = { current = PipelineRadar(screen.email) },
                 onOpenDeliveryCompliance = { current = DeliveryCompliance(screen.email) },
+                onCommunicate = { recipientType, recipientName, purpose, relatedType, relatedId ->
+                    current = Communication(
+                        email = screen.email,
+                        relatedEntityId = relatedId,
+                        relatedEntityType = relatedType,
+                        initialRecipientType = recipientType,
+                        initialRecipientName = recipientName,
+                        initialPurpose = purpose,
+                    )
+                },
                 onBack = { current = Main(screen.email, HomeTab.DASHBOARD) },
             )
 

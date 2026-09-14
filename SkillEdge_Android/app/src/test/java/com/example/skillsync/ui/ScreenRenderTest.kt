@@ -684,6 +684,84 @@ class ScreenRenderTest {
     }
 
     @Test
+    fun prioritiesScreen_unstaffedDemandOffersCommunicateWithRealDemandContext() {
+        // "Communicate" only appears where the item genuinely names a
+        // recipient/purpose — proven here by asserting the exact
+        // (recipientType, purpose, relatedEntityType, relatedEntityId) the
+        // shared Communication engine receives, not a pre-written sentence.
+        LocalCache.init(ApplicationProvider.getApplicationContext())
+        LocalCache.saveMap(
+            "priorities_aishwar.c@koenig-solutions.com",
+            mapOf<String, Any>(
+                "items" to listOf<Map<String, Any>>(
+                    mapOf(
+                        "id" to "unstaffed_demand:DEM-900", "kind" to "unstaffed_demand",
+                        "title" to "Unstaffed: DP-700T00", "detail" to "Open batch 01 Oct needs a trainer.",
+                        "severity" to "high", "due" to "2026-10-01",
+                        "target_type" to "demand", "target_id" to "DEM-900",
+                        "rank_score" to 40.0, "coverable" to false,
+                    ),
+                ),
+                "counts" to mapOf("unstaffed_demand" to 1),
+                "loading" to false,
+                "generated_at" to "2026-09-14T00:00:00Z",
+            ),
+        )
+        var captured: List<String>? = null
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.report.ui.PrioritiesScreen(
+                    managerEmail = "aishwar.c@koenig-solutions.com",
+                    onOpenDemand = {}, onOpenTrainer = { _, _ -> }, onOpenActions = {},
+                    onCommunicate = { recipientType, recipientName, purpose, relatedType, relatedId ->
+                        captured = listOf(recipientType, recipientName, purpose, relatedType, relatedId)
+                    },
+                    onBack = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Communicate").performClick()
+        org.junit.Assert.assertEquals(
+            listOf("TEAM", "", "AVAILABILITY_REQUEST", "demand", "DEM-900"), captured,
+        )
+    }
+
+    @Test
+    fun prioritiesScreen_overdueActionOffersNoCommunicateHint() {
+        // An action_overdue item is about a task, not a person - it must not
+        // fabricate a recipient just because a button would look useful there.
+        LocalCache.init(ApplicationProvider.getApplicationContext())
+        LocalCache.saveMap(
+            "priorities_aishwar.c@koenig-solutions.com",
+            mapOf<String, Any>(
+                "items" to listOf<Map<String, Any>>(
+                    mapOf(
+                        "id" to "action_overdue:A1", "kind" to "action_overdue",
+                        "title" to "Overdue action: Confirm travel", "detail" to "Open 9 days.",
+                        "severity" to "medium", "due" to "2026-09-10",
+                        "target_type" to "action", "target_id" to "A1",
+                        "rank_score" to 5.0, "coverable" to false,
+                    ),
+                ),
+                "counts" to mapOf("action_overdue" to 1),
+                "loading" to false,
+                "generated_at" to "2026-09-14T00:00:00Z",
+            ),
+        )
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.report.ui.PrioritiesScreen(
+                    managerEmail = "aishwar.c@koenig-solutions.com",
+                    onOpenDemand = {}, onOpenTrainer = { _, _ -> }, onOpenActions = {},
+                    onBack = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Overdue action: Confirm travel").assertExists()
+        compose.onAllNodesWithText("Communicate").assertCountEquals(0)
+    }
+
+    @Test
     fun navBar_reportsTabSelection() {
         var selected = HomeTab.DASHBOARD
         compose.setContent {

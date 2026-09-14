@@ -57,6 +57,13 @@ fun PrioritiesScreen(
     onOpenRamp: () -> Unit = {},
     onOpenPipelineRadar: () -> Unit = {},
     onOpenDeliveryCompliance: () -> Unit = {},
+    /**
+     * (recipientType, recipientName, purpose, relatedEntityType, relatedEntityId) — the same
+     * shared Communication Intelligence entry point wired from Today. A priority item only offers
+     * this when it names a real recipient/purpose (see [communicateHintFor]); nothing here writes
+     * a message itself.
+     */
+    onCommunicate: (String, String, String, String, String) -> Unit = { _, _, _, _, _ -> },
     onBack: () -> Unit,
     vm: PrioritiesViewModel = viewModel(),
 ) {
@@ -201,6 +208,9 @@ fun PrioritiesScreen(
                                         "trainer" -> onOpenTrainer(item.targetId, item.targetName)
                                         else -> onOpenActions()
                                     }
+                                },
+                                onCommunicate = communicateHintFor(item)?.let { hint ->
+                                    { onCommunicate(hint.recipientType, hint.recipientName, hint.purpose, hint.relatedEntityType, hint.relatedEntityId) }
                                 },
                             )
                         }
@@ -347,6 +357,40 @@ private fun BulkSharePreviewDialog(
     )
 }
 
+/**
+ * A recipient/purpose only when the item genuinely names one — an
+ * `action_overdue` item is about a task, not a person, and gets no hint.
+ * Purpose is a starting point for the shared Communication engine, never a
+ * pre-written sentence: the engine still selects its own facts.
+ */
+private data class CommunicateHint(
+    val recipientType: String,
+    val recipientName: String,
+    val purpose: String,
+    val relatedEntityType: String,
+    val relatedEntityId: String,
+)
+
+private fun communicateHintFor(item: PriorityItem): CommunicateHint? = when (item.kind) {
+    "unstaffed_demand" -> CommunicateHint(
+        recipientType = "TEAM", recipientName = "", purpose = "AVAILABILITY_REQUEST",
+        relatedEntityType = "demand", relatedEntityId = item.targetId,
+    )
+    "one_to_one" -> CommunicateHint(
+        recipientType = "INDIVIDUAL", recipientName = item.title.removePrefix("1:1 with "),
+        purpose = "GENERAL_PROFESSIONAL", relatedEntityType = "trainer", relatedEntityId = item.targetId,
+    )
+    "overload" -> CommunicateHint(
+        recipientType = "INDIVIDUAL", recipientName = item.title.removeSuffix(" is overloaded"),
+        purpose = "GENERAL_PROFESSIONAL", relatedEntityType = "trainer", relatedEntityId = item.targetId,
+    )
+    "cert_gap" -> CommunicateHint(
+        recipientType = "INDIVIDUAL", recipientName = item.title.removeSuffix(" teaching without cert"),
+        purpose = "CAPABILITY_DEVELOPMENT", relatedEntityType = "trainer", relatedEntityId = item.targetId,
+    )
+    else -> null
+}
+
 private fun kindLabel(kind: String): String = when (kind) {
     "unstaffed_demand" -> "Unstaffed"
     "one_to_one" -> "1:1 due"
@@ -395,7 +439,12 @@ private fun SummaryStrip(counts: Map<String, Int>, total: Int, sk: SkillColors) 
 }
 
 @Composable
-private fun PriorityCard(item: PriorityItem, sk: SkillColors, onClick: () -> Unit) {
+private fun PriorityCard(
+    item: PriorityItem,
+    sk: SkillColors,
+    onClick: () -> Unit,
+    onCommunicate: (() -> Unit)? = null,
+) {
     val stripe = severityColor(item.severity, sk)
     Surface(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
@@ -463,6 +512,18 @@ private fun PriorityCard(item: PriorityItem, sk: SkillColors, onClick: () -> Uni
                             style = MaterialTheme.typography.labelSmall,
                             textDecoration = TextDecoration.Underline,
                         )
+                    }
+                    if (onCommunicate != null) {
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(Radii.chip))
+                                .background(sk.brand.copy(alpha = 0.14f))
+                                .border(1.dp, sk.brand.copy(alpha = 0.30f), RoundedCornerShape(Radii.chip))
+                                .clickable { onCommunicate() }
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
+                        ) {
+                            Text("Communicate", color = sk.brand, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
                 Icon(
