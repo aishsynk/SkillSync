@@ -23,6 +23,38 @@ When reviewing `AI/PROGRESS.md`, identify and display:
 - **Current project state**
 - **Pending actions**
 
+## Project Type & Workflow (detect first, never mix)
+
+This is an **ANDROID** project (Kotlin, Jetpack Compose, Gradle — product
+**InTouch Intelligence**, legacy internal folder/project name `SkillEdge`).
+Follow only the ANDROID workflow:
+
+`Inspect → Implement → Compile → Unit Test → Lint → Build/Assemble → Validate User Flows`
+
+- **Releases:** increment version correctly (see `AI/DECISIONS.md` — ONE
+  continuous `3.80.x` patch sequence; `versionCode` always +1, `versionName`
+  patch digit only; rebrand alone is never a MINOR bump). Preserve package name,
+  signing key, and user data. Generate APK/AAB and validate upgrade from the
+  previous version. Uninstall/reinstall requirement or data loss = release
+  blocker.
+- **WEB/VS and BACKEND/API workflows do not apply** to this repo; never trigger
+  Web/Azure production deployment from Android work unless the task explicitly
+  includes the backend.
+
+## Definition of Done
+
+Completed work must not introduce: build/runtime errors, broken navigation, dead
+buttons, broken APIs, incomplete integrations, unintended mocks/hardcoded data,
+or functional regressions. Always distinguish pre-existing issues (the documented
+baseline: 11 unit-test failures / 6E-78W-3H lint) from newly introduced ones.
+
+## Push & Release Policy
+
+- Never push, tag, create releases, or cut versions unless the task explicitly
+  requires it or the operator approves. Local commits require explicit approval
+  to push.
+- Never stage unrelated files (other in-progress work) into your commits.
+
 ## Cloud & Azure Operations
 
 - **Access Verification**: For Azure-related work, do not assume Azure access is unavailable. First verify access by running appropriate Azure authentication and account validation commands (e.g. `az account show`) and proceed based on the result. Follow Azure guidance documented in `AI/CONTEXT.md` as the authoritative reference.

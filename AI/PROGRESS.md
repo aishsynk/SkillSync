@@ -773,3 +773,61 @@ tests.
 3. Not pushed/released this increment — per the task's "do not release
    early" instruction, this stays on a validation branch until the operator
    reviews it.
+
+---
+
+## 2026-09-15 — Session handover: Phase 6C closeout + version-state correction + project rules alignment
+
+**Model/tool:** big-pickle; PowerShell 5.1 + git CLI. **Date/time:** 2026-09-15.
+
+## What was completed
+- **InTouch release repo (`aishsynk/InTouch`) finalized and pushed**:
+  - `fd154b4` — feat: establish InTouch release repository (Phase 6C).
+  - `dc65955` — chore: record Today Design V2 cuts `v3.80.8.183`(`8242e6b`) /
+    `v3.80.9.184`(`55b1f88`) and correct plan from 183-anchor to 185-anchor.
+  - `43ce6aa` *(this closeout)* — apply the operator's version ruling repo-wide:
+    all InTouch docs corrected from `3.81.0` to **`185` / `3.80.10`** continuous
+    `3.80.x` patch sequence (RELEASES.md planned row, AI/CONTEXT.md,
+    AI/DECISIONS.md, AI/PROGRESS.md, AI/RELEASE_PROCESS.md, guides/process.md,
+    releases/README.md), with explicit "superseded" markers instead of erasure.
+- **SkillEdge `AGENTS.md` aligned** with the operator's execution rules:
+  ANDROID-only workflow (never WEB/VS or BACKEND/API), Definition of Done
+  (baseline vs new-issue distinction), push/release policy (never push without
+  explicit approval; never stage unrelated files).
+- **Reconciled with the parallel session** (Communication Intelligence
+  C0–C3): the operator-version ruling is already applied in SkillEdge
+  `AI/DECISIONS.md`/`AI/CONTEXT.md` (commit `cba0190`) and this entry re-states
+  it. **Do NOT rely on any `3.81.0` text in older entries** — the continuous
+  `3.80.x` patch sequence is the single authoritative version contract.
+
+## Files modified (this session)
+- SkillEdge `AGENTS.md`; SkillEdge `AI/PROGRESS.md` (this entry).
+- InTouch repo: `RELEASES.md`, `AI/{CONTEXT,DECISIONS,PROGRESS,RELEASE_PROCESS}.md`,
+  `guides/process.md`, `releases/README.md` (all pushed this session).
+- Earlier this session (already committed at `3783626` + `4db056a`): brand
+  identity, icons, InTouch release repo, AI memory. See "Phase 6C" entry above.
+
+## Validation
+- InTouch remote HEAD verified = `dc65955` (and this closeout push).
+- SkillEdge working tree: only the **parallel session's uncommitted in-progress**
+  files are modified (`core/storage/ViberOutboxStore.kt`,
+  `feature/communication/engine/WeeklyMessage.kt`, `feature/viber/ViberDispatcher.kt`,
+  `app/src/test/.../WeeklyMessageTest.kt`, `backend.py`, `tests/test_viber_automation.py`)
+  — **NOT touched or staged by me.** Scratch files remain untracked.
+
+## Current status
+- Phase 6C (brand + release repo): **DELIVERED, committed locally, NOT pushed.**
+- Version contract (authoritative): **`184` / `3.80.9`** in source; next release
+  **`185` / `3.80.10`** at cut time (continuous patch; never MINOR).
+- Release gates still PENDING: physical-device install/upgrade, backend
+  round-trip against the deployed Phase 6A/6B stack, visual brand QA on device.
+
+## Blockers / next actions
+1. Operator must review the local unpushed SkillEdge commits (`3783626`,
+   `4db056a`) plus the parallel session's commits (`4897b62`, `9c2ee8c`,
+   `cba0190`, `67daaff`, `2cec74d`) and the parallel session's in-progress
+   working-tree edits before anything is pushed.
+2. Update this file (append-only) once the InTouch closeout commit `43ce6aa`'s
+   real hash is recorded after push (staged name provisional — see git log).
+3. Cut the `185 / 3.80.10` RC only when the operator approves + device evidence
+   exists. No new phases until then.
