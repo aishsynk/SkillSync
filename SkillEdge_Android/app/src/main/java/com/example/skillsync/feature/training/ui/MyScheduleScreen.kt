@@ -56,10 +56,20 @@ class MyScheduleViewModel : ViewModel() {
     val data: StateFlow<Map<String, Any>?> = _data
     private val _loading = MutableStateFlow(true)
     val loading: StateFlow<Boolean> = _loading
+    // A failed fetch used to be swallowed silently and render as an empty
+    // "Clear diary" screen — indistinguishable from a genuinely empty
+    // schedule. Surface it instead, same as every other screen's Error state.
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error
 
     fun load(email: String) = viewModelScope.launch {
         _loading.value = true
-        try { _data.value = RetrofitClient.instance.trainerCalendar(email) } catch (_: Exception) {}
+        _error.value = null
+        try {
+            _data.value = RetrofitClient.instance.trainerCalendar(email)
+        } catch (e: Exception) {
+            _error.value = e.message ?: "Could not load your schedule"
+        }
         _loading.value = false
     }
 }
@@ -81,6 +91,7 @@ fun MyScheduleScreen(
     LaunchedEffect(email) { vm.load(email) }
     val data by vm.data.collectAsState()
     val loading by vm.loading.collectAsState()
+    val error by vm.error.collectAsState()
 
     Box(Modifier.fillMaxSize()) {
         AuroraBackground()
@@ -97,6 +108,22 @@ fun MyScheduleScreen(
             if (loading && data == null) {
                 Box(Modifier.padding(pad).fillMaxSize(), Alignment.Center) {
                     CircularProgressIndicator(color = sk.brand)
+                }
+                return@Scaffold
+            }
+            if (error != null && data == null) {
+                Column(
+                    Modifier.padding(pad).fillMaxSize().padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text("Could not load your schedule", color = sk.warn, style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.height(8.dp))
+                    Text(error.orEmpty(), color = sk.subText, style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(16.dp))
+                    Button(onClick = { vm.load(email) }, colors = ButtonDefaults.buttonColors(containerColor = sk.brand)) {
+                        Text("Retry")
+                    }
                 }
                 return@Scaffold
             }

@@ -142,9 +142,12 @@ fun ManagerCommandCentre(
         capTrainers
             .mapNotNull { t ->
                 val util = t.intOrNull("utilization") ?: return@mapNotNull null
-                Triple(t.str("trainer_name").ifBlank { return@mapNotNull null }, util, t.str("readiness_bucket"))
+                TopPerformer(
+                    t.str("trainer_name").ifBlank { return@mapNotNull null },
+                    util, t.str("readiness_bucket"), t.str("trainer_email"),
+                )
             }
-            .sortedByDescending { it.second }
+            .sortedByDescending { it.utilization }
             .take(3)
     }
 
@@ -440,19 +443,25 @@ fun ManagerCommandCentre(
             Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                 SectionHeading("Top performers", conclusion = "Carrying delivery, ranked by measured utilisation.")
                 SkillCard(modifier = Modifier.fillMaxWidth(), padding = Space.sm) {
-                    topPerformers.forEachIndexed { i, (trainerName, util, bucket) ->
+                    topPerformers.forEachIndexed { i, p ->
                         Row(
-                            Modifier.fillMaxWidth().clickable { onTrainerClick(email, trainerName) }.padding(Space.sm),
+                            Modifier.fillMaxWidth()
+                                // Real trainer email when the payload carries one; falling back to
+                                // the manager's own email (rather than crashing/no-op) only if a
+                                // capability row is somehow missing it — Trainer360 still opens,
+                                // just for the manager's own profile as the least-wrong fallback.
+                                .clickable { onTrainerClick(p.trainerEmail.ifBlank { email }, p.name) }
+                                .padding(Space.sm),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = sk.subText, modifier = Modifier.width(16.dp))
-                            Avatar(name = trainerName, photoUrl = null, size = 32.dp)
+                            Avatar(name = p.name, photoUrl = null, size = 32.dp)
                             Spacer(Modifier.width(Space.sm))
                             Column(Modifier.weight(1f)) {
-                                Text(trainerName, style = MaterialTheme.typography.titleSmall, color = sk.frost)
-                                if (bucket.isNotBlank()) Text(bucket, style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                                Text(p.name, style = MaterialTheme.typography.titleSmall, color = sk.frost)
+                                if (p.readinessBucket.isNotBlank()) Text(p.readinessBucket, style = MaterialTheme.typography.labelSmall, color = sk.subText)
                             }
-                            Text("$util%", style = MaterialTheme.typography.titleMedium, color = sk.cyan, fontWeight = FontWeight.Bold)
+                            Text("${p.utilization}%", style = MaterialTheme.typography.titleMedium, color = sk.cyan, fontWeight = FontWeight.Bold)
                         }
                         if (i < topPerformers.lastIndex) HorizontalDivider(color = sk.cardBorder, thickness = 1.dp)
                     }
@@ -651,6 +660,14 @@ private data class AttentionItem(
     val severity: Severity,
     /** Real `demand_id` when this item is an unallocated batch — powers "Ask availability". Blank for non-demand items (e.g. skill requests), which get no communication shortcut. */
     val demandId: String = "",
+)
+
+private data class TopPerformer(
+    val name: String,
+    val utilization: Int,
+    val readinessBucket: String,
+    /** Real capability-row email — powers the Trainer360 drill-down. Never the manager's own email. */
+    val trainerEmail: String,
 )
 
 @Composable

@@ -333,7 +333,7 @@ fun MainScreen(
                                     )
                                     .border(1.dp, MaterialTheme.skill.sky.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
                                 contentAlignment = Alignment.Center,
-                            ) { SkillSyncLogo(size = 22.dp) }
+                            ) { InTouchLogo(size = 22.dp) }
                             Spacer(Modifier.width(12.dp))
                             val showBrief = tab == HomeTab.DASHBOARD && briefCollapsed
                             val briefLine = remember(state) {
@@ -351,7 +351,7 @@ fun MainScreen(
                             ) { collapsed ->
                                 Column {
                                     Text(
-                                        if (collapsed) "TODAY · THE BRIEF" else "SKILLEDGE · EXECUTIVE CONSOLE",
+                                        if (collapsed) "TODAY · THE BRIEF" else "INTOUCH · EXECUTIVE CONSOLE",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.tertiary,
                                     )
@@ -711,7 +711,16 @@ HomeTab.SEARCH -> UniversalCommandSearch(
         }
     }
 
-    drill?.let { DrillSheet(it) { drill = null } }
+    drill?.let { d ->
+        DrillSheet(
+            drill = d,
+            onDismiss = { drill = null },
+            onMessage = { name, _ ->
+                drill = null
+                onOpenCommunication("INDIVIDUAL", name, "GENERAL_PROFESSIONAL", "", "")
+            },
+        )
+    }
 }
 
 /** "3 mins ago" / "2 hours ago" / "5 days ago" for a past epoch-millis timestamp. */
@@ -893,7 +902,7 @@ data class Drill(val title: String, val subtitle: String, val rows: List<DrillRo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DrillSheet(drill: Drill, onDismiss: () -> Unit) {
+private fun DrillSheet(drill: Drill, onDismiss: () -> Unit, onMessage: (name: String, targetEmail: String) -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.skill.cardBg) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
             Text(drill.title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.skill.bodyText)
@@ -915,32 +924,12 @@ private fun DrillSheet(drill: Drill, onDismiss: () -> Unit) {
                     }
                     if (row.targetEmail != null) {
                         Spacer(Modifier.width(8.dp))
-                        var showQuickMsg by remember { mutableStateOf(false) }
-                        IconButton(onClick = { showQuickMsg = true }) {
+                        // Routes into the one shared Communication Intelligence composer
+                        // (same pipeline as Today/Priorities) instead of a local dialog —
+                        // the previous inline AlertDialog's "Send" button was a no-op that
+                        // only closed itself; it never sent anything anywhere.
+                        IconButton(onClick = { onMessage(row.primary, row.targetEmail) }) {
                             Icon(painterResource(R.drawable.ic_mail), "Send Message", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                        }
-                        if (showQuickMsg) {
-                            // We can use a simple quick message dialog right here
-                            var msg by remember { mutableStateOf("Hi ${row.primary.split(" ").first()},\n\nPlease resolve your ${row.secondary}.") }
-                            AlertDialog(
-                                onDismissRequest = { showQuickMsg = false },
-                                title = { Text("Message ${row.primary.split(" ").first()}") },
-                                text = {
-                                    OutlinedTextField(
-                                        value = msg,
-                                        onValueChange = { msg = it },
-                                        modifier = Modifier.fillMaxWidth().height(120.dp),
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                },
-                                confirmButton = {
-                                    Button(onClick = { showQuickMsg = false }) { Text("Send") }
-                                },
-                                dismissButton = {
-                                    TextButton(onClick = { showQuickMsg = false }) { Text("Cancel") }
-                                },
-                                containerColor = MaterialTheme.skill.cardBg
-                            )
                         }
                     }
                 }

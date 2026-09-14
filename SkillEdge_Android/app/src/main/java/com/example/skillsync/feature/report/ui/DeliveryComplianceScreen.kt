@@ -100,7 +100,9 @@ fun DeliveryComplianceScreen(
                         val total = (d["total_active"] as? Number)?.toInt() ?: active.size
                         val compliant = (d["compliant_count"] as? Number)?.toInt() ?: 0
                         val violations = (d["violations_count"] as? Number)?.toInt() ?: 0
-                        val rate = (d["compliance_rate_percent"] as? Number)?.toDouble() ?: 100.0
+                        // A missing figure is unknown, not "fully compliant" — never default
+                        // this to 100.0 (see ScoreHints/anti-fabrication precedent elsewhere).
+                        val rate = (d["compliance_rate_percent"] as? Number)?.toDouble()
 
                         PullToRefreshBox(
                             isRefreshing = refreshing,
@@ -122,7 +124,10 @@ fun DeliveryComplianceScreen(
                                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                                 Text("RECORDING COMPLIANCE SCORECARD", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)
-                                                ToneChip("${rate}% Rate", tint = if (violations > 0) sk.crit else sk.good)
+                                                ToneChip(
+                                                    rate?.let { "${it}% Rate" } ?: "Rate unknown",
+                                                    tint = if (rate == null) sk.subText else if (violations > 0) sk.crit else sk.good,
+                                                )
                                             }
                                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                                 PulseMetric(label = "Active Batches", value = total.toString(), tint = sk.sky, modifier = Modifier.weight(1f))
