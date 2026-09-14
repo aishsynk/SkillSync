@@ -1040,3 +1040,13 @@ bump, no push to `main`, no release. Real-emulator screenshot capture for
 Today/This Week via `PilotScreenshotInstrumentedTest` has not been run this
 pass. Expected version after approval: `186` / `3.80.11`, continuing the
 same patch train — not a MINOR bump.
+
+## 8c. Recovery release approved and published (2026-09-15)
+
+Operator reviewed the Final Recovery Validation Gate report (APK identity/
+signing match against a freshly-built `v3.80.9.184` reference, real-emulator
+screenshots via `PilotScreenshotInstrumentedTest`, contamination re-scan,
+full regression gates) and approved publishing. Version bumped to
+`versionCode 186` / `versionName 3.80.11` (continuing the same `3.80.x`
+patch train), merged `recovery-skillsync-identity` into `main`, tagged
+`v3.80.11.186`, and pushed.
