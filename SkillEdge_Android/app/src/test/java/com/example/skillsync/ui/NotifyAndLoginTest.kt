@@ -122,7 +122,7 @@ class NotifyAndLoginTest {
         compose.onNodeWithText("Continue").assertExists()
         compose.onNodeWithText("Enter your Koenig work ID.").assertExists()
         compose.onNodeWithText("Work ID").assertExists()
-        compose.onNodeWithText("INTELLIGENCE").assertExists()
+        compose.onNodeWithText("DELIVERY INTELLIGENCE").assertExists()
     }
 
     /**

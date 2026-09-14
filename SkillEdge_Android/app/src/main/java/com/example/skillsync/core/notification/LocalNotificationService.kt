@@ -18,7 +18,7 @@ import kotlin.random.Random
 
 object LocalNotificationService {
     private const val CHANNEL_ID = "skillsync_alerts_v3"
-    private const val CHANNEL_NAME = "InTouch Alerts"
+    private const val CHANNEL_NAME = "SkillSync Alerts"
     
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -71,7 +71,7 @@ object LocalNotificationService {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification_intouch)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
@@ -121,7 +121,7 @@ object LocalNotificationService {
         val vibrationPattern = longArrayOf(0, 300, 200, 300)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification_intouch)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(event.title)
             .setContentText(event.message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(event.message))

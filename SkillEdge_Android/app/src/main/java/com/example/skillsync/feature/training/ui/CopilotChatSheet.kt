@@ -90,7 +90,7 @@ fun CopilotChatSheet(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = if (isTeam) "Team Copilot" else "InTouch Copilot",
+                        text = if (isTeam) "Team Copilot" else "SkillEdge Copilot",
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleLarge,
                         color = sk.bodyText,

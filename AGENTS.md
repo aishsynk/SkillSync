@@ -26,7 +26,7 @@ When reviewing `AI/PROGRESS.md`, identify and display:
 ## Project Type & Workflow (detect first, never mix)
 
 This is an **ANDROID** project (Kotlin, Jetpack Compose, Gradle — product
-**InTouch Intelligence**, legacy internal folder/project name `SkillEdge`).
+**SkillSync**, internal/visual identity `SkillEdge`).
 Follow only the ANDROID workflow:
 
 `Inspect → Implement → Compile → Unit Test → Lint → Build/Assemble → Validate User Flows`

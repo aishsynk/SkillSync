@@ -1,5 +1,42 @@
 # SkillEdge / Manager OS — Decisions
 
+## 2026-09-15 — Production-contamination recovery: InTouch Intelligence rebrand and LinkedIn Capture removed; SkillSync is the product
+
+- **Decision (operator correction, supersedes the `2026-09-14` "Product is
+  branded InTouch Intelligence" entry below — do not relitigate this):** the
+  Android application is **SkillSync**. "InTouch Intelligence" was never an
+  authorized product identity and must not exist anywhere in this repository
+  or release line. The existing internal/visual **SkillEdge** identity
+  (login wordmark "SkillEdge", tagline "DELIVERY INTELLIGENCE", dashboard
+  header "SKILLEDGE · EXECUTIVE CONSOLE") is intentional and correct — it is
+  not being replaced by anything.
+- **Decision:** the LinkedIn Capture feature (`feat: add linkedin capture
+  workflow to android`, origin commit `ec701f70`) is not part of SkillSync
+  and has been removed in full: API client, parser/engine, repository,
+  ViewModel, screen, `LinkedInShareStore`, navigation routes, the dashboard
+  entry tile, the `MainActivity` SEND-intent handling, the manifest
+  `<queries>`/intent-filter block, `LINKEDIN_BASE_URL` build-config plumbing,
+  and its dedicated tests. This is a removal, not a deprecation — no
+  LinkedIn-shaped surface remains in the app.
+- **Decision:** `https://github.com/aishsynk/InTouch` is **not** a release
+  repository for this product and must not receive further pushes under
+  that identity. Package `com.example.skillsync` and the existing release
+  signing key are unchanged (per the `2026-09-14` entry's own internal-IDs
+  clause, which remains correct even though the brand decision above it does
+  not).
+- **Why:** operator identified this as a production-contamination incident —
+  both the rebrand and the LinkedIn feature were introduced and, in one
+  case, pushed to `main` (`v3.80.10.185`) without being the authorized
+  product. Recovery was performed on a dedicated branch
+  (`recovery-skillsync-identity`), file-by-file against a recovery manifest,
+  restoring brand strings/assets from the last known-clean tag
+  (`v3.80.7.182`) while preserving all legitimate work layered on top since
+  then (Design V2 visual system, Communication Intelligence C0–C4). See
+  `AI/PROGRESS.md` "Phase 6D — Production contamination recovery" for the
+  full file-level record; that log entry is appended, not a rewrite of the
+  Phase 6B/6C history, which stays as the accurate record of what actually
+  shipped and when.
+
 ## 2026-09-15 — Communication Intelligence: fact-selection layer gets a recipient-resolution step, not a new engine
 
 - **Decision:** the fix for nonsensical aggregate-KPI messages ("There are 5
