@@ -577,3 +577,117 @@ which applied to that branch cut.
 5. Scratch files (`fix*.py`, `*.ps1`, `update_mcc.py`, `patch_mcc.py`,
    `redesign.py`, `AI/PLAN_V2_AUDIT_AND_DESIGN_2026_09_13.md`) remain untracked
    and excluded from commits.
+
+**Versioning note for whoever reads this next:** this entry's §8.3 plan says
+"next RC = versionCode 183 / 3.81.0" — that did not happen. In a parallel
+thread of this same day, two releases already shipped from `main` using the
+old scheme: **v3.80.8.183** (Today structural/API hardening) and
+**v3.80.9.184** (Today visual system pass) — see the next section below. The
+Phase 6C rebrand work in this section was a **local commit only, not
+pushed/released** as of this note. Current live versionCode/versionName in
+committed `main` history is **184 / 3.80.9**, not 182/3.80.7 as stated above.
+Reconcile the 3.81.0 rebrand-release plan against the already-published
+184/3.80.9 before cutting the next RC — do not assume either thread's
+version plan alone is authoritative.
+
+---
+
+# Session Handover — Communication Intelligence rebuild, Phase C0 + C1/C2 (2026-09-15)
+
+## 1. What was completed
+- **Phase C0 (audit, no code changes):** full call-graph trace of every
+  message-generation path in the app. Confirmed the task's diagnosis exactly:
+  there is no single central engine with a few stray bypasses — there are
+  **4-5 independent template systems** (`CommunicationContextSelector`/
+  `CommunicationComposer` in `feature/communication/engine/`, `WeeklyMessage.kt`,
+  `MessageRewriter.kt`, `BatchShare.kt`/`BulkBatchShare.kt`, and backend
+  `_viber_queue_build`), each with its own purpose/tone vocabulary, and only
+  one of them (`CommunicationGenerator`) is validated at all.
+  Root-caused the exact bad example in the task
+  ("There are 5 open batches... and 2 of us are free") to
+  `WeeklyMessage.kt`'s `composeTeamMessage()` — literal aggregate-count
+  interpolation (`count(signals.free, "of you is", "of you are")`), no
+  per-trainer identification anywhere in that path.
+  Also found (not yet fixed): `backend.py`'s `_viber_dispatch_item` returns
+  `"status": "SENT"` even when no bot token is configured (simulated/queued
+  path still claims sent); `ViberDispatcher.kt`'s Accessibility/Intent mode
+  marks an item `STATUS_SENT` immediately after firing a share Intent with no
+  delivery confirmation — both misrepresent "opened a share sheet" as "sent",
+  while `CommunicationScreen.kt`'s own manual flow already does this
+  correctly (`SHARED_EXTERNALLY`).
+- **Phase C1/C2 (recipient-resolution core, code + tests):** added
+  `CommunicationPlanner` (`feature/communication/engine/CommunicationPlanner.kt`)
+  — takes real per-trainer facts (`CandidateTrainer`: capability match +
+  `AvailabilityState.AVAILABLE/COMMITTED/UNKNOWN`) for a `DemandFact` and
+  returns one `ContextSelectionPlan` per person who should actually be
+  contacted, reusing the existing `ContextSelectionPlan`/
+  `CommunicationComposer`/`CommunicationValidator` pipeline unchanged — this
+  is explicitly not a new parallel engine, it is the missing "who" step the
+  existing fact-selection layer never had. `CommunicationComposer`'s
+  `AVAILABILITY_REQUEST` branch gained an `availability_confirmed` fact check
+  so a capability-matched-but-unconfirmed candidate is asked to confirm
+  availability rather than told they've been identified as available.
+- Added `CommunicationPlannerTest.kt` — 6 semantic tests (meaning, not exact
+  prose): verified-available candidate addressed individually by name;
+  aggregate "2 available" input never produces a claim about specific free
+  people; capability-match-with-unknown-availability asks rather than
+  asserts; no candidate data produces an honest team message, never a
+  free-headcount claim; multiple available candidates get separate
+  individual plans, not one broadcast; a blank demand produces no plans.
+
+## 2. Current Status
+**Phase C1/C2 done and committed; explicitly stopped here for review before
+touching any screen**, per the operator's chosen scope (out of: C1+C2 only /
+fix-Viber-SENT-only / full C1-C8 sequential — operator chose C1+C2). No
+screen has been migrated to call `CommunicationPlanner` yet —
+`ManagerCommandCentre.kt`'s `onOpenCommunication` calls still pass `"TEAM"`
+directly today, unchanged. The Viber false-SENT-status bug is also
+unchanged. Both are explicitly Phase C3/C4/C5/C6 — not started.
+
+## 3. Files Modified
+- New: `feature/communication/engine/CommunicationPlanner.kt`.
+- Modified: `feature/communication/engine/CommunicationComposer.kt` (one new
+  fact check in the `AVAILABILITY_REQUEST` branch — existing callers that
+  never set `availability_confirmed` keep exactly today's wording, verified
+  by the existing `CommunicationEngineTest`/`WeeklyMessageTest` suites still
+  passing unchanged).
+- New test: `app/src/test/.../feature/communication/CommunicationPlannerTest.kt`.
+- Commit: `4897b62` on `main` (local; not yet pushed — this is a mid-rebuild
+  checkpoint, not a release-ready state per the task's explicit "do not
+  release early" instruction).
+
+## 4. Test Baseline
+272 unit tests (266 prior baseline + 6 new), same 11 documented pre-existing
+failures (7 `ScreenRenderTest` + 4 `PilotScreenshotTest`), **0 new
+regressions**. `compileDebugKotlin`/`compileReleaseKotlin` clean.
+
+## 5. Known Issues / Blockers
+- The 4-5 separate template systems identified in the C0 audit are not yet
+  consolidated — only the recipient-resolution gap in the main engine's path
+  is fixed. `WeeklyMessage.kt`, `MessageRewriter.kt`, `BatchShare.kt` still
+  independently generate prose with their own vocabularies.
+- The Viber SENT-status truthfulness bug (backend + `ViberDispatcher.kt`)
+  is documented (`AI/DECISIONS.md`) but not fixed.
+- Three independent, only-partially-overlapping "purpose" vocabularies still
+  exist in the codebase (`PURPOSES` list, `CommunicationPurpose` enum in
+  `CommunicationContextPolicy.kt`, and the literal strings `CommunicationComposer`
+  actually switches on) — not yet unified. Section 7 of the task's spec asks
+  to audit existing enums before adding new ones; this was done (see C0
+  audit in conversation) but the actual unification is deferred.
+
+## 6. Next Recommended Actions (remaining phases, per the task's own order)
+1. **C3**: fix Team/Trainer/Weekly/Monthly/HR message semantics specifically
+   — likely means porting `WeeklyMessage.kt`'s signal-selection logic to also
+   route through `CommunicationPlanner`-style per-person resolution instead
+   of its own aggregate templates.
+2. **C4**: migrate inner screens (`ManagerCommandCentre`, `PrioritiesScreen`,
+   `HrMonthlyReportScreen`, `WeeklyReportScreen`) to call the resolved plans
+   instead of passing `"TEAM"`/blank recipients directly.
+3. **C5/C6**: `MessageTransport` abstraction (`ViberShareTransport`/
+   `AndroidShareTransport`/`ClipboardTransport`), fix the SENT/SHARED_EXTERNALLY
+   truthfulness bug, rebuild Viber Automation into the "Communication
+   Dispatch Centre" the task describes.
+4. **C7/C8**: scheduling/notification queue, then full test + emulator
+   screenshot validation of the rebuilt inner screens.
+5. Reconcile the versioning-plan conflict noted above before any further
+   release.

@@ -1,5 +1,40 @@
 # SkillEdge / Manager OS — Decisions
 
+## 2026-09-15 — Communication Intelligence: fact-selection layer gets a recipient-resolution step, not a new engine
+
+- **Decision:** the fix for nonsensical aggregate-KPI messages ("There are 5
+  open batches... and 2 of us are free") is a new `CommunicationPlanner`
+  object that resolves WHO to message from real per-trainer facts
+  (capability match + verified availability), feeding the existing
+  `ContextSelectionPlan` → `CommunicationComposer` → `CommunicationValidator`
+  pipeline unchanged. It is explicitly not a parallel/competing engine.
+- **Why:** audit (Phase C0, this session) found the real defect wasn't
+  missing intelligence — `CommunicationContextSelector`'s auto-mode (Flow B)
+  already picks a sensible purpose/action/facts — it never resolved
+  recipients. Every caller hardcodes `recipientType = "TEAM"`, so an
+  aggregate count got spoken as if it named specific available people.
+- **Also confirmed by the same audit, not yet fixed:** there are 4-5
+  independent message-template systems in the app (the engine above,
+  `WeeklyMessage.kt`, `MessageRewriter.kt`, `BatchShare.kt`/
+  `BulkBatchShare.kt`, and backend `_viber_queue_build`), each with its own
+  purpose/tone vocabulary. Consolidating them is explicitly deferred to a
+  later phase (C3/C4) — this decision covers only the recipient-resolution
+  fix, not full consolidation.
+- **Availability semantics:** `AvailabilityState` has three states —
+  `AVAILABLE` (verified), `COMMITTED` (verified booked/on leave — never
+  contacted), `UNKNOWN` (not checked). A capability match with `UNKNOWN`
+  availability is asked to confirm, never told they are available. No
+  candidate data at all produces an honest team message that says
+  availability needs confirming — never a claim that N people are free.
+- **Known, separate bug this decision does NOT fix:** `backend.py`'s
+  `_viber_dispatch_item` returns `"status": "SENT"` even on the
+  no-token/simulated path, and `ViberDispatcher.kt`'s Accessibility/Intent
+  mode marks an item `STATUS_SENT` immediately after firing a share Intent,
+  with no delivery confirmation — both misrepresent "opened a share sheet"
+  as "sent". `CommunicationScreen.kt`'s own manual flow already gets this
+  right (`SHARED_EXTERNALLY`, not `SENT`) — the Viber Automation path needs
+  to adopt the same honest status, in a later phase (C5/C6).
+
 ## 2026-09-14 — Product is branded InTouch Intelligence; external release repo is aishsynk/InTouch
 
 - **Decision:** public product name is **InTouch Intelligence**. Naming hierarchy:
