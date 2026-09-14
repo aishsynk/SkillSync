@@ -26,9 +26,17 @@ data class ViberOutboxItem(
     companion object {
         const val STATUS_QUEUED = "QUEUED"
         const val STATUS_SENDING = "SENDING"
+        /** Confirmed sent — only ever set from a real Viber Bot API 200 response. */
         const val STATUS_SENT = "SENT"
         const val STATUS_FAILED = "FAILED"
         const val STATUS_SKIPPED = "SKIPPED"
+        /**
+         * A share Intent to Viber was opened with this message prefilled — the
+         * same honest distinction CommunicationScreen.kt already makes for its
+         * manual composer. Opening Viber is not delivery confirmation: the user
+         * still has to pick a recipient and tap send inside Viber itself.
+         */
+        const val STATUS_SHARED_EXTERNALLY = "SHARED_EXTERNALLY"
 
         const val CAT_DEMAND = "UNALLOCATED_DEMAND"
         const val CAT_WEEKLY = "WEEKLY_STANDPOINT"
@@ -119,7 +127,9 @@ object ViberOutboxStore {
 
     @Synchronized
     fun clearSent(managerEmail: String) {
-        val current = getAll(managerEmail).filter { it.status != ViberOutboxItem.STATUS_SENT }
+        val current = getAll(managerEmail).filter {
+            it.status != ViberOutboxItem.STATUS_SENT && it.status != ViberOutboxItem.STATUS_SHARED_EXTERNALLY
+        }
         save(managerEmail, current)
     }
 

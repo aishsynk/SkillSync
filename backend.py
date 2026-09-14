@@ -14797,7 +14797,11 @@ def _viber_dispatch_item(item: dict, token: str = "", webhook_url: str = "") -> 
     email = item.get("recipient_email", "")
     text = item.get("message_text", "")
     
-    # If a real Viber token is provided, attempt REST dispatch
+    # If a real Viber token is provided, attempt REST dispatch. Every path
+    # below reports what actually happened — a non-200 response is a real
+    # failure, not a fallthrough to a fake success, and "no token configured"
+    # is never reported as SENT (see AI/DECISIONS.md, 2026-09-15: opening a
+    # share sheet or a queued-but-unconfigured item is not delivery).
     if token and (phone or email):
         try:
             import requests
@@ -14811,13 +14815,22 @@ def _viber_dispatch_item(item: dict, token: str = "", webhook_url: str = "") -> 
             resp = requests.post("https://chatapi.viber.com/pa/send_message", json=payload, headers=headers, timeout=5)
             if resp.status_code == 200:
                 return {"id": msg_id, "status": "SENT", "timestamp": datetime.utcnow().isoformat()}
+            return {
+                "id": msg_id, "status": "FAILED",
+                "error": f"Viber API returned HTTP {resp.status_code}",
+                "timestamp": datetime.utcnow().isoformat(),
+            }
         except Exception as e:
             return {"id": msg_id, "status": "FAILED", "error": str(e), "timestamp": datetime.utcnow().isoformat()}
 
-    # Successful simulated / queued dispatch
+    # No bot token configured (or no recipient address) — nothing was
+    # transmitted to Viber. SKIPPED matches the Android ViberOutboxItem
+    # vocabulary already in use (QUEUED/SENDING/SENT/FAILED/SKIPPED); it must
+    # never be reported as SENT.
     return {
         "id": msg_id,
-        "status": "SENT",
+        "status": "SKIPPED",
+        "reason": "No Viber bot token configured — message was not dispatched.",
         "recipient": email or phone,
         "timestamp": datetime.utcnow().isoformat(),
     }

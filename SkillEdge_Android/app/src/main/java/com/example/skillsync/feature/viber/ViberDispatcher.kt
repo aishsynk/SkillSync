@@ -64,6 +64,12 @@ object ViberDispatcher {
                         } else if (status == "FAILED" && id.isNotBlank()) {
                             val err = rMap["error"]?.toString() ?: "Dispatch failed"
                             ViberOutboxStore.markStatus(managerEmail, id, ViberOutboxItem.STATUS_FAILED, err)
+                        } else if (status == "SKIPPED" && id.isNotBlank()) {
+                            // No bot token configured server-side — nothing was
+                            // transmitted. Record it honestly rather than leaving
+                            // the item silently stuck in its prior status.
+                            val reason = rMap["reason"]?.toString() ?: "No Viber bot token configured"
+                            ViberOutboxStore.markStatus(managerEmail, id, ViberOutboxItem.STATUS_SKIPPED, reason)
                         }
                     }
                     if (sentIds.isNotEmpty()) {
@@ -83,7 +89,11 @@ object ViberDispatcher {
                 // now behaves as the 1-tap Intent path.
                 for (item in items) {
                     dispatchViaIntent(context, item, config)
-                    ViberOutboxStore.markStatus(managerEmail, item.id, ViberOutboxItem.STATUS_SENT)
+                    // Opening the Viber share sheet is not delivery confirmation —
+                    // the user still has to pick a recipient and tap send inside
+                    // Viber. Matches CommunicationScreen.kt's existing
+                    // SHARED_EXTERNALLY distinction; never claim SENT here.
+                    ViberOutboxStore.markStatus(managerEmail, item.id, ViberOutboxItem.STATUS_SHARED_EXTERNALLY)
                     successCount++
                 }
             }
@@ -92,7 +102,7 @@ object ViberDispatcher {
                 // Default: Direct Intent
                 for (item in items) {
                     dispatchViaIntent(context, item, config)
-                    ViberOutboxStore.markStatus(managerEmail, item.id, ViberOutboxItem.STATUS_SENT)
+                    ViberOutboxStore.markStatus(managerEmail, item.id, ViberOutboxItem.STATUS_SHARED_EXTERNALLY)
                     successCount++
                 }
             }

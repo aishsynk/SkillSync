@@ -58,9 +58,13 @@ def test_viber_queue_matches_reportee_and_composes_house_style_messages(monkeypa
     assert "_Thank you._" in demand_item["message_text"]
 
 
-def test_viber_dispatch_endpoint(client):
+def test_viber_dispatch_endpoint_without_a_token_is_honestly_skipped_not_sent(client):
     """
-    Test POST /api/v2/viber/dispatch dispatches items and returns success receipts.
+    No Viber bot token is passed here — nothing is actually transmitted to
+    Viber, so the honest status is SKIPPED, never SENT. This is the exact
+    truthfulness bug the Communication Intelligence rebuild fixed
+    (backend.py _viber_dispatch_item used to claim "SENT" on this same
+    no-token path — see AI/DECISIONS.md, 2026-09-15).
     """
     payload = {
         "items": [
@@ -77,7 +81,58 @@ def test_viber_dispatch_endpoint(client):
     data = resp.get_json()
     assert data["status"] == "ok"
     assert data["total_dispatched"] == 1
+    assert data["results"][0]["status"] == "SKIPPED"
+    assert "token" in data["results"][0]["reason"].lower()
+
+
+def test_viber_dispatch_endpoint_with_a_working_token_reports_sent(client, monkeypatch):
+    """With a real token and a successful API response, SENT is legitimate."""
+    class FakeResponse:
+        status_code = 200
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        return FakeResponse()
+
+    monkeypatch.setattr("requests.post", fake_post)
+    payload = {
+        "items": [
+            {
+                "id": "viber_test_002",
+                "recipient_email": "subhashish.bhattacharjee@koenig-solutions.com",
+                "message_text": "Hello Subhashish, test message.",
+            }
+        ],
+        "viber_token": "real-token-abc",
+    }
+    resp = client.post("/api/v2/viber/dispatch", data=json.dumps(payload), content_type="application/json")
+    assert resp.status_code == 200
+    data = resp.get_json()
     assert data["results"][0]["status"] == "SENT"
+
+
+def test_viber_dispatch_endpoint_with_a_failing_api_response_reports_failed_not_sent(client, monkeypatch):
+    """A real, non-200 API response must be FAILED, never fall through to SENT."""
+    class FakeResponse:
+        status_code = 400
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        return FakeResponse()
+
+    monkeypatch.setattr("requests.post", fake_post)
+    payload = {
+        "items": [
+            {
+                "id": "viber_test_003",
+                "recipient_email": "subhashish.bhattacharjee@koenig-solutions.com",
+                "message_text": "Hello Subhashish, test message.",
+            }
+        ],
+        "viber_token": "real-token-abc",
+    }
+    resp = client.post("/api/v2/viber/dispatch", data=json.dumps(payload), content_type="application/json")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["results"][0]["status"] == "FAILED"
 
 
 def test_viber_config_persistence(client):
