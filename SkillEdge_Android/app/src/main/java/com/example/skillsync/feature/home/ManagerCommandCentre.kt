@@ -161,11 +161,12 @@ fun ManagerCommandCentre(
             onClick = onOpenMySchedule,
         )
 
-        // ── Hero: team readiness ring ────────────────────────────────────────
-        SkillCard(modifier = Modifier.fillMaxWidth().pressable(onOpenPriorities)) {
+        // ── Hero: the one heroSurface() on this screen, per the surface usage
+        // rule (Surfaces.kt) — team readiness is Today's single major insight.
+        Box(Modifier.fillMaxWidth().heroSurface().pressable(onOpenPriorities).padding(Space.lg)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("TEAM READINESS", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+                    Text("TEAM READINESS", style = MaterialTheme.typography.labelSmall, color = sk.ice)
                     Text(
                         readiness?.toString() ?: "—",
                         style = MaterialTheme.typography.displaySmall,
@@ -173,7 +174,7 @@ fun ManagerCommandCentre(
                         fontWeight = FontWeight.Bold,
                     )
                     if (readinessTrend != null) {
-                        Text(readinessTrend, style = MaterialTheme.typography.labelMedium, color = deltaTone(readinessTrend, sk) ?: sk.subText)
+                        Text(readinessTrend, style = MaterialTheme.typography.labelMedium, color = deltaTone(readinessTrend, sk) ?: sk.ice)
                     }
                     Spacer(Modifier.height(Space.xs))
                     Text(
@@ -183,10 +184,10 @@ fun ManagerCommandCentre(
                             if (openDemand > 0) "$openDemand demand${if (openDemand == 1) "" else "s"} unallocated" else null,
                         ).joinToString(" · "),
                         style = MaterialTheme.typography.bodySmall,
-                        color = sk.subText,
+                        color = sk.ice,
                     )
                 }
-                ReadinessRing(value = readiness, modifier = Modifier.size(72.dp))
+                HeroRing(value = readiness, modifier = Modifier.size(72.dp))
             }
         }
 
@@ -289,22 +290,25 @@ fun ManagerCommandCentre(
             if (attentionItems.isEmpty()) {
                 StateNote("Nothing needs you right now — the queue is clear.")
             } else {
-                SkillCard(modifier = Modifier.fillMaxWidth(), padding = Space.sm) {
-                    attentionItems.forEachIndexed { i, item ->
-                        AttentionRow(
-                            item.title, item.subtitle, item.severity,
-                            onClick = onOpenDemand,
-                            onAskAvailability = if (item.demandId.isNotBlank()) {
-                                {
-                                    onOpenCommunication(
-                                        "TEAM", "", "AVAILABILITY_REQUEST",
-                                        "demand", item.demandId,
-                                    )
-                                }
-                            } else null,
-                        )
-                        if (i < attentionItems.lastIndex) {
-                            HorizontalDivider(color = sk.cardBorder, thickness = 1.dp)
+                Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                    attentionItems.forEach { item ->
+                        Box(Modifier.fillMaxWidth().accentGlass(item.severity.tint()).pressable(onOpenDemand)) {
+                            ActionRow(
+                                title = item.title,
+                                modifier = Modifier.padding(horizontal = Space.md),
+                                supportingText = item.subtitle,
+                                tint = item.severity.tint(),
+                                primaryActionLabel = if (item.demandId.isNotBlank()) "Ask availability" else null,
+                                onPrimaryAction = if (item.demandId.isNotBlank()) {
+                                    {
+                                        onOpenCommunication(
+                                            "TEAM", "", "AVAILABILITY_REQUEST",
+                                            "demand", item.demandId,
+                                        )
+                                    }
+                                } else null,
+                                secondaryContent = { ToneChip(text = item.severity.label, tint = item.severity.tint()) },
+                            )
                         }
                     }
                 }
@@ -388,7 +392,7 @@ fun ManagerCommandCentre(
                         Text("Open-demand courses with a certified trainer", style = MaterialTheme.typography.titleSmall, color = sk.frost)
                         Text("$certCoverage%", style = MaterialTheme.typography.titleMedium, color = sk.cyan, fontWeight = FontWeight.Bold)
                     }
-                    ProgressTrack(fraction = certCoverage.coerceIn(0, 100) / 100f, tint = sk.cyan)
+                    MetricProgress(fraction = certCoverage.coerceIn(0, 100) / 100f, tint = sk.cyan)
                 }
             }
         }
@@ -501,38 +505,6 @@ private fun CommandHeader(
     }
 }
 
-/** A radial progress ring for team readiness — drawn on Canvas, not a Box bar,
- * since this is the single hero number on the page and earns the extra care. */
-@Composable
-private fun ReadinessRing(value: Int?, modifier: Modifier = Modifier) {
-    val sk = MaterialTheme.skill
-    Box(modifier, contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            val stroke = Stroke(width = size.minDimension * 0.12f, cap = StrokeCap.Round)
-            drawArc(
-                color = sk.surface3,
-                startAngle = -90f, sweepAngle = 360f, useCenter = false,
-                style = stroke, size = Size(size.width - stroke.width, size.height - stroke.width),
-                topLeft = androidx.compose.ui.geometry.Offset(stroke.width / 2, stroke.width / 2),
-            )
-            if (value != null) {
-                drawArc(
-                    brush = Brush.linearGradient(listOf(sk.azure, sk.cyan)),
-                    startAngle = -90f, sweepAngle = 360f * (value.coerceIn(0, 100) / 100f), useCenter = false,
-                    style = stroke, size = Size(size.width - stroke.width, size.height - stroke.width),
-                    topLeft = androidx.compose.ui.geometry.Offset(stroke.width / 2, stroke.width / 2),
-                )
-            }
-        }
-        Text(
-            value?.toString() ?: "—",
-            style = MaterialTheme.typography.titleMedium,
-            color = sk.frost,
-            fontWeight = FontWeight.Bold,
-        )
-    }
-}
-
 @Composable
 private fun PulseTile(
     glyph: String,
@@ -545,7 +517,9 @@ private fun PulseTile(
 ) {
     val sk = MaterialTheme.skill
     SkillCard(modifier = modifier.pressable(onClick), padding = Space.md) {
-        Text(glyph, style = MaterialTheme.typography.titleMedium)
+        IconSlot(tint = tint ?: sk.sky, size = 26.dp) {
+            Text(glyph, style = MaterialTheme.typography.titleSmall)
+        }
         Text(value, style = MaterialTheme.typography.headlineSmall, color = tint ?: sk.frost, fontWeight = FontWeight.Bold)
         Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.labelText)
         if (delta != null) {
@@ -568,33 +542,6 @@ private fun OperationTile(title: String, subtitle: String, modifier: Modifier = 
     SkillCard(modifier = modifier.pressable(onClick), padding = Space.md) {
         Text(title, style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.SemiBold, maxLines = 1)
         Text(subtitle, style = MaterialTheme.typography.labelSmall, color = sk.subText, maxLines = 1)
-    }
-}
-
-@Composable
-private fun ComparisonStat(
-    label: String,
-    value: String,
-    delta: String?,
-    modifier: Modifier = Modifier,
-    severity: Severity? = null,
-    onClick: () -> Unit = {},
-) {
-    val sk = MaterialTheme.skill
-    val tint = severity?.tint()
-    SkillCard(
-        modifier = modifier.pressable(onClick),
-        severity = severity,
-        padding = Space.md,
-    ) {
-        Figure(
-            value = value,
-            label = label,
-            size = FigureSize.Small,
-            tint = tint,
-            delta = delta,
-            deltaTint = deltaTone(delta, sk),
-        )
     }
 }
 
@@ -642,24 +589,6 @@ private fun LegendDot(color: Color, text: String) {
     }
 }
 
-@Composable
-private fun ProgressTrack(fraction: Float, tint: Color) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(6.dp)
-            .clip(RoundedCornerShape(Radii.chip))
-            .background(MaterialTheme.skill.track),
-    ) {
-        Box(
-            Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .background(tint),
-        )
-    }
-}
-
 private data class AttentionItem(
     val title: String,
     val subtitle: String,
@@ -667,41 +596,6 @@ private data class AttentionItem(
     /** Real `demand_id` when this item is an unallocated batch — powers "Ask availability". Blank for non-demand items (e.g. skill requests), which get no communication shortcut. */
     val demandId: String = "",
 )
-
-@Composable
-private fun AttentionRow(
-    title: String,
-    subtitle: String,
-    severity: Severity,
-    onClick: () -> Unit,
-    onAskAvailability: (() -> Unit)? = null,
-) {
-    val sk = MaterialTheme.skill
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = Space.sm, horizontal = Space.sm),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(severity.tint()))
-        Spacer(Modifier.width(Space.sm))
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = sk.frost, maxLines = 1)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = sk.subText, maxLines = 1)
-        }
-        if (onAskAvailability != null) {
-            Spacer(Modifier.width(Space.xs))
-            ToneChip(
-                text = "Ask availability",
-                tint = sk.sky,
-                modifier = Modifier.pressable(onAskAvailability),
-            )
-            Spacer(Modifier.width(Space.xs))
-        }
-        ToneChip(text = severity.label, tint = severity.tint())
-    }
-}
 
 @Composable
 private fun CommunicateAction(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
