@@ -496,7 +496,7 @@ private fun PreparationRequestDialog(
                 if (courseCode.isNotBlank()) append(" ($courseCode)")
                 append(".\n\n")
             }
-            append("Official courseware and module breakdown are available in SkillSync.")
+            append("Official courseware and module breakdown are available in InTouch.")
         }
     }
 

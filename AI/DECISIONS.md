@@ -1,5 +1,40 @@
 # SkillEdge / Manager OS — Decisions
 
+## 2026-09-14 — Product is branded InTouch Intelligence; external release repo is aishsynk/InTouch
+
+- **Decision:** public product name is **InTouch Intelligence**. Naming hierarchy:
+  1. full brand "InTouch Intelligence" (app label, login, formal docs);
+  2. worn mark "InTouch" + symbol (launcher, compact surfaces, notifications);
+  3. internal identifiers **unchanged** (package `com.example.skillsync`, prefs
+     `skilledge_session`/`skillsync_cache.db`/`skillsync_seen_batches`, worker names,
+     channel IDs `skillsync_alerts_v3`/`skilledge_monitoring`) — renaming these breaks
+     user-data compat for zero user value.
+- **Decision:** `https://github.com/aishsynk/InTouch` (PRIVATE) is the canonical release
+  repository (version ledger, release records, governance, brand masters). Source remains in
+  private working repos. Ledger is **append-only**; corrections are appended, never in place.
+
+## 2026-09-14 — Versioning: documented only now; bump at RC cut to 183 / 3.81.0
+
+- **Decision:** adopt semantic `MAJOR.MINOR.PATCH` (`versionName`) + monotonic `versionCode`;
+  **documented this session, source unchanged** at `182` / `3.80.7`. Next RC cuts as
+  **`183` / `3.81.0`**. Bump happens only at the RC cut, never to "show progress".
+- Same `applicationId` (`com.example.skillsync`) + same signing key forever → in-place
+  upgrade without an uninstall prompt. Do not change `targetSdk` behaviour related to version.
+- **Why:** production installs exist; a version bump is meaningful only when a candidate is
+  actually cut. Bumping during development creates false release records.
+
+## 2026-09-14 — Android brand iconography derives from the circular symbol master
+
+- **Decision:** adaptive icon background = flat white; foreground = symbol at ~62 dp on the
+  108 dp canvas (inside safe zone); monochrome = white silhouette (L-channel alpha mask so
+  Pillow resize never fringes RGB); legacy `ic_launcher.png` white-background full-bleed +
+  circular-masked `ic_launcher_round.png`; notification small icon = white silhouette
+  `ic_notification_intouch` (24/36/48/72/96 px buckets). Login logo = transparent symbol.
+  Masters live in the InTouch release repo (`assets/branding/`).
+- **Why:** full-brand identity was explicitly authorized; the White BG + symbol keeps the mark
+  legible in every launcher shape. Notification channel IDs and worker names are preserved.
+- Verification is programmatic today; device visual QA is a documented PENDING gate.
+
 ## 2026-09-14 — Real-emulator screenshots are the only screenshot-validation path; Robolectric captureToImage is retired
 
 - **Decision:** all future visual/screenshot validation uses an instrumented test

@@ -137,7 +137,7 @@ object NotificationEngine {
                     BUCKET_FEEDBACK -> "Feedback Required"
                     BUCKET_DEMAND -> "New Unallocated Batches"
                     BUCKET_DELIVERY -> "Delivery Alerts"
-                    else -> "SkillSync Update"
+                    else -> "InTouch Update"
                 }
                 val targetType = when (bucket) {
                     BUCKET_DEMAND -> "demand_list"

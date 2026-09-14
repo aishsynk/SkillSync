@@ -26,7 +26,7 @@ fun SkillSyncDesignCatalog() {
             topBar = {
                 SkillSyncTopBar(
                     title = "Design Foundation Catalog",
-                    subtitle = "SkillSync V4 Specification",
+                    subtitle = "InTouch Intelligence V4 Specification",
                     onBack = {},
                 )
             }
@@ -242,7 +242,7 @@ fun SkillSyncDesignCatalog() {
     }
 }
 
-@Preview(name = "SkillSync Design Catalog Preview", showBackground = true, backgroundColor = 0xFF0B0F19)
+@Preview(name = "InTouch Design Catalog Preview", showBackground = true, backgroundColor = 0xFF0B0F19)
 @Composable
 fun PreviewSkillSyncDesignCatalog() {
     SkillSyncDesignCatalog()

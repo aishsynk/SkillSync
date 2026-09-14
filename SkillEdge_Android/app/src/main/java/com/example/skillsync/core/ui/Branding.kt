@@ -25,11 +25,11 @@ import com.example.skillsync.theme.skill
 import androidx.compose.ui.unit.dp
 
 /**
- * The SkillSync brand mark. When [floating] it drifts and breathes very slightly —
+ * The InTouch brand mark. When [floating] it drifts and breathes very slightly —
  * enough to feel alive on the login screen without pulling focus.
  */
 @Composable
-fun SkillSyncLogo(
+fun InTouchLogo(
     size: Dp,
     modifier: Modifier = Modifier,
     floating: Boolean = false,
@@ -55,8 +55,8 @@ fun SkillSyncLogo(
     )
 
     Image(
-        painter = painterResource(R.drawable.logo_transparent),
-        contentDescription = "SkillSync",
+        painter = painterResource(R.drawable.intouch_symbol),
+        contentDescription = "InTouch Intelligence",
         modifier = modifier
             .size(size)
             .graphicsLayer {
@@ -71,19 +71,19 @@ fun SkillSyncLogo(
 
 /** Wordmark + tagline lockup used on the login screen. */
 @Composable
-fun SkillSyncWordmark(modifier: Modifier = Modifier) {
+fun InTouchWordmark(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Text(
-            text = "SkillEdge",
+            text = "InTouch",
             style = MaterialTheme.typography.displaySmall,
             color = MaterialTheme.colorScheme.onBackground,
         )
         Text(
-            text = "DELIVERY INTELLIGENCE",
+            text = "INTELLIGENCE",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.skill.subText,
         )

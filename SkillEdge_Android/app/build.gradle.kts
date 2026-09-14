@@ -30,9 +30,9 @@ android {
         applicationId = "com.example.skillsync"
         minSdk = 24
         targetSdk = 34
-        versionCode = 184
-        versionName = "3.80.9"
-        manifestPlaceholders["appName"] = "SkillSync"
+        versionCode = 182
+        versionName = "3.80.7"
+        manifestPlaceholders["appName"] = "InTouch Intelligence"
         buildConfigField("String", "LINKEDIN_BASE_URL", "\"$linkedinBaseUrl\"")
     }
 
@@ -58,7 +58,7 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
-            manifestPlaceholders["appName"] = "SkillSync Debug"
+            manifestPlaceholders["appName"] = "InTouch Intelligence Debug"
             // Sign debug builds with the exact same release keystore so that local builds,
             // debug APKs, and release APKs share an identical certificate and can update
             // seamlessly over each other without ever prompting for an uninstall!

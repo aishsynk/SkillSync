@@ -69,8 +69,8 @@ import com.example.skillsync.theme.skill
 import com.example.skillsync.core.ui.Appear
 import com.example.skillsync.core.ui.LocalNotify
 import com.example.skillsync.core.ui.Motion
-import com.example.skillsync.core.ui.SkillSyncLogo
-import com.example.skillsync.core.ui.SkillSyncWordmark
+import com.example.skillsync.core.ui.InTouchLogo
+import com.example.skillsync.core.ui.InTouchWordmark
 import com.example.skillsync.core.ui.rememberShake
 
 /**
@@ -149,9 +149,9 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Appear(index = 0) { SkillSyncLogo(size = 104.dp, floating = true) }
+                Appear(index = 0) { InTouchLogo(size = 104.dp, floating = true) }
                 Spacer(Modifier.height(Space.xl))
-                Appear(index = 1) { SkillSyncWordmark() }
+                Appear(index = 1) { InTouchWordmark() }
 
                 Spacer(Modifier.height(Space.xxl))
 

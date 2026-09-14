@@ -1,5 +1,25 @@
 # SkillEdge / Manager OS — Project Context
 
+## InTouch Intelligence branding & release repository (effective 2026-09-14)
+
+- **Product is now branded InTouch Intelligence** (formerly SkillSync / SkillEdge) on every
+  user-facing surface: app label, login wordmark ("InTouch" + "INTELLIGENCE"), notification
+  channel name ("InTouch Alerts"), monitoring title, in-app headers/panels, report footers.
+- **Release repository (external):** `https://github.com/aishsynk/InTouch` (PRIVATE) is the
+  canonical release repo — version ledger (`RELEASES.md`), release records (`releases/`),
+  governance (`AI/*.md`), brand masters (`assets/branding/`). Source stays in this repo + the
+  `Personal\incipit\personal\Linkedin` backend repo. Names details in `guides/process.md`.
+- **Versioning (documented only):** semantic `MAJOR.MINOR.PATCH` + monotonic `versionCode`;
+  bump only at the RC cut. Current source `182` / `3.80.7`; next RC = `183` / `3.81.0`. Never
+  change `applicationId` (`com.example.skillsync`) or the signing key (in-place-upgrade rule).
+- **Android iconography:** launcher/adaptive/monochrome + notification small icon derived from
+  the circular symbol master (white background, symbol at ~62 dp on the 108 dp canvas). In-app
+  logo = transparent symbol. Pillow pipeline (`Temp\opencode\gen_brand.py`); masters live in
+  the InTouch release repo. Notification channel IDs and worker names are unchanged.
+- **Honesty rule:** unit-test baseline is **not** zero — 254 run / 11 pre-existing failures
+  (7 `ScreenRenderTest` + 4 `PilotScreenshotTest`). Gate-clean = 0 new failures, lint delta 0
+  or better. "All tests pass" must never be written. Current lint 6E/78W/3H.
+
 ## Design V2 (Advanced) — reference visual direction (proposed 2026-09-13, not yet implemented)
 
 - **Status:** Visual proposal only (published as a Claude Artifact), not yet reflected in any

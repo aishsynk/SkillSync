@@ -84,8 +84,8 @@ class MonitoringService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("SkillEdge is monitoring delivery activity")
+            .setSmallIcon(R.drawable.ic_notification_intouch)
+            .setContentTitle("InTouch Intelligence is monitoring delivery activity")
             .setContentText("New allocations, demand and feedback alerts stay live in the background.")
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
