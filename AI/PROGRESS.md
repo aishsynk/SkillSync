@@ -833,3 +833,80 @@ tests.
    name).
 3. Cut the `185 / 3.80.10` RC only when the operator approves + device evidence
    exists. No new phases until then.
+
+---
+
+## 2026-09-15 — Communication Intelligence, Phase C4: real recipient resolution wired to Today
+
+## 1. What was completed
+Closed the loop the C1/C2 pass opened: `CommunicationPlanner` existed but no
+screen called it. Extended `backend.py`'s dashboard build with a new pure
+function `_match_trainers_for_demand(course_name, trainer_ops)` — for each
+unallocated demand item, attaches real, skill-matched candidate trainers
+(matched against each trainer's own verified `skill_courses` register) with
+an honest availability reading derived from that trainer's own already-
+computed, verified assignment/off-date check:
+`AVAILABLE` only when verified and clear, `COMMITTED` when verified
+conflicting, `UNKNOWN` otherwise — never asserted free without verification.
+A course with no matching trainer in the roster gets an empty list, never an
+invented candidate.
+
+`ManagerCommandCentre.kt`'s "Needs you today" unallocated-demand item now
+parses this real `matching_trainers` data and calls
+`CommunicationPlanner.planUnallocatedDemand`. The "Ask availability" button
+becomes "Ask &lt;Name&gt;" and routes `onOpenCommunication` as `INDIVIDUAL` to
+that real person when a capability match exists, falling back to the
+previous `TEAM` broadcast only when no candidate can be identified at all —
+exactly this rebuild's own rule, and the first real screen wiring of the
+whole Communication Intelligence rebuild.
+
+## 2. Current Status
+Phase C4's first (and most natural) wiring is done. Not started: extending
+the same real-recipient pattern to Priorities/HR Monthly/Weekly Report
+screens, or to multi-candidate selection (today's implementation names the
+first resolved candidate when several are equally eligible — a picker UI for
+"more than one real candidate" is a documented, not-yet-built refinement).
+C5–C8 (transport abstraction, Viber Dispatch Centre rebuild, scheduling,
+full emulator screenshot validation of the rebuilt flow) have not started.
+
+## 3. Files Modified
+- `backend.py`: new `_match_trainers_for_demand()` (near `_norm_course`),
+  called from the dashboard build right after `trainer_ops` is populated.
+- `tests/test_match_trainers_for_demand.py` (new, 7 pure-function tests).
+- `feature/home/ManagerCommandCentre.kt`: `AttentionItem` gained
+  `recipientType`/`recipientName`; the unallocated-demand branch resolves a
+  plan via `CommunicationPlanner` before building the attention row.
+- `app/src/test/.../ScreenRenderTest.kt`: 1 new end-to-end test
+  (`today_unallocatedDemandWithAMatchedCandidate_addressesThatPersonByName`);
+  the existing TEAM-fallback test is unchanged and still passes.
+- Commit: `42797c7` on `main` (local) / pushed to
+  `communication-intelligence-c1c2`.
+
+## 4. Test Baseline
+Backend: 369 passed (362 baseline + 7 new), 0 regressions. Android: 274 unit
+tests (273 + 1 new), same 11 documented pre-existing failures, 0 new.
+`compileDebugKotlin`/`compileReleaseKotlin` clean.
+
+## 5. Known Limitations (documented, not fixed this pass)
+- Availability is a general "currently free" reading (that trainer's own
+  latest verified check), not verified against the specific unallocated
+  batch's date window — a per-candidate, per-batch RMS call would be needed
+  for that, which this endpoint intentionally does not make (cost). Honest
+  either way: UNKNOWN/COMMITTED are never upgraded to AVAILABLE without a
+  real verified-clear check.
+- When multiple real candidates are equally eligible, the UI currently
+  contacts only the first one resolved — no multi-candidate picker yet.
+
+## 6. Next Recommended Actions
+1. Extend the same `_match_trainers_for_demand` pattern (or an equivalent)
+   to Priorities' unstaffed-demand items, which already carry a `coverable`
+   boolean but no named candidates.
+2. Build the multi-candidate picker for the case where more than one real
+   candidate is equally eligible (reuse the existing trainer-picker
+   `ModalBottomSheet` pattern already in `ManagerCommandCentre.kt`).
+3. C5/C6: `MessageTransport` abstraction, rebuild Viber Automation into the
+   Communication Dispatch Centre.
+4. Not pushed to `main`, not released — stays on
+   `communication-intelligence-c1c2` per the task's "do not release early"
+   instruction, coordinate with the parallel InTouch/versioning thread
+   before any merge.
