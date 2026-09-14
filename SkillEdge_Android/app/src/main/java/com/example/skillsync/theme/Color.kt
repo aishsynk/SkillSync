@@ -63,6 +63,15 @@ val Amber  = StatusWarn
 val Red    = StatusCrit
 val Indigo = LightAzure
 
+// ── AI / automation / intelligence family — a real indigo/violet, distinct
+// from the info-blue ramp above, so "this is an AI/automation surface" reads
+// as its own colour rather than another shade of blue. ─────────────────────
+val VioletAccent = Color(0xFF8B5CF6)
+val IndigoAccent = Color(0xFF6366F1)
+/** A true emerald, distinct from Aqua/Cyan, for "delivering/success" cells
+ *  that need to read differently from Cyan's "utilisation/analytics" meaning. */
+val EmeraldAccent = Color(0xFF10B981)
+
 // ── Gradients ────────────────────────────────────────────────────────────────
 val GradientHero     = listOf(DeepNavy, BrandBlue)
 val GradientRoyalSky = listOf(RoyalBlue, SkyBlue)
@@ -129,6 +138,11 @@ data class SkillColors(
     /** Retired brass/plum accents — resolve to the blue ramp. */
     val brass: Color,
     val plum: Color,
+    /** AI / automation / intelligence family — see VioletAccent/IndigoAccent. */
+    val violet: Color,
+    val indigoDeep: Color,
+    /** True emerald for "delivering/success" — distinct from cyan's analytics meaning. */
+    val emerald: Color,
 )
 
 /**
@@ -175,6 +189,9 @@ val CommandSkillColors = SkillColors(
     labelText   = Color(0xFF9AA8BF),
     brass       = SkyBlue,
     plum        = LightAzure,
+    violet      = VioletAccent,
+    indigoDeep  = IndigoAccent,
+    emerald     = EmeraldAccent,
 )
 
 // Both entry points resolve to the command scheme; the app has one identity.

@@ -183,27 +183,43 @@ fun Modifier.accentGlass(
         shape
     )
 
-/** Hero surface: Deep Navy → Brand Blue at 135°, the app's single loudest fill. */
+/**
+ * Hero surface: deep navy → royal → azure diagonal, the app's single loudest
+ * fill, plus a soft cyan edge-illumination in the upper-right corner — a
+ * flagship highlight, not a neon glow. This is the one place the V2 palette
+ * is allowed to look proud of itself.
+ */
 fun Modifier.heroSurface(shape: Shape = RoundedCornerShape(Radii.hero)): Modifier = this
     .clip(shape)
     .background(
         Brush.linearGradient(
             colors = listOf(
                 DeepNavy,
-                Color(0xFF131D2E),
-                RoyalBlue.copy(alpha = 0.45f),
+                Color(0xFF132549),
+                RoyalBlue.copy(alpha = 0.65f),
+                AzureBlue.copy(alpha = 0.40f),
                 Color(0xFF0E1624),
             ),
             start = Offset(0f, 0f),
             end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
         )
     )
+    .drawWithContent {
+        drawContent()
+        drawRect(
+            Brush.radialGradient(
+                colors = listOf(Cyan.copy(alpha = 0.16f), Color.Transparent),
+                center = Offset(size.width * 0.90f, size.height * 0.02f),
+                radius = size.width * 0.60f,
+            )
+        )
+    }
     .border(
         1.dp,
         Brush.linearGradient(
             listOf(
-                Color(0x4038BDF8),
-                Color(0x203B82F6),
+                Color(0x8038BDF8),
+                Color(0x403B82F6),
                 Color(0x10111827),
             )
         ),
@@ -263,7 +279,13 @@ fun Modifier.glowRing(
     width: Dp = 1.dp,
 ): Modifier = this.border(width, accent.copy(alpha = 0.45f), shape)
 
-/** Small square icon slot behind a KPI or section glyph. */
+/**
+ * Small square icon slot behind a KPI or section glyph. A tonal gradient fill
+ * (not a flat alpha wash) so each domain's icon reads as a distinct chip of
+ * colour rather than the same grey-blue square repeated with a different
+ * glyph inside it — the caller's [tint] is what actually differentiates
+ * Planning/Delivery/People/Automation/Risk sections from each other.
+ */
 @Composable
 fun IconSlot(
     tint: Color,
@@ -274,8 +296,12 @@ fun IconSlot(
         Modifier
             .size(size)
             .clip(RoundedCornerShape(Radii.icon))
-            .background(tint.copy(alpha = 0.16f))
-            .border(1.dp, tint.copy(alpha = 0.24f), RoundedCornerShape(Radii.icon)),
+            .background(
+                Brush.linearGradient(
+                    listOf(tint.copy(alpha = 0.32f), tint.copy(alpha = 0.12f)),
+                )
+            )
+            .border(1.dp, tint.copy(alpha = 0.42f), RoundedCornerShape(Radii.icon)),
         contentAlignment = Alignment.Center,
     ) { content() }
 }

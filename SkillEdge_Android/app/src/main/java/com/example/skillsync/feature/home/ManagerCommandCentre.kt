@@ -2,6 +2,7 @@ package com.example.skillsync.feature.home
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -223,7 +224,11 @@ fun ManagerCommandCentre(
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                         attentionItems.forEach { item ->
-                            Box(Modifier.fillMaxWidth().accentGlass(item.severity.tint()).pressable(onOpenDemand)) {
+                            Box(
+                                Modifier.fillMaxWidth()
+                                    .accentGlass(item.severity.tint(), strong = item.severity == Severity.Critical)
+                                    .pressable(onOpenDemand),
+                            ) {
                                 ActionRow(
                                     title = item.title,
                                     modifier = Modifier.padding(horizontal = Space.md),
@@ -253,6 +258,7 @@ fun ManagerCommandCentre(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 PulseTile(
                     R.drawable.ic_people, "Strength", teamStrength.toString(), Modifier.weight(1f),
+                    iconTint = sk.royal,
                     onClick = {
                         onDrill(
                             Drill(
@@ -273,13 +279,16 @@ fun ManagerCommandCentre(
                 )
                 PulseTile(
                     R.drawable.ic_trend, "Utilisation", utilisation?.let { "$it%" } ?: "—", Modifier.weight(1f),
+                    iconTint = sk.cyan,
                     delta = utilisationTrend, onClick = onOpenCapacityRunway,
                 )
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 PulseTile(
                     R.drawable.ic_certificate, "Cert coverage", certCoverage?.let { "$it%" } ?: "—", Modifier.weight(1f),
-                    tint = if ((certCoverage ?: 100) < 60) sk.warn else null, onClick = onOpenPriorities,
+                    tint = if ((certCoverage ?: 100) < 60) sk.warn else null,
+                    iconTint = sk.violet,
+                    onClick = onOpenPriorities,
                 )
                 PulseTile(
                     R.drawable.ic_alert, "At risk", atRisk.toString(), Modifier.weight(1f),
@@ -353,15 +362,13 @@ fun ManagerCommandCentre(
         var showTrainerPicker by remember { mutableStateOf(false) }
         Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             SectionHeading("Communicate")
-            SkillCard(modifier = Modifier.fillMaxWidth(), padding = Space.sm) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    CommunicateAction("Team", Modifier.weight(1f)) {
-                        onOpenCommunication("TEAM", "", "GENERAL_PROFESSIONAL", "", "")
-                    }
-                    CommunicateAction("Trainer", Modifier.weight(1f)) { showTrainerPicker = true }
-                    CommunicateAction("Weekly", Modifier.weight(1f), onClick = onOpenWeeklyReport)
-                    CommunicateAction("Monthly", Modifier.weight(1f), onClick = onOpenHrReport)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                CommunicateAction(R.drawable.ic_people, "Team", sk.sky, Modifier.weight(1f)) {
+                    onOpenCommunication("TEAM", "", "GENERAL_PROFESSIONAL", "", "")
                 }
+                CommunicateAction(R.drawable.ic_mail, "Trainer", sk.royal, Modifier.weight(1f)) { showTrainerPicker = true }
+                CommunicateAction(R.drawable.ic_calendar, "Weekly", sk.cyan, Modifier.weight(1f), onClick = onOpenWeeklyReport)
+                CommunicateAction(R.drawable.ic_calendar, "Monthly", sk.violet, Modifier.weight(1f), onClick = onOpenHrReport)
             }
         }
         if (showTrainerPicker) {
@@ -474,31 +481,35 @@ fun ManagerCommandCentre(
         Column(verticalArrangement = Arrangement.spacedBy(Space.md)) {
             SectionHeading("Operations")
             data class OpTile(val title: String, val subtitle: String, val icon: Int, val onClick: () -> Unit)
+            // Each domain gets its own colour family — Planning=royal/azure,
+            // Delivery=cyan/teal, People=sky, Automation=indigo/violet — so the
+            // launchpad reads as four distinct command groups, not nine
+            // identical dark boxes with different labels.
             val groups = listOf(
-                "Planning" to listOf(
+                Triple("Planning", sk.royal, listOf(
                     OpTile("This week", "Priorities, ranked", R.drawable.ic_calendar, onOpenPriorities),
                     OpTile("Pipeline radar", "Signed demand incoming", R.drawable.ic_search, onOpenPipelineRadar),
                     OpTile("Capacity runway", "8-week demand gap", R.drawable.ic_trend, onOpenCapacityRunway),
-                ),
-                "Delivery" to listOf(
+                )),
+                Triple("Delivery", sk.cyan, listOf(
                     OpTile("Delivery compliance", "Recording & audit", R.drawable.ic_check, onOpenDeliveryCompliance),
                     OpTile("Accounts book", "Client concentration", R.drawable.ic_book, onOpenAccounts),
-                ),
-                "People" to listOf(
+                )),
+                Triple("People", sk.sky, listOf(
                     OpTile("HR monthly review", "Trainer index breakdown", R.drawable.ic_people, onOpenHrReport),
                     OpTile("Skill requests", "Reportee-level requests", R.drawable.ic_gap, onOpenSkillRequests),
-                ),
-                "Automation" to listOf(
+                )),
+                Triple("Automation", sk.violet, listOf(
                     OpTile("Team copilot", "Ask about your team", R.drawable.ic_inbox, onOpenCopilot),
                     OpTile("Viber automation", "Auto-dispatch queue", R.drawable.ic_share, onOpenViberAutomation),
-                ),
+                )),
             )
-            groups.forEach { (domain, tiles) ->
+            groups.forEach { (domain, domainTint, tiles) ->
                 Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     Text(domain.uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.labelText)
                     for (row in tiles.chunked(2)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                            row.forEach { t -> OperationTile(t.title, t.subtitle, t.icon, Modifier.weight(1f), t.onClick) }
+                            row.forEach { t -> OperationTile(t.title, t.subtitle, t.icon, domainTint, Modifier.weight(1f), t.onClick) }
                             if (row.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
@@ -575,12 +586,17 @@ private fun PulseTile(
     modifier: Modifier = Modifier,
     delta: String? = null,
     tint: Color? = null,
+    /** The icon's own domain colour — independent of [tint], which colours the
+     *  value/number semantically (warn/crit when the figure itself is a
+     *  concern). Without this every tile's icon reads as the same blue. */
+    iconTint: Color? = null,
     onClick: () -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
+    val icTint = iconTint ?: tint ?: sk.sky
     SkillCard(modifier = modifier.pressable(onClick), padding = Space.md) {
-        IconSlot(tint = tint ?: sk.sky, size = 26.dp) {
-            Icon(painterResource(icon), contentDescription = null, tint = tint ?: sk.sky, modifier = Modifier.size(14.dp))
+        IconSlot(tint = icTint, size = 26.dp) {
+            Icon(painterResource(icon), contentDescription = null, tint = icTint, modifier = Modifier.size(14.dp))
         }
         Text(value, style = MaterialTheme.typography.headlineSmall, color = tint ?: sk.frost, fontWeight = FontWeight.Bold)
         Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.labelText)
@@ -599,11 +615,11 @@ private fun MiniStat(label: String, value: String, tint: Color) {
 }
 
 @Composable
-private fun OperationTile(title: String, subtitle: String, icon: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun OperationTile(title: String, subtitle: String, icon: Int, tint: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val sk = MaterialTheme.skill
     SkillCard(modifier = modifier.pressable(onClick), padding = Space.md) {
-        IconSlot(tint = sk.sky, size = 26.dp) {
-            Icon(painterResource(icon), contentDescription = null, tint = sk.sky, modifier = Modifier.size(14.dp))
+        IconSlot(tint = tint, size = 26.dp) {
+            Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
         }
         Text(title, style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.SemiBold, maxLines = 1)
         Text(subtitle, style = MaterialTheme.typography.labelSmall, color = sk.subText, maxLines = 1)
@@ -671,16 +687,21 @@ private data class TopPerformer(
 )
 
 @Composable
-private fun CommunicateAction(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun CommunicateAction(icon: Int, label: String, tint: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val sk = MaterialTheme.skill
-    Box(
+    Column(
         modifier
             .clip(RoundedCornerShape(Radii.chip))
-            .background(sk.surface2)
+            .background(
+                Brush.verticalGradient(listOf(tint.copy(alpha = 0.16f), sk.surface2)),
+            )
+            .border(1.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(Radii.chip))
             .pressable(onClick)
             .padding(vertical = Space.sm),
-        contentAlignment = Alignment.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.height(4.dp))
         Text(label, style = MaterialTheme.typography.labelMedium, color = sk.frost, fontWeight = FontWeight.SemiBold)
     }
 }
