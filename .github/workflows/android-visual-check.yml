@@ -62,10 +62,14 @@ jobs:
           script: |
             ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.skillsync.ui.PilotScreenshotInstrumentedTest --console=plain
             mkdir -p app/build/reports/pilot-screenshots
+            adb root || true
+            echo "--- diagnosing external-files layout ---"
+            adb shell run-as com.example.skillsync.debug ls -la files/pilot-screenshots || true
+            adb shell find /storage/emulated/0/Android/data/com.example.skillsync.debug -maxdepth 3 || true
+            adb shell find /sdcard/Android/data -maxdepth 2 -iname "*skillsync*" || true
             # Debug builds carry applicationIdSuffix ".debug" (app/build.gradle.kts),
             # so the installed package is com.example.skillsync.debug, not
-            # com.example.skillsync — that mismatch is what caused the first run's
-            # "No such file or directory" on this exact adb pull path.
+            # com.example.skillsync.
             adb pull /storage/emulated/0/Android/data/com.example.skillsync.debug/files/pilot-screenshots/. app/build/reports/pilot-screenshots/
 
       - name: Upload screenshots
