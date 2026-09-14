@@ -28,10 +28,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import com.example.skillsync.R
+import com.example.skillsync.theme.ActionRow
 import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.SkillColors
 import com.example.skillsync.theme.Space
+import com.example.skillsync.theme.accentGlass
+import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
 import com.example.skillsync.feature.training.ui.BatchShare
 import com.example.skillsync.feature.training.ui.BulkBatchShare
@@ -79,6 +82,7 @@ fun PrioritiesScreen(
 
     var showBulkShare by remember { mutableStateOf(false) }
     var bulkDraft by remember { mutableStateOf("") }
+    var selectedKind by remember { mutableStateOf<String?>(null) }
 
     fun buildShareBatches(): List<BatchShare.Batch> =
         bulkBatches.map { m ->
@@ -184,12 +188,19 @@ fun PrioritiesScreen(
                         }
                         return@PullToRefreshBox
                     }
+                    val visibleItems = selectedKind?.let { k -> s.items.filter { it.kind == k } } ?: s.items
                     LazyColumn(
                         Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        item { SummaryStrip(s.counts, s.items.size, sk) }
+                        item {
+                            SummaryStrip(
+                                counts = s.counts, total = s.items.size, sk = sk,
+                                selectedKind = selectedKind,
+                                onSelectKind = { k -> selectedKind = if (selectedKind == k) null else k },
+                            )
+                        }
                         if (bulkBatches.isNotEmpty()) {
                             item {
                                 BulkShareBar(
@@ -198,7 +209,16 @@ fun PrioritiesScreen(
                                 )
                             }
                         }
-                        items(s.items, key = { it.id.ifBlank { it.title } }) { item ->
+                        if (visibleItems.isEmpty()) {
+                            item {
+                                Text(
+                                    "No items in this filter.", color = sk.subText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(vertical = 24.dp),
+                                )
+                            }
+                        }
+                        items(visibleItems, key = { it.id.ifBlank { it.title } }) { item ->
                             PriorityCard(
                                 item = item,
                                 sk = sk,
@@ -407,8 +427,20 @@ private fun severityColor(severity: String, sk: SkillColors): Color = when (seve
     else -> sk.subText
 }
 
+/**
+ * Doubles as the ranked-board's only filter — tapping a kind narrows the list
+ * below to that kind, tapping it again clears the filter. Previously
+ * decorative (counts only, no click), which is why "This Week" read as an
+ * inbox with no way to actually narrow it despite already grouping by kind.
+ */
 @Composable
-private fun SummaryStrip(counts: Map<String, Int>, total: Int, sk: SkillColors) {
+private fun SummaryStrip(
+    counts: Map<String, Int>,
+    total: Int,
+    sk: SkillColors,
+    selectedKind: String?,
+    onSelectKind: (String) -> Unit,
+) {
     val order = listOf("unstaffed_demand", "one_to_one", "overload", "cert_gap", "action_overdue")
     val entries = order.mapNotNull { k -> counts[k]?.takeIf { it > 0 }?.let { k to it } } +
         counts.filterKeys { it !in order }.filterValues { it > 0 }.toList()
@@ -421,15 +453,18 @@ private fun SummaryStrip(counts: Map<String, Int>, total: Int, sk: SkillColors) 
         )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(entries) { (kind, n) ->
+                val isSelected = kind == selectedKind
                 Surface(
                     shape = RoundedCornerShape(Radii.chip),
-                    color = sk.surface1,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+                    color = if (isSelected) sk.brand.copy(alpha = 0.22f) else sk.surface1,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) sk.brand.copy(alpha = 0.6f) else sk.cardBorder),
+                    modifier = Modifier.clickable { onSelectKind(kind) },
                 ) {
                     Text(
                         "${kindLabel(kind)} $n",
                         style = MaterialTheme.typography.labelSmall,
-                        color = sk.labelText,
+                        color = if (isSelected) sk.frost else sk.labelText,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     )
                 }
@@ -438,6 +473,13 @@ private fun SummaryStrip(counts: Map<String, Int>, total: Int, sk: SkillColors) 
     }
 }
 
+/**
+ * "This Week"'s row, now the shared [ActionRow] wrapped in [accentGlass] for
+ * severity — the D2 pilot proving the same primitive that carries Today's
+ * attention items also carries an action-inbox row, without the two screens
+ * looking identical (Today uses it inline in a plain Column; here it's the
+ * whole scrollable list).
+ */
 @Composable
 private fun PriorityCard(
     item: PriorityItem,
@@ -446,93 +488,28 @@ private fun PriorityCard(
     onCommunicate: (() -> Unit)? = null,
 ) {
     val stripe = severityColor(item.severity, sk)
-    Surface(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        shape = RoundedCornerShape(Radii.card),
-        color = sk.cardBg.copy(alpha = 0.88f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-    ) {
-        Row(Modifier.height(IntrinsicSize.Min)) {
-            Box(
-                Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
-                    .background(stripe),
-            )
-            Row(
-                Modifier.weight(1f).padding(Space.md),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(stripe.copy(alpha = 0.15f))
-                                .border(1.dp, stripe.copy(alpha = 0.30f), RoundedCornerShape(6.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                        ) {
-                            Text(
-                                item.severity.replaceFirstChar { it.uppercase() },
-                                color = stripe,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                        Text(kindLabel(item.kind), color = sk.subText, fontSize = 11.sp)
-                        if (item.coverable) {
-                            Text("· coverable", color = sk.good, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                    Text(
-                        item.title,
-                        color = sk.bodyText,
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (item.detail.isNotBlank()) {
-                        Text(
-                            item.detail,
-                            color = sk.subText,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    if (item.due.isNotBlank()) {
-                        Text(
-                            "Due ${item.due}",
-                            color = sk.sky,
-                            style = MaterialTheme.typography.labelSmall,
-                            textDecoration = TextDecoration.Underline,
-                        )
-                    }
-                    if (onCommunicate != null) {
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(Radii.chip))
-                                .background(sk.brand.copy(alpha = 0.14f))
-                                .border(1.dp, sk.brand.copy(alpha = 0.30f), RoundedCornerShape(Radii.chip))
-                                .clickable { onCommunicate() }
-                                .padding(horizontal = 10.dp, vertical = 5.dp),
-                        ) {
-                            Text("Communicate", color = sk.brand, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
+    val metadata = buildString {
+        append(kindLabel(item.kind))
+        if (item.coverable) append(" · coverable")
+        if (item.due.isNotBlank()) append(" · Due ${item.due}")
+    }
+    Box(Modifier.fillMaxWidth().accentGlass(stripe).pressable(onClick)) {
+        ActionRow(
+            title = item.title,
+            modifier = Modifier.padding(horizontal = Space.md),
+            supportingText = item.detail,
+            metadata = metadata,
+            tint = stripe,
+            primaryActionLabel = if (onCommunicate != null) "Communicate" else null,
+            onPrimaryAction = onCommunicate,
+            secondaryContent = {
                 Icon(
                     painterResource(R.drawable.ic_chevron),
                     contentDescription = null,
                     tint = sk.subText,
                     modifier = Modifier.size(18.dp),
                 )
-            }
-        }
+            },
+        )
     }
 }
