@@ -75,9 +75,20 @@ object CommunicationComposer {
                 val candidate = pDict["candidate_trainer"]?.toString()
                 val loc = pDict["location"]?.toString()
                 val locStr = if (!loc.isNullOrBlank()) " in $loc" else ""
-                if (!candidate.isNullOrBlank() && course.isNotEmpty()) {
+                // CommunicationPlanner.individualAvailabilityPlan sets this explicitly:
+                // true only when the candidate's availability was actually verified
+                // (not just capability-matched). Absent (plain Boolean-less lookup)
+                // defaults true so Flow A/legacy callers that never set it keep the
+                // existing wording — only the planner's "unknown" path changes it.
+                val availabilityConfirmed = pDict["availability_confirmed"] as? Boolean ?: true
+                if (!candidate.isNullOrBlank() && course.isNotEmpty() && availabilityConfirmed) {
                     mainSentences.add("We have an upcoming $course delivery requirement$locStr$timeStr. ${italic(candidate)} is identified as a strong candidate to lead this.")
                     mainSentences.add("**Please confirm if you are available and prepared to take up this batch.**")
+                } else if (!candidate.isNullOrBlank() && course.isNotEmpty()) {
+                    // Capability match confirmed, but real availability was not —
+                    // ask this specific person to confirm rather than asserting it.
+                    mainSentences.add("There is an upcoming $course delivery requirement$locStr$timeStr that matches your capability profile.")
+                    mainSentences.add("**Please confirm whether you are available so I can review the remaining details before allocation.**")
                 } else if (course.isNotEmpty()) {
                     mainSentences.add("We have a $course delivery requirement$locStr$timeStr and available capacity across the team.")
                     mainSentences.add("**If you are available to take this up, please confirm with me so we can review the requirement and proceed accordingly.**")
