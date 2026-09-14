@@ -2330,6 +2330,47 @@ def _norm_course(name):
     return _re.sub(r"[^a-z0-9]+", " ", str(name or "").lower()).strip()
 
 
+def _match_trainers_for_demand(course_name, trainer_ops):
+    """Real, skill-matched candidate trainers for one unallocated demand item
+    — never fabricated. Feeds Android's CommunicationPlanner so an
+    availability request names an actual matched person instead of
+    broadcasting an aggregate headcount to the whole team.
+
+    A trainer is a "match" only when their own verified skill register
+    (`skill_courses`, from `_build_trainer`) names this exact course.
+    `availability` comes from that same trainer's already-computed, verified
+    assignment/off-date check (`availability_verified`/`availability_status`)
+    — a general "currently free" reading, not a check against this specific
+    batch's date window (that would need one more live RMS call per
+    candidate per batch, which the dashboard build does not make). A
+    capability match with unverified/committed availability is reported
+    honestly as UNKNOWN/COMMITTED, never AVAILABLE — see AI/DECISIONS.md,
+    2026-09-15.
+    """
+    norm_target = _norm_course(course_name)
+    if not norm_target:
+        return []
+    matches = []
+    for t in (trainer_ops or []):
+        if not any(_norm_course(c) == norm_target for c in (t.get("skill_courses") or [])):
+            continue
+        verified = bool(t.get("availability_verified"))
+        status = str(t.get("availability_status", "")).lower()
+        if verified and status == "available":
+            avail = "AVAILABLE"
+        elif verified and status == "conflict":
+            avail = "COMMITTED"
+        else:
+            avail = "UNKNOWN"
+        matches.append({
+            "name": t.get("trainer_name", ""),
+            "email": t.get("official_email", ""),
+            "capability_match": True,
+            "availability": avail,
+        })
+    return matches
+
+
 # ─── Course technology / domain taxonomy (keys 114 + 205) ─────────────────────
 #
 # courseTechnology (key 114) is ~21k rows of course -> technology; courseDomain
@@ -3392,6 +3433,11 @@ def unified_intelligence():
             decisions.append(decision)
         if action:
             actions.append(action)
+
+    # Attach real, skill-matched candidate trainers to each unallocated
+    # demand item — see _match_trainers_for_demand for the honesty rules.
+    for item in demand_df:
+        item["matching_trainers"] = _match_trainers_for_demand(item["course_name"], trainer_ops)
 
     with _notifications_lock:
         seen = _manager_seen_batches.get(email, set())

@@ -36,6 +36,7 @@ import com.example.skillsync.core.notification.NotifyEvent
 import com.example.skillsync.core.ui.Avatar
 import com.example.skillsync.core.ui.intOrNull
 import com.example.skillsync.core.ui.str
+import com.example.skillsync.feature.communication.engine.CommunicationPlanner
 import com.example.skillsync.theme.*
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -208,7 +209,39 @@ fun ManagerCommandCentre(
                 unallocatedDemand.take(3).forEach { b ->
                     val cName = b.str("course_name").ifBlank { "Unnamed course" }
                     val mode = b.str("delivery_mode").ifBlank { "mode tbc" }
-                    add(AttentionItem("$cName needs a trainer", mode, Severity.Critical, demandId = b.str("demand_id")))
+                    val demandId = b.str("demand_id")
+                    // Real, skill-matched candidates from the backend (see
+                    // backend.py _match_trainers_for_demand) — never an
+                    // aggregate headcount. planUnallocatedDemand picks the
+                    // first resolved plan; when multiple candidates are
+                    // equally eligible this still names one real person
+                    // rather than broadcasting to the whole team.
+                    val candidates = (b["matching_trainers"] as? List<*>)
+                        .orEmpty()
+                        .filterIsInstance<Map<*, *>>()
+                        .map { m ->
+                            CommunicationPlanner.CandidateTrainer(
+                                name = m["name"]?.toString().orEmpty(),
+                                email = m["email"]?.toString().orEmpty(),
+                                capabilityMatch = m["capability_match"] == true,
+                                availability = when (m["availability"]?.toString()) {
+                                    "AVAILABLE" -> CommunicationPlanner.AvailabilityState.AVAILABLE
+                                    "COMMITTED" -> CommunicationPlanner.AvailabilityState.COMMITTED
+                                    else -> CommunicationPlanner.AvailabilityState.UNKNOWN
+                                },
+                            )
+                        }
+                    val plan = CommunicationPlanner.planUnallocatedDemand(
+                        CommunicationPlanner.DemandFact(demandId = demandId, course = cName, deliveryMode = mode),
+                        candidates,
+                    ).firstOrNull()
+                    add(
+                        AttentionItem(
+                            "$cName needs a trainer", mode, Severity.Critical, demandId = demandId,
+                            recipientType = plan?.recipientType ?: "TEAM",
+                            recipientName = plan?.recipientName.orEmpty(),
+                        ),
+                    )
                 }
                 if (pendingSkillRequests > 0) {
                     add(AttentionItem("$pendingSkillRequests skill request${if (pendingSkillRequests == 1) "" else "s"} pending", "Awaiting your review", Severity.Info))
@@ -234,11 +267,15 @@ fun ManagerCommandCentre(
                                     modifier = Modifier.padding(horizontal = Space.md),
                                     supportingText = item.subtitle,
                                     tint = item.severity.tint(),
-                                    primaryActionLabel = if (item.demandId.isNotBlank()) "Ask availability" else null,
+                                    primaryActionLabel = if (item.demandId.isNotBlank()) {
+                                        if (item.recipientType == "INDIVIDUAL" && item.recipientName.isNotBlank()) {
+                                            "Ask ${item.recipientName.substringBefore(" ")}"
+                                        } else "Ask availability"
+                                    } else null,
                                     onPrimaryAction = if (item.demandId.isNotBlank()) {
                                         {
                                             onOpenCommunication(
-                                                "TEAM", "", "AVAILABILITY_REQUEST",
+                                                item.recipientType, item.recipientName, "AVAILABILITY_REQUEST",
                                                 "demand", item.demandId,
                                             )
                                         }
@@ -676,6 +713,14 @@ private data class AttentionItem(
     val severity: Severity,
     /** Real `demand_id` when this item is an unallocated batch — powers "Ask availability". Blank for non-demand items (e.g. skill requests), which get no communication shortcut. */
     val demandId: String = "",
+    /**
+     * Resolved by [CommunicationPlanner] from real matching_trainers data —
+     * "INDIVIDUAL"+a real name when a capability-matched candidate exists,
+     * "TEAM" only when none could be identified. Never a blind broadcast by
+     * default the way this used to always pass ("TEAM", "").
+     */
+    val recipientType: String = "TEAM",
+    val recipientName: String = "",
 )
 
 private data class TopPerformer(

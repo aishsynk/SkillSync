@@ -587,6 +587,46 @@ class ScreenRenderTest {
         )
     }
 
+    /**
+     * Communication Intelligence Phase C4: when the backend supplies a real,
+     * skill-matched candidate for the unallocated batch (backend.py
+     * _match_trainers_for_demand), Today must address that person by name —
+     * never fall back to a blind "TEAM" broadcast when a real candidate is
+     * known.
+     */
+    @Test
+    fun today_unallocatedDemandWithAMatchedCandidate_addressesThatPersonByName() {
+        var captured: List<String>? = null
+        val data = dashboardPayload().toMutableMap()
+        @Suppress("UNCHECKED_CAST")
+        val demandRows = (data["unallocated_demand_df"] as List<Map<String, Any>>).map { it.toMutableMap() }
+        demandRows.first()["matching_trainers"] = listOf(
+            mapOf(
+                "name" to "Niharika N", "email" to "niharika@koenig-solutions.com",
+                "capability_match" to true, "availability" to "AVAILABLE",
+            ),
+        )
+        data["unallocated_demand_df"] = demandRows
+
+        compose.setContent {
+            SkillSyncTheme {
+                DashboardTab(
+                    data = data, profile = managerProfile(), capability = capabilityPayload(),
+                    capabilityLoading = false, email = "aishwar.c@koenig-solutions.com",
+                    onTrainerClick = { _, _ -> }, onOpenProfile = {}, onDrill = {},
+                    onOpenCommunication = { recipientType, recipientName, purpose, relatedType, relatedId ->
+                        captured = listOf(recipientType, recipientName, purpose, relatedType, relatedId)
+                    },
+                )
+            }
+        }
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Ask Niharika"))
+        compose.onNodeWithText("Ask Niharika").performClick()
+        org.junit.Assert.assertEquals(
+            listOf("INDIVIDUAL", "Niharika N", "AVAILABILITY_REQUEST", "demand", "264455"), captured,
+        )
+    }
+
     /** Regression: a missing utilisation must read "—", never a confident 0%. */
     @Test
     fun trainerCard_showsDashWhenUtilisationMissing() {
