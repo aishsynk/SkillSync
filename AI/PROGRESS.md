@@ -785,11 +785,12 @@ tests.
   - `fd154b4` — feat: establish InTouch release repository (Phase 6C).
   - `dc65955` — chore: record Today Design V2 cuts `v3.80.8.183`(`8242e6b`) /
     `v3.80.9.184`(`55b1f88`) and correct plan from 183-anchor to 185-anchor.
-  - `43ce6aa` *(this closeout)* — apply the operator's version ruling repo-wide:
+  - `f0ce244` — apply the operator's version ruling repo-wide:
     all InTouch docs corrected from `3.81.0` to **`185` / `3.80.10`** continuous
     `3.80.x` patch sequence (RELEASES.md planned row, AI/CONTEXT.md,
     AI/DECISIONS.md, AI/PROGRESS.md, AI/RELEASE_PROCESS.md, guides/process.md,
-    releases/README.md), with explicit "superseded" markers instead of erasure.
+    releases/README.md), with explicit "superseded" markers instead of erasure
+    (verified on remote: `f0ce244d8d5955...`).
 - **SkillEdge `AGENTS.md` aligned** with the operator's execution rules:
   ANDROID-only workflow (never WEB/VS or BACKEND/API), Definition of Done
   (baseline vs new-issue distinction), push/release policy (never push without
@@ -827,7 +828,8 @@ tests.
    `4db056a`) plus the parallel session's commits (`4897b62`, `9c2ee8c`,
    `cba0190`, `67daaff`, `2cec74d`) and the parallel session's in-progress
    working-tree edits before anything is pushed.
-2. Update this file (append-only) once the InTouch closeout commit `43ce6aa`'s
-   real hash is recorded after push (staged name provisional — see git log).
+2. Update this file (append-only) once the InTouch closeout commit's hash is
+   recorded after push — done: real hash `f0ce244` (`43ce6aa` was a provisional
+   name).
 3. Cut the `185 / 3.80.10` RC only when the operator approves + device evidence
    exists. No new phases until then.
