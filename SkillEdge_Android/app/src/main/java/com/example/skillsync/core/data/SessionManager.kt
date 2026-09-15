@@ -47,12 +47,18 @@ object SessionManager {
         role: String = "manager",
         mustChange: Boolean = false,
     ) {
-        prefs.edit()
-            .putString(KEY_EMAIL, email)
-            .putString(KEY_SESSION_ID, sessionId)
-            .putString(KEY_ROLE, role)
-            .putBoolean(KEY_MUST_CHANGE, mustChange)
-            .apply()
+        // Guarded like every other accessor here — init() always runs at app
+        // startup (SyncCoordinator) before Login is reachable in production,
+        // so this is a no-op change there; it only matters for a plain unit
+        // test exercising LoginViewModel without a real Context.
+        if (::prefs.isInitialized) {
+            prefs.edit()
+                .putString(KEY_EMAIL, email)
+                .putString(KEY_SESSION_ID, sessionId)
+                .putString(KEY_ROLE, role)
+                .putBoolean(KEY_MUST_CHANGE, mustChange)
+                .apply()
+        }
         _loginState.value = true
     }
 
