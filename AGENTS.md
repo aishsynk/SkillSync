@@ -54,6 +54,11 @@ baseline: 11 unit-test failures / 6E-78W-3H lint) from newly introduced ones.
   requires it or the operator approves. Local commits require explicit approval
   to push.
 - Never stage unrelated files (other in-progress work) into your commits.
+- **Canonical release destination (permanent):** every SkillSync release —
+  tag, GitHub Release, APK/AAB asset — goes to
+  `https://github.com/aishsynk/SkillSync/releases`, and only there. See
+  `AI/DECISIONS.md` (2026-09-15, "Canonical release destination"). Never
+  `aishsynk/InTouch` or any other repository.
 
 ## Cloud & Azure Operations
 

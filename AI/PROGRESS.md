@@ -2985,3 +2985,22 @@ candidate/device-validation work, not Phase 5.
 - **Stopped here per explicit instruction** — did not proceed to Phase 5.
   Handed the user the debug APK link and a manual test checklist to execute
   themselves.
+
+## 39. Memory update — canonical release destination recorded permanently
+
+Operator instruction: all SkillSync releases must always go to
+`https://github.com/aishsynk/SkillSync/releases`, and only there — recorded
+as a permanent, durable decision so no future session second-guesses or
+redirects it. This matches what `android-release.yml` already does
+(`softprops/action-gh-release` targeting this repo); no workflow change was
+needed.
+
+Updated `AI/DECISIONS.md` (new entry at the top, explicitly superseding the
+stale `2026-09-14` "external release repo is `aishsynk/InTouch`" entry —
+already reversed by the `2026-09-15` contamination-recovery entry, but now
+stated as the final, unambiguous word), `AI/CONTEXT.md` (added the same fact
+under Product identity), and `AGENTS.md` (added to Push & Release Policy so
+it's read every session before any release action).
+
+No code changed. No release triggered this entry — this is a memory/docs
+update only.

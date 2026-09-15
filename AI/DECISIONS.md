@@ -1,5 +1,29 @@
 # SkillEdge / Manager OS — Decisions
 
+## 2026-09-15 — Canonical release destination: always `https://github.com/aishsynk/SkillSync/releases`
+
+- **Decision (operator instruction, permanent, applies to every future
+  session):** all SkillSync Android releases — tags, GitHub Releases, and
+  release APK/AAB assets — are published to
+  **`https://github.com/aishsynk/SkillSync/releases`**, and only there.
+  This is already what `.github/workflows/android-release.yml` does
+  (`softprops/action-gh-release` targeting this repo on push to `main`); no
+  workflow change was needed, only recording the instruction so it is never
+  second-guessed or redirected in a future session.
+- **Supersedes:** the `2026-09-14` "external release repo is
+  `aishsynk/InTouch`" entry below, which the `2026-09-15` contamination-
+  recovery entry immediately under this one had already reversed
+  (`aishsynk/InTouch` is explicitly **not** a release repository). This
+  entry is the final word: do not revisit `aishsynk/InTouch`, or any other
+  repository, as a release destination without new, explicit operator
+  authorization.
+- **Practical rule for every session:** when asked to "release", "cut a
+  release", "where is my release", etc., the answer is always a tag +
+  GitHub Release on `aishsynk/SkillSync`, produced by pushing the version
+  bump to `main` (triggering `android-release.yml`) or by an explicit,
+  operator-authorized `workflow_dispatch` of that workflow — never a
+  manually-assembled/uploaded APK link, never a different repository.
+
 ## 2026-09-15 — Production-contamination recovery: InTouch Intelligence rebrand and LinkedIn Capture removed; SkillSync is the product
 
 - **Decision (operator correction, supersedes the `2026-09-14` "Product is

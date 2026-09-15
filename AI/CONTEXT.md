@@ -8,6 +8,11 @@
   authoritative** — see `AI/DECISIONS.md` (2026-09-15, "Production-
   contamination recovery") for the full correction. There is no pending
   rebrand in flight.
+- **Canonical release destination (permanent):** all SkillSync releases —
+  tags, GitHub Releases, APK/AAB assets — go to
+  **`https://github.com/aishsynk/SkillSync/releases`**, and only there. See
+  `AI/DECISIONS.md` (2026-09-15, "Canonical release destination"). Never
+  `aishsynk/InTouch` or any other repository.
 - **User-facing identity:** installed app label "SkillSync" (debug: "SkillSync
   Debug"), login wordmark "SkillEdge" with tagline "DELIVERY INTELLIGENCE",
   dashboard header "SKILLEDGE · EXECUTIVE CONSOLE", brand composable
