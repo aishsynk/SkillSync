@@ -1,8 +1,8 @@
 package com.example.skillsync.core.data
 
+import com.example.skillsync.core.network.AllocationApi
 import com.example.skillsync.core.network.AllocationCandidatesResponse
 import com.example.skillsync.core.network.RetrofitClient
-import com.example.skillsync.core.network.SkillEdgeApi
 
 /**
  * Allocation-recommendation domain — the fully gated candidate evaluation
@@ -20,11 +20,16 @@ import com.example.skillsync.core.network.SkillEdgeApi
  * that returns trainer-shaped data is not automatically Trainer-domain;
  * ownership follows the operation's semantics (an allocation decision),
  * not the shape of its response.
+ *
+ * Consumes [AllocationApi] (Phase 4, `docs/phase4-api-ownership-matrix.md`) —
+ * its own independent increment, kept separate from `TrainerApi`/`BatchApi`
+ * per explicit instruction, since allocation ownership is the one boundary
+ * Phase 3 had to correct once already.
  */
 open class AllocationRepository(
-    private val apiProvider: () -> SkillEdgeApi = { RetrofitClient.instance },
+    private val apiProvider: () -> AllocationApi = { RetrofitClient.create() },
 ) {
-    private val api: SkillEdgeApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
+    private val api: AllocationApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
 
     open suspend fun candidates(
         manager: String, course: String, start: String, end: String,

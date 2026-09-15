@@ -9,8 +9,8 @@ import retrofit2.http.Query
 
 /**
  * The remaining, not-yet-domain-split endpoints. Auth, Trainer, Batch,
- * Eligibility, Schedule and Skill-requests have already moved to their own
- * domain interfaces (Phase 4, `docs/phase4-api-ownership-matrix.md`,
+ * Eligibility, Schedule, Skill-requests and Allocation have already moved to
+ * their own domain interfaces (Phase 4, `docs/phase4-api-ownership-matrix.md`,
  * migration status table tracks the rest).
  */
 interface SkillEdgeApi {
@@ -86,31 +86,9 @@ interface SkillEdgeApi {
         @Query("manager") manager: String? = null,
     ): Map<String, Any>
 
-    /**
-     * Fully gated candidate evaluation for one batch.
-     *
-     * Distinct from the demand board, which overlays availability but cannot
-     * afford the per-trainer calls that client exclusions and leave require.
-     * This route applies every hard gate — DNC, leave, confirmed bookings,
-     * skill floor and visa — and returns the per-factor breakdown behind each
-     * score. Returns 422 when the course cannot be resolved, which means
-     * "could not verify", never "nobody is available".
-     */
     /** Real leave and commitments for every reportee, one row each. */
     @GET("api/v2/team/readiness")
     suspend fun getTeamReadiness(@Query("manager") manager: String): Map<String, Any>
-
-    @GET("api/v2/allocation/candidates")
-    suspend fun getAllocationCandidates(
-        @Query("manager") manager: String,
-        @Query("course") course: String,
-        @Query("start") start: String,
-        @Query("end") end: String,
-        @Query("country") country: String = "",
-        @Query("customer") customer: String = "",
-        @Query("delivery_mode") deliveryMode: String = "",
-        @Query("international") international: String = "",
-    ): AllocationCandidatesResponse
 
     @GET("api/v2/planning/capacity")
     suspend fun getCapacityPlan(@Query("manager") manager: String): CapacityPlanResponse
@@ -482,27 +460,6 @@ data class AgentAskResponse(
     val confidence: String?,
     val decisionVersion: String?,
     val error: String?,
-)
-
-/**
- * Response of `GET /api/v2/allocation/candidates`.
- *
- * `blocked` is deliberately retained rather than filtered away: a manager needs
- * to see that a strong trainer was excluded and why, otherwise the absence
- * looks like an oversight. Field names are snake_case to match the wire format
- * Gson reads directly.
- */
-data class AllocationCandidatesResponse(
-    val schema_version: String = "",
-    val ready: Boolean = false,
-    val code: String = "",
-    val message: String = "",
-    val course_resolved: String = "",
-    val match_confidence: String = "",
-    val counts: Map<String, Double> = emptyMap(),
-    val candidates: List<Map<String, Any>> = emptyList(),
-    val blocked: List<Map<String, Any>> = emptyList(),
-    val note: String = "",
 )
 
 data class ComposeMessageResponse(

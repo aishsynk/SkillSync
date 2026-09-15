@@ -2639,3 +2639,38 @@ https://github.com/aishsynk/SkillSync/actions/runs/34989191739:**
 
 Count unchanged at 243 (no new tests this increment). Same exact 10
 baseline failures by identity, same 6 lint errors. Green on the first push.
+
+## 32. Phase 4 increment D — AllocationApi extraction (its own independent increment)
+
+Per explicit instruction, kept separate from every other domain split:
+allocation is the one boundary Phase 3 already had to correct once (moving
+candidate evaluation out of `TrainerRepository` into its own
+`AllocationRepository`), so this increment gets independent review rather
+than being bundled the way increment C's four small domains were.
+
+Created `AllocationApi.kt`: `getAllocationCandidates`
+(`GET api/v2/allocation/candidates`) + `AllocationCandidatesResponse`,
+moved verbatim (including their existing doc comments) out of
+`SkillEdgeApi.kt`. `AllocationRepository`'s `apiProvider` retyped from
+`SkillEdgeApi`/`RetrofitClient.instance` to `AllocationApi` via
+`RetrofitClient.create()`; `candidates(...)` signature and body unchanged.
+
+Deliberately did **not** touch `getAllocationDesk` (`GET
+api/data/allocation-desk`) — it stays on `SkillEdgeApi` as Batch-domain (the
+demand-board overlay), per the matrix's existing reasoning that it is a
+different engine from the fully gated per-batch evaluation this increment
+moved. No scoring weights, eligibility gates, or Auto Tall policy touched —
+this is a transport-interface move only.
+
+Verified before pushing: brace/paren balance on all three touched/created
+files; grepped for stray `RetrofitClient.instance.getAllocationCandidates`
+or leftover `SkillEdgeApi` references in `AllocationRepository.kt` — none
+found; confirmed `AllocationCandidatesResponse`'s other consumers
+(`AllocationViewModel.kt`, `BatchDetailScreen.kt`, `GatedCandidates.kt`)
+import it by fully-qualified `core.network` path, unaffected by which file
+in that package declares it.
+
+`docs/phase4-api-ownership-matrix.md`'s migration-status table updated.
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.
