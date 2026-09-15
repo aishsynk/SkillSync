@@ -490,13 +490,12 @@ private fun PreparationRequestDialog(
         )
         buildString {
             append("Hi $selectedTrainer,\n\n")
-            if (managerIntent.isNotBlank()) {
-                append("$managerIntent\n\n")
-            } else {
-                append("Please review the curriculum and prepare lab delivery readiness for $courseName")
-                if (courseCode.isNotBlank()) append(" ($courseCode)")
-                append(".\n\n")
-            }
+            // Verified context is always the body; the manager instruction is
+            // added on top of it, never substituted for it.
+            append("Please review the curriculum and prepare lab delivery readiness for $courseName")
+            if (courseCode.isNotBlank()) append(" ($courseCode)")
+            append(".\n\n")
+            if (managerIntent.isNotBlank()) append("${managerIntent.trim()}\n\n")
             append("Official courseware and module breakdown are available in SkillSync.")
         }
     }
@@ -526,45 +525,30 @@ private fun PreparationRequestDialog(
                     }
                 }
 
-                OutlinedTextField(
-                    value = managerIntent,
-                    onValueChange = { managerIntent = it },
-                    label = { Text("Manager instruction (optional)") },
-                    placeholder = { Text("e.g. please review labs before next week's enterprise delivery") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                    textStyle = MaterialTheme.typography.bodySmall,
-                )
-
-                SkillSyncCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    severity = Severity.Info,
+                com.example.skillsync.feature.communication.ui.ComposerModelStrip()
+                com.example.skillsync.feature.communication.ui.ComposerStep(
+                    1, "Verified context", "Course record — always included.",
+                    com.example.skillsync.feature.communication.ui.ComposerTints.context,
                 ) {
-                    Text(
-                        "Policy: COURSE_PREPARATION_REQUEST",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = sk.brand,
-                    )
-                    Text(
-                        "Internal pricing, private trainer notes, and commercial margins are automatically stripped.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = sk.subText,
+                    com.example.skillsync.feature.communication.ui.VerifiedContextRows(
+                        listOf("Course" to courseName, "Code" to courseCode, "Trainer" to selectedTrainer, "Request" to "Course preparation"),
                     )
                 }
-
-                Text("PREVIEW:", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = sk.cardBg,
-                    modifier = Modifier.fillMaxWidth().border(1.dp, sk.cardBorder, RoundedCornerShape(8.dp)),
+                com.example.skillsync.feature.communication.ui.ComposerStep(
+                    2, "Manager instruction", "Optional — added after the facts.",
+                    com.example.skillsync.feature.communication.ui.ComposerTints.instruction,
                 ) {
-                    Text(
-                        composedMessage,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = sk.bodyText,
-                        modifier = Modifier.padding(10.dp),
+                    com.example.skillsync.feature.communication.ui.ManagerInstructionField(
+                        value = managerIntent,
+                        onValueChange = { managerIntent = it },
+                        placeholder = "e.g. please review labs before next week's enterprise delivery",
                     )
+                }
+                com.example.skillsync.feature.communication.ui.ComposerStep(
+                    3, "Generated message", "Pricing, private notes and margins are stripped.",
+                    com.example.skillsync.feature.communication.ui.ComposerTints.generated,
+                ) {
+                    com.example.skillsync.feature.communication.ui.GeneratedMessageBox(composedMessage)
                 }
             }
         },

@@ -685,7 +685,17 @@ private fun ReporteeSnapshotCard(
 
                     // ── Rewrite studio: monthly evaluation → Teams house style ──
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Rewrite for Teams / Viber", style = MaterialTheme.typography.labelMedium, color = sk.labelText, fontWeight = FontWeight.Bold)
+                        com.example.skillsync.feature.communication.ui.ComposerModelStrip()
+                        if (rewritten.isBlank()) {
+                            com.example.skillsync.feature.communication.ui.ComposerStageLabel(
+                                1, "Verified context", com.example.skillsync.feature.communication.ui.ComposerTints.context,
+                                note = "this month's evaluation",
+                            )
+                        } else {
+                            com.example.skillsync.feature.communication.ui.ComposerStageLabel(
+                                3, "Generated message", com.example.skillsync.feature.communication.ui.ComposerTints.generated,
+                            )
+                        }
                         androidx.compose.foundation.text.selection.SelectionContainer {
                             val previewBase = if (rewritten.isNotBlank()) rewritten else rep.structuredFeedback.formattedText.ifBlank { buildReporteeText(rep, "") }
                             Text(
@@ -698,21 +708,13 @@ private fun ReporteeSnapshotCard(
                                     .padding(10.dp),
                             )
                         }
-                        androidx.compose.material3.OutlinedTextField(
+                        com.example.skillsync.feature.communication.ui.ComposerStageLabel(
+                            2, "Manager instruction", com.example.skillsync.feature.communication.ui.ComposerTints.instruction,
+                        )
+                        com.example.skillsync.feature.communication.ui.ManagerInstructionField(
                             value = myMessage,
                             onValueChange = { myMessage = it; rewritten = "" },
-                            label = { Text("Manager instruction (optional)") },
-                            placeholder = { Text("A point to emphasise — verified facts are always included") },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                            minLines = 2,
-                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = sk.brand,
-                                unfocusedBorderColor = sk.cardBorder,
-                                focusedTextColor = sk.bodyText,
-                                unfocusedTextColor = sk.bodyText,
-                                cursorColor = sk.brand,
-                            ),
+                            placeholder = "A point to emphasise — verified facts are always included",
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             androidx.compose.material3.FilledTonalButton(

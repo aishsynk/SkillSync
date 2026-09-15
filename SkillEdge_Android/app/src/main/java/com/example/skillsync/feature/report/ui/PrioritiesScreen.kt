@@ -3,6 +3,7 @@ package com.example.skillsync.feature.report.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -337,6 +338,7 @@ private fun BulkSharePreviewDialog(
 ) {
     val sk = MaterialTheme.skill
     var text by remember(message) { mutableStateOf(message) }
+    var instruction by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -366,13 +368,45 @@ private fun BulkSharePreviewDialog(
             }
         },
         text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                textStyle = MaterialTheme.typography.bodySmall,
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 420.dp),
-            )
+            Column(
+                Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                com.example.skillsync.feature.communication.ui.ComposerModelStrip()
+                com.example.skillsync.feature.communication.ui.ComposerStep(
+                    1, "Verified context", "Open pipeline from RMS — always included.",
+                    com.example.skillsync.feature.communication.ui.ComposerTints.context,
+                ) {
+                    com.example.skillsync.feature.communication.ui.VerifiedContextRows(
+                        listOf("Pipeline" to "$count open ${if (count == 1) "batch" else "batches"}", "Audience" to "Team"),
+                    )
+                }
+                com.example.skillsync.feature.communication.ui.ComposerStep(
+                    2, "Manager instruction", "Optional — appended after the batch list.",
+                    com.example.skillsync.feature.communication.ui.ComposerTints.instruction,
+                ) {
+                    com.example.skillsync.feature.communication.ui.ManagerInstructionField(
+                        value = instruction,
+                        onValueChange = {
+                            instruction = it
+                            text = if (it.isBlank()) message else "$message\n\n${it.trim()}"
+                        },
+                        minLines = 1,
+                    )
+                }
+                com.example.skillsync.feature.communication.ui.ComposerStep(
+                    3, "Generated message", "Editable before you copy or share.",
+                    com.example.skillsync.feature.communication.ui.ComposerTints.generated,
+                ) {
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp, max = 360.dp),
+                    )
+                }
+            }
         },
     )
 }

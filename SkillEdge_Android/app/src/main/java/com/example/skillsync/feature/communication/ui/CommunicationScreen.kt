@@ -13,8 +13,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -52,6 +53,12 @@ import com.example.skillsync.feature.communication.engine.PURPOSES
 import com.example.skillsync.feature.communication.engine.RECIPIENT_TYPES
 import com.example.skillsync.theme.AuroraBackground
 
+/**
+ * The manager message composer. Laid out as the communication model itself:
+ * ① Verified context + ② Manager instruction (optional) → ③ Generated message.
+ * Recipient and purpose sit above as addressing; the three numbered stages are
+ * the same [ComposerStep] parts every in-flow composer dialog uses.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CommunicationScreen(
@@ -67,6 +74,7 @@ fun CommunicationScreen(
     val ui by viewModel.uiState.collectAsState()
     val clipboard = LocalClipboardManager.current
     val shareContext = androidx.compose.ui.platform.LocalContext.current
+    val ink = Color(0xFF0B1220)
 
     LaunchedEffect(relatedEntityId, initialRecipientType, initialRecipientName, initialPurpose) {
         if (relatedEntityId.isNotBlank()) {
@@ -84,7 +92,7 @@ fun CommunicationScreen(
             containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
-                    title = { Text("COMMUNICATION INTELLIGENCE", color = Color.White, fontWeight = FontWeight.Black) },
+                    title = { Text("MESSAGE COMPOSER", color = Color.White, fontWeight = FontWeight.Black) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(
@@ -103,33 +111,33 @@ fun CommunicationScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                item {
-                    WarningCard(ui, relatedEntityId)
-                }
+                item { ComposerModelStrip() }
                 item {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         shape = MaterialTheme.shapes.large,
                     ) {
                         Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("RECIPIENT", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text("ADDRESSED TO", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.7f))
                             OutlinedTextField(
                                 value = ui.recipientName,
                                 onValueChange = viewModel::setRecipientName,
-                                label = { Text("Name") },
+                                label = { Text("Recipient name") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                             )
-                            DropdownField(
-                                label = "Recipient type",
-                                value = ui.recipientType,
-                                options = RECIPIENT_TYPES,
-                                onSelect = viewModel::setRecipientType,
-                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(Modifier.weight(1f)) {
+                                    DropdownField("Recipient type", ui.recipientType, RECIPIENT_TYPES, viewModel::setRecipientType)
+                                }
+                                Box(Modifier.weight(1f)) {
+                                    DropdownField("Purpose", ui.purpose, PURPOSES, viewModel::setPurpose)
+                                }
+                            }
                             OutlinedTextField(
                                 value = ui.recipientRelationship,
                                 onValueChange = viewModel::setRecipientRelationship,
-                                label = { Text("Relationship hint (manager, external, peer...)") },
+                                label = { Text("Relationship (manager, external, peer...)") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                             )
@@ -137,102 +145,104 @@ fun CommunicationScreen(
                     }
                 }
                 item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = MaterialTheme.shapes.large,
+                    ComposerStep(
+                        number = 1,
+                        title = "Verified context",
+                        hint = "Read from RMS on the server. Always used — never edited or guessed.",
+                        tint = ComposerTints.context,
                     ) {
-                        Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("PURPOSE", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                            DropdownField(
-                                label = "Purpose",
-                                value = ui.purpose,
-                                options = PURPOSES,
-                                onSelect = viewModel::setPurpose,
+                        VerifiedContextRows(
+                            listOf(
+                                "Linked record" to if (ui.relatedEntityId.isNotBlank()) "${ui.relatedEntityType} #${ui.relatedEntityId}" else "",
+                                "Purpose" to ui.purpose.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
+                                "Recipient" to listOf(ui.recipientName, ui.recipientType.lowercase()).filter { it.isNotBlank() }.joinToString(" · "),
+                            ),
+                        )
+                        ui.result?.selectedFacts?.takeIf { it.isNotEmpty() }?.let { facts ->
+                            Text(
+                                "Facts used: ${facts.joinToString(", ")}",
+                                style = MaterialTheme.typography.labelSmall, color = ComposerTints.context,
                             )
                         }
                     }
                 }
                 item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        shape = MaterialTheme.shapes.large,
+                    ComposerStep(
+                        number = 2,
+                        title = "Manager instruction",
+                        hint = "Optional. Steers tone or focus; cannot override verified context.",
+                        tint = ComposerTints.instruction,
                     ) {
-                        Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("MANAGER INSTRUCTION", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                            OutlinedTextField(
-                                value = ui.managerInstruction,
-                                onValueChange = viewModel::setManagerInstruction,
-                                label = { Text("Manager instruction (optional)") },
-                                placeholder = { Text("Tone, focus or a specific point — verified facts are always used, never overridden") },
-                                minLines = 3,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
+                        ManagerInstructionField(ui.managerInstruction, viewModel::setManagerInstruction, minLines = 3)
                     }
                 }
                 item {
                     Button(
                         onClick = { viewModel.generate(managerEmail) },
                         enabled = !ui.loading,
-                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = ComposerTints.generated, contentColor = ink),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
                     ) {
                         if (ui.loading) {
-                            CircularProgressIndicator(modifier = Modifier.width(18.dp).height(18.dp), strokeWidth = 2.dp)
+                            CircularProgressIndicator(modifier = Modifier.width(18.dp).height(18.dp), strokeWidth = 2.dp, color = ink)
                             Spacer(modifier = Modifier.width(8.dp))
                         }
-                        Text("GENERATE", fontWeight = FontWeight.Bold)
+                        Text(if (ui.result == null) "① + ②  →  GENERATE MESSAGE" else "REGENERATE MESSAGE", fontWeight = FontWeight.Black)
                     }
                 }
-                ui.result?.let { result ->
-                    item {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            shape = MaterialTheme.shapes.large,
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("DRAFT", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                if (!result.requiresCommunication || result.text == "NO_MEANINGFUL_MESSAGE") {
-                                    Text(
-                                        "NO MEANINGFUL MESSAGE REQUIRED",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF7CE38B),
-                                    )
-                                    Text(
-                                        result.noMessageReason ?: "Operations are steady. Suppressing unnecessary broadcast noise.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = Color.White,
-                                    )
-                                    if (result.rejectedFacts.isNotEmpty()) {
-                                        Text("Suppressed unneeded metrics: ${result.rejectedFacts.joinToString(", ")}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
-                                    }
-                                } else {
-                                    Text(
-                                        result.text,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = Color.White,
-                                    )
-                                    Text("Purpose: ${result.purpose}  ·  Tone: ${result.tone}  ·  Engine: ${result.generationMode}", style = MaterialTheme.typography.labelSmall)
-                                    if (result.selectedFacts.isNotEmpty()) {
-                                        Text("Facts used: ${result.selectedFacts.joinToString(", ")}", style = MaterialTheme.typography.labelSmall)
-                                    }
-                                    if (result.rejectedFacts.isNotEmpty()) {
-                                        Text("Suppressed metrics: ${result.rejectedFacts.joinToString(", ")}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
-                                    }
+                item {
+                    ComposerStep(
+                        number = 3,
+                        title = "Generated message",
+                        hint = "Built from ① and ②. Review, then copy or share — nothing is sent automatically.",
+                        tint = ComposerTints.generated,
+                    ) {
+                        val result = ui.result
+                        when {
+                            result == null -> Text(
+                                "Nothing generated yet.",
+                                style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.6f),
+                            )
+                            !result.requiresCommunication || result.text == "NO_MEANINGFUL_MESSAGE" -> {
+                                Text("NO MESSAGE NEEDED", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF7CE38B))
+                                Text(
+                                    result.noMessageReason ?: "Operations are steady. Suppressing unnecessary broadcast noise.",
+                                    style = MaterialTheme.typography.bodyMedium, color = Color.White,
+                                )
+                                if (result.rejectedFacts.isNotEmpty()) {
+                                    Text("Suppressed: ${result.rejectedFacts.joinToString(", ")}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
                                 }
-                                if (result.validation.passed) {
-                                    Text("✓ Passes house-style validation", color = Color(0xFF7CE38B))
-                                } else {
-                                    result.validation.issues.forEach { issue ->
-                                        Text("! $issue", color = Color(0xFFFFB4A9))
-                                    }
+                            }
+                            else -> {
+                                GeneratedMessageBox(result.text)
+                                Text(
+                                    "Tone: ${result.tone}  ·  ${result.text.length} / $MAX_LENGTH chars  ·  ${result.generationMode}",
+                                    style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f),
+                                )
+                                if (result.rejectedFacts.isNotEmpty()) {
+                                    Text("Suppressed: ${result.rejectedFacts.joinToString(", ")}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.6f))
                                 }
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedButton(onClick = {
+                            }
+                        }
+                        if (result != null) {
+                            if (result.validation.passed) {
+                                Text("✓ Passes house-style validation", color = Color(0xFF7CE38B), style = MaterialTheme.typography.labelMedium)
+                            } else {
+                                result.validation.issues.forEach { issue ->
+                                    Text("! $issue", color = Color(0xFFFFB4A9), style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = {
                                         clipboard.setText(AnnotatedString(result.text))
                                         viewModel.save(managerEmail, "COPIED")
-                                    }) { Text("COPY + SAVE") }
-                                    OutlinedButton(onClick = {
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                ) { Text("COPY") }
+                                Button(
+                                    onClick = {
                                         // The native share sheet only hands the text to another
                                         // app (Teams, Viber, whatever the manager picks) — it is
                                         // not delivery confirmation, so this is SHARED_EXTERNALLY,
@@ -243,11 +253,13 @@ fun CommunicationScreen(
                                         }
                                         shareContext.startActivity(android.content.Intent.createChooser(sendIntent, null))
                                         viewModel.save(managerEmail, "SHARED_EXTERNALLY")
-                                    }) { Text("SHARE") }
-                                    OutlinedButton(onClick = { viewModel.save(managerEmail, "DRAFT") }) { Text("SAVE DRAFT") }
-                                    OutlinedButton(onClick = { viewModel.clearResult() }) { Text("CLEAR") }
-                                }
-                                Text("Length: ${result.text.length} / $MAX_LENGTH", style = MaterialTheme.typography.labelSmall)
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                ) { Text("SHARE") }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { viewModel.save(managerEmail, "DRAFT") }, modifier = Modifier.weight(1f)) { Text("SAVE DRAFT") }
+                                OutlinedButton(onClick = { viewModel.clearResult() }, modifier = Modifier.weight(1f)) { Text("CLEAR") }
                             }
                         }
                     }
@@ -278,24 +290,6 @@ fun CommunicationScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun WarningCard(ui: CommunicationUiState, relatedEntityId: String) {
-    val linked = ui.relatedEntityId.isNotBlank()
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = MaterialTheme.shapes.large,
-    ) {
-        Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                if (linked) "Linked to ${ui.relatedEntityType} #${ui.relatedEntityId}. Verified context is used server-side only; never guessed."
-                else "Drafts a professional Teams/Viber message. Only verifiable facts are used.",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White,
-            )
         }
     }
 }

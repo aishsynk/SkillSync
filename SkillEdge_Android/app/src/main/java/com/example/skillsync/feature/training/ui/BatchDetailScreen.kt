@@ -786,52 +786,58 @@ private fun MessagePreviewDialog(
                     style = MaterialTheme.typography.titleLarge,
                 )
                 Text(
-                    "${text.length} of 1000 characters · paste into Viber or Teams",
+                    "${text.length} of 1000 characters · commercial IDs and private notes filtered",
                     style = MaterialTheme.typography.labelSmall, color = sk.subText,
                 )
-                Surface(
-                    color = sk.teal.copy(alpha = 0.14f),
-                    shape = RoundedCornerShape(6.dp),
-                    border = androidx.compose.foundation.BorderStroke(0.5.dp, sk.teal.copy(alpha = 0.3f)),
-                    modifier = Modifier.padding(top = 4.dp),
-                ) {
-                    Text(
-                        "Policy: Sanitized (Commercial IDs & Private Notes Filtered)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = sk.teal,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                    )
-                }
             }
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = managerIntent,
-                    onValueChange = { intent ->
-                        managerIntent = intent
-                        text = BatchShare.composeWithIntent(
-                            batch = batch,
-                            recipient = recipient ?: "Team",
-                            myMessage = intent,
-                        )
-                    },
-                    label = { Text("Manager instruction (optional)") },
-                    placeholder = { Text("e.g. Urgent requirement, please confirm if available") },
-                    textStyle = MaterialTheme.typography.bodySmall,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    label = { Text("Message Preview") },
-                    textStyle = MaterialTheme.typography.bodySmall,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 320.dp),
-                )
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                com.example.skillsync.feature.communication.ui.ComposerModelStrip()
+                com.example.skillsync.feature.communication.ui.ComposerStep(
+                    1, "Verified context", "From the batch record — always included.",
+                    com.example.skillsync.feature.communication.ui.ComposerTints.context,
+                ) {
+                    com.example.skillsync.feature.communication.ui.VerifiedContextRows(
+                        listOf(
+                            "Course" to batch.courseName,
+                            "Dates" to listOf(batch.startDate, batch.endDate).filter { it.isNotBlank() }.joinToString(" → "),
+                            "Mode" to listOf(batch.deliveryMode, batch.language).filter { it.isNotBlank() }.joinToString(" · "),
+                            "Participants" to batch.participants,
+                            "Level" to batch.assignmentLevel,
+                        ),
+                    )
+                }
+                com.example.skillsync.feature.communication.ui.ComposerStep(
+                    2, "Manager instruction", "Optional — added on top of the facts.",
+                    com.example.skillsync.feature.communication.ui.ComposerTints.instruction,
+                ) {
+                    com.example.skillsync.feature.communication.ui.ManagerInstructionField(
+                        value = managerIntent,
+                        onValueChange = { instruction ->
+                            managerIntent = instruction
+                            text = BatchShare.composeWithIntent(
+                                batch = batch,
+                                recipient = recipient ?: "Team",
+                                myMessage = instruction,
+                            )
+                        },
+                        placeholder = "e.g. Urgent requirement, please confirm if available",
+                        minLines = 1,
+                    )
+                }
+                com.example.skillsync.feature.communication.ui.ComposerStep(
+                    3, "Generated message", "Editable before you copy or share.",
+                    com.example.skillsync.feature.communication.ui.ComposerTints.generated,
+                ) {
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp, max = 300.dp),
+                    )
+                }
             }
         },
     )

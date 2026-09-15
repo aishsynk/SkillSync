@@ -271,24 +271,24 @@ fun WeeklyReportScreen(
                                             }
                                         }
 
-                                        OutlinedTextField(
+                                        com.example.skillsync.feature.communication.ui.ComposerModelStrip()
+                                        com.example.skillsync.feature.communication.ui.ComposerStageLabel(
+                                            1, "Verified context", com.example.skillsync.feature.communication.ui.ComposerTints.context,
+                                            note = "this week's team facts",
+                                        )
+                                        com.example.skillsync.feature.communication.ui.ComposerStageLabel(
+                                            2, "Manager instruction", com.example.skillsync.feature.communication.ui.ComposerTints.instruction,
+                                        )
+                                        com.example.skillsync.feature.communication.ui.ManagerInstructionField(
                                             value = teamMyMessage,
                                             onValueChange = { teamMyMessage = it; teamRewritten = "" },
-                                            label = { Text("Manager instruction (optional)") },
-                                            placeholder = { Text("A point to emphasise — verified team facts are always included") },
-                                            shape = RoundedCornerShape(Radii.chip),
-                                            modifier = Modifier.fillMaxWidth(),
-                                            minLines = 2,
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = sk.brand,
-                                                unfocusedBorderColor = sk.glassBorder,
-                                                focusedTextColor = sk.bodyText,
-                                                unfocusedTextColor = sk.bodyText,
-                                                cursorColor = sk.brand,
-                                            ),
+                                            placeholder = "A point to emphasise — verified team facts are always included",
                                         )
                                         // Inline rewrite preview
                                         if (teamRewritten.isNotBlank()) {
+                                            com.example.skillsync.feature.communication.ui.ComposerStageLabel(
+                                                3, "Generated message", com.example.skillsync.feature.communication.ui.ComposerTints.generated,
+                                            )
                                             SelectionContainer {
                                                 Text(
                                                     teamRewritten,
@@ -773,21 +773,18 @@ private fun WeeklyReporteeLiveCard(
             if (expanded) {
                 // ── Compose from verified facts, with an optional manager instruction ──
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
+                    com.example.skillsync.feature.communication.ui.ComposerModelStrip()
+                    com.example.skillsync.feature.communication.ui.ComposerStageLabel(
+                        1, "Verified context", com.example.skillsync.feature.communication.ui.ComposerTints.context,
+                        note = "utilisation, cert gaps, ratings above",
+                    )
+                    com.example.skillsync.feature.communication.ui.ComposerStageLabel(
+                        2, "Manager instruction", com.example.skillsync.feature.communication.ui.ComposerTints.instruction,
+                    )
+                    com.example.skillsync.feature.communication.ui.ManagerInstructionField(
                         value = myMessage,
                         onValueChange = { myMessage = it; rewritten = "" },
-                        label = { Text("Manager instruction (optional)") },
-                        placeholder = { Text("A point to emphasise — verified facts are always included") },
-                        shape = RoundedCornerShape(Radii.chip),
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 2,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = sk.brand,
-                            unfocusedBorderColor = sk.glassBorder,
-                            focusedTextColor = sk.bodyText,
-                            unfocusedTextColor = sk.bodyText,
-                            cursorColor = sk.brand,
-                        ),
+                        placeholder = "A point to emphasise — verified facts are always included",
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         FilledTonalButton(
@@ -831,7 +828,10 @@ private fun WeeklyReporteeLiveCard(
                         }
                     }
                     if (rewritten.isNotBlank()) {
-                        Text("Preview is genuine and on top of evidence — copy or send below.", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                        com.example.skillsync.feature.communication.ui.ComposerStageLabel(
+                            3, "Generated message", com.example.skillsync.feature.communication.ui.ComposerTints.generated,
+                            note = "shown above — copy or send below",
+                        )
                     }
                 }
             }

@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -24,6 +25,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -1243,21 +1245,48 @@ private fun CertGapActionCard(trainer: Map<*, *>, onClick: () -> Unit) {
 /** Shimmer in the real card geometry, so the load reads as the page arriving. */
 @Composable
 private fun DashboardSkeleton() {
+    // Mirrors Today's real structure — a tall brief hero with three stat
+    // wells, then titled panels (accent rail, icon anchor, title bar, body) —
+    // so loading reads as "the brief is arriving", not a grid of grey tiles.
+    val sk = MaterialTheme.skill
     Column(
         Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        ShimmerBox(height = 172.dp, shape = RoundedCornerShape(Radii.hero), modifier = Modifier.fillMaxWidth())
-        repeat(3) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                repeat(2) {
-                    ShimmerBox(height = 118.dp, shape = RoundedCornerShape(Radii.kpi), modifier = Modifier.weight(1f))
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(Radii.hero))
+                .background(Brush.verticalGradient(listOf(sk.navy, sk.surface1)))
+                .border(1.dp, sk.cardBorder, RoundedCornerShape(Radii.hero))
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ShimmerBox(width = 46.dp, height = 46.dp, shape = CircleShape)
+                Spacer(Modifier.width(12.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ShimmerBox(width = 150.dp, height = 10.dp)
+                    ShimmerBox(width = 110.dp, height = 16.dp)
                 }
             }
+            ShimmerBox(width = 90.dp, height = 44.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                repeat(3) { ShimmerBox(height = 58.dp, shape = RoundedCornerShape(Radii.chip), modifier = Modifier.weight(1f)) }
+            }
         }
-        ShimmerBox(width = 170.dp, height = 12.dp)
-        repeat(2) {
-            ShimmerBox(height = 120.dp, shape = RoundedCornerShape(Radii.card), modifier = Modifier.fillMaxWidth())
+        listOf(sk.crit, sk.cyan, sk.sky).forEach { tint ->
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(Radii.card))
+                    .background(sk.surface1)
+                    .border(1.dp, tint.copy(alpha = 0.35f), RoundedCornerShape(Radii.card)),
+            ) {
+                Box(Modifier.fillMaxWidth().height(3.dp).background(Brush.horizontalGradient(listOf(tint, Color.Transparent))))
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ShimmerBox(width = 30.dp, height = 30.dp, shape = RoundedCornerShape(8.dp))
+                    Spacer(Modifier.width(10.dp))
+                    ShimmerBox(width = 130.dp, height = 12.dp)
+                }
+                ShimmerBox(height = 84.dp, shape = RoundedCornerShape(Radii.chip), modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp))
+            }
         }
     }
 }
@@ -1265,41 +1294,49 @@ private fun DashboardSkeleton() {
 @Composable
 private fun DashErrorView(message: String, onRetry: () -> Unit) {
     val sk = MaterialTheme.skill
-    Column(
-        Modifier.fillMaxSize().padding(28.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        IconSlot(tint = sk.warn, size = 56.dp) {
-            Icon(
-                painterResource(R.drawable.ic_alert), null,
-                tint = sk.warn, modifier = Modifier.size(26.dp),
-            )
-        }
-        Spacer(Modifier.height(18.dp))
-        Text(
-            "Couldn't load your dashboard",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = sk.frost,
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            message,
-            style = MaterialTheme.typography.bodySmall,
-            color = sk.subText,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(22.dp))
-        Button(
-            onClick = onRetry,
-            shape = RoundedCornerShape(Radii.chip),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = sk.brand,
-                contentColor = sk.frost,
-            ),
+    Box(Modifier.fillMaxSize().padding(20.dp), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(Radii.card))
+                .background(Brush.verticalGradient(listOf(sk.crit.copy(alpha = 0.14f), sk.surface1)))
+                .border(1.dp, sk.crit.copy(alpha = 0.45f), RoundedCornerShape(Radii.card)),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Try again", style = MaterialTheme.typography.labelLarge)
+            Box(Modifier.fillMaxWidth().height(4.dp).background(Brush.horizontalGradient(listOf(sk.crit, sk.warn))))
+            Spacer(Modifier.height(24.dp))
+            IconSlot(tint = sk.crit, size = 64.dp) {
+                Icon(painterResource(R.drawable.ic_alert), null, tint = sk.crit, modifier = Modifier.size(30.dp))
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "BRIEF UNAVAILABLE",
+                style = MaterialTheme.typography.labelMedium, color = sk.crit,
+                fontWeight = FontWeight.Bold, letterSpacing = 0.12.em,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Couldn't load your dashboard",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = sk.frost,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = sk.subText,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp),
+            )
+            Spacer(Modifier.height(20.dp))
+            Button(
+                onClick = onRetry,
+                shape = RoundedCornerShape(Radii.chip),
+                colors = ButtonDefaults.buttonColors(containerColor = sk.brand, contentColor = sk.frost),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            ) {
+                Text("Try again", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(20.dp))
         }
     }
 }
@@ -1504,20 +1541,48 @@ internal fun TrainerCard(
                     }
                     
                     if (showMsg) {
-                        var msg by remember { mutableStateOf("Hi ${name.split(" ").first()},\n\nPlease review your action item: $recommendedAction.") }
+                        var instruction by remember { mutableStateOf("") }
+                        val msgContext = androidx.compose.ui.platform.LocalContext.current
+                        val msg = buildString {
+                            append("Hi ${name.split(" ").first()},\n\nPlease review your action item: $recommendedAction.")
+                            if (instruction.isNotBlank()) append("\n\n${instruction.trim()}")
+                        }
                         AlertDialog(
                             onDismissRequest = { showMsg = false },
                             title = { Text("Message ${name.split(" ").first()}", fontSize = 16.sp) },
                             text = {
-                                OutlinedTextField(
-                                    value = msg,
-                                    onValueChange = { msg = it },
-                                    modifier = Modifier.fillMaxWidth().height(120.dp),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
+                                Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    com.example.skillsync.feature.communication.ui.ComposerModelStrip()
+                                    com.example.skillsync.feature.communication.ui.ComposerStep(
+                                        1, "Verified context", "From this trainer's record.",
+                                        com.example.skillsync.feature.communication.ui.ComposerTints.context,
+                                    ) {
+                                        com.example.skillsync.feature.communication.ui.VerifiedContextRows(
+                                            listOf("Trainer" to name, "Action item" to recommendedAction),
+                                        )
+                                    }
+                                    com.example.skillsync.feature.communication.ui.ComposerStep(
+                                        2, "Manager instruction", "Optional — added after the action item.",
+                                        com.example.skillsync.feature.communication.ui.ComposerTints.instruction,
+                                    ) {
+                                        com.example.skillsync.feature.communication.ui.ManagerInstructionField(instruction, { instruction = it })
+                                    }
+                                    com.example.skillsync.feature.communication.ui.ComposerStep(
+                                        3, "Generated message", "Shared through the app you pick.",
+                                        com.example.skillsync.feature.communication.ui.ComposerTints.generated,
+                                    ) {
+                                        com.example.skillsync.feature.communication.ui.GeneratedMessageBox(msg)
+                                    }
+                                }
                             },
                             confirmButton = {
-                                Button(onClick = { showMsg = false }, shape = RoundedCornerShape(8.dp)) { Text("Send") }
+                                Button(
+                                    onClick = {
+                                        com.example.skillsync.feature.training.ui.BatchShare.shareAnywhere(msgContext, msg)
+                                        showMsg = false
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                ) { Text("Share") }
                             },
                             dismissButton = {
                                 TextButton(onClick = { showMsg = false }) { Text("Cancel") }

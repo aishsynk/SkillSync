@@ -788,183 +788,27 @@ internal fun BatchCard(
                     Spacer(Modifier.height(9.dp))
                     HorizontalDivider(color = sk.cardBorder)
                     Spacer(Modifier.height(7.dp))
-                    Text(
-                        "RECOMMENDED TRAINERS",
-                        style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(Modifier.height(5.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(width = 3.dp, height = 16.dp).background(sk.brand, RoundedCornerShape(2.dp)))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "RECOMMENDED TRAINERS",
+                            style = MaterialTheme.typography.titleSmall, color = sk.frost,
+                            fontWeight = FontWeight.Black, letterSpacing = 0.06.em,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            "Eligibility first, then score",
+                            style = MaterialTheme.typography.labelSmall, color = sk.labelText,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
                     UncheckedNotice(b)
                     Spacer(Modifier.height(4.dp))
-                    candidates.take(3).forEach { c ->
-                        // RMS AutoTall parity: a trainer inside their 3-14 day
-                        // negative-feedback window won't actually be
-                        // auto-allocated, so showing them tinted as a "great
-                        // match" would be misleading — this dot/text stays
-                        // neutral-red regardless of match score when blocked.
-                        val blocked = c.bool("blocked")
-                        // A skill-match "Best Match" badge is computed purely from
-                        // skill/qubits and knows nothing about availability — so a
-                        // candidate with a real schedule conflict could still show
-                        // a confident green badge while the line right below it
-                        // says "Schedule conflict". Hard-eligibility failures must
-                        // visually dominate over a high match score, not sit next
-                        // to it as equally-weighted information.
-                        val realAvailStatus = c.obj("real_availability")?.str("status")
-                        val legacyAvailStatus = c.str("availability_status")
-                        val availabilityConflict = realAvailStatus == "unavailable" ||
-                            legacyAvailStatus == "conflict"
-                        val availabilityVerified = c.bool("availability_verified") ||
-                            (realAvailStatus != null && realAvailStatus != "unknown")
-                        val hardIneligible = blocked || availabilityConflict
-                        // A "Best Match" skill badge is a strong, confident claim. Making
-                        // that claim while this candidate's availability was never actually
-                        // checked is the same over-claiming this whole pass exists to stop —
-                        // demote to an amber "Needs review" instead of a green endorsement
-                        // until a real availability check backs it up.
-                        val needsReview = !hardIneligible && !availabilityVerified && c.int("match") >= 90
-                        val dotTint = when {
-                            blocked -> sk.red
-                            availabilityConflict -> sk.red
-                            needsReview -> sk.amber
-                            else -> relevanceColor(c.int("match"))
-                        }
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .then(if (hardIneligible) Modifier.background(sk.red.copy(alpha = 0.05f), RoundedCornerShape(6.dp)).padding(4.dp) else Modifier),
-                        ) {
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(dotTint))
-                                Spacer(Modifier.width(7.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        c.str("trainer_name"),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = if (hardIneligible) sk.subText else sk.bodyText,
-                                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    )
-                                    // Previously only visible after opening the batch
-                                    // detail screen — a manager scanning the list
-                                    // couldn't tell which candidate was the actual
-                                    // Primary pick vs. an Alternate at a glance.
-                                    val backupRole = c.str("backup_role")
-                                    if (!hardIneligible && backupRole.isNotBlank()) {
-                                        Text(
-                                            // Utilisation deliberately dropped from
-                                            // this line. It described how busy someone
-                                            // had been, not whether they can take the
-                                            // batch; the verdict row below answers that
-                                            // from the RMS free-date calendar instead.
-                                            listOfNotNull(
-                                                backupRole,
-                                                c.intOrNull("suitability_score")?.let { "$it suitability" },
-                                            ).joinToString(" · "),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = sk.subText,
-                                            maxLines = 1,
-                                        )
-                                    }
-                                    // The real verdict, computed from the RMS
-                                    // free-date calendar. It replaces the older
-                                    // line derived from the assignment feed:
-                                    // showing both invited two availability
-                                    // claims that could contradict each other,
-                                    // and the manager had no way to tell which
-                                    // to believe. Falls back to the previous
-                                    // signal only when 171 returned no row.
-                                    if (c.obj("real_availability") != null) {
-                                        CandidateVerdictRow(c, international)
-                                    } else {
-                                        val availability = c.obj("availability")
-                                        val availabilityStatus = c.str("availability_status")
-                                        if (availabilityStatus.isNotBlank()) {
-                                            Text(
-                                                when (availabilityStatus) {
-                                                    "available" -> "Available for these dates"
-                                                    "conflict" -> "Schedule conflict · ${availability?.str("suggested_available_date")?.shortDate()} next"
-                                                    else -> "Availability unverified"
-                                                },
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = when (availabilityStatus) {
-                                                    "available" -> sk.green
-                                                    "conflict" -> sk.red
-                                                    else -> sk.warn
-                                                },
-                                                maxLines = 1,
-                                            )
-                                        }
-                                    }
-                                    c.obj("suitability_components")?.let { parts ->
-                                        // A candidate whose availability was never
-                                        // verified must not carry a confident-looking
-                                        // number here — that is what let "Availability
-                                        // unknown" read next to "Avail 100" before the
-                                        // backend reconciliation fix. Even the corrected,
-                                        // honest 45 still looks like a real score, so an
-                                        // unverified candidate shows "Avail —" instead of
-                                        // any number at all.
-                                        val availText = if (availabilityVerified) "${parts.int("availability")}" else "—"
-                                        Text(
-                                            "Skill ${parts.int("skill")} · Ready ${parts.int("readiness")} · " +
-                                                "Avail $availText · Cert ${parts.int("certification")} · Lang ${parts.int("language")}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = sk.subText, maxLines = 1,
-                                        )
-                                    }
-                                }
-                                Text(
-                                    when {
-                                        blocked -> "Blocked"
-                                        availabilityConflict -> "Conflict"
-                                        needsReview -> "Needs review"
-                                        else -> c.str("coverage")
-                                    },
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = dotTint,
-                                )
-                            }
-
-                            val missing = c.list("missing_skills").joinToString(", ")
-                            when {
-                                blocked -> Text(
-                                    "Negative feedback — not auto-allocated until ${c.str("blocked_until").shortDate()}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = sk.red,
-                                    modifier = Modifier.padding(start = 13.dp, top = 2.dp)
-                                )
-                                availabilityConflict -> Text(
-                                    "Not available on these dates — a strong skill match does not override a real conflict",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = sk.red,
-                                    modifier = Modifier.padding(start = 13.dp, top = 2.dp)
-                                )
-                                needsReview -> Text(
-                                    "Strong skill match, but availability was never checked — verify before assigning",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = sk.amber,
-                                    modifier = Modifier.padding(start = 13.dp, top = 2.dp)
-                                )
-                                missing.isNotBlank() -> Text(
-                                    "Missing: $missing",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = sk.amber,
-                                    modifier = Modifier.padding(start = 13.dp, top = 2.dp)
-                                )
-                                c.int("match") < 75 -> Text(
-                                    "Upskilling required",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = sk.amber,
-                                    modifier = Modifier.padding(start = 13.dp, top = 2.dp)
-                                )
-                                c.bool("recent_negative_6mo") -> Text(
-                                    "Feedback on file within last 6 months",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = sk.subText,
-                                    modifier = Modifier.padding(start = 13.dp, top = 2.dp)
-                                )
-                            }
-                        }
+                    val shownCandidates = candidates.take(3)
+                    shownCandidates.forEachIndexed { i, c ->
+                        RecommendedCandidateCard(c, rank = i + 1, international = international)
+                        if (i < shownCandidates.lastIndex) Spacer(Modifier.height(8.dp))
                     }
                 } else {
                     Spacer(Modifier.height(6.dp))

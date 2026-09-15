@@ -39,6 +39,8 @@ internal fun GrowTeamCard(upskilling: Map<String, Any>?) {
     val trainerRepository = remember { TrainerRepository() }
     var askText by remember { mutableStateOf<String?>(null) }
     var askFor by remember { mutableStateOf("") }
+    var askCourse by remember { mutableStateOf("") }
+    var askInstruction by remember { mutableStateOf("") }
 
     Column(
         Modifier.fillMaxWidth().glassSurface(RoundedCornerShape(14.dp)).padding(16.dp),
@@ -90,6 +92,8 @@ internal fun GrowTeamCard(upskilling: Map<String, Any>?) {
                     }
                     TextButton(onClick = {
                         askFor = name
+                        askCourse = course
+                        askInstruction = ""
                         scope.launch {
                             try {
                                 val r = trainerRepository.upskillMessage(
@@ -112,12 +116,35 @@ internal fun GrowTeamCard(upskilling: Map<String, Any>?) {
         }
     }
 
-    askText?.let { text ->
+    askText?.let { base ->
+        val text = if (askInstruction.isBlank()) base else "$base\n\n${askInstruction.trim()}"
         AlertDialog(
             onDismissRequest = { askText = null },
             title = { Text("Ask $askFor to upskill") },
             text = {
-                Text(text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.verticalScroll(rememberScrollState()))
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    com.example.skillsync.feature.communication.ui.ComposerModelStrip()
+                    com.example.skillsync.feature.communication.ui.ComposerStep(
+                        1, "Verified context", "Demand and closest-fit data — always included.",
+                        com.example.skillsync.feature.communication.ui.ComposerTints.context,
+                    ) {
+                        com.example.skillsync.feature.communication.ui.VerifiedContextRows(
+                            listOf("Trainer" to askFor, "Course" to askCourse, "Request" to "Upskill and mark skill in RMS"),
+                        )
+                    }
+                    com.example.skillsync.feature.communication.ui.ComposerStep(
+                        2, "Manager instruction", "Optional — added after the request.",
+                        com.example.skillsync.feature.communication.ui.ComposerTints.instruction,
+                    ) {
+                        com.example.skillsync.feature.communication.ui.ManagerInstructionField(askInstruction, { askInstruction = it }, minLines = 1)
+                    }
+                    com.example.skillsync.feature.communication.ui.ComposerStep(
+                        3, "Generated message", "Shared through the app you pick.",
+                        com.example.skillsync.feature.communication.ui.ComposerTints.generated,
+                    ) {
+                        com.example.skillsync.feature.communication.ui.GeneratedMessageBox(text)
+                    }
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
