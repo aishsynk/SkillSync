@@ -15,7 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.data.EligibilityRepository
 import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.skill
@@ -49,6 +49,7 @@ fun EligibilitySheet(
     onDismiss: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
+    val eligibilityRepository = remember { EligibilityRepository() }
 
     var loading by remember { mutableStateOf(true) }
     var data by remember { mutableStateOf<Map<String, Any>?>(null) }
@@ -61,7 +62,7 @@ fun EligibilitySheet(
         var attempt = 0
         while (attempt < 4) {
             try {
-                val res = RetrofitClient.instance.getBatchEligibility(managerEmail, demandId)
+                val res = eligibilityRepository.batchEligibility(managerEmail, demandId)
                 data = res
                 val stillWarming = (res["loading"] == true) &&
                     res.list("ready").isEmpty() && res.list("blocked").isEmpty()
@@ -79,7 +80,7 @@ fun EligibilitySheet(
     LaunchedEffect(markState) {
         if (markState is MarkState.Done) {
             try {
-                data = RetrofitClient.instance.getBatchEligibility(managerEmail, demandId)
+                data = eligibilityRepository.batchEligibility(managerEmail, demandId)
             } catch (_: Exception) { /* keep the stale view */ }
         }
     }

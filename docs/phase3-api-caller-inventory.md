@@ -13,6 +13,7 @@ across `SkillEdge_Android/app/src/main/java/com/example/skillsync`.
 | `core/data/SkillRequestsRepository.kt` | REPOSITORY | Skill-request-approval domain |
 | `core/data/AuthRepository.kt` (new, this pass) | REPOSITORY | Sign-in/authentication domain |
 | `core/data/BatchRepository.kt` (new, this pass) | REPOSITORY | Batch/delivery domain (broadcast message text) |
+| `core/data/EligibilityRepository.kt` (new, this pass) | REPOSITORY | Certification/eligibility domain |
 | `feature/communication/domain/CommunicationRepository.kt` | REPOSITORY | Communication domain (Phase 1) |
 | `core/notification/MonitoringPass.kt` | OTHER (background poller) | Not yet classified in detail — flagged for the next inventory pass, not a UI-layer violation |
 | `core/storage/ActionQueueManager.kt` | OTHER (offline-queue sync) | Same — not yet detail-classified, not a UI-layer violation |
@@ -52,7 +53,8 @@ boundary explicit"); not merged or deleted.
 | OLD PATH | NEW PATH | DOMAIN OWNER | REPOSITORY | VIEWMODEL/USE CASE | API ENDPOINT | CACHE/PERSISTENCE | TEST COVERAGE | CI COMMIT |
 |---|---|---|---|---|---|---|---|---|
 | `feature/auth/ui/LoginViewModel.kt` (direct `RetrofitClient.instance`) | `feature/auth/ui/LoginViewModel.kt` (via repository) | Auth | `core/data/AuthRepository.kt` | `LoginViewModel` (no use case — single-step calls, no orchestration) | `authCheck`, `login`, `setPassword` | None (session state via `SessionManager`, unchanged) | `LoginViewModelTest.kt` (3 tests) | Phase 3 increment 1 |
-| `feature/training/ui/BatchDetailScreen.kt` (direct `RetrofitClient.instance.getBatchMessage`) | `feature/training/ui/BatchDetailScreen.kt` (via repository, no ViewModel — documented exception below) | Batch/delivery | `core/data/BatchRepository.kt` | None — stateless Composable, see exception note | `GET api/data/batch-message` (`getBatchMessage`) | None — ephemeral `serverMsg` Compose state, unchanged; falls back to `BatchShare` local composition on failure | None yet (pending — see Pending below) | Phase 3 increment 2 (this commit) |
+| `feature/training/ui/BatchDetailScreen.kt` (direct `RetrofitClient.instance.getBatchMessage`) | `feature/training/ui/BatchDetailScreen.kt` (via repository, no ViewModel — documented exception below) | Batch/delivery | `core/data/BatchRepository.kt` | None — stateless Composable, see exception note | `GET api/data/batch-message` (`getBatchMessage`) | None — ephemeral `serverMsg` Compose state, unchanged; falls back to `BatchShare` local composition on failure | None yet (pending — see Pending below) | Phase 3 increment 2 |
+| `feature/training/ui/EligibilitySheet.kt` (direct `RetrofitClient.instance.getBatchEligibility`, 2 call sites) | `feature/training/ui/EligibilitySheet.kt` (via repository, no ViewModel — same documented exception) | Certification/eligibility | `core/data/EligibilityRepository.kt` | None — stateless Composable driven by `LaunchedEffect` | `GET api/v2/eligibility/batch` (`getBatchEligibility`) | None — local `data`/`loading`/`failed` Compose state, unchanged; retry-loop and stale-view-on-error behavior unchanged | None yet (same rationale as BatchRepository) | Phase 3 increment 3 (this commit) |
 
 ### Documented exception: `BatchDetailScreen.kt` has no ViewModel
 
@@ -97,7 +99,6 @@ increment, not bundled into this one.
 | `feature/home/Version2Workspaces.kt` | SCREEN/COMPOSABLE | Unclear — flagged as possibly-dead; confirm before migrating | Open |
 | `feature/training/ui/AllocationViewModel.kt` | VIEWMODEL | Batch/demand, Trainer/candidate, Trainer-skill-write (3 domains) | Open |
 | `feature/training/ui/CopilotViewModel.kt` | VIEWMODEL | AI/Copilot | Open |
-| `feature/training/ui/EligibilitySheet.kt` | SCREEN/COMPOSABLE | Certification/eligibility (`getBatchEligibility`) — cross-domain, backend-authoritative; candidate for its own `EligibilityRepository` | Open |
 | `feature/training/ui/NetworkStaffingSheet.kt` | SCREEN/COMPOSABLE | Trainer/staffing (`getNetworkTrainers`) | Open |
 | `feature/training/ui/Trainer360ViewModel.kt` | VIEWMODEL | Trainer | Open |
 | `feature/training/ui/TrainerPracticeScreen.kt` | SCREEN/COMPOSABLE | Trainer/capability (`trainerFeedbackLog`, `trainerRecordings`) | Open |

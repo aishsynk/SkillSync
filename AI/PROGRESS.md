@@ -1673,3 +1673,46 @@ https://github.com/aishsynk/SkillSync/actions/runs/34955427354:**
 
 Count 232 → 233 matches the 1 new `SessionManagerTest` test exactly, and it
 passes. No change to the pre-existing 10 baseline failures by identity.
+
+## 17. Phase 3 increment 3 — Certification/eligibility domain
+
+Migrated `EligibilitySheet.kt`'s two direct `RetrofitClient.instance
+.getBatchEligibility(...)` call sites (the initial retry-loop fetch and the
+post-skill-write refetch) → new `core/data/EligibilityRepository.kt`,
+following the same `AuthRepository`/`BatchRepository` convention
+(`apiProvider` default, `open suspend fun`).
+
+Kept as its own domain rather than folded into Batch or Trainer, per the
+prior increment's investigation: `GET api/v2/eligibility/batch` is a
+cross-cutting, backend-authoritative evaluation (trainer capability +
+certification + batch requirement + availability combined server-side).
+Android never re-derives this — it only displays the result and offers the
+one write the manager can make (marking a skill), which goes through the
+existing skill-request write path, not this repository.
+
+Same documented exception as `BatchDetailScreen`: `EligibilitySheet` is a
+stateless Composable (state driven by `LaunchedEffect`, no ViewModel), so it
+calls `EligibilityRepository` directly via `remember { EligibilityRepository() }`
+rather than introducing a ViewModel solely to hold the repository reference.
+Confirmed by re-grep: zero `RetrofitClient` references remain in
+`EligibilitySheet.kt`; brace/paren balance verified.
+
+No dedicated repository unit test added, for the same reason as
+`BatchRepository` (no ViewModel seam to fake against without a Compose UI
+test harness this repo doesn't yet use here) — documented, not silently
+skipped.
+
+`docs/phase3-api-caller-inventory.md` living architecture map updated with
+this increment's row.
+
+**Remaining for subsequent increments:** `ActionsViewModel`,
+`CourseCurriculumSheet`, `GrowTeamCard`, `MainScreen`, `MainScreenViewModel`,
+`Version2Workspaces` (status TBD), `AllocationViewModel` (3 domains),
+`CopilotViewModel`, `NetworkStaffingSheet`, `Trainer360ViewModel`,
+`TrainerPracticeScreen`. Next planned: Trainer/Staffing cluster
+(`NetworkStaffingSheet.kt` + `TrainerPracticeScreen.kt` +
+`AllocationViewModel`'s trainer-domain calls → a `TrainerRepository`, name
+TBD after further investigation).
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.
