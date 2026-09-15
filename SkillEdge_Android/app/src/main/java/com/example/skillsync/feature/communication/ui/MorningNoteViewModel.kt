@@ -10,6 +10,8 @@ import com.example.skillsync.feature.communication.domain.CommunicationAudienceT
 import com.example.skillsync.feature.communication.domain.CommunicationEvidence
 import com.example.skillsync.feature.communication.domain.CommunicationRequest
 import com.example.skillsync.feature.communication.domain.ComposeManagerMessageUseCase
+import com.example.skillsync.feature.communication.domain.ComposeResult
+import com.example.skillsync.feature.communication.domain.MorningNoteText
 import com.example.skillsync.feature.communication.engine.CommunicationPlanner
 import com.example.skillsync.feature.communication.engine.CommunicationPurpose
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,17 +35,40 @@ data class MorningNoteState(
     val weekday: DayOfWeek,
     val text: String = "",
     val loading: Boolean = false,
+    val fromServer: Boolean = false,
 ) {
     val isWeekend: Boolean get() = weekday == DayOfWeek.SATURDAY || weekday == DayOfWeek.SUNDAY
 }
 
+/** Where the day's draft and the anti-repeat history live. */
+interface MorningNoteStore {
+    fun draft(): Pair<String, String>?
+    fun saveDraft(date: String, text: String)
+    fun recent(): List<String>
+    fun remember(text: String)
+}
+
+private class PrefsMorningNoteStore(private val email: String) : MorningNoteStore {
+    override fun draft() = DigestStateStore.morningDraft(email)
+    override fun saveDraft(date: String, text: String) = DigestStateStore.setMorningDraft(email, date, text)
+    override fun recent() = DigestStateStore.recentGreetings(email)
+    override fun remember(text: String) = DigestStateStore.recordGreeting(email, text, CommunicationPlanner.MORNING_HISTORY_SIZE)
+}
+
 /**
- * Today's Morning Note. Builds a MORNING_TEAM_GREETING [CommunicationRequest]
- * and runs it through [ComposeManagerMessageUseCase] — the same boundary the
- * weekly and monthly composers use — so there is no second generator.
+ * Today's Morning Note: one greeting per local weekday.
+ *
+ * - First open on a weekday composes a greeting (server first, local fallback,
+ *   via [ComposeManagerMessageUseCase]) and persists it as that date's draft.
+ * - Reopening the same date shows the same draft; nothing is recomposed.
+ * - A new local weekday composes a new draft automatically.
+ * - Regenerate is the only action that replaces the day's draft.
+ * - Copy/Share read the draft; they never change it.
+ * - Saturday/Sunday compose nothing.
  */
 class MorningNoteViewModel(
-    private val composeMessage: ComposeManagerMessageUseCase = ComposeManagerMessageUseCase(),
+    private val compose: suspend (String, CommunicationRequest) -> ComposeResult =
+        { email, request -> ComposeManagerMessageUseCase()(email, request) },
     private val today: () -> LocalDate = { LocalDate.now() },
 ) : ViewModel() {
 
@@ -51,63 +76,78 @@ class MorningNoteViewModel(
     val state: StateFlow<MorningNoteState> = _state.asStateFlow()
 
     private var managerEmail = ""
+    private var store: MorningNoteStore? = null
     private var variation = 0
-    private var loadHistory: () -> List<String> = { emptyList() }
-    private var saveHistory: (String) -> Unit = {}
     private var recordDelivery: suspend (Map<String, Any>) -> Unit = { ManagerRepository().saveCommunication(it) }
 
     fun start(context: Context, email: String) {
-        if (managerEmail == email && _state.value.text.isNotBlank()) return
         DigestStateStore.init(context.applicationContext)
-        bind(
-            email = email,
-            history = { DigestStateStore.recentGreetings(email) },
-            record = { DigestStateStore.recordGreeting(email, it, CommunicationPlanner.MORNING_HISTORY_SIZE) },
-        )
-        generate()
+        bind(email, PrefsMorningNoteStore(email))
+        refreshForToday()
     }
 
-    /** Test seam: supplies history and delivery logging without Android storage or network. */
-    internal fun bind(
-        email: String,
-        history: () -> List<String>,
-        record: (String) -> Unit,
-        delivery: (suspend (Map<String, Any>) -> Unit)? = null,
-    ) {
+    /** Test seam: a store and delivery logger without Android storage or network. */
+    internal fun bind(email: String, store: MorningNoteStore, delivery: (suspend (Map<String, Any>) -> Unit)? = null) {
         managerEmail = email
-        loadHistory = history
-        saveHistory = record
+        this.store = store
         delivery?.let { recordDelivery = it }
     }
 
-    fun regenerate() {
-        variation++
-        generate()
+    /** Shows today's persisted draft, or composes one if today has none. Safe to call repeatedly. */
+    fun refreshForToday() {
+        val date = today()
+        if (isWeekend(date.dayOfWeek)) {
+            _state.value = MorningNoteState(date.dayOfWeek)
+            return
+        }
+        val saved = store?.draft()
+        if (saved != null && saved.first == date.toString()) {
+            if (_state.value.text != saved.second || _state.value.weekday != date.dayOfWeek) {
+                _state.value = MorningNoteState(date.dayOfWeek, text = saved.second)
+            }
+            return
+        }
+        if (_state.value.loading) return
+        generate(date)
     }
 
-    internal fun generate() {
-        val weekday = today().dayOfWeek
-        _state.value = MorningNoteState(weekday, loading = true)
+    fun regenerate() {
+        val date = today()
+        if (isWeekend(date.dayOfWeek) || _state.value.loading) return
+        variation++
+        generate(date)
+    }
+
+    private fun generate(date: LocalDate) {
+        val s = store ?: return
+        _state.value = _state.value.copy(weekday = date.dayOfWeek, loading = true)
         viewModelScope.launch {
             val request = CommunicationRequest(
                 audience = CommunicationAudience(CommunicationAudienceType.TEAM),
                 purpose = CommunicationPurpose.MORNING_TEAM_GREETING,
                 cadence = "morning",
                 evidence = CommunicationEvidence(
-                    localWeekday = weekday,
-                    recentGreetings = loadHistory(),
+                    localWeekday = date.dayOfWeek,
+                    recentGreetings = s.recent(),
                     variation = variation,
                 ),
             )
-            val text = composeMessage(managerEmail, request).text
-            if (text.isNotBlank()) saveHistory(text)
-            _state.value = MorningNoteState(weekday, text = text)
+            val result = compose(managerEmail, request)
+            val text = MorningNoteText.clean(result.text)
+            if (text.isNotBlank()) {
+                s.saveDraft(date.toString(), text)
+                s.remember(text)
+            }
+            _state.value = MorningNoteState(date.dayOfWeek, text = text, fromServer = result.fromServer)
         }
     }
 
+    /** Exactly what Copy/Share hand over: the greeting alone. */
+    fun payload(): String = MorningNoteText.clean(_state.value.text)
+
     /** Logs a copy/share to communication history. Never claims the message was sent. */
     fun record(action: MorningNoteAction): String {
-        val text = _state.value.text
+        val text = payload()
         if (text.isNotBlank()) {
             viewModelScope.launch {
                 runCatching {
@@ -126,4 +166,6 @@ class MorningNoteViewModel(
         }
         return action.status
     }
+
+    private fun isWeekend(d: DayOfWeek) = d == DayOfWeek.SATURDAY || d == DayOfWeek.SUNDAY
 }

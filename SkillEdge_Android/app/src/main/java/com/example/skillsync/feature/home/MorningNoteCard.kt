@@ -32,6 +32,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.skillsync.R
 import com.example.skillsync.feature.communication.ui.MorningNoteAction
@@ -45,24 +49,30 @@ import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
 
 /**
- * Morning Note — the manager's weekday greeting for Teams/Viber, composed by
- * Communication Intelligence (MORNING_TEAM_GREETING). The preview renders the
- * Viber markers; Copy and Share hand over the raw marked-up text unchanged.
+ * Morning Note — the manager's daily weekday greeting for Teams/Viber,
+ * composed by Communication Intelligence (MORNING_TEAM_GREETING). Not shown
+ * at all on Saturday or Sunday. Copy and Share hand over the greeting alone.
  */
 @Composable
 fun MorningNoteCard(email: String, viewModel: MorningNoteViewModel = viewModel()) {
     val context = LocalContext.current
-    LaunchedEffect(email) { viewModel.start(context, email) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    // Re-checked on every resume, so an app left open overnight picks up the next weekday.
+    LaunchedEffect(email) {
+        viewModel.start(context, email)
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { viewModel.refreshForToday() }
+    }
     val state by viewModel.state.collectAsState()
+    if (state.isWeekend) return
     MorningNoteContent(
         state = state,
         onRegenerate = viewModel::regenerate,
         onCopy = {
-            BatchShare.copyMessage(context, state.text)
+            BatchShare.copyMessage(context, viewModel.payload())
             viewModel.record(MorningNoteAction.COPY)
         },
         onShare = {
-            BatchShare.shareAnywhere(context, state.text)
+            BatchShare.shareAnywhere(context, viewModel.payload())
             viewModel.record(MorningNoteAction.SHARE)
         },
     )
@@ -82,67 +92,64 @@ internal fun MorningNoteContent(
         Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(Brush.verticalGradient(listOf(tint.copy(alpha = 0.10f), sk.surface1)))
-            .border(1.dp, tint.copy(alpha = 0.22f), shape)
-            .padding(horizontal = Space.md, vertical = Space.md)
+            .background(Brush.verticalGradient(listOf(tint.copy(alpha = 0.09f), sk.surface1)))
+            .border(1.dp, Color.White.copy(alpha = 0.06f), shape)
+            .padding(start = Space.md, end = Space.sm, top = 12.dp, bottom = 2.dp)
             .animateContentSize(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconSlot(tint = tint, size = 30.dp) {
-                Icon(painterResource(R.drawable.ic_sun), contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+            IconSlot(tint = tint, size = 26.dp) {
+                Icon(painterResource(R.drawable.ic_sun), contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
             }
             Spacer(Modifier.width(Space.sm))
-            Column(Modifier.weight(1f)) {
-                Text("MORNING NOTE", style = MaterialTheme.typography.labelMedium, color = sk.frost, fontWeight = FontWeight.Bold, letterSpacing = 0.08.em)
-                Text(
-                    state.weekday.name.lowercase().replaceFirstChar { it.uppercase() },
-                    style = MaterialTheme.typography.labelSmall, color = tint,
-                )
-            }
-            Text("For Teams / Viber", style = MaterialTheme.typography.labelSmall, color = sk.subText)
-        }
-
-        when {
-            state.isWeekend -> Text(
-                "No morning note at the weekend — it returns on Monday.",
-                style = MaterialTheme.typography.bodyMedium, color = sk.subText,
+            Text("MORNING NOTE", style = MaterialTheme.typography.labelMedium, color = sk.frost, fontWeight = FontWeight.Bold, letterSpacing = 0.08.em)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                state.weekday.name,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.06.em),
+                color = tint, fontWeight = FontWeight.SemiBold,
             )
-            state.loading -> Row(Modifier.height(40.dp), verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = tint)
-                Spacer(Modifier.width(Space.sm))
-                Text("Composing today's note…", style = MaterialTheme.typography.bodySmall, color = sk.subText)
-            }
-            state.text.isBlank() -> Text("Couldn't compose a note right now.", style = MaterialTheme.typography.bodyMedium, color = sk.subText)
-            else -> Text(viberPreview(state.text), style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
         }
 
-        if (!state.isWeekend) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
-                NoteAction(R.drawable.ic_refresh, "Regenerate", sk.subText, Modifier.weight(1f), enabled = !state.loading, onClick = onRegenerate)
-                NoteAction(R.drawable.ic_copy, "Copy", sk.sky, Modifier.weight(1f), enabled = state.text.isNotBlank(), onClick = onCopy)
-                NoteAction(R.drawable.ic_share, "Share", sk.sky, Modifier.weight(1f), enabled = state.text.isNotBlank(), onClick = onShare)
+        Box(Modifier.padding(end = Space.sm)) {
+            when {
+                state.loading && state.text.isBlank() -> Row(Modifier.height(40.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = tint)
+                    Spacer(Modifier.width(Space.sm))
+                    Text("Composing today's note…", style = MaterialTheme.typography.bodySmall, color = sk.subText)
+                }
+                state.text.isBlank() -> Text("Couldn't compose a note right now.", style = MaterialTheme.typography.bodyMedium, color = sk.subText)
+                // Preview only: paragraph break tightened to one line to keep the card compact.
+                else -> Text(viberPreview(state.text.replace("\n\n", "\n")), style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
             }
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            NoteAction(R.drawable.ic_refresh, "Regenerate", sk.subText, enabled = !state.loading, onClick = onRegenerate)
+            Spacer(Modifier.weight(1f))
+            NoteAction(R.drawable.ic_copy, "Copy", sk.sky, enabled = state.text.isNotBlank() && !state.loading, onClick = onCopy)
+            NoteAction(R.drawable.ic_share, "Share", sk.sky, enabled = state.text.isNotBlank() && !state.loading, onClick = onShare)
         }
     }
 }
 
+/** Compact icon + label action: 44dp tall touch target, content-width. */
 @Composable
-private fun NoteAction(icon: Int, label: String, tint: Color, modifier: Modifier, enabled: Boolean, onClick: () -> Unit) {
+private fun NoteAction(icon: Int, label: String, tint: Color, enabled: Boolean, onClick: () -> Unit) {
     val alpha = if (enabled) 1f else 0.4f
     Row(
-        modifier
+        Modifier
             .height(44.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(tint.copy(alpha = 0.08f * alpha))
+            .clip(RoundedCornerShape(8.dp))
             .then(if (enabled) Modifier.pressable(onClick) else Modifier)
-            .semantics { role = Role.Button; contentDescription = "$label morning note" },
-        horizontalArrangement = Arrangement.Center,
+            .semantics { role = Role.Button; contentDescription = "$label morning note" }
+            .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(painterResource(icon), contentDescription = null, tint = tint.copy(alpha = alpha), modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(label, style = MaterialTheme.typography.labelLarge, color = tint.copy(alpha = alpha), fontWeight = FontWeight.SemiBold)
+        Icon(painterResource(icon), contentDescription = null, tint = tint.copy(alpha = alpha), modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(5.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = tint.copy(alpha = alpha), fontWeight = FontWeight.SemiBold)
     }
 }
 

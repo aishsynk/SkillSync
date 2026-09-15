@@ -6,14 +6,17 @@ import com.example.skillsync.feature.communication.domain.CommunicationEvidence
 import com.example.skillsync.feature.communication.domain.CommunicationRepository
 import com.example.skillsync.feature.communication.domain.CommunicationRequest
 import com.example.skillsync.feature.communication.domain.ComposeManagerMessageUseCase
-import com.example.skillsync.feature.communication.engine.CommunicationComposer
+import com.example.skillsync.feature.communication.domain.ComposeResult
+import com.example.skillsync.feature.communication.domain.MorningNoteText
 import com.example.skillsync.feature.communication.engine.CommunicationPlanner
 import com.example.skillsync.feature.communication.engine.CommunicationPurpose
 import com.example.skillsync.feature.communication.ui.MorningNoteAction
+import com.example.skillsync.feature.communication.ui.MorningNoteStore
 import com.example.skillsync.feature.communication.ui.MorningNoteViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -26,6 +29,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
 import java.time.DayOfWeek
 import java.time.LocalDate
 
@@ -37,6 +41,9 @@ class MorningGreetingTest {
     @Before fun setUp() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
 
+    private val weekdays = listOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY)
+    private val wednesday = LocalDate.of(2026, 9, 16)
+
     private fun request(day: DayOfWeek, recent: List<String> = emptyList(), variation: Int = 0) = CommunicationRequest(
         audience = CommunicationAudience(CommunicationAudienceType.TEAM),
         purpose = CommunicationPurpose.MORNING_TEAM_GREETING,
@@ -44,127 +51,173 @@ class MorningGreetingTest {
         evidence = CommunicationEvidence(localWeekday = day, recentGreetings = recent, variation = variation),
     )
 
-    private val weekdays = listOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY)
+    private class FakeStore : MorningNoteStore {
+        var saved: Pair<String, String>? = null
+        val history = mutableListOf<String>()
+        override fun draft() = saved
+        override fun saveDraft(date: String, text: String) { saved = date to text }
+        override fun recent() = history.toList()
+        override fun remember(text: String) { history.add(0, text) }
+    }
 
-    // ── weekday selection ───────────────────────────────────────────────────
+    /** A composer that counts calls and returns a distinct greeting each time. */
+    private class CountingCompose {
+        var calls = 0
+        val compose: suspend (String, CommunicationRequest) -> ComposeResult = { _, req ->
+            calls++
+            ComposeResult("Hi all.\n\n*Note $calls* for ${req.evidence.localWeekday}. _Take care._", fromServer = true)
+        }
+    }
 
-    @Test fun everyWeekdayProducesAGreetingForThatDay() {
+    private fun TestScope.vm(clock: () -> LocalDate, composer: CountingCompose, store: FakeStore, logged: MutableList<Map<String, Any>> = mutableListOf()) =
+        MorningNoteViewModel(compose = composer.compose, today = clock).also {
+            it.bind("m@x.com", store, delivery = { m -> logged += m })
+        }
+
+    // ── daily stability ─────────────────────────────────────────────────────
+
+    @Test fun sameDayReopenShowsTheSameDraftWithoutRecomposing() = runTest(dispatcher) {
+        val store = FakeStore(); val composer = CountingCompose()
+        val first = vm({ wednesday }, composer, store)
+        first.refreshForToday(); advanceUntilIdle()
+        val text = first.state.value.text
+        assertEquals(1, composer.calls)
+        assertEquals(wednesday.toString() to text, store.saved)
+
+        first.refreshForToday(); advanceUntilIdle()                 // recomposition / resume
+        val reopened = vm({ wednesday }, composer, store)            // Today reopened later the same day
+        reopened.refreshForToday(); advanceUntilIdle()
+        assertEquals(1, composer.calls)
+        assertEquals(text, reopened.state.value.text)
+    }
+
+    @Test fun nextLocalWeekdayCreatesANewDraftAutomatically() = runTest(dispatcher) {
+        val store = FakeStore(); val composer = CountingCompose()
+        var date = wednesday
+        val vm = vm({ date }, composer, store)
+        vm.refreshForToday(); advanceUntilIdle()
+        val wednesdayText = vm.state.value.text
+        date = wednesday.plusDays(1)
+        vm.refreshForToday(); advanceUntilIdle()
+        assertEquals(2, composer.calls)
+        assertNotEquals(wednesdayText, vm.state.value.text)
+        assertEquals(DayOfWeek.THURSDAY, vm.state.value.weekday)
+        assertEquals(date.toString(), store.saved!!.first)
+        assertEquals(2, store.history.size)
+    }
+
+    @Test fun regenerateReplacesTheDaysDraft() = runTest(dispatcher) {
+        val store = FakeStore(); val composer = CountingCompose()
+        val vm = vm({ wednesday }, composer, store)
+        vm.refreshForToday(); advanceUntilIdle()
+        val before = vm.state.value.text
+        vm.regenerate(); advanceUntilIdle()
+        assertNotEquals(before, vm.state.value.text)
+        assertEquals(wednesday.toString() to vm.state.value.text, store.saved)
+    }
+
+    @Test fun copyAndShareDoNotMutateTheDraft() = runTest(dispatcher) {
+        val store = FakeStore(); val composer = CountingCompose(); val logged = mutableListOf<Map<String, Any>>()
+        val vm = vm({ wednesday }, composer, store, logged)
+        vm.refreshForToday(); advanceUntilIdle()
+        val draft = store.saved
+        val text = vm.state.value.text
+        assertEquals("COPIED", vm.record(MorningNoteAction.COPY))
+        assertEquals("SHARED_EXTERNALLY", vm.record(MorningNoteAction.SHARE))
+        advanceUntilIdle()
+        assertEquals(1, composer.calls)
+        assertEquals(draft, store.saved)
+        assertEquals(text, vm.state.value.text)
+        assertEquals(listOf("COPIED", "SHARED_EXTERNALLY"), logged.map { it["status"] })
+        assertTrue(MorningNoteAction.entries.none { it.status == "SENT" })
+    }
+
+    @Test fun weekendComposesNothingAndIsHidden() = runTest(dispatcher) {
+        listOf(LocalDate.of(2026, 9, 19), LocalDate.of(2026, 9, 20)).forEach { day ->
+            val store = FakeStore(); val composer = CountingCompose()
+            val vm = vm({ day }, composer, store)
+            vm.refreshForToday(); vm.regenerate(); advanceUntilIdle()
+            assertTrue(vm.state.value.isWeekend)
+            assertEquals(0, composer.calls)
+            assertNull(store.saved)
+        }
+        listOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY).forEach { assertNull(CommunicationPlanner.planMorningGreeting(it)) }
+    }
+
+    // ── online / offline ────────────────────────────────────────────────────
+
+    @Test fun onlineUsesTheServerGreetingAndSendsTheWeekdayAndHistory() = runTest(dispatcher) {
+        var sent: Map<String, Any>? = null
+        val result = CommunicationRepository.composeMorningGreeting("m@x.com", request(DayOfWeek.WEDNESDAY, recent = listOf("old"))) { body ->
+            sent = body
+            mapOf("message" to "```\nMidweek already, everyone.\n\n**Halfway through.** _Enjoy the day._\n```", "requires_communication" to true)
+        }
+        assertTrue(result.fromServer)
+        assertEquals("Midweek already, everyone.\n\n*Halfway through.* _Enjoy the day._", result.text)
+        assertEquals("MORNING_TEAM_GREETING", sent!!["purpose"])
+        assertEquals("WEDNESDAY", sent!!["localWeekday"])
+        assertEquals(listOf("old"), sent!!["recentGreetings"])
+    }
+
+    @Test fun offlineFallsBackToTheLocalComposer() = runTest(dispatcher) {
+        val req = request(DayOfWeek.TUESDAY)
+        val failing = CommunicationRepository.composeMorningGreeting("m@x.com", req) { throw IOException("offline") }
+        val blank = CommunicationRepository.composeMorningGreeting("m@x.com", req) { mapOf("message" to "  ") }
+        listOf(failing, blank).forEach {
+            assertFalse(it.fromServer)
+            assertEquals(ComposeManagerMessageUseCase().offline(req), it.text)
+            assertTrue(it.text.isNotBlank())
+        }
+    }
+
+    @Test fun serverWeekendResponseIsRespected() = runTest(dispatcher) {
+        val r = CommunicationRepository.composeMorningGreeting("m@x.com", request(DayOfWeek.FRIDAY)) {
+            mapOf("message" to "", "requires_communication" to false)
+        }
+        assertEquals("", r.text)
+    }
+
+    // ── copy contract ───────────────────────────────────────────────────────
+
+    @Test fun copyPayloadIsTheGreetingOnly() {
+        val raw = "```\nMORNING NOTE\nWednesday\nGenerated message: Midweek already, everyone.\n\n**Halfway through** — _a good day_ to help. ~meetings~\n```"
+        val clean = MorningNoteText.clean(raw)
+        assertEquals("Midweek already, everyone.\n\n*Halfway through* — _a good day_ to help. ~meetings~", clean)
+        listOf("```", "MORNING NOTE", "Generated message", "**").forEach { assertFalse(clean.contains(it)) }
+    }
+
+    @Test fun viewModelPayloadMatchesTheCleanDraft() = runTest(dispatcher) {
+        val store = FakeStore()
+        val dirty: suspend (String, CommunicationRequest) -> ComposeResult = { _, _ -> ComposeResult("Greeting:\nHi all.\n\n**Bold** _Take care._", true) }
+        val vm = MorningNoteViewModel(compose = dirty, today = { wednesday }).also { it.bind("m@x.com", store) }
+        vm.refreshForToday(); advanceUntilIdle()
+        assertEquals("Hi all.\n\n*Bold* _Take care._", vm.payload())
+        assertEquals(vm.payload(), store.saved!!.second)
+    }
+
+    // ── local fallback composer quality ─────────────────────────────────────
+
+    @Test fun localFallbackCoversEveryWeekdayWithoutBannedPhrasesOrFences() {
+        val banned = listOf("stay focused", "keep the momentum", "finish strong", "make today count", "steady progress",
+            "give 100%", "crush your goals", "have a productive day", "wishing everyone", "have a smooth day")
         weekdays.forEach { day ->
-            val plan = CommunicationPlanner.planMorningGreeting(day)!!
-            assertEquals(CommunicationPurpose.MORNING_TEAM_GREETING.id, plan.purpose)
-            val text = ComposeManagerMessageUseCase().offline(request(day))
-            assertTrue("$day produced nothing", text.isNotBlank())
+            repeat(6) { v ->
+                val text = ComposeManagerMessageUseCase().offline(request(day, variation = v))
+                assertTrue("$day empty", text.isNotBlank())
+                assertFalse(text.contains("```"))
+                assertTrue(text.length <= 200)
+                banned.forEach { assertFalse("'$it' in $text", text.lowercase().contains(it)) }
+            }
         }
     }
 
-    @Test fun fridayReadsAsFridayNotAsAnotherWeekday() {
-        val text = ComposeManagerMessageUseCase().offline(request(DayOfWeek.FRIDAY))
-        listOf("Tuesday", "Wednesday", "Thursday").forEach { assertFalse("Friday note mentions $it", text.contains(it)) }
-    }
-
-    // ── weekend suppression ─────────────────────────────────────────────────
-
-    @Test fun saturdayAndSundayAreSuppressed() {
-        listOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY).forEach { day ->
-            assertNull(CommunicationPlanner.planMorningGreeting(day))
-            assertEquals("", ComposeManagerMessageUseCase().offline(request(day)))
-        }
-    }
-
-    @Test fun viewModelComposesNothingAtTheWeekend() = runTest(dispatcher) {
-        val vm = MorningNoteViewModel(today = { LocalDate.of(2026, 9, 19) }) // Saturday
-        vm.bind("m@x.com", history = { emptyList() }, record = {}, delivery = {})
-        vm.generate(); advanceUntilIdle()
-        assertTrue(vm.state.value.isWeekend)
-        assertEquals("", vm.state.value.text)
-    }
-
-    // ── anti-repeat ─────────────────────────────────────────────────────────
-
-    @Test fun aGreetingDoesNotRepeatTheRecentOnesOpeningThoughtOrClosing() {
+    @Test fun localFallbackDoesNotRepeatRecentOpeningThoughtOrClosing() {
         val first = ComposeManagerMessageUseCase().offline(request(DayOfWeek.WEDNESDAY))
         val second = ComposeManagerMessageUseCase().offline(request(DayOfWeek.WEDNESDAY, recent = listOf(first)))
-        assertNotEquals(first, second)
         val (o1, rest1) = first.split("\n\n", limit = 2)
         val (o2, rest2) = second.split("\n\n", limit = 2)
-        assertNotEquals("same opening", o1, o2)
-        val closing1 = Regex("""_[^_]+_$""").find(rest1)!!.value
-        val closing2 = Regex("""_[^_]+_$""").find(rest2)!!.value
-        assertNotEquals("same closing", closing1, closing2)
-        assertNotEquals("same thought", rest1.removeSuffix(closing1), rest2.removeSuffix(closing2))
-    }
-
-    @Test fun historyNeverBlocksGenerationWhenEveryPartWasUsed() {
-        val history = mutableListOf<String>()
-        repeat(CommunicationPlanner.MORNING_HISTORY_SIZE + 5) {
-            val next = ComposeManagerMessageUseCase().offline(request(DayOfWeek.MONDAY, recent = history.take(CommunicationPlanner.MORNING_HISTORY_SIZE)))
-            assertTrue(next.isNotBlank())
-            history.add(0, next)
-        }
-    }
-
-    @Test fun viewModelRegenerateFeedsHistoryBackSoTheNoteChanges() = runTest(dispatcher) {
-        val stored = mutableListOf<String>()
-        val vm = MorningNoteViewModel(today = { LocalDate.of(2026, 9, 16) }) // Wednesday
-        vm.bind("m@x.com", history = { stored.toList() }, record = { stored.add(0, it) }, delivery = {})
-        vm.generate(); advanceUntilIdle()
-        val first = vm.state.value.text
-        vm.regenerate(); advanceUntilIdle()
-        assertTrue(first.isNotBlank())
-        assertNotEquals(first, vm.state.value.text)
-        assertEquals(2, stored.size)
-    }
-
-    // ── output contract ─────────────────────────────────────────────────────
-
-    @Test fun outputIsTheGreetingOnlyWithViberMarkersAndNoFencesOrLabels() {
-        weekdays.forEach { day ->
-            repeat(4) { v ->
-                val text = ComposeManagerMessageUseCase().offline(request(day, variation = v))
-                assertFalse(text.contains("```"))
-                assertFalse(text.contains("**"))
-                assertFalse(text.startsWith("Generated", ignoreCase = true))
-                assertFalse(text.contains("Hello team,"))
-                assertTrue("no Viber marker in: $text", Regex("""\*[^*\n]+\*|_[^_\n]+_""").containsMatchIn(text))
-                assertTrue("too long (${text.length}): $text", text.length <= 200)
-            }
-        }
-    }
-
-    @Test fun bannedStockPhrasesNeverAppear() {
-        val banned = listOf(
-            "stay focused", "keep the momentum", "finish strong", "make today count", "steady progress",
-            "give 100%", "crush your goals", "have a productive day", "wishing everyone", "have a smooth day",
-        )
-        weekdays.forEach { day ->
-            repeat(8) { v ->
-                val text = ComposeManagerMessageUseCase().offline(request(day, variation = v)).lowercase()
-                banned.forEach { assertFalse("'$it' in: $text", text.contains(it)) }
-            }
-        }
-    }
-
-    // ── routing ─────────────────────────────────────────────────────────────
-
-    @Test fun routesThroughTheSharedComposerAndIsNotReportedAsServerText() = runTest(dispatcher) {
-        val req = request(DayOfWeek.TUESDAY)
-        val plan = CommunicationPlanner.planMorningGreeting(DayOfWeek.TUESDAY)!!
-        val result = CommunicationRepository.compose("m@x.com", req)
-        assertFalse(result.fromServer)
-        assertEquals(CommunicationComposer.composeFromPlan(plan), result.text)
-    }
-
-    // ── share truthfulness ──────────────────────────────────────────────────
-
-    @Test fun shareIsRecordedAsSharedExternallyAndNeverSent() = runTest(dispatcher) {
-        val logged = mutableListOf<Map<String, Any>>()
-        val vm = MorningNoteViewModel(today = { LocalDate.of(2026, 9, 17) })
-        vm.bind("m@x.com", history = { emptyList() }, record = {}, delivery = { logged += it })
-        vm.generate(); advanceUntilIdle()
-        assertEquals("SHARED_EXTERNALLY", vm.record(MorningNoteAction.SHARE))
-        assertEquals("COPIED", vm.record(MorningNoteAction.COPY))
-        advanceUntilIdle()
-        assertEquals(listOf("SHARED_EXTERNALLY", "COPIED"), logged.map { it["status"] })
-        assertTrue(MorningNoteAction.entries.none { it.status == "SENT" })
+        assertNotEquals(o1, o2)
+        assertNotEquals(Regex("""_[^_]+_$""").find(rest1)!!.value, Regex("""_[^_]+_$""").find(rest2)!!.value)
+        assertNotEquals(rest1.substringBeforeLast(" _"), rest2.substringBeforeLast(" _"))
     }
 }

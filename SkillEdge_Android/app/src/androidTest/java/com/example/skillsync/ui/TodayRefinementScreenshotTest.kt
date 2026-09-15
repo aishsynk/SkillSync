@@ -1,6 +1,10 @@
 package com.example.skillsync.ui
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Shader
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -23,17 +28,25 @@ import com.example.skillsync.core.storage.LocalCache
 import com.example.skillsync.feature.home.DashboardTab
 import com.example.skillsync.feature.home.ExecutiveHeader
 import com.example.skillsync.feature.home.ExecutiveHeaderTitle
+import com.example.skillsync.feature.home.SkillSyncNavBar
+import com.example.skillsync.navigation.HomeTab
 import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.SkillSyncTheme
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import java.io.File
 
 /**
  * Real-emulator captures for the Today executive-dashboard refinement pass.
- * Renders the production header ([ExecutiveHeader]) and [DashboardTab] inside
- * MainScreen's container (aurora ground + transparent Scaffold) with the same
- * deterministic fixture shape as [PilotScreenshotInstrumentedTest]. The
- * fixture carries no photo URLs, so avatars show their initials fallback.
+ * Renders MainScreen's real chrome — [ExecutiveHeader], [DashboardTab] and
+ * [SkillSyncNavBar] inside the aurora ground + transparent Scaffold — with a
+ * deterministic fixture.
+ *
+ * Photos: Priya's `photo_url` is a controlled PNG this test writes to the app
+ * cache and loads through the production Avatar/Coil path (no production URL
+ * is invented). Rahul has no URL (initials). Meera's URL points at a file that
+ * does not exist, proving the load-failure fallback to initials.
  */
 class TodayRefinementScreenshotTest {
 
@@ -41,25 +54,50 @@ class TodayRefinementScreenshotTest {
     private val storage = TestStorage()
 
     private fun save(name: String) {
-        compose.mainClock.advanceTimeBy(1_500)
+        settle()
         val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
         storage.openOutputFile("$name.png").use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
-    /** Scrolls the Today list so the node with [text] sits just below the header. */
-    private fun scrollToTop(text: String, substring: Boolean = false) {
-        settle()
-        val list = compose.onAllNodes(hasScrollAction()).onFirst()
-        val listTop = list.fetchSemanticsNode().boundsInRoot.top
-        val nodeTop = compose.onAllNodes(hasText(text, substring = substring), useUnmergedTree = true)
-            .onFirst().fetchSemanticsNode().boundsInRoot.top
-        list.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, nodeTop - listTop - 24f) }
+    /** The clock is manual (the logo's idle animation never lets Compose go idle), so pump it. */
+    private fun settle() {
+        repeat(6) { compose.mainClock.advanceTimeBy(250); Thread.sleep(200) }
+    }
+
+    private fun list() = compose.onAllNodes(hasScrollAction()).onFirst()
+
+    private var scrolled = 0f
+    private val anchors = mutableMapOf<String, Float>()
+
+    /** Records each section's offset from the list top while the list is still at scroll 0. */
+    private fun measureAnchors(vararg texts: Pair<String, Boolean>) {
+        val listTop = list().fetchSemanticsNode().boundsInRoot.top
+        texts.forEach { (text, substring) ->
+            anchors[text] = compose.onAllNodes(hasText(text, substring = substring), useUnmergedTree = true)
+                // positionInRoot is unclipped; boundsInRoot collapses to 0 for off-screen nodes.
+                .onFirst().fetchSemanticsNode().positionInRoot.y - listTop
+        }
+    }
+
+    /** Scrolls by the exact remaining distance so [text]'s section sits just below the header. */
+    private fun scrollToTop(text: String) {
+        val target = anchors.getValue(text) - 24f
+        list().performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, target - scrolled) }
+        scrolled = target
         settle()
     }
 
-    /** The clock is manual (the logo's idle animation never lets Compose go idle), so pump it. */
-    private fun settle() {
-        repeat(4) { compose.mainClock.advanceTimeBy(250); Thread.sleep(150) }
+    /** A controlled, deterministic portrait written to the app cache. */
+    private fun testPortraitUri(): String {
+        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+        val file = File(ctx.cacheDir, "today_test_portrait.png")
+        val bmp = Bitmap.createBitmap(256, 256, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        c.drawPaint(Paint().apply { shader = LinearGradient(0f, 0f, 256f, 256f, 0xFFF59E0B.toInt(), 0xFF7C3AED.toInt(), Shader.TileMode.CLAMP) })
+        c.drawCircle(128f, 104f, 52f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFDE68A.toInt() })
+        c.drawOval(48f, 170f, 208f, 300f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF1E3A8A.toInt() })
+        file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        return "file://${file.absolutePath}"
     }
 
     private fun dashboardPayload() = mapOf<String, Any>(
@@ -73,6 +111,7 @@ class TodayRefinementScreenshotTest {
         "trainer_operations_df" to listOf(
             mapOf("official_email" to "priya@koenig-solutions.com", "trainer_name" to "Priya Sharma"),
             mapOf("official_email" to "rahul@koenig-solutions.com", "trainer_name" to "Rahul Verma"),
+            mapOf("official_email" to "meera@koenig-solutions.com", "trainer_name" to "Meera Iyer"),
         ),
         "trainer_current_state_df" to emptyList<Map<String, Any>>(),
         "batch_engagement_df" to listOf(
@@ -90,17 +129,22 @@ class TodayRefinementScreenshotTest {
         "trainer_decision_objects" to emptyList<Map<String, Any>>(),
     )
 
-    private fun capabilityPayload() = mapOf<String, Any>(
+    private fun capabilityPayload(photo: String) = mapOf<String, Any>(
         "trainers" to listOf(
-            mapOf("trainer_name" to "Priya Sharma", "trainer_email" to "priya@koenig-solutions.com", "utilization" to 88.0, "readiness_bucket" to "Ready"),
+            mapOf("trainer_name" to "Priya Sharma", "trainer_email" to "priya@koenig-solutions.com", "utilization" to 88.0, "readiness_bucket" to "Ready", "photo_url" to photo),
             mapOf("trainer_name" to "Rahul Verma", "trainer_email" to "rahul@koenig-solutions.com", "utilization" to 74.0, "readiness_bucket" to "Ready"),
+            mapOf("trainer_name" to "Meera Iyer", "trainer_email" to "meera@koenig-solutions.com", "utilization" to 61.0, "readiness_bucket" to "Ready", "photo_url" to "file:///data/local/tmp/does-not-exist.png"),
         ),
         "kpis" to emptyMap<String, Any>(),
     )
 
     @Test
     fun today_refinement_screenshots() {
-        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+        LocalCache.init(ctx)
+        // Start with no persisted draft so the Morning Note composes on first load.
+        ctx.getSharedPreferences("skilledge_digests", android.content.Context.MODE_PRIVATE).edit().clear().commit()
+        val photo = testPortraitUri()
         compose.mainClock.autoAdvance = false
         compose.setContent {
             SkillSyncTheme {
@@ -114,12 +158,13 @@ class TodayRefinementScreenshotTest {
                                 onAnalytics = {}, onNotifications = {}, onProfile = {},
                             ) { ExecutiveHeaderTitle("SKILLEDGE · EXECUTIVE CONSOLE", "Today · Manager Brief") }
                         },
+                        bottomBar = { SkillSyncNavBar(HomeTab.DASHBOARD) {} },
                     ) { padding ->
                         Box(Modifier.padding(padding)) {
                             DashboardTab(
                                 data = dashboardPayload(),
                                 profile = mapOf("email" to "aishwar.c@koenig-solutions.com", "name" to "Aishwar Nigam"),
-                                capability = capabilityPayload(),
+                                capability = capabilityPayload(photo),
                                 capabilityLoading = false,
                                 email = "aishwar.c@koenig-solutions.com",
                                 onTrainerClick = { _, _ -> }, onOpenProfile = {}, onDrill = {},
@@ -129,18 +174,35 @@ class TodayRefinementScreenshotTest {
                 }
             }
         }
-        compose.mainClock.advanceTimeBy(2_000)
-        // Morning Note composes on a real coroutine; give it a moment to land.
-        Thread.sleep(1_500)
+        // The Morning Note tries the server first (unauthenticated here, so it
+        // falls back to the local composer); pump the clock while that lands.
+        repeat(20) { compose.mainClock.advanceTimeBy(250); Thread.sleep(250) }
         save("01_header_manager")
 
-        scrollToTop("MORNING NOTE"); save("02_morning_greeting")
+        measureAnchors(
+            "MORNING NOTE" to false, "NEEDS YOU TODAY" to false, "PULSE" to false,
+            "unallocated batch" to true, "DELIVERY OUTLOOK" to false, "TOP PERFORMERS" to false, "OPERATIONS" to false,
+        )
+        scrollToTop("MORNING NOTE"); save("02_morning_note")
         scrollToTop("NEEDS YOU TODAY"); save("03_needs_today")
         scrollToTop("PULSE"); save("04_pulse")
-        scrollToTop("unallocated batch", substring = true); save("05_demand_communicate")
+        scrollToTop("unallocated batch"); save("05_demand_communicate")
         scrollToTop("DELIVERY OUTLOOK"); save("06_delivery_cert")
-        scrollToTop("TOP PERFORMERS"); save("07_top_performers")
-        scrollToTop("OPERATIONS"); save("08_operations_matrix")
-        scrollToTop("PEOPLE"); save("08b_operations_matrix_lower")
+        scrollToTop("TOP PERFORMERS"); save("07_top_performers_photo")
+        scrollToTop("OPERATIONS"); save("08_operations_matrix_top")
+
+        // Bottom of Today: scroll far past the end; the list clamps at its last item.
+        list().performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 20_000f) }
+        save("09_operations_matrix_bottom_nav")
+
+        // Gate: the last Operations tile sits fully inside the list viewport,
+        // which the Scaffold ends above the bottom navigation.
+        val viewport = list().fetchSemanticsNode().boundsInRoot
+        val lastTile = compose.onAllNodes(hasContentDescription("Viber automation", substring = true))
+            .onFirst().fetchSemanticsNode().boundsInRoot
+        assertTrue(
+            "Last tile $lastTile is not fully above the nav bar (viewport $viewport)",
+            lastTile.bottom <= viewport.bottom && lastTile.top >= viewport.top,
+        )
     }
 }

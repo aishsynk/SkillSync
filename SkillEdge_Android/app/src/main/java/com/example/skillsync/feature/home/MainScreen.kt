@@ -780,13 +780,14 @@ fun AppNavBar(
                             )
                         }
                         Spacer(Modifier.height(3.dp))
-                        Text(
+                        // Steps down rather than clipping ("Opportunities" on a 360dp phone).
+                        FitText(
                             label,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = tint,
-                            maxLines = 1,
-                            letterSpacing = 0.02.em,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.sp, letterSpacing = 0.em,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            ),
+                            tint, minSize = 8f,
                         )
                     }
                 }

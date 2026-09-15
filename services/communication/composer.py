@@ -346,3 +346,208 @@ def _clean_formatting(text: str) -> str:
     t = re.sub(r"[ \t]+", " ", t)
     t = re.sub(r"\n{3,}", "\n\n", t)
     return t
+
+
+# ── MORNING_TEAM_GREETING ──────────────────────────────────────────────────
+#
+# The manager's weekday morning note to the team for Teams/Viber. Same
+# service, same compose entry point: the configured LLM is tried first with
+# the full weekday policy below; the deterministic bank is the server-side
+# fallback when no model is configured or its output fails the policy check.
+
+MORNING_TEAM_GREETING = "MORNING_TEAM_GREETING"
+MORNING_WEEKDAYS = ("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY")
+
+MORNING_BANNED_PHRASES = (
+    "stay focused", "keep the momentum", "finish strong", "make today count", "steady progress",
+    "give 100%", "crush your goals", "have a productive day", "wishing everyone", "have a smooth day",
+)
+
+MORNING_GREETING_PROMPT = """You write one short weekday morning greeting from a senior delivery manager to their training team, to be pasted into Microsoft Teams or Viber.
+
+WEEKDAY PERSONALITY (use the weekday you are given):
+- MONDAY - FRESH START: a natural return into the week. Positive without Monday pressure. Rhythm, a clean page, reconnecting; light humour occasionally.
+- TUESDAY - IN THE FLOW: the week has settled. Collaboration, conversations, ideas, learning, helping one another, normal productive rhythm.
+- WEDNESDAY - MIDWEEK RESET: halfway through. A small reset rather than another push. Progress, appreciation, learning, helping someone; light midweek humour.
+- THURSDAY - TAKING SHAPE: the week is coming together. Loose ends, helping each other, appreciation, something learned, lighter pre-Friday energy.
+- FRIDAY - FUN + WEEKEND: clearly lighter and more human. Appreciation for the week, light jokes about meetings/calendars/work, the weekend naturally approaching. Never another productivity lecture.
+
+VOICE: a senior manager - warm, confident, friendly, human, simple everyday English. Not HR. Not motivational-poster language. Not AI-sounding.
+
+SHAPE: a fresh opening line, one weekday-appropriate thought, and a very short closing. Normally 75-150 characters; slightly longer only if it reads more naturally.
+Vary openings naturally - do not begin with "Good morning team".
+Rotate themes: team connection, appreciation, quality, learning, collaboration, ownership, conversations, small wins, helping each other, work-life balance, light workplace humour, occasional motivation.
+
+NEVER USE: "stay focused", "keep the momentum", "finish strong", "make today count", "steady progress", "give 100%", "crush your goals", "have a productive day", "wishing everyone", "have a smooth day".
+
+ANTI-REPEAT: you are given the manager's recent greetings. Do not reuse their opening, sentence structure, thought, joke or closing.
+
+FORMATTING: Viber/WhatsApp markers only, used naturally and sparingly: *bold*, _italic_, ~strike~. No emojis, no hashtags, no bullet points, no names, no business figures.
+
+OUTPUT: only the greeting itself. No code fences, no labels, no "Generated message:", no weekday heading, no explanation."""
+
+_MORNING_BANK = {
+    "MONDAY": (
+        ["Morning, everyone.", "Hi all, welcome back.", "Hope the weekend was a good one.", "New week, everyone.", "Hello all, back at it."],
+        ["*A clean page this week* — worth ten minutes to reconnect with each other before the calendar fills up.",
+         "Easing back in is fine. _The coffee is doing most of the work until eleven anyway._",
+         "If something from last week is still bugging you, *say it early* — it is usually quicker to sort together.",
+         "Good time to catch up with someone you did not get to speak to last week.",
+         "*One small win today is plenty* to set the rhythm for the week.",
+         "A quick check-in with a colleague often saves a long thread later."],
+        ["_Have a good Monday._", "_Glad to have you back._", "_Enjoy the start._", "_Talk soon._"],
+    ),
+    "TUESDAY": (
+        ["Hi all.", "Morning, team.", "Hello everyone.", "Tuesday already.", "Hope the week has settled in."],
+        ["*The week has found its rhythm* — a nice day for the conversations that turn into good ideas.",
+         "If you picked up something useful yesterday, *share it* — someone else is probably stuck on it.",
+         "_Tuesday is the quiet hero of the week_: fewer surprises, more real work getting done.",
+         "Worth asking a colleague how their week is going — the answer is often more useful than the status update.",
+         "*Good collaboration beats long emails.* A five-minute call can clear most of today's questions.",
+         "Learning something new this week? *Pass it on* while it is fresh."],
+        ["_Have a good Tuesday._", "_Enjoy the day._", "_Take care._", "_Catch you later._"],
+    ),
+    "WEDNESDAY": (
+        ["Midweek already, everyone.", "Hi all, halfway there.", "Hello team, it's Wednesday.", "Morning, all.", "Happy Wednesday, everyone."],
+        ["*Halfway through* — a good day to share what's working and help someone past a small hurdle.",
+         "A small reset helps: _look at what already moved this week_ before planning the rest.",
+         "_Midweek rule_: if a meeting could be a message, it probably should be.",
+         "*Thanks for the effort so far this week* — it has not gone unnoticed.",
+         "Good day to learn one small thing from someone on the team.",
+         "If you are carrying something heavy this week, *ask for a hand* — that is what the team is for."],
+        ["_Have a good Wednesday._", "_Enjoy the day._", "_Onwards, gently._", "_Take care._"],
+    ),
+    "THURSDAY": (
+        ["Hi all.", "Morning, everyone.", "Thursday, team.", "Hello all, nearly there.", "Hope everyone is well."],
+        ["*The week is taking shape.* A good day to tie up loose ends before they follow you into Friday.",
+         "If someone helped you out this week, *today is a nice day to tell them.*",
+         "_Almost-Friday energy is allowed_, as long as the calendar invites are still being answered.",
+         "What did you learn this week? *A two-line share* can save a colleague an afternoon.",
+         "Worth a quick look at anything still open, so tomorrow can be lighter for everyone.",
+         "*Small favours add up.* Offer help on one thing that is not yours today."],
+        ["_Have a good Thursday._", "_Enjoy the day._", "_Nearly there._", "_Talk soon._"],
+    ),
+    "FRIDAY": (
+        ["Friday, everyone.", "Hi all, we made it.", "Happy Friday, team.", "Morning, all, it's Friday.", "Hello everyone, weekend is in sight."],
+        ["*Thanks for a solid week*, everyone — properly appreciated.",
+         "_Friday forecast_: a few meetings, one mystery calendar invite, and the weekend approaching fast.",
+         "If your inbox is winning today, *call it a draw* and pick it up on Monday.",
+         "*Proud of how the team pulled together this week.* Enjoy the switch-off when it comes.",
+         "_Official Friday policy_: at least one conversation today that has nothing to do with work.",
+         "Take a moment to note one thing that went well this week — *there is usually more than you think.*"],
+        ["_Have a great weekend._", "_Enjoy the weekend, all._", "_Rest well._", "_See you Monday._"],
+    ),
+}
+
+
+def sanitize_morning_greeting(text: str) -> str:
+    """Reduce model output to the greeting alone: no fences, labels or markdown doubles."""
+    t = str(text or "").replace("\r\n", "\n").strip()
+    t = re.sub(r"^```[a-zA-Z]*\s*|\s*```$", "", t).replace("```", "").strip()
+    label = re.compile(r"^\s*(generated message|message|greeting|morning note|monday|tuesday|wednesday|thursday|friday)\s*[:\-]?\s*$", re.I)
+    lines = t.split("\n")
+    while lines and label.match(lines[0]):
+        lines.pop(0)
+    t = "\n".join(lines)
+    t = re.sub(r"^\s*(generated message|greeting)\s*:\s*", "", t, flags=re.I)
+    t = re.sub(r"\*\*(.+?)\*\*", r"*\1*", t)
+    t = re.sub(r"__(.+?)__", r"_\1_", t)
+    return _clean_formatting(t)
+
+
+def morning_greeting_issues(text: str, recent: list) -> list:
+    issues = []
+    low = text.lower()
+    if not text.strip():
+        issues.append("empty greeting")
+    if "```" in text:
+        issues.append("contains a code fence")
+    if len(text) > 260:
+        issues.append(f"too long ({len(text)} characters)")
+    if low.startswith("good morning team"):
+        issues.append("stock opening")
+    for phrase in MORNING_BANNED_PHRASES:
+        if phrase in low:
+            issues.append(f"banned phrase: {phrase}")
+    if re.search(r"[\U0001F300-\U0001FAFF☀-➿]", text):
+        issues.append("contains emoji")
+    first = text.split("\n", 1)[0].strip().lower()
+    for r in recent or []:
+        if first and str(r).split("\n", 1)[0].strip().lower() == first:
+            issues.append("repeats a recent opening")
+            break
+    return issues
+
+
+def _pick_unused(options: list, recent: list, seed: int) -> str:
+    start = seed % len(options)
+    rotated = [options[(start + i) % len(options)] for i in range(len(options))]
+    for o in rotated:
+        if not any(o in str(r) for r in recent):
+            return o
+    def last_use(o):
+        for i, r in enumerate(recent):
+            if o in str(r):
+                return i
+        return 10 ** 6
+    return max(rotated, key=last_use)
+
+
+def _compose_morning_deterministic(weekday: str, recent: list, variation: int) -> str:
+    openings, thoughts, closings = _MORNING_BANK[weekday]
+    seed = (variation * 7 + len(recent) * 3 + len(weekday)) % 997
+    opening = _pick_unused(openings, recent, seed)
+    thought = _pick_unused(thoughts, recent, seed // 2 + variation)
+    closing = _pick_unused(closings, list(recent)[:2], seed + variation)
+    return f"{opening}\n\n{thought} {closing}"
+
+
+def compose_morning_greeting(weekday: str, recent: list, variation: int = 0) -> Tuple[str, str]:
+    """(greeting, generation_mode). LLM first when configured; deterministic otherwise."""
+    weekday = str(weekday or "").upper()
+    if weekday not in MORNING_WEEKDAYS:
+        return "", "SUPPRESSED_WEEKEND"
+    recent = [str(r) for r in (recent or []) if str(r).strip()][:10]
+    llm_text, mode = _try_llm_morning(weekday, recent, variation)
+    if llm_text:
+        clean = sanitize_morning_greeting(llm_text)
+        if not morning_greeting_issues(clean, recent):
+            return clean, mode
+    return _compose_morning_deterministic(weekday, recent, variation), "DETERMINISTIC_GENERATOR"
+
+
+def _try_llm_morning(weekday: str, recent: list, variation: int) -> Tuple[Optional[str], str]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+    azure_key = os.getenv("AZURE_OPENAI_KEY") or os.getenv("AZURE_OPENAI_API_KEY")
+    if not api_key and not (azure_endpoint and azure_key):
+        return None, "DETERMINISTIC_GENERATOR"
+    try:
+        import urllib.request
+        user = json.dumps({"weekday": weekday, "recent_greetings": recent, "variation": variation}, indent=2)
+        if azure_endpoint and azure_key:
+            deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+            api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+            url = f"{azure_endpoint.rstrip('/')}/openai/deployments/{deployment}/chat/completions?api-version={api_version}"
+            headers = {"Content-Type": "application/json", "api-key": azure_key}
+            mode = "LLM_AZURE"
+        else:
+            url = "https://api.openai.com/v1/chat/completions"
+            headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+            mode = "LLM_OPENAI"
+        body = {
+            "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            "messages": [
+                {"role": "system", "content": MORNING_GREETING_PROMPT},
+                {"role": "user", "content": user},
+            ],
+            "temperature": 0.9,
+            "max_tokens": 160,
+        }
+        req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            content = data["choices"][0]["message"]["content"].strip()
+            return (content or None), mode
+    except Exception:
+        return None, "DETERMINISTIC_GENERATOR"
