@@ -1368,3 +1368,62 @@ confirmed before Phase 1 is called complete, not merely attempted.
 (flagging this explicitly to the operator rather than proceeding on
 assumed-green), then continue to Phase 2 only once that confirmation
 exists.
+
+## 12. Phase 1 build gate — verified green (2026-09-15, same branch)
+
+Added a new, verification-only GitHub Actions workflow,
+`.github/workflows/android-architecture-validation.yml`, so this branch
+gets an actual compile/test/assemble gate. It runs on pull requests
+targeting `main` (plus manual `workflow_dispatch`), builds
+`SkillEdge_Android/` only, and does not touch signing, keystore, version
+bumping, release creation, or `android-release.yml` in any way — confirmed
+by `git diff --stat` showing only the new file added, nothing else
+modified. `compileDebugKotlin`/`assembleDebug` are hard failures;
+`testDebugUnitTest`/`lintDebug` run with `continue-on-error` at the
+individual step level only, followed by a dedicated comparison step that
+parses the real JUnit/lint XML output and fails the job if the actual
+failure/error count exceeds the documented baseline — no blanket
+`continue-on-error`/`|| true` on the job.
+
+**Workflow:** `Android Architecture Validation`
+**Commit tested:** `8ec8c9d` (head of `claude/nifty-shannon-yrkzvc` at the
+time of this run; includes both the Phase 1 commit `2dcc4b1` and the
+workflow-addition commit itself)
+**Run:** https://github.com/aishsynk/SkillSync/actions/runs/34933011183
+(PR aishsynk/SkillSync#1)
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** (1m 23s) |
+| `testDebugUnitTest` | 249 tests completed, 10 failed — Gradle reports this task itself as FAILED (expected: it always exits non-zero when any test fails), but the comparison step is the real gate |
+| Compare unit test results to baseline | **PASS** — "Unit test failures+errors: 10 (documented baseline: 10)" → "No new unit test regressions: 10 <= baseline 10." |
+| `lintDebug` | 6 errors (also reports FAILED for the same reason) |
+| Compare lint results to baseline | **PASS** — "Lint errors: 6 (documented baseline: 6)" → "No new lint regressions: 6 <= baseline 6." |
+| `assembleDebug` | **BUILD SUCCESSFUL** (1m 23s) |
+
+**Baseline-vs-current comparison, checked directly against the actual
+failing-test names in the run log** (not just the count): the 10 failures
+are `PilotScreenshotTest > {today_screenshot, thisWeek_populated_screenshot,
+capacityRunway_screenshot, thisWeek_empty_screenshot}` (4) and
+`ScreenRenderTest > {dashboard_certKpisAreNotZeroBeforeCapabilityLoads,
+dashboard_identifiesTheSignedInManager,
+dashboard_isAManagerCommandCentreNotCriticalPulse,
+dashboard_showsRealAvailabilitySeparatelyFromWorkloadBands,
+dashboard_showsDeliveryAndCapacityDecisions,
+dashboard_usesCompactSemanticKpisAndRestoresTopPerformers}` (6) — the exact
+same 4+6 pre-existing failures documented in §9's baseline, confirmed by
+name, not just count. **Zero new failures.** The total-run count rose from
+244 to 249, exactly matching the 5 new test methods added in
+`ManagerCommunicationComposerTest` this session — all 5 passed (none of
+them appear in the failing-test list above). Lint's 6 errors match the
+documented baseline exactly (previously recorded as "all six pre-existing
+errors are in the Pilot screenshot test harness, unrelated").
+
+**Phase 1 is now genuinely complete against every item in the operator's
+definition of done**, including the two that were previously open:
+compilation is confirmed (not merely hand-traced), and CI/build status for
+this exact commit is verified with real evidence, not assumed.
+
+**Next:** Phase 2 (message-generation consolidation design —
+`MessageRewriter`/`WeeklyMessage`/`BatchShare`/`BulkBatchShare`/backend
+`_viber_queue_build`).
