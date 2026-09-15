@@ -1491,3 +1491,47 @@ this pass deliberately did NOT do" section, not silently dropped.
 **Next:** Phase 3 (close remaining direct API bypasses), only on explicit
 instruction — per the operator's scope guard, this session does not move to
 Phase 3 unassigned.
+
+## 14. Phase 2 final closure — verified green (2026-09-15, same branch)
+
+Full record: `docs/phase2-communication-classification.md`'s closure
+section. Summary: deleted `WeeklyMessage`'s two dead prose functions
+(zero production callers, confirmed repo-wide) and their orphaned private
+helpers; retired backend Flow A in `services/communication/
+context_selector.py` (mirrored into the Kotlin `CommunicationContextSelector.kt`
+so the two engines don't diverge) and corrected `intent.py`'s docstring;
+found and removed a third, previously undiscovered dead entry point
+(`POST api/v2/message/rewrite` — zero Android callers, zero backend test
+coverage, zero other internal callers, both sides removed); confirmed
+`BatchShare`/`BulkBatchShare` make no tone/purpose/KPI decisions anywhere
+and classified them `STRUCTURED OPERATIONAL SHARE`; recorded the canonical
+manager-communication architecture in `AI/CONTEXT.md` (append-and-supersede
+over the 2026-09-12 entry).
+
+**Verified, commit `ef6a347`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34936139107:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** (1m 23s) |
+| `testDebugUnitTest` | 229 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** — 6 <= baseline 6 |
+| `assembleDebug` | **BUILD SUCCESSFUL** (1m 27s) |
+
+**Same 10 failing tests by exact name** as every prior verified run this
+session (4 `PilotScreenshotTest` + 6 `ScreenRenderTest`, identical
+identities). Run count dropped 247 → 229, exactly matching the 18 test
+methods removed from `WeeklyMessageTest.kt` (20 → 2) — arithmetic checked,
+not just baseline count.
+
+**Backend**: `python3 -m pytest tests/ -q` run after every backend edit in
+the closure pass (context_selector.py, intent.py, backend.py route
+removal) — **370 passed, 25 subtests passed, 0 failed** at every step, no
+regressions.
+
+Phase 2 is CLOSED.
+
+**Next:** Phase 3 — eliminate direct API access, establish domain data
+boundaries. Starting now per explicit instruction.
