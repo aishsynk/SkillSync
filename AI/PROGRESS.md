@@ -2291,3 +2291,34 @@ https://github.com/aishsynk/SkillSync/actions/runs/34964403889:**
 
 Count unchanged at 241 (no new tests this increment). Same exact 10
 baseline failures by identity.
+
+## 26. Phase 3 increment 10 — AI/Copilot domain
+
+Migrated `CopilotViewModel.kt`'s two direct calls,
+`RetrofitClient.instance.agentAsk`/`askCopilotTeam` (per-trainer and
+team-level Copilot chat), → new `core/data/CopilotRepository.kt`, following
+the `AuthRepository`/`BatchRepository` convention. `CopilotViewModel` now
+takes a `repository: CopilotRepository = CopilotRepository()` constructor
+param; the sole call site (`CopilotChatSheet.kt`'s `viewModel()` default
+factory) needed no change.
+
+New `CopilotViewModelTest.kt` (2 tests: `askQuestion`, `askTeam`) follows
+the established fake-repository pattern.
+
+Confirmed by re-grep: zero `RetrofitClient` references remain in
+`CopilotViewModel.kt`; brace/paren balance verified on all touched/new
+files.
+
+`docs/phase3-api-caller-inventory.md` living architecture map, legitimate-
+holders table, and "Remaining violations" table updated —
+`CopilotViewModel.kt` is no longer in the open-violations list.
+
+**Remaining for subsequent increments:** `MainScreen`,
+`MainScreenViewModel` (explicitly deferred, orchestrator-once-underlying-
+repositories-exist), `Version2Workspaces` (status TBD — confirm liveness
+before migrating). With this increment, every other direct
+`RetrofitClient.instance` violation identified in the Phase 0/3 inventory
+is resolved.
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.

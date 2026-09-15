@@ -16,6 +16,7 @@ across `SkillEdge_Android/app/src/main/java/com/example/skillsync`.
 | `core/data/EligibilityRepository.kt` (new, this pass) | REPOSITORY | Certification/eligibility domain |
 | `core/data/TrainerRepository.kt` (new, this pass) | REPOSITORY | Trainer domain (practice record + wider network + skill writes) |
 | `core/data/AllocationRepository.kt` (new, review correction) | REPOSITORY | Allocation-recommendation domain — split out of `TrainerRepository` on review, matching `EligibilityRepository`'s precedent |
+| `core/data/CopilotRepository.kt` (new, this pass) | REPOSITORY | AI/Copilot domain |
 | `feature/communication/domain/CommunicationRepository.kt` | REPOSITORY | Communication domain (Phase 1) |
 | `core/notification/MonitoringPass.kt` | OTHER (background poller) | Not yet classified in detail — flagged for the next inventory pass, not a UI-layer violation |
 | `core/storage/ActionQueueManager.kt` | OTHER (offline-queue sync) | Same — not yet detail-classified, not a UI-layer violation |
@@ -52,6 +53,7 @@ boundary explicit"); not merged or deleted.
 | `feature/home/GrowTeamCard.kt` (direct `RetrofitClient.instance.getUpskillMessage`) | Same file, via repository, no ViewModel — same documented exception as BatchDetailScreen | Trainer (server-composed upskill ask for one trainer) | `core/data/TrainerRepository.kt` | None — stateless Composable, `askText`/`askFor` local state | `GET api/data/upskill-message` (`getUpskillMessage`) | None — local dialog state, unchanged; falls back to a local plain-text ask on failure, unchanged | None yet (same rationale as BatchRepository — no ViewModel seam) | Phase 3 increment 7 |
 | `feature/home/ActionsViewModel.kt` (direct `RetrofitClient.instance` for `setActionState`, `addActionNote`, `raiseAction`) | Same file, via `ManagerRepository` (already owned the read side, `actions()`) | Actions/Priorities (writes to the same inbox `ManagerRepository` already reads) | `core/data/DataRepository.kt` (`ManagerRepository`) | `ActionsViewModel` (existing ViewModel, no use case — three independent writes, no orchestration) | `POST api/v2/actions/{id}/state`, `POST api/v2/actions/{id}/note`, `POST api/v2/actions` | None new — existing optimistic-update/rollback `MutableStateFlow` logic unchanged | None yet — `ManagerRepository` is not `open`/subclassable, matching the existing convention (no ViewModel in this codebase fakes it; confirmed by grep, not assumed) | Phase 3 increment 8 |
 | `feature/home/CourseCurriculumSheet.kt` (direct `RetrofitClient.instance.getCourseCurriculum`) | Same file, via `ManagerRepository` (already owned `syllabus`/`searchCourses`/`courseIntelligence` — same Course domain) | Course/Curriculum | `core/data/DataRepository.kt` (`ManagerRepository`) | None — stateless Composable driven by `LaunchedEffect` | `GET api/v2/course/curriculum` (`getCourseCurriculum`) | `cachedMap` offline fallback (`course_curriculum_<name>_<id>`) — always tries live network first, falls back to the `LocalCache` snapshot only on failure (no time-based TTL; matches every sibling course method's convention) | None yet — same no-ViewModel-seam rationale as other stateless Composables | Phase 3 increment 9 |
+| `feature/training/ui/CopilotViewModel.kt` (direct `RetrofitClient.instance` for `agentAsk`, `askCopilotTeam`) | Same file, `CopilotViewModel(repository: CopilotRepository = CopilotRepository())` | AI/Copilot | `core/data/CopilotRepository.kt` (new) | `CopilotViewModel` (existing ViewModel, no use case — two independent chat calls, no orchestration) | `POST api/agent/ask`, `POST api/v2/copilot/team` | None — `MutableStateFlow<List<ChatMessage>>` UI state unchanged | `CopilotViewModelTest.kt` (2 tests) | Phase 3 increment 10 |
 
 ### Documented exception: `BatchDetailScreen.kt` has no ViewModel
 
@@ -91,10 +93,9 @@ increment, not bundled into this one.
 | `feature/home/MainScreen.kt` | SCREEN/COMPOSABLE | Today/dashboard | Open (deferred until underlying repositories exist) |
 | `feature/home/MainScreenViewModel.kt` | VIEWMODEL | Today/dashboard (KPI/trainer) | Open (deferred until underlying repositories exist) |
 | `feature/home/Version2Workspaces.kt` | SCREEN/COMPOSABLE | Unclear — flagged as possibly-dead; confirm before migrating | Open |
-| `feature/training/ui/CopilotViewModel.kt` | VIEWMODEL | AI/Copilot | Open |
 
 Next increment:
-`CopilotViewModel.kt`, `Version2Workspaces.kt` (confirm liveness
+`Version2Workspaces.kt` (confirm liveness
 first). Today/dashboard
 (`MainScreen`/`MainScreenViewModel`) stays last, as an orchestrator once its underlying
 repositories exist.

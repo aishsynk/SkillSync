@@ -2,9 +2,9 @@ package com.example.skillsync.feature.training.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.skillsync.core.data.CopilotRepository
 import com.example.skillsync.core.network.AgentAskRequest
 import com.example.skillsync.core.network.AgentAskResponse
-import com.example.skillsync.core.network.RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -29,7 +29,9 @@ sealed class ChatMessage {
     data class Error(val message: String) : ChatMessage()
 }
 
-class CopilotViewModel : ViewModel() {
+class CopilotViewModel(
+    private val repository: CopilotRepository = CopilotRepository(),
+) : ViewModel() {
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages
 
@@ -39,7 +41,7 @@ class CopilotViewModel : ViewModel() {
             _messages.value = _messages.value + ChatMessage.User(questionLabel) + ChatMessage.Loading
             try {
                 val req = AgentAskRequest(managerEmail, targetEmail, questionKey)
-                val res = RetrofitClient.instance.agentAsk(req)
+                val res = repository.ask(req)
                 _messages.value = _messages.value.filter { it !is ChatMessage.Loading } + ChatMessage.Agent(res)
             } catch (e: Exception) {
                 _messages.value = _messages.value.filter { it !is ChatMessage.Loading } + ChatMessage.Error(e.message ?: "Unknown error")
@@ -60,7 +62,7 @@ class CopilotViewModel : ViewModel() {
                     if (!questionKey.isNullOrBlank()) put("question_key", questionKey)
                     if (!freeText.isNullOrBlank()) put("question", freeText)
                 }
-                val raw = RetrofitClient.instance.askCopilotTeam(body)
+                val raw = repository.askTeam(body)
                 _messages.value = _messages.value.filter { it !is ChatMessage.Loading } +
                     ChatMessage.Team(raw.toTeamAnswer())
             } catch (e: Exception) {
