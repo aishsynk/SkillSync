@@ -17,7 +17,7 @@ from typing import Optional, Tuple
 from domain.communication.models import CommunicationPlan
 
 from . import providers
-from .providers import DETERMINISTIC, Provenance, ProviderResult
+from .providers import DETERMINISTIC, Provenance, ProviderOutcome, ProviderResult
 
 from .policy import (
     MAX_LENGTH,
@@ -56,14 +56,18 @@ def compose_from_plan(plan: CommunicationPlan, context=None) -> Tuple[str, str]:
 
 
 def compose_from_plan_detailed(plan: CommunicationPlan, context=None) -> Tuple[str, Provenance]:
-    """Model provider first (Ollama → Azure/OpenAI); deterministic generator otherwise."""
-    result = _try_llm_generation(plan)
-    if result:
-        return _clean_formatting(result.text), Provenance(result.provider, result.model, fallback_used=False, attempts=1)
-    return _compose_deterministic(plan, context), Provenance(DETERMINISTIC, "", fallback_used=True, attempts=0)
+    """Providers in COMMUNICATION_PROVIDER_ORDER; deterministic generator otherwise."""
+    outcome = _try_llm_generation(plan)
+    if outcome.result:
+        r = outcome.result
+        return _clean_formatting(r.text), Provenance(r.provider, r.model, fallback_used=False, attempts=1,
+                                                     elapsed_ms=outcome.elapsed_ms, timeout_reason=outcome.timeout_reason)
+    return _compose_deterministic(plan, context), Provenance(
+        DETERMINISTIC, "", fallback_used=True, attempts=0,
+        elapsed_ms=outcome.elapsed_ms, timeout_reason=outcome.timeout_reason)
 
 
-def _try_llm_generation(plan: CommunicationPlan) -> Optional[ProviderResult]:
+def _try_llm_generation(plan: CommunicationPlan) -> ProviderOutcome:
     """Asks the provider boundary for a message built from the curated plan."""
     curated_payload = {
         "recipient": plan.recipient_name,
@@ -78,7 +82,7 @@ def _try_llm_generation(plan: CommunicationPlan) -> Optional[ProviderResult]:
         "my_message": plan.my_message,
     }
     prompt_user = f"Communication Plan:\n{json.dumps(curated_payload, indent=2)}\n"
-    return providers.generate_text(SYSTEM_PROMPT, prompt_user, temperature=0.2, max_tokens=400)
+    return providers.generate(SYSTEM_PROMPT, prompt_user, temperature=0.2, max_tokens=400)
 
 
 
@@ -455,6 +459,10 @@ def morning_greeting_issues(text: str, recent: list, weekday: str = "") -> list:
         issues.append(f"too short ({len(text)} characters)")
     if len(text) > 260:
         issues.append(f"too long ({len(text)} characters)")
+    if re.search(r"\bgood (afternoon|evening|night)\b", low):
+        issues.append("not a morning greeting")
+    if re.fullmatch(r"\s*([*_~])[^*_~]+\1\s*", text):
+        issues.append("whole greeting wrapped in one formatting marker")
     if "**" in text or "__" in text:
         issues.append("uses markdown doubles instead of Viber markers")
     if re.sub(r"[^a-z]+", " ", low).split()[:3] == ["good", "morning", "team"]:
@@ -529,24 +537,41 @@ def morning_prompt_user(weekday: str, recent: list, variation: int, corrections:
 
 
 def compose_morning_greeting(weekday: str, recent: list, variation: int = 0) -> Tuple[str, Provenance]:
-    """Model provider first, validated; one corrective retry; deterministic bank last."""
+    """Providers first, validated.
+
+    valid response            -> use it
+    fast but invalid response -> exactly one corrective retry
+    second invalid response   -> deterministic bank
+    timeout / no provider     -> deterministic bank immediately (no retry)
+    """
     weekday = str(weekday or "").upper()
     if weekday not in MORNING_WEEKDAYS:
         return "", Provenance(DETERMINISTIC, "", fallback_used=False, attempts=0)
     recent = [str(r) for r in (recent or []) if str(r).strip()][:10]
     corrections: Optional[list] = None
     attempts = 0
-    for _ in range(2):  # first attempt + exactly one corrective retry
-        result = providers.generate_text(
+    elapsed_ms = 0
+    timeout_reason = ""
+    for _ in range(2):  # first attempt + at most one corrective retry
+        remaining_ms = providers.INTERACTIVE_BUDGET_MS - elapsed_ms
+        if remaining_ms < 2000:
+            break  # not enough of the interactive budget left for a useful retry
+        outcome = providers.generate(
             MORNING_GREETING_PROMPT, morning_prompt_user(weekday, recent, variation, corrections),
-            temperature=0.9, max_tokens=160,
+            temperature=0.9, max_tokens=160, budget_ms=remaining_ms,
         )
-        if not result:
-            break  # no model available at all — no point retrying
+        elapsed_ms += outcome.elapsed_ms
+        timeout_reason = timeout_reason or outcome.timeout_reason
+        if not outcome.result:
+            break  # timed out or nothing available — a retry would only add latency
         attempts += 1
-        clean = sanitize_morning_greeting(result.text)
+        clean = sanitize_morning_greeting(outcome.result.text)
         corrections = morning_greeting_issues(clean, recent, weekday)
         if not corrections:
-            return clean, Provenance(result.provider, result.model, fallback_used=False, attempts=attempts)
+            return clean, Provenance(outcome.result.provider, outcome.result.model, fallback_used=False,
+                                     attempts=attempts, elapsed_ms=elapsed_ms, timeout_reason=timeout_reason)
+        if outcome.timed_out:
+            break  # a slow provider already cost a timeout; do not spend another on a retry
     return (_compose_morning_deterministic(weekday, recent, variation),
-            Provenance(DETERMINISTIC, "", fallback_used=True, attempts=attempts))
+            Provenance(DETERMINISTIC, "", fallback_used=True, attempts=attempts,
+                       elapsed_ms=elapsed_ms, timeout_reason=timeout_reason))

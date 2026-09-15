@@ -10,13 +10,18 @@ services:
     # (gunicorn default is 30s) lets a cold trainer-360 / capability build finish
     # instead of the worker being killed mid-request and returning 502.
     startCommand: gunicorn backend:app --workers 1 --threads 8 --worker-class gthread --timeout 120
-    # Persistent disk so the action inbox, session-revocation denylist and
-    # notification seen-state survive redeploys (Render's default filesystem is
-    # ephemeral and was wiping all three on every deploy).
-    disk:
-      name: skilledge-state
-      mountPath: /var/data
-      sizeGB: 1
+    # HOSTING REALITY (plan: free): 512 MB RAM, 0.1 CPU; the service spins down
+    # after 15 minutes idle; the filesystem is EPHEMERAL; free web services
+    # CANNOT attach persistent disks. The disk below is therefore NOT active on
+    # this plan and is kept commented out — anything written under
+    # SKILLEDGE_STATE_DIR (action inbox, session denylist, notification
+    # seen-state, communication history, SQLite stores) is lost on every
+    # restart, redeploy or spin-down. Re-enable only after moving to a paid
+    # instance type that supports disks:
+    # disk:
+    #   name: skilledge-state
+    #   mountPath: /var/data
+    #   sizeGB: 1
     envVars:
       - key: SKILLEDGE_ENV
         value: production
@@ -26,16 +31,18 @@ services:
         value: "true"
     # ── Communication Intelligence model providers (optional) ─────────────
     #
-    # Resolution: Ollama -> Azure OpenAI / OpenAI -> deterministic generator.
-    # Ollama CANNOT run on this service: the free plan (512 MB RAM, shared
-    # CPU, no long-running side processes, spins down when idle) cannot hold
-    # a multi-GB model. Point OLLAMA_BASE_URL only at a PRIVATE Ollama host
-    # this service can reach (never a public endpoint):
+    # COMMUNICATION_PROVIDER_ORDER  comma list of ollama|azure|openai|deterministic
+    #   default (local/dev): ollama,azure,openai,deterministic
+    #   production on this plan: azure,openai,deterministic  (or: deterministic)
+    # Ollama CANNOT run on this service: 512 MB RAM / 0.1 CPU cannot load a
+    # multi-GB model, and the ephemeral filesystem would lose it on every
+    # restart. Use OLLAMA_* only to reach a PRIVATE Ollama host (never public):
     #   OLLAMA_BASE_URL          e.g. http://10.0.0.5:11434  (scheme://host:port only)
-    #   OLLAMA_MODEL             installed chat model, e.g. qwen2.5:7b-instruct
-    #   OLLAMA_TIMEOUT_SECONDS   default 20, capped at 60
-    # Unset => provider skipped, no network call. Existing OpenAI/Azure vars
-    # (OPENAI_API_KEY / AZURE_OPENAI_*) remain the second provider.
+    #   OLLAMA_MODEL             installed general chat model (honoured if installed)
+    #   OLLAMA_TIMEOUT_SECONDS   default 10, hard cap 20 (interactive requests)
+    #   OLLAMA_KEEP_ALIVE        default 15m (keeps the model loaded between calls)
+    # Unset OLLAMA_BASE_URL => Ollama skipped with no network call. OpenAI/Azure
+    # use OPENAI_API_KEY / AZURE_OPENAI_* as before.
     #
     # ── RMS credential env vars (configure as Render secrets via dashboard) ─
     #

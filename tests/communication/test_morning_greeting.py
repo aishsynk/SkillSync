@@ -8,11 +8,20 @@ from unittest import mock
 import backend
 from repositories.communication_store import CommunicationStore
 from services.communication import composer, providers
-from services.communication.providers import ProviderResult
+from services.communication.providers import ProviderOutcome, ProviderResult
 from services.communication.service import CommunicationService
 
 MANAGER = "comm@koenig-solutions.com"
 WEEKDAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"]
+def ok(text, provider="OLLAMA", model="m", ms=40):
+    return ProviderOutcome(result=ProviderResult(text, provider, model), elapsed_ms=ms, tried=["ollama"])
+
+
+def core(provenance):
+    """Provenance without latency, which varies run to run."""
+    return {k: v for k, v in provenance.items() if k != "elapsed_ms"}
+
+
 GOOD_WEDNESDAY = "Midweek already, everyone.\n\n*Halfway through* - share what works and help someone past a hurdle. _Have a good Wednesday._"
 
 
@@ -22,7 +31,7 @@ class MorningGreetingServiceTest(unittest.TestCase):
         self.svc = CommunicationService(CommunicationStore(os.path.join(self.temp.name, "c.sqlite3")))
         self.env = mock.patch.dict(os.environ, {}, clear=False)
         self.env.start()
-        for k in ("OLLAMA_BASE_URL", "OLLAMA_MODEL", "OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_KEY", "AZURE_OPENAI_API_KEY"):
+        for k in ("OLLAMA_BASE_URL", "OLLAMA_MODEL", "OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_KEY", "AZURE_OPENAI_API_KEY", "COMMUNICATION_PROVIDER_ORDER"):
             os.environ.pop(k, None)
 
     def tearDown(self):
@@ -50,10 +59,10 @@ class MorningGreetingServiceTest(unittest.TestCase):
             self.assertTrue(r.requires_communication)
             self.assertTrue(r.text)
             self.assertTrue(r.validation.passed, r.validation.issues)
-            self.assertEqual({"provider": "DETERMINISTIC", "model": "", "fallback_used": True, "attempts": 0}, r.provenance)
+            self.assertEqual({"provider": "DETERMINISTIC", "model": "", "fallback_used": True, "attempts": 0}, core(r.provenance))
 
     def test_weekend_is_suppressed_and_never_calls_a_model(self):
-        with mock.patch.object(providers, "generate_text") as gen:
+        with mock.patch.object(providers, "generate") as gen:
             for day in ("SATURDAY", "SUNDAY", ""):
                 r = self.gen(day)
                 self.assertFalse(r.requires_communication)
@@ -62,18 +71,17 @@ class MorningGreetingServiceTest(unittest.TestCase):
 
     def test_valid_model_greeting_is_accepted_sanitised_with_provenance(self):
         raw = "```\nGenerated message:\n" + GOOD_WEDNESDAY.replace("*Halfway through*", "**Halfway through**") + "\n```"
-        with mock.patch.object(providers, "generate_text", return_value=ProviderResult(raw, "OLLAMA", "qwen2.5:7b")) as gen:
+        with mock.patch.object(providers, "generate", return_value=ok(raw, model="qwen2.5:7b")) as gen:
             r = self.gen("WEDNESDAY")
         gen.assert_called_once()
         self.assertEqual(GOOD_WEDNESDAY, r.text)
         self.assertEqual("LLM_OLLAMA", r.generation_mode)
-        self.assertEqual({"provider": "OLLAMA", "model": "qwen2.5:7b", "fallback_used": False, "attempts": 1}, r.provenance)
+        self.assertEqual({"provider": "OLLAMA", "model": "qwen2.5:7b", "fallback_used": False, "attempts": 1}, core(r.provenance))
+        self.assertEqual(40, r.provenance["elapsed_ms"])
 
     def test_invalid_greeting_is_retried_once_with_corrective_guidance(self):
         bad = "Good morning team! Stay focused and make today count."
-        with mock.patch.object(providers, "generate_text", side_effect=[
-            ProviderResult(bad, "OLLAMA", "m"), ProviderResult(GOOD_WEDNESDAY, "OLLAMA", "m"),
-        ]) as gen:
+        with mock.patch.object(providers, "generate", side_effect=[ok(bad), ok(GOOD_WEDNESDAY)]) as gen:
             r = self.gen("WEDNESDAY")
         self.assertEqual(2, gen.call_count)
         retry_prompt = gen.call_args_list[1].args[1]
@@ -85,12 +93,33 @@ class MorningGreetingServiceTest(unittest.TestCase):
 
     def test_second_invalid_output_falls_back_to_the_deterministic_bank(self):
         bad = "Good morning team! Crush your goals this Tuesday."
-        with mock.patch.object(providers, "generate_text", return_value=ProviderResult(bad, "OLLAMA", "m")) as gen:
+        with mock.patch.object(providers, "generate", return_value=ok(bad)) as gen:
             r = self.gen("WEDNESDAY")
         self.assertEqual(2, gen.call_count)  # exactly one retry, never more
         self.assertNotIn("crush", r.text.lower())
         self.assertEqual("DETERMINISTIC_GENERATOR", r.generation_mode)
-        self.assertEqual({"provider": "DETERMINISTIC", "model": "", "fallback_used": True, "attempts": 2}, r.provenance)
+        self.assertEqual({"provider": "DETERMINISTIC", "model": "", "fallback_used": True, "attempts": 2}, core(r.provenance))
+        self.assertEqual(80, r.provenance["elapsed_ms"])
+
+    def test_timeout_falls_back_immediately_without_a_corrective_retry(self):
+        timed_out = ProviderOutcome(result=None, elapsed_ms=10_000, timeout_reason="OLLAMA timed out after 10000ms", tried=["ollama"])
+        with mock.patch.object(providers, "generate", return_value=timed_out) as gen:
+            r = self.gen("WEDNESDAY")
+        self.assertEqual(1, gen.call_count)
+        self.assertTrue(r.text)
+        self.assertEqual({"provider": "DETERMINISTIC", "model": "", "fallback_used": True, "attempts": 0,
+                          "timeout_reason": "OLLAMA timed out after 10000ms"}, core(r.provenance))
+        self.assertEqual(10_000, r.provenance["elapsed_ms"])
+
+    def test_invalid_text_after_a_timed_out_provider_is_not_retried(self):
+        # Ollama timed out, a slower cloud provider answered badly: no second round.
+        slow_bad = ProviderOutcome(result=ProviderResult("Good morning team! Stay focused.", "OPENAI", "gpt"),
+                                   elapsed_ms=12_000, timeout_reason="OLLAMA timed out after 10000ms", tried=["ollama", "openai"])
+        with mock.patch.object(providers, "generate", return_value=slow_bad) as gen:
+            r = self.gen("WEDNESDAY")
+        self.assertEqual(1, gen.call_count)
+        self.assertEqual("DETERMINISTIC", r.provenance["provider"])
+        self.assertEqual(1, r.provenance["attempts"])
 
     def test_wrong_weekday_personality_is_rejected(self):
         issues = composer.morning_greeting_issues("Happy Tuesday, all. _Enjoy the weekend soon._ Keep sharing ideas.", [], "WEDNESDAY")
@@ -105,6 +134,32 @@ class MorningGreetingServiceTest(unittest.TestCase):
         self.assertIn("strikethrough used as a closing", issues)
         issues = composer.morning_greeting_issues("Good morning, team! Share something useful today. _Enjoy._", [], "WEDNESDAY")
         self.assertIn("stock opening", issues)
+        issues = composer.morning_greeting_issues("*In the flow, team? Let's chat, learn, and help each other.*", [], "TUESDAY")
+        self.assertIn("whole greeting wrapped in one formatting marker", issues)
+        issues = composer.morning_greeting_issues("Good afternoon, team. How's the week going? Keep it going strong!", [], "WEDNESDAY")
+        self.assertIn("not a morning greeting", issues)
+
+    def test_whole_request_stays_inside_the_interactive_budget(self):
+        calls = []
+
+        def slow_invalid(system, user, temperature=0.2, max_tokens=400, budget_ms=None):
+            calls.append(budget_ms)
+            return ok("Good morning team! Stay focused.", ms=15_000)
+
+        with mock.patch.object(providers, "generate", side_effect=slow_invalid):
+            r = self.gen("WEDNESDAY")
+        self.assertEqual([20_000, 5_000], calls)  # retry only gets what is left of 20s
+        self.assertEqual("DETERMINISTIC", r.provenance["provider"])
+
+        calls.clear()
+
+        def very_slow_invalid(system, user, temperature=0.2, max_tokens=400, budget_ms=None):
+            calls.append(budget_ms)
+            return ok("Good morning team! Stay focused.", ms=19_000)
+
+        with mock.patch.object(providers, "generate", side_effect=very_slow_invalid):
+            self.gen("WEDNESDAY")
+        self.assertEqual([20_000], calls)  # under 2s left: no retry
         issues = composer.morning_greeting_issues("Hi all, halfway there. *Share a quick win!* _Take care._",
                                                   ["Hi all, halfway there.\n\nOld note."], "WEDNESDAY")
         self.assertIn("repeats a recent opening", issues)
@@ -113,7 +168,7 @@ class MorningGreetingServiceTest(unittest.TestCase):
 
     def test_recent_greetings_are_sent_to_the_model_and_near_duplicates_rejected(self):
         recent = ["Hi all, halfway there.\n\nGood day to learn one small thing from someone on the team. _Take care._"]
-        with mock.patch.object(providers, "generate_text", return_value=ProviderResult(GOOD_WEDNESDAY, "OLLAMA", "m")) as gen:
+        with mock.patch.object(providers, "generate", return_value=ok(GOOD_WEDNESDAY)) as gen:
             self.gen("WEDNESDAY", recent=recent)
         self.assertIn(recent[0].split("\n")[0], gen.call_args.args[1])
         issues = composer.morning_greeting_issues(recent[0].replace("Take care", "Enjoy it"), recent, "WEDNESDAY")
