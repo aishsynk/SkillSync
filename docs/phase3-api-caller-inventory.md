@@ -54,6 +54,7 @@ boundary explicit"); not merged or deleted.
 | `feature/home/ActionsViewModel.kt` (direct `RetrofitClient.instance` for `setActionState`, `addActionNote`, `raiseAction`) | Same file, via `ManagerRepository` (already owned the read side, `actions()`) | Actions/Priorities (writes to the same inbox `ManagerRepository` already reads) | `core/data/DataRepository.kt` (`ManagerRepository`) | `ActionsViewModel` (existing ViewModel, no use case — three independent writes, no orchestration) | `POST api/v2/actions/{id}/state`, `POST api/v2/actions/{id}/note`, `POST api/v2/actions` | None new — existing optimistic-update/rollback `MutableStateFlow` logic unchanged | None yet — `ManagerRepository` is not `open`/subclassable, matching the existing convention (no ViewModel in this codebase fakes it; confirmed by grep, not assumed) | Phase 3 increment 8 |
 | `feature/home/CourseCurriculumSheet.kt` (direct `RetrofitClient.instance.getCourseCurriculum`) | Same file, via `ManagerRepository` (already owned `syllabus`/`searchCourses`/`courseIntelligence` — same Course domain) | Course/Curriculum | `core/data/DataRepository.kt` (`ManagerRepository`) | None — stateless Composable driven by `LaunchedEffect` | `GET api/v2/course/curriculum` (`getCourseCurriculum`) | `cachedMap` offline fallback (`course_curriculum_<name>_<id>`) — always tries live network first, falls back to the `LocalCache` snapshot only on failure (no time-based TTL; matches every sibling course method's convention) | None yet — same no-ViewModel-seam rationale as other stateless Composables | Phase 3 increment 9 |
 | `feature/training/ui/CopilotViewModel.kt` (direct `RetrofitClient.instance` for `agentAsk`, `askCopilotTeam`) | Same file, `CopilotViewModel(repository: CopilotRepository = CopilotRepository())` | AI/Copilot | `core/data/CopilotRepository.kt` (new) | `CopilotViewModel` (existing ViewModel, no use case — two independent chat calls, no orchestration) | `POST api/agent/ask`, `POST api/v2/copilot/team` | None — `MutableStateFlow<List<ChatMessage>>` UI state unchanged | `CopilotViewModelTest.kt` (2 tests) | Phase 3 increment 10 |
+| `feature/home/Version2Workspaces.kt`'s `UniversalCommandSearch` (direct `RetrofitClient.instance.askCopilotTeam`) | Same file, via `CopilotRepository`, no ViewModel — same documented exception as other no-ViewModel Composables | AI/Copilot | `core/data/CopilotRepository.kt` | None — stateless Composable, `answer`/`answering` local state | `POST api/v2/copilot/team` (`askCopilotTeam`) | None — local answer state, unchanged | None yet — no ViewModel seam | Phase 3 increment 11 |
 
 ### Documented exception: `BatchDetailScreen.kt` has no ViewModel
 
@@ -92,10 +93,9 @@ increment, not bundled into this one.
 |---|---|---|---|
 | `feature/home/MainScreen.kt` | SCREEN/COMPOSABLE | Today/dashboard | Open (deferred until underlying repositories exist) |
 | `feature/home/MainScreenViewModel.kt` | VIEWMODEL | Today/dashboard (KPI/trainer) | Open (deferred until underlying repositories exist) |
-| `feature/home/Version2Workspaces.kt` | SCREEN/COMPOSABLE | Unclear — flagged as possibly-dead; confirm before migrating | Open |
 
-Next increment:
-`Version2Workspaces.kt` (confirm liveness
-first). Today/dashboard
-(`MainScreen`/`MainScreenViewModel`) stays last, as an orchestrator once its underlying
-repositories exist.
+Only `MainScreen.kt`/`MainScreenViewModel.kt` remain — Today/dashboard, deferred as an
+orchestrator once its underlying repositories exist. Every other domain repository this
+migration built (`AuthRepository`, `BatchRepository`, `EligibilityRepository`,
+`TrainerRepository`, `AllocationRepository`, `CopilotRepository`, plus `ManagerRepository`
+extensions) is now available for `MainScreenViewModel` to orchestrate against.

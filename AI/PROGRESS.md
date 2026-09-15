@@ -2337,3 +2337,38 @@ https://github.com/aishsynk/SkillSync/actions/runs/34965104267:**
 
 Count 241 → 243 matches the 2 new `CopilotViewModelTest` tests exactly,
 both passing. Same exact 10 baseline failures by identity.
+
+## 27. Phase 3 increment 11 — Version2Workspaces liveness confirmed, migrated
+
+`Version2Workspaces.kt` was flagged in the Phase 0 assessment as
+"possibly-dead — confirm before migrating." Investigated properly instead
+of assuming: grepped for every top-level composable it defines
+(`PeopleWorkspaceSwitch`, `TodayWorkspaceSwitch`, `UniversalCommandSearch`,
+`DeliveryOperationsWorkspace`) against the rest of the app. Three of the
+four are called from `MainScreen.kt` — this file is live, not dead code.
+
+`UniversalCommandSearch`'s question-answering path called
+`RetrofitClient.instance.askCopilotTeam` directly — the exact same
+AI/Copilot endpoint `CopilotViewModel` was migrated to `CopilotRepository`
+for in increment 10. Wired this call through the same repository
+(`remember { CopilotRepository() }`, no ViewModel — this Composable is
+stateless/parameter-driven).
+
+Confirmed by re-grep: zero `RetrofitClient` references remain in
+`Version2Workspaces.kt`; brace/paren balance verified.
+
+`docs/phase3-api-caller-inventory.md` living architecture map and
+"Remaining violations" table updated — `Version2Workspaces.kt` is no
+longer in the open-violations list, and its "confirm liveness first" flag
+is resolved (it is live).
+
+**With this increment, every Phase 3 violation in the original inventory
+is resolved except `MainScreen.kt`/`MainScreenViewModel.kt`** (Today/
+dashboard), which remains explicitly deferred per instruction: it becomes
+an orchestrator once its underlying domain repositories exist — which they
+now do (`AuthRepository`, `BatchRepository`, `EligibilityRepository`,
+`TrainerRepository`, `AllocationRepository`, `CopilotRepository`, plus the
+`ManagerRepository` extensions from increments 8-9).
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.

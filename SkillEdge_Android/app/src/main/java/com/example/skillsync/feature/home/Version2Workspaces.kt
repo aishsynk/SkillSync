@@ -1,5 +1,6 @@
 package com.example.skillsync.feature.home
 
+import com.example.skillsync.core.data.CopilotRepository
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -86,6 +87,7 @@ internal fun UniversalCommandSearch(
     managerEmail: String = "",
 ) {
     val sk = MaterialTheme.skill
+    val copilotRepository = remember { CopilotRepository() }
     var query by remember { mutableStateOf("") }
     var selectedScope by remember { mutableStateOf("ALL") }
     val needle = query.trim().lowercase()
@@ -107,7 +109,7 @@ internal fun UniversalCommandSearch(
         answering = true; answeredFor = q
         scope.launch {
             try {
-                answer = com.example.skillsync.core.network.RetrofitClient.instance.askCopilotTeam(
+                answer = copilotRepository.askTeam(
                     mapOf("manager" to managerEmail, "question" to q),
                 )
             } catch (_: Exception) {
