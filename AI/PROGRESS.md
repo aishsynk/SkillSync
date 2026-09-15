@@ -2847,3 +2847,18 @@ constructs `ManagerRepository` with a custom `opportunityApiProvider`.
 
 CI verification for this increment is pending — will record the run URL and
 exact test-failure comparison here once green.
+
+**Verified, commit `39325ab`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34994022081:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** |
+| `testDebugUnitTest` | 243 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+
+Count unchanged at 243 (no new tests this increment). Same exact 10
+baseline failures by identity, same 6 lint errors. Green on the first push.
