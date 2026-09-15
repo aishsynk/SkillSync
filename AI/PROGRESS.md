@@ -1960,5 +1960,17 @@ longer in the open-violations list.
 `Version2Workspaces` (status TBD), `CopilotViewModel`. Next planned:
 `GrowTeamCard.kt` (Trainer share flow — likely also `TrainerRepository`).
 
-CI verification for this increment is pending — will record the run URL and
-exact test-failure comparison here once green.
+**Verified, commit `d4c409e`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34959655571:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** |
+| `testDebugUnitTest` | 241 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+
+Count 237 → 241 matches the 4 new `AllocationViewModelTest` tests exactly,
+all passing. Same exact 10 baseline failures by identity.
