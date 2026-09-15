@@ -5,6 +5,7 @@ import java.util.Locale
 object CommunicationComposer {
 
     fun composeFromPlan(plan: ContextSelectionPlan): String {
+        if (plan.purpose == CommunicationPurpose.MORNING_TEAM_GREETING.id) return composeMorningGreeting(plan)
         // 1. Greeting
         val rName = plan.recipientName.trim()
         val greeting = when {
@@ -237,6 +238,106 @@ object CommunicationComposer {
 
         // 4. Assembled message
         return cleanFormatting("$greeting\n\n$bodyText\n\n$closing")
+    }
+
+    // ── MORNING_TEAM_GREETING ──────────────────────────────────────────────
+    //
+    // A short weekday note from the manager to the team for Teams/Viber. No
+    // "Hello team," header and no sign-off block: one fresh opening, one
+    // thought that fits the weekday, and a very short close. Formatting uses
+    // Viber/WhatsApp markers (*bold*, _italic_) and never code fences. Parts
+    // already used in a recent greeting are skipped, so openings, thoughts,
+    // jokes and closings rotate instead of repeating.
+
+    private data class DayBank(val openings: List<String>, val thoughts: List<String>, val closings: List<String>)
+
+    private val MORNING_BANK: Map<String, DayBank> = mapOf(
+        "Monday" to DayBank(
+            openings = listOf("Morning, everyone.", "Hi all, welcome back.", "Hope the weekend was a good one.", "New week, everyone.", "Hello all, back at it."),
+            thoughts = listOf(
+                "*A clean page this week* — worth ten minutes to reconnect with each other before the calendar fills up.",
+                "Easing back in is fine. _The coffee is doing most of the work until eleven anyway._",
+                "If something from last week is still bugging you, *say it early* — it is usually quicker to sort together.",
+                "Good time to catch up with someone you did not get to speak to last week.",
+                "*One small win today is plenty* to set the rhythm for the week.",
+                "A quick check-in with a colleague often saves a long thread later.",
+            ),
+            closings = listOf("_Have a good Monday._", "_Glad to have you back._", "_Enjoy the start._", "_Talk soon._"),
+        ),
+        "Tuesday" to DayBank(
+            openings = listOf("Hi all.", "Morning, team.", "Hello everyone.", "Tuesday already.", "Hope the week has settled in."),
+            thoughts = listOf(
+                "*The week has found its rhythm* — a nice day for the conversations that turn into good ideas.",
+                "If you picked up something useful yesterday, *share it* — someone else is probably stuck on it.",
+                "_Tuesday is the quiet hero of the week_: fewer surprises, more real work getting done.",
+                "Worth asking a colleague how their week is going — the answer is often more useful than the status update.",
+                "*Good collaboration beats long emails.* A five-minute call can clear most of today's questions.",
+                "Learning something new this week? *Pass it on* while it is fresh.",
+            ),
+            closings = listOf("_Have a good Tuesday._", "_Enjoy the day._", "_Take care._", "_Catch you later._"),
+        ),
+        "Wednesday" to DayBank(
+            openings = listOf("Midweek already, everyone.", "Hi all, halfway there.", "Hello team, it's Wednesday.", "Morning, all.", "Happy Wednesday, everyone."),
+            thoughts = listOf(
+                "*Halfway through* — a good day to share what's working and help someone past a small hurdle.",
+                "A small reset helps: _look at what already moved this week_ before planning the rest.",
+                "_Midweek rule_: if a meeting could be a message, it probably should be.",
+                "*Thanks for the effort so far this week* — it has not gone unnoticed.",
+                "Good day to learn one small thing from someone on the team.",
+                "If you are carrying something heavy this week, *ask for a hand* — that is what the team is for.",
+            ),
+            closings = listOf("_Have a good Wednesday._", "_Enjoy the day._", "_Onwards, gently._", "_Take care._"),
+        ),
+        "Thursday" to DayBank(
+            openings = listOf("Hi all.", "Morning, everyone.", "Thursday, team.", "Hello all, nearly there.", "Hope everyone is well."),
+            thoughts = listOf(
+                "*The week is taking shape.* A good day to tie up loose ends before they follow you into Friday.",
+                "If someone helped you out this week, *today is a nice day to tell them.*",
+                "_Almost-Friday energy is allowed_, as long as the calendar invites are still being answered.",
+                "What did you learn this week? *A two-line share* can save a colleague an afternoon.",
+                "Worth a quick look at anything still open, so tomorrow can be lighter for everyone.",
+                "*Small favours add up.* Offer help on one thing that is not yours today.",
+            ),
+            closings = listOf("_Have a good Thursday._", "_Enjoy the day._", "_Nearly there._", "_Talk soon._"),
+        ),
+        "Friday" to DayBank(
+            openings = listOf("Friday, everyone.", "Hi all, we made it.", "Happy Friday, team.", "Morning, all, it's Friday.", "Hello everyone, weekend is in sight."),
+            thoughts = listOf(
+                "*Thanks for a solid week*, everyone — properly appreciated.",
+                "_Friday forecast_: a few meetings, one mystery calendar invite, and the weekend approaching fast.",
+                "If your inbox is winning today, *call it a draw* and pick it up on Monday.",
+                "*Proud of how the team pulled together this week.* Enjoy the switch-off when it comes.",
+                "_Official Friday policy_: at least one conversation today that has nothing to do with work.",
+                "Take a moment to note one thing that went well this week — *there is usually more than you think.*",
+            ),
+            closings = listOf("_Have a great weekend._", "_Enjoy the weekend, all._", "_Rest well._", "_See you Monday._"),
+        ),
+    )
+
+    private fun composeMorningGreeting(plan: ContextSelectionPlan): String {
+        val facts = plan.selectedFacts.associate { it.key to it.value }
+        val day = facts["local_weekday"]?.toString().orEmpty()
+        val bank = MORNING_BANK[day] ?: return ""
+        val variation = facts["variation"]?.toString()?.toIntOrNull() ?: 0
+        val recent = plan.selectedFacts.filter { it.key.startsWith("recent_greeting_") }.map { it.value.toString() }
+        val seed = Math.floorMod(variation * 7 + recent.size * 3 + day.length, 997)
+
+        val opening = pickUnused(bank.openings, recent, seed)
+        val thought = pickUnused(bank.thoughts, recent, seed / 2 + variation)
+        val closing = pickUnused(bank.closings, recent.take(2), seed + variation)
+        return opening + "\n\n" + thought + " " + closing
+    }
+
+    /**
+     * First option (rotating from [seed]) that appears in no recent greeting.
+     * When every option was used recently, the one used longest ago is
+     * reused, so history can never block generation.
+     */
+    private fun pickUnused(options: List<String>, recent: List<String>, seed: Int): String {
+        val start = Math.floorMod(seed, options.size)
+        val rotated = options.indices.map { options[(start + it) % options.size] }
+        rotated.firstOrNull { o -> recent.none { it.contains(o) } }?.let { return it }
+        return rotated.maxBy { o -> recent.indexOfFirst { it.contains(o) }.let { if (it < 0) Int.MAX_VALUE else it } }
     }
 
     private fun extractCourse(text: String): String {

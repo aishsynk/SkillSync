@@ -20,6 +20,12 @@ object CommunicationRepository {
     private val api: CommunicationApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { RetrofitClient.create() }
 
     suspend fun compose(managerEmail: String, request: CommunicationRequest): ComposeResult {
+        // The server composer has no morning-greeting cadence, so this purpose
+        // is composed by the shared engine directly and reported honestly as
+        // not from the server.
+        if (request.purpose == com.example.skillsync.feature.communication.engine.CommunicationPurpose.MORNING_TEAM_GREETING) {
+            return ComposeResult(composeOffline(request), fromServer = false)
+        }
         return try {
             val text = api.composeMessage(
                 manager = managerEmail,
