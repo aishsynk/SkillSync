@@ -1535,3 +1535,59 @@ Phase 2 is CLOSED.
 
 **Next:** Phase 3 — eliminate direct API access, establish domain data
 boundaries. Starting now per explicit instruction.
+
+## 15. Phase 3 start — inventory + first migration, verified green after
+## one real CI-caught regression fixed (2026-09-15, same branch)
+
+Full record: `docs/phase3-api-caller-inventory.md`. Re-scanned the live
+tree (not the stale Phase 0 list) for every `RetrofitClient.instance`
+caller; classified each as REPOSITORY (correct/existing) or a violation
+(SCREEN/COMPOSABLE or VIEWMODEL). 5 files already resolved by Phase 1/2
+(the report screens); 14 violations remain open, listed with domain and
+a proposed grouping for subsequent small commits. Also checked
+`GeneratedApiService.kt`'s role: RMS-specific passthrough, one live
+consumer (`SyncWorker.kt`), correctly kept separate.
+
+**First migration:** `LoginViewModel` → new `core/data/AuthRepository.kt`
+(same `apiProvider`-default/`open fun` convention as `ScheduleRepository`/
+`SkillRequestsRepository`). All three call sites moved; error handling
+unchanged. New `LoginViewModelTest.kt` (3 tests) follows the established
+`MyScheduleViewModelTest` fake-repository pattern.
+
+**CI caught a real regression on the first push** (commit `966a814`, run
+34936835462): 12 failed vs. baseline 10 — 2 of my own new
+`LoginViewModelTest` tests crashed. Root cause: `SessionManager.saveSession()`
+was the only method in that singleton missing the `::prefs.isInitialized`
+guard every sibling accessor already has, so it threw
+`UninitializedPropertyAccessException` when called without a prior
+`init(context)` (true only in a plain JVM unit test — in production,
+`SyncCoordinator` always calls `init()` at app startup before Login is
+reachable, so this is a zero-behavior-change fix, not a new production
+code path). Fixed in `1a6ee51`, re-verified.
+
+**Final verified result, commit `1a6ee51`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34937160544:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** |
+| `testDebugUnitTest` | 232 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+
+Same 10 failures by exact name as every prior run. Count 229 → 232 matches
+the 3 new `LoginViewModelTest` tests exactly, and all 3 now pass.
+
+**Remaining for subsequent increments** (per `docs/phase3-api-caller-inventory.md`,
+deliberately not attempted in one commit): `ActionsViewModel`,
+`CourseCurriculumSheet`, `GrowTeamCard`, `MainScreen`, `MainScreenViewModel`,
+`Version2Workspaces` (status TBD), `AllocationViewModel`, `BatchDetailScreen`,
+`CopilotViewModel`, `EligibilitySheet`, `NetworkStaffingSheet`,
+`Trainer360ViewModel`, `TrainerPracticeScreen` — proposed groupings:
+Trainer (`Trainer360ViewModel`+`TrainerPracticeScreen`+`GrowTeamCard`),
+Batch (`AllocationViewModel`+`BatchDetailScreen`+`EligibilitySheet`+
+`NetworkStaffingSheet`), Today/dashboard (`MainScreen`+`MainScreenViewModel`).
+`SkillEdgeApi.kt`'s 83-method split remains explicitly deferred until
+callers are isolated, per instruction.
