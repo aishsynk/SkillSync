@@ -725,7 +725,7 @@ private fun ReporteeSnapshotCard(
                                                 name = rep.name,
                                                 email = rep.email,
                                             ),
-                                            purpose = com.example.skillsync.feature.communication.domain.CommunicationPurpose.INDIVIDUAL_PERIODIC_UPDATE,
+                                            purpose = com.example.skillsync.feature.communication.engine.CommunicationPurpose.INDIVIDUAL_PERIODIC_UPDATE,
                                             cadence = if (monthendSelected) "monthend" else "monthly",
                                             evidence = com.example.skillsync.feature.communication.domain.CommunicationEvidence(
                                                 currentUtilisation = rep.utilisationPct.toInt(),

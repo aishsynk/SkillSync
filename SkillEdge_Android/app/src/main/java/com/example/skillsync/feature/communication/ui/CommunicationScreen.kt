@@ -158,18 +158,12 @@ fun CommunicationScreen(
                         shape = MaterialTheme.shapes.large,
                     ) {
                         Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("INPUTS", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text("MANAGER INSTRUCTION", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                             OutlinedTextField(
-                                value = ui.userMessage,
-                                onValueChange = viewModel::setUserMessage,
-                                label = { Text("User instruction (what to change: firmer, short, mention x...)") },
-                                minLines = 2,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            OutlinedTextField(
-                                value = ui.myMessage,
-                                onValueChange = viewModel::setMyMessage,
-                                label = { Text("My message (your words / semantic intent, Hinglish ok)") },
+                                value = ui.managerInstruction,
+                                onValueChange = viewModel::setManagerInstruction,
+                                label = { Text("Manager instruction (optional)") },
+                                placeholder = { Text("Tone, focus or a specific point — verified facts are always used, never overridden") },
                                 minLines = 3,
                                 modifier = Modifier.fillMaxWidth(),
                             )

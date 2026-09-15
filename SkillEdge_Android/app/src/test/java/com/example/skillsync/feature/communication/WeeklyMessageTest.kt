@@ -292,55 +292,12 @@ class WeeklyMessageTest {
         assertFalse(note.contains("•"))
     }
 
-    // ── MessageRewriter (Teams/Viber house style) ──────────────────────────
-
-    @Test
-    fun rewriter_handlesHinglishUrgency() {
-        val out = com.example.skillsync.feature.communication.engine.MessageRewriter.compose(
-            userMessage = "sir kal ka batch hai, thoda help chahiye, please jaldi bhejo material",
-            myMessage = "Please review and share the AZ-305 material by tomorrow",
-            style = MessageStyle.TEAMS,
-            targetName = "Abhinav Samant",
-        )
-        assertTrue(out.startsWith("Hello _Abhinav_,"))
-        assertTrue(out.contains("AZ-305"))
-        assertFalse(out.contains("•"))
-        assertFalse(out.contains("—"))
-        assertTrue(out.length <= 1000)
-        assertTrue(out.contains("_Please confirm") || out.contains("_Thank you") || out.contains("_Please let"))
-    }
-
-    @Test
-    fun rewriter_requiresAtLeastOneInput() {
-        try {
-            com.example.skillsync.feature.communication.engine.MessageRewriter.compose("", "", MessageStyle.PLAIN)
-            assertFalse("Should have thrown", true)
-        } catch (e: IllegalArgumentException) {
-            assertTrue(e.message!!.contains("At least one"))
-        }
-    }
-
-    @Test
-    fun rewriter_isTeamGreeting() {
-        val out = com.example.skillsync.feature.communication.engine.MessageRewriter.compose(
-            userMessage = "",
-            myMessage = "We have 3 open certification gaps. Please book your exams before Friday",
-            style = MessageStyle.PLAIN,
-            isTeam = true,
-        )
-        assertTrue(out.startsWith("Hello team,"))
-        assertTrue(out.contains("Please book"))
-    }
-
-    @Test
-    fun rewriter_preservesCourseCodesThroughSanitise() {
-        val out = com.example.skillsync.feature.communication.engine.MessageRewriter.compose(
-            userMessage = "need AZ-104 help",
-            myMessage = "Please prepare AZ-104 and share schedule by Friday",
-            style = MessageStyle.PLAIN,
-        )
-        assertTrue(out.contains("AZ-104"))
-        // only the course code hyphen survives; prose hyphens are removed
-        assertEquals(2, Regex("-").findAll(out).count())
-    }
+    // MessageRewriter (the free-text "[User Message]"/"[My Message]" intent-
+    // precedence engine) was retired in Phase 2 of the architecture
+    // restructuring — it had zero production callers left after Phase 1
+    // moved report screens off it, and its intent-precedence model is
+    // exactly the pattern the manager-communication contract now forbids.
+    // See feature/communication/domain/ManagerCommunicationComposer for its
+    // structured-contract replacement, covered by
+    // ManagerCommunicationComposerTest.
 }

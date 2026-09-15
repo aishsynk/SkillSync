@@ -29,8 +29,13 @@ data class CommunicationUiState(
     val recipientType: String = "MANAGER",
     val recipientRelationship: String = "",
     val purpose: String = "GENERAL_PROFESSIONAL",
-    val userMessage: String = "",
-    val myMessage: String = "",
+    /**
+     * Optional. May influence tone, focus, or which purpose to lead with. It
+     * is never treated as the primary source of intent and can never
+     * override verified facts — there is no external `[User Message]` input
+     * in this contract; the manager is always the sender.
+     */
+    val managerInstruction: String = "",
     val relatedEntityType: String = "",
     val relatedEntityId: String = "",
     val result: GeneratedMessage? = null,
@@ -51,8 +56,7 @@ class CommunicationViewModel : ViewModel() {
     fun setRecipientType(value: String) { _uiState.value = _uiState.value.copy(recipientType = value) }
     fun setRecipientRelationship(value: String) { _uiState.value = _uiState.value.copy(recipientRelationship = value) }
     fun setPurpose(value: String) { _uiState.value = _uiState.value.copy(purpose = value) }
-    fun setUserMessage(value: String) { _uiState.value = _uiState.value.copy(userMessage = value) }
-    fun setMyMessage(value: String) { _uiState.value = _uiState.value.copy(myMessage = value) }
+    fun setManagerInstruction(value: String) { _uiState.value = _uiState.value.copy(managerInstruction = value) }
     fun setRelated(type: String, id: String) {
         _uiState.value = _uiState.value.copy(relatedEntityType = type, relatedEntityId = id)
     }
@@ -128,7 +132,8 @@ class CommunicationViewModel : ViewModel() {
         }
     }
 
-    private fun buildRequest(manager: String): Map<String, Any> {
+    /** Internal (not private) so a unit test can assert this never carries a userMessage/user_message key. */
+    internal fun buildRequest(manager: String): Map<String, Any> {
         val s = _uiState.value
         return mapOf(
             "manager" to manager,
@@ -139,8 +144,7 @@ class CommunicationViewModel : ViewModel() {
             ),
             "channel" to "MS_TEAMS_OR_VIBER",
             "purpose" to s.purpose,
-            "userMessage" to s.userMessage,
-            "myMessage" to s.myMessage,
+            "myMessage" to s.managerInstruction,
             "relatedEntityType" to s.relatedEntityType,
             "relatedEntityId" to s.relatedEntityId,
         )

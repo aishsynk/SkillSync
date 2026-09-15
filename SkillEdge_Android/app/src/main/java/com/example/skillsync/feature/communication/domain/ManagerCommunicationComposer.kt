@@ -39,12 +39,12 @@ object ManagerCommunicationComposer {
         }
 
         val plan = ContextSelectionPlan(
-            intent = request.purpose.name,
+            intent = request.purpose.id,
             userMessage = "",
             myMessage = request.managerInstruction,
             recipientName = request.audience.name,
             recipientType = request.audience.type.name,
-            purpose = request.purpose.name,
+            purpose = request.purpose.id,
             urgency = "NORMAL",
             tone = "professional",
             selectedFacts = facts,

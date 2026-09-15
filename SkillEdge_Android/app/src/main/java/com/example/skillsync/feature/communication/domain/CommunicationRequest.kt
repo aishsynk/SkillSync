@@ -1,5 +1,7 @@
 package com.example.skillsync.feature.communication.domain
 
+import com.example.skillsync.feature.communication.engine.CommunicationPurpose
+
 /**
  * Verified, already-computed facts about the recipient that the composer may
  * cite. Every field here comes from a backend/repository payload — never
@@ -22,13 +24,6 @@ data class CommunicationAudience(
     val name: String = "",
     val email: String = "",
 )
-
-/**
- * Communication purposes this contract supports. Kept as a small closed set
- * (not a free string) so a caller cannot invent an unrecognised purpose the
- * composer has no deterministic wording for.
- */
-enum class CommunicationPurpose { TEAM_PERIODIC_UPDATE, INDIVIDUAL_PERIODIC_UPDATE }
 
 /**
  * The one structured input the manager-communication boundary accepts.

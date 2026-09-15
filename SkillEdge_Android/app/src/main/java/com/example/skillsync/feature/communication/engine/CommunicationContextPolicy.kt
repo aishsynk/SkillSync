@@ -22,7 +22,9 @@ enum class CommunicationPurpose(val id: String, val displayName: String) {
     COURSE_PREPARATION_REQUEST("COURSE_PREPARATION_REQUEST", "Course Delivery Preparation Request"),
     CAPABILITY_DEVELOPMENT_REQUEST("CAPABILITY_DEVELOPMENT_REQUEST", "Capability Up-skilling Request"),
     CURRICULUM_SHARE("CURRICULUM_SHARE", "Course Curriculum & Reference Share"),
-    GENERAL_PROFESSIONAL("GENERAL_PROFESSIONAL", "General Operational Communication");
+    GENERAL_PROFESSIONAL("GENERAL_PROFESSIONAL", "General Operational Communication"),
+    TEAM_PERIODIC_UPDATE("TEAM_PERIODIC_UPDATE", "Team Weekly/Monthly Update"),
+    INDIVIDUAL_PERIODIC_UPDATE("INDIVIDUAL_PERIODIC_UPDATE", "Individual Weekly/Monthly Update");
 
     companion object {
         fun fromId(id: String): CommunicationPurpose =

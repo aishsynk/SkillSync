@@ -310,7 +310,7 @@ fun WeeklyReportScreen(
                                                             audience = com.example.skillsync.feature.communication.domain.CommunicationAudience(
                                                                 type = com.example.skillsync.feature.communication.domain.CommunicationAudienceType.TEAM,
                                                             ),
-                                                            purpose = com.example.skillsync.feature.communication.domain.CommunicationPurpose.TEAM_PERIODIC_UPDATE,
+                                                            purpose = com.example.skillsync.feature.communication.engine.CommunicationPurpose.TEAM_PERIODIC_UPDATE,
                                                             cadence = if (weekendSelected) "weekend" else "weekly",
                                                             managerInstruction = teamMyMessage,
                                                         )
@@ -341,7 +341,7 @@ fun WeeklyReportScreen(
                                                                 audience = com.example.skillsync.feature.communication.domain.CommunicationAudience(
                                                                     type = com.example.skillsync.feature.communication.domain.CommunicationAudienceType.TEAM,
                                                                 ),
-                                                                purpose = com.example.skillsync.feature.communication.domain.CommunicationPurpose.TEAM_PERIODIC_UPDATE,
+                                                                purpose = com.example.skillsync.feature.communication.engine.CommunicationPurpose.TEAM_PERIODIC_UPDATE,
                                                                 cadence = if (weekendSelected) "weekend" else "weekly",
                                                                 managerInstruction = teamMyMessage,
                                                             ),
@@ -800,7 +800,7 @@ private fun WeeklyReporteeLiveCard(
                                             name = rep.name,
                                             email = rep.email,
                                         ),
-                                        purpose = com.example.skillsync.feature.communication.domain.CommunicationPurpose.INDIVIDUAL_PERIODIC_UPDATE,
+                                        purpose = com.example.skillsync.feature.communication.engine.CommunicationPurpose.INDIVIDUAL_PERIODIC_UPDATE,
                                         cadence = if (weekendSelected) "weekend" else "weekly",
                                         evidence = com.example.skillsync.feature.communication.domain.CommunicationEvidence(
                                             currentUtilisation = rep.currentUtilization,
