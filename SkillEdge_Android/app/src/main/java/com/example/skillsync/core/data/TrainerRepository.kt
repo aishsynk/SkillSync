@@ -50,4 +50,12 @@ open class TrainerRepository(
     open suspend fun alternativeTrainers(course: String): Map<String, Any> = api.getAlternativeTrainers(course)
 
     open suspend fun bulkAssignSkill(request: BulkAssignRequest): BulkAssignResponse = api.bulkAssignSkill(request)
+
+    /** Server-composed "please build this skill" ask for one trainer — see [SkillEdgeApi.getUpskillMessage]. */
+    open suspend fun upskillMessage(
+        course: String, trainerName: String? = null, level: String? = null,
+        readyBy: String? = null, batches: String? = null,
+    ): Map<String, Any> = api.getUpskillMessage(
+        course = course, trainerName = trainerName, level = level, readyBy = readyBy, batches = batches,
+    )
 }

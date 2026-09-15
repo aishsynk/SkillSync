@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.data.TrainerRepository
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.core.ui.int
@@ -36,6 +36,7 @@ internal fun GrowTeamCard(upskilling: Map<String, Any>?) {
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val trainerRepository = remember { TrainerRepository() }
     var askText by remember { mutableStateOf<String?>(null) }
     var askFor by remember { mutableStateOf("") }
 
@@ -91,7 +92,7 @@ internal fun GrowTeamCard(upskilling: Map<String, Any>?) {
                         askFor = name
                         scope.launch {
                             try {
-                                val r = RetrofitClient.instance.getUpskillMessage(
+                                val r = trainerRepository.upskillMessage(
                                     course = course,
                                     trainerName = name,
                                     level = lvl.ifBlank { null },

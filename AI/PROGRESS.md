@@ -2146,3 +2146,40 @@ resized — still 4 tests, now against the corrected `AllocationRepository`/
 This review-response increment is now fully verified: backend 404/25
 subtests passed, Android 241/10 matching baseline. Phase 3 API-boundary
 migration resumes next.
+
+## 23. Phase 3 increment 7 — GrowTeamCard's upskill-ask message
+
+Migrated `GrowTeamCard.kt`'s one direct call,
+`RetrofitClient.instance.getUpskillMessage(...)` (the server-composed
+"please build this skill" ask sent to one trainer when a manager taps
+"Ask" next to a suggested upskill target), → extended
+`core/data/TrainerRepository.kt` with `upskillMessage`. Trainer domain:
+the message is about one trainer's own skill-building ask, the same class
+of server-composed structured text as `BatchRepository.batchMessage`
+(Batch) — kept out of the general communication-generation contract
+(`CommunicationRepository`/`ManagerCommunicationComposer`) for the same
+Phase 2 reason `BatchShare`/`getBatchMessage` were: a fixed-purpose,
+non-manager-prose templated ask, not a `CommunicationRequest`.
+
+Same documented exception as `BatchDetailScreen`/`NetworkStaffingSheet`:
+`GrowTeamCard` is a stateless Composable (parameter-driven, `askText`/
+`askFor` local dialog state, no ViewModel), so it calls
+`TrainerRepository` directly via `remember { TrainerRepository() }`.
+Confirmed by re-grep: zero `RetrofitClient` references remain in
+`GrowTeamCard.kt`; brace/paren balance verified on both touched files.
+
+No dedicated repository test added — same rationale as every other
+no-ViewModel Composable migration (`BatchDetailScreen`, `EligibilitySheet`,
+`NetworkStaffingSheet`): no seam to fake against without a Compose UI test
+harness this repo doesn't use here.
+
+`docs/phase3-api-caller-inventory.md` living architecture map and
+"Remaining violations" table updated — `GrowTeamCard.kt` is no longer in
+the open-violations list.
+
+**Remaining for subsequent increments:** `ActionsViewModel`,
+`CourseCurriculumSheet`, `MainScreen`, `MainScreenViewModel`,
+`Version2Workspaces` (status TBD), `CopilotViewModel`.
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.
