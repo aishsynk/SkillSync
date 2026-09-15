@@ -1,5 +1,6 @@
 package com.example.skillsync.feature.communication.domain
 
+import com.example.skillsync.feature.communication.engine.CommunicationPurpose
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test

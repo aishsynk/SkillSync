@@ -1,5 +1,4 @@
 package com.example.skillsync.feature.communication
-import com.example.skillsync.feature.communication.engine.MessageRewriter
 
 import com.example.skillsync.feature.communication.engine.MESSAGE_LIMIT
 import com.example.skillsync.feature.communication.engine.MessageStyle
