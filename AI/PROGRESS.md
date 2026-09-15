@@ -1846,3 +1846,71 @@ https://github.com/aishsynk/SkillSync/actions/runs/34957914291:**
 
 Count 234 → 237 matches the 3 new `Trainer360ViewModelTest` tests exactly,
 all passing. Same exact 10 baseline failures by identity.
+
+## 20. Allocation/availability correctness fix — "Availability unknown + Avail 100"
+
+A production screenshot showed a real business-logic contradiction:
+Recommended Trainers candidates with the "Availability unknown" status label
+simultaneously showing a perfect "Avail 100" score.
+
+**Traced first, per instruction, before touching any code**: dispatched a
+read-only research pass over both allocation engines
+(`backend.py::_rank_batch` / demand-board / Recommended Trainers, and
+`backend.py::evaluate_candidate` / gated `/api/v2/allocation/candidates`).
+Root cause: `_rank_batch` computes `suitability_score`'s availability
+component from an early pass (`_availability_evidence`, reading the RMS
+assignment feed) that promotes "no recorded conflict" straight to
+`"available"` → 100, *before* `enrich_demand_with_availability` computes the
+later, authoritative, course-specific `real_availability` verdict (from RMS
+key 171) that the UI's status chip actually renders. The two never
+reconciled — full trace with file/line citations preserved in the session
+transcript; durable summary now in `AI/CONTEXT.md`'s new "Availability: one
+source of truth" section.
+
+**Fix**: `backend.py::reconcile_availability(candidate, verdict)`, called
+from `enrich_demand_with_availability` for every candidate once
+`real_availability` is known. It overwrites `availability_status` and
+recomputes `suitability_components["availability"]` (and the weighted
+`suitability_score` total) from one shared table, `_AVAILABILITY_SCORE`,
+also now used by `_suitability_components` itself (replacing its previous
+private, narrower literal). Core invariant, enforced by construction and by
+test: `unknown`/`unverified` status can never resolve to a 100 score.
+Android needed no change — it was already purely rendering these two
+backend fields (`real_availability.status` for the chip,
+`suitability_components.availability` for the number); they simply agree
+now that the backend does.
+
+Also implemented four further Aug/Sep-2026 Auto Tall HR policy updates in
+`evaluate_candidate` (the engine that already has the hard-eligibility vs.
+soft-preference split these need): Omnissa officially-approved ≈ Certified
+(07 Sep, Omnissa-only, mirrors the existing RedHat precedent), multi-
+assignment trip-history preference (07 Sep, preference only, never a gate),
+international vaccination preference (24 Aug, preference only, missing data
+never blocks eligibility), and confirmed + regression-tested that 2-hour and
+alternate 4-hour batches already participate in allocation (27 Aug — no
+duration-based exclusion existed in either engine; now locked in by test
+rather than left unverified).
+
+**Explicitly deferred, not faked** (documented in `AI/CONTEXT.md`, not just
+here): true datetime-level (not date-level) overlap — no hour-of-day field
+exists anywhere in the RMS integration this repo calls, so implementing it
+would mean inventing schedule data RMS does not appear to expose; and
+skill-family taxonomy matching (e.g. PL-300 → Power BI) instead of course-
+title/vendor-code text similarity — there is no capability graph or
+course-to-skill mapping in this codebase to reuse, and building one is a
+real product/data investment, not a bug fix.
+
+**Tests**: two new files, `tests/test_availability_reconciliation.py` (10
+tests: the exact regression fixture for the screenshot contradiction, the
+full `_AVAILABILITY_SCORE`/`availability_verdict` vocabulary cross-checked
+for a mapping, score/status consistency) and
+`tests/test_auto_tall_policy_sept2026.py` (15 tests: the four new policies,
+each's eligibility-vs-preference boundary, and the 2h/4h regression),
+following the existing `tests/test_auto_tall_policy.py` synthetic-candidate
+pattern. Full backend suite: **391 passed, 25 subtests passed** (up from
+366 — the 25 new tests, zero regressions in the pre-existing suite).
+
+This was backend-only; no Android files changed, so the
+`android-architecture-validation.yml` workflow was not run for this
+increment (nothing in its scope changed). Phase 3 API-boundary migrations
+resume next, per instruction, now that this is verified.

@@ -1660,6 +1660,61 @@ def _location_suitability(batch):
     return 70, "Domestic physical delivery; trainer base/travel time is not available", False
 
 
+# Single source of truth for the numeric contribution of every availability
+# status this codebase produces, whether from the early _availability_evidence
+# pass (available/unverified/conflict) or the authoritative, course-specific
+# real_availability verdict computed later by enrich_demand_with_availability
+# (available/available_with_conflicts/partially_available/unavailable/unknown).
+# "unknown"/"unverified" -- genuine insufficient data -- must never resolve to
+# a full-marks score; both map to the same below-average 45, matching the
+# pre-existing "unverified" convention rather than inventing a new number.
+_AVAILABILITY_SCORE = {
+    "available": 100,
+    "available_with_conflicts": 60,
+    "partially_available": 40,
+    "unverified": 45,
+    "unknown": 45,
+    "conflict": 0,
+    "unavailable": 0,
+}
+_SUITABILITY_WEIGHTS = {
+    "skill": 0.35, "readiness": 0.15, "availability": 0.15,
+    "utilization": 0.10, "feedback": 0.05, "language": 0.05,
+    "location": 0.05, "certification": 0.10,
+}
+
+
+def reconcile_availability(candidate, verdict):
+    """Make `real_availability` (the authoritative, course-specific
+    free-schedule verdict from enrich_demand_with_availability) the single
+    source of truth for both the availability status shown to the manager
+    and the availability component of suitability_score.
+
+    Without this, a candidate's suitability score is frozen from the earlier,
+    weaker _availability_evidence pass (an assignment-feed check that treats
+    absence of a recorded conflict as proof of "available") before this
+    authoritative verdict exists. That is how a trainer could show
+    "Availability unknown" next to "Avail 100": the status chip reads
+    real_availability, but suitability_score never learned about it.
+    "unknown" must never resolve to a full-marks score -- see
+    _AVAILABILITY_SCORE.
+    """
+    status = verdict.get("status") or "unknown"
+    new_score = _AVAILABILITY_SCORE.get(status, 45)
+    candidate["availability_status"] = status
+    components = candidate.get("suitability_components")
+    if not isinstance(components, dict) or "availability" not in components:
+        return
+    old_score = components["availability"]
+    if old_score == new_score:
+        return
+    components["availability"] = new_score
+    total = candidate.get("suitability_score")
+    if isinstance(total, (int, float)):
+        delta = (new_score - old_score) * _SUITABILITY_WEIGHTS["availability"]
+        candidate["suitability_score"] = max(0, min(100, round(total + delta)))
+
+
 def _suitability_components(batch, skill_match, readiness, availability, utilization,
                             feedback, languages, certification_codes=None):
     """Explainable 0-100 allocation score using every approved business signal."""
@@ -1674,9 +1729,7 @@ def _suitability_components(batch, skill_match, readiness, availability, utiliza
         language_score = 100 if english else 40
         language_reason = "English preferred" if english else "English not recorded"
 
-    availability_score = {
-        "available": 100, "unverified": 45, "conflict": 0,
-    }.get(availability.get("status"), 45)
+    availability_score = _AVAILABILITY_SCORE.get(availability.get("status"), 45)
     utilization_score = 50 if utilization is None else max(0, min(100, 100 - utilization))
     feedback_score = 0 if feedback.get("blocked") else (
         55 if feedback.get("recent_negative_6mo") else 100
@@ -1696,12 +1749,7 @@ def _suitability_components(batch, skill_match, readiness, availability, utiliza
         "location": location_score,
         "certification": certification_score,
     }
-    weights = {
-        "skill": 0.35, "readiness": 0.15, "availability": 0.15,
-        "utilization": 0.10, "feedback": 0.05, "language": 0.05,
-        "location": 0.05, "certification": 0.10,
-    }
-    total = round(sum(scores[key] * weights[key] for key in weights))
+    total = round(sum(scores[key] * _SUITABILITY_WEIGHTS[key] for key in _SUITABILITY_WEIGHTS))
     return total, scores, {
         "language": language_reason,
         "location": location_reason,
@@ -5832,11 +5880,14 @@ def enrich_demand_with_availability(demand):
             name = str(cand.get("trainer_name") or "").replace(" (You)", "").strip().lower()
             row = pool.get(name)
             if not row:
-                cand["real_availability"] = {"status": "unknown",
-                                             "reason": why or "course-specific date availability was not returned for this trainer"}
+                verdict = {"status": "unknown",
+                           "reason": why or "course-specific date availability was not returned for this trainer"}
+                cand["real_availability"] = verdict
+                reconcile_availability(cand, verdict)
                 continue
             verdict = availability_verdict(row.get("free_dates"), {}, days)
             cand["real_availability"] = verdict
+            reconcile_availability(cand, verdict)
             cand["skill_level"] = row.get("skill_level")
             cand["course_deliveries"] = row.get("course_assignments")
             cand["nearest_city"] = row.get("nearest_city")
@@ -5974,6 +6025,36 @@ def evaluate_candidate(candidate, schedule, batch, required_level=None):
         add("Feedback history", -5, "Negative feedback in trailing 6 months (soft preference applied)")
     elif candidate.get("clean_record_6mo") is True:
         add("Feedback history", 8, "Clean record: 0 negative feedback in trailing 6 months")
+
+    # Omnissa officially-approved == Certified (Auto Tall 07 Sep 2026). This is
+    # deliberately scoped to Omnissa only -- do not generalise to other
+    # vendors, that would repeat the mistake this policy is fixing elsewhere
+    # (see the RedHat-only precedent for the same "Approved counts as
+    # Certified" idea in _cert_intelligence).
+    vendor = str(batch.get("customer") or batch.get("vendor") or "").strip().lower()
+    is_omnissa = "omnissa" in vendor or "omnissa" in str(batch.get("course_name") or "").lower()
+    omnissa_approved = is_omnissa and bool(candidate.get("approved") or candidate.get("is_officially_approved"))
+    if omnissa_approved:
+        add("Certification (Omnissa)", 10, "Officially Approved for Omnissa satisfies the certification requirement")
+
+    # Multi-assignment trip-history preference (Auto Tall 07 Sep 2026): for
+    # ILT/FMAT, prefer a trainer with a proven history of receiving another
+    # compatible assignment while already travelling on the same trip.
+    # PREFERENCE ONLY -- must never block another eligible trainer, so this
+    # only ever adds points, never a blocker.
+    if str(batch.get("delivery_mode") or "").strip().upper() in ("ILT", "FMAT"):
+        if candidate.get("multi_assignment_trip_history"):
+            add("Trip continuity", 8,
+                "Proven history of a second compatible assignment on the same trip")
+
+    # International vaccination preference (Auto Tall 24 Aug 2026): for
+    # international ILT/FMAT, prefer Yellow Fever + Polio coverage when
+    # candidates are otherwise equally eligible. PREFERENCE ONLY -- missing
+    # vaccination data must not make a trainer ineligible under this policy.
+    if is_international and str(batch.get("delivery_mode") or "").strip().upper() in ("ILT", "FMAT"):
+        vaccinations = candidate.get("vaccinations") or {}
+        if vaccinations.get("yellow_fever") and vaccinations.get("polio"):
+            add("International vaccination", 5, "Yellow Fever and Polio coverage on record")
 
     level = candidate.get("skill_level")
     if level is not None:

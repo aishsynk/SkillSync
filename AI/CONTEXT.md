@@ -892,6 +892,113 @@ this audit. Three tiers:
 - **Mock Step Transparency (27 Jul 2026)**: Auditable first-time delivery step.
 - **OEM Header Display (27 Jul 2026)**: OEM vendor shown above Course Name.
 
+### Availability: one source of truth (fixed 2026-09-15)
+
+**The bug.** Recommended Trainers could show a candidate as `Availability
+unknown` (a genuine "cannot determine" status) directly beside `Avail 100` (a
+perfect availability score) — an internal contradiction, since unknown
+availability can never legitimately be worth full marks.
+
+**Root cause**, found by tracing both allocation engines end to end
+(`backend.py::_rank_batch`, the demand-board / Recommended Trainers path, and
+`backend.py::evaluate_candidate`, the gated `/api/v2/allocation/candidates`
+path): the board computes `suitability_score` from `_availability_evidence`
+(an early pass over the RMS assignment feed and off-dates — "no recorded
+conflict" is promoted straight to `"available"` → 100) *before*
+`enrich_demand_with_availability` computes the later, course-specific and
+authoritative `real_availability` verdict (from RMS key 171's free-schedule
+data) that the UI's status chip actually reads. The two never reconciled, so
+the chip and the number could disagree.
+
+**The fix.** `backend.py::reconcile_availability(candidate, verdict)` makes
+`real_availability` the single source of truth for both fields once it is
+known: it overwrites `candidate["availability_status"]` and recomputes
+`suitability_components["availability"]` (and the weighted
+`suitability_score` total) from the same status, through one shared table,
+`_AVAILABILITY_SCORE`:
+
+| status | score | meaning |
+|---|---|---|
+| `available` | 100 | free on every requested day |
+| `available_with_conflicts` | 60 | free, but with provisional (tentative) bookings |
+| `partially_available` | 40 | free on some but not all requested days |
+| `unverified` / `unknown` | 45 | **genuine insufficient data — never 100** |
+| `conflict` / `unavailable` | 0 | not free |
+
+This is the durable invariant: **`unknown`/`unverified` availability status
+can never resolve to a perfect availability score**, by construction — both
+call sites that produce a score (`_suitability_components` and
+`reconcile_availability`) read the same table, so a new status can't be added
+to one without a score in the other. Regression coverage:
+`tests/test_availability_reconciliation.py`.
+
+**What this fix does not change**: Android renders these two fields as-is
+(`AvailabilityIntelligence.kt::AvailabilityChip` for the status text,
+`AllocationDeskScreen.kt`'s `suitability_components` line for the number) —
+it was never computing either value itself, so no Android change was needed;
+they simply agree now because the backend does.
+
+**Known, explicitly deferred, gaps** (found during this trace, not fixed
+here — do not assume otherwise):
+- **Date-level, not datetime-level, overlap.** Both `_availability_evidence`
+  and `availability_verdict` compare whole calendar days
+  (`backend.py:1410`'s `st <= end and en >= start`, and a `set[date]`
+  intersection). No hour-of-day field exists anywhere in the RMS integration
+  this repo calls (`prevUpcoming`, `trainerDetails`, key 171) — grepped for
+  one and found none. A same-day, non-overlapping-hours batch (e.g. 09:30 on
+  a day where the trainer's only other commitment ends at 08:00) is
+  therefore still treated as a full-day conflict. Implementing true
+  datetime overlap would require fabricating a time field RMS does not
+  appear to expose; per the "do not invent missing data" rule, this is
+  recorded as a gap rather than worked around with invented data.
+- **Skill matching is lexical, not taxonomy-based.** `_match_score`
+  (`backend.py:_match_score`) is course-title/vendor-code text similarity
+  (exact match, shared vendor course code, or Jaccard token overlap) — there
+  is no course→skill/capability taxonomy in this codebase to match "PL-300"
+  to a "Power BI" skill family independent of course title. Building one is
+  a real product/data investment (a capability graph and course-to-skill
+  mapping), not a bug fix; out of scope here, recorded as a known
+  limitation rather than attempted with a guessed schema.
+
+### Auto Tall policy updates — Aug/Sep 2026 (implemented 2026-09-15)
+
+Four further HR-supplied Auto Tall rules, added to `evaluate_candidate`
+(the gated `/api/v2/allocation/candidates` engine, which already has the
+hard-eligibility-vs-soft-preference split these rules need — the
+Recommended Trainers board (`_rank_batch`) has no such split and was not
+extended with these, consistent with not duplicating a policy engine twice):
+
+- **Omnissa officially-approved ≈ Certified (07 Sep 2026)**: for Omnissa
+  assignments only, a candidate's RMS `OfficiallyApproved` flag satisfies
+  the certification requirement the same way `RedHat` approval already does
+  in `_cert_intelligence` (same precedent, explicitly scoped per-vendor —
+  never generalised to "Approved == Certified" for every technology).
+- **Multi-assignment trip-history preference (07 Sep 2026)**: for ILT/FMAT,
+  a trainer with a proven history of taking a second compatible assignment
+  while already travelling on the same trip earns a ranking preference.
+  Preference only — never a gate; a trainer without this history remains
+  fully eligible.
+- **International vaccination preference (24 Aug 2026)**: for international
+  ILT/FMAT, Yellow Fever + Polio coverage on record earns a ranking
+  preference. Preference only — missing vaccination data does not affect
+  eligibility, per the explicit HR instruction that this is not yet a hard
+  allocation blocker.
+- **2-hour / alternate 4-hour batches participate in allocation (27 Aug
+  2026)**: confirmed by trace that no duration-based exclusion exists
+  anywhere in either allocation engine (`_rank_batch` or
+  `evaluate_candidate`) — this was already correct, and is now locked in by
+  regression tests (`test_two_hour_batch_participates_in_allocation`,
+  `test_alternate_four_hour_batch_participates_in_allocation` in
+  `tests/test_auto_tall_policy_sept2026.py`) rather than left unverified.
+
+All four are read from plain fields on the candidate/batch dicts
+(`approved`, `multi_assignment_trip_history`, `vaccinations`,
+`duration_hours`) — consistent with how the existing Aug-2026 rules
+(`cancelled_batch_priority`, `is_tech_call_trainer`, `clean_record_6mo`)
+are wired: this file does not fabricate the RMS plumbing that populates
+them, only the policy logic that consumes them once populated. Tests:
+`tests/test_auto_tall_policy_sept2026.py`.
+
 ## Koenig HR Trainer Index Policy (TI – 13/08/26)
 
 Official Koenig HR scoring formula implemented in `_calculate_trainer_index` across 20 weighted pillars:
