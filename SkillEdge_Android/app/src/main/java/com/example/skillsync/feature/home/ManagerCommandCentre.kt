@@ -176,7 +176,7 @@ fun ManagerCommandCentre(
 
         // ── Hero: the one heroSurface() on this screen, per the surface usage
         // rule (Surfaces.kt) — team readiness is Today's single major insight.
-        Box(Modifier.fillMaxWidth().heroSurface().pressable(onOpenPriorities).padding(Space.lg)) {
+        Box(Modifier.fillMaxWidth().entrance(key = "hero").heroSurface().pressable(onOpenPriorities).padding(Space.lg)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("TEAM READINESS", style = MaterialTheme.typography.labelSmall, color = sk.ice)
@@ -326,7 +326,7 @@ fun ManagerCommandCentre(
         if (capacityTotal > 1 || bench + optimal + stretched > 0) {
             Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                 SectionHeading("Capacity balance", conclusion = capacityConclusion(bench, optimal, stretched))
-                SkillCard(modifier = Modifier.fillMaxWidth().pressable(onOpenCapacityRunway)) {
+                SkillCard(modifier = Modifier.fillMaxWidth().entrance(key = "capacity").pressable(onOpenCapacityRunway)) {
                     CapacityBar(bench, optimal, stretched)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.md)) {
                         LegendDot(sk.warn, "Bench $bench")
@@ -344,7 +344,7 @@ fun ManagerCommandCentre(
                     "Who is actually free",
                     conclusion = "$onLeaveCount on leave in the next 90 days, $clearCount with nothing booked.",
                 )
-                SkillCard(modifier = Modifier.fillMaxWidth().pressable(onOpenDelivery)) {
+                SkillCard(modifier = Modifier.fillMaxWidth().entrance(key = "whoIsFree").pressable(onOpenDelivery)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         MiniStat("Clear", clearCount.toString(), sk.good)
                         MiniStat("Committed", committedCount.toString(), sk.sky)
@@ -365,7 +365,7 @@ fun ManagerCommandCentre(
                 conclusion = "${unallocatedDemand.size} unallocated batch${if (unallocatedDemand.size == 1) "" else "es"}" +
                     (if (internationalBatches > 0) ", $internationalBatches international." else ", none international."),
             )
-            SkillCard(modifier = Modifier.fillMaxWidth()) {
+            SkillCard(modifier = Modifier.fillMaxWidth().entrance(key = "demand")) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     MiniStat("Unallocated", unallocatedDemand.size.toString(), sk.crit)
                     MiniStat("International", internationalBatches.toString(), sk.indigo)
@@ -438,7 +438,7 @@ fun ManagerCommandCentre(
         // actually is (its engagement_state), never a guessed time. ──────────
         Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
             SectionHeading("Delivery outlook", trailing = "Full calendar →")
-            SkillCard(modifier = Modifier.fillMaxWidth().pressable(onOpenDelivery)) {
+            SkillCard(modifier = Modifier.fillMaxWidth().entrance(key = "deliveryOutlook").pressable(onOpenDelivery)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     MiniStat("Delivering", activeBatches.size.toString(), sk.good)
                     MiniStat("Upcoming", upcomingBatches.size.toString(), sk.sky)
@@ -473,7 +473,7 @@ fun ManagerCommandCentre(
         if (certCoverage != null) {
             Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                 SectionHeading("Certification coverage")
-                SkillCard(modifier = Modifier.fillMaxWidth().pressable(onOpenPriorities)) {
+                SkillCard(modifier = Modifier.fillMaxWidth().entrance(key = "certCoverage").pressable(onOpenPriorities)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Open-demand courses with a certified trainer", style = MaterialTheme.typography.titleSmall, color = sk.frost)
                         Text("$certCoverage%", style = MaterialTheme.typography.titleMedium, color = sk.cyan, fontWeight = FontWeight.Bold)

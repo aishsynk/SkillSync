@@ -813,10 +813,19 @@ internal fun BatchCard(
                         val legacyAvailStatus = c.str("availability_status")
                         val availabilityConflict = realAvailStatus == "unavailable" ||
                             legacyAvailStatus == "conflict"
+                        val availabilityVerified = c.bool("availability_verified") ||
+                            (realAvailStatus != null && realAvailStatus != "unknown")
                         val hardIneligible = blocked || availabilityConflict
+                        // A "Best Match" skill badge is a strong, confident claim. Making
+                        // that claim while this candidate's availability was never actually
+                        // checked is the same over-claiming this whole pass exists to stop —
+                        // demote to an amber "Needs review" instead of a green endorsement
+                        // until a real availability check backs it up.
+                        val needsReview = !hardIneligible && !availabilityVerified && c.int("match") >= 90
                         val dotTint = when {
                             blocked -> sk.red
                             availabilityConflict -> sk.red
+                            needsReview -> sk.amber
                             else -> relevanceColor(c.int("match"))
                         }
                         Column(
@@ -895,10 +904,7 @@ internal fun BatchCard(
                                         // honest 45 still looks like a real score, so an
                                         // unverified candidate shows "Avail —" instead of
                                         // any number at all.
-                                        val availVerified = c.bool("availability_verified") ||
-                                            (c.obj("real_availability")?.str("status")
-                                                ?.let { it != "unknown" && it.isNotBlank() } == true)
-                                        val availText = if (availVerified) "${parts.int("availability")}" else "—"
+                                        val availText = if (availabilityVerified) "${parts.int("availability")}" else "—"
                                         Text(
                                             "Skill ${parts.int("skill")} · Ready ${parts.int("readiness")} · " +
                                                 "Avail $availText · Cert ${parts.int("certification")} · Lang ${parts.int("language")}",
@@ -911,6 +917,7 @@ internal fun BatchCard(
                                     when {
                                         blocked -> "Blocked"
                                         availabilityConflict -> "Conflict"
+                                        needsReview -> "Needs review"
                                         else -> c.str("coverage")
                                     },
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
@@ -930,6 +937,12 @@ internal fun BatchCard(
                                     "Not available on these dates — a strong skill match does not override a real conflict",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = sk.red,
+                                    modifier = Modifier.padding(start = 13.dp, top = 2.dp)
+                                )
+                                needsReview -> Text(
+                                    "Strong skill match, but availability was never checked — verify before assigning",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = sk.amber,
                                     modifier = Modifier.padding(start = 13.dp, top = 2.dp)
                                 )
                                 missing.isNotBlank() -> Text(
