@@ -2275,3 +2275,19 @@ longer in the open-violations list.
 
 CI verification for this increment is pending — will record the run URL and
 exact test-failure comparison here once green.
+
+**Correction to the placeholder above** (this line originally said
+"pending"): **Verified, commit `ed76aa0`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34964403889:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** |
+| `testDebugUnitTest` | 241 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+
+Count unchanged at 241 (no new tests this increment). Same exact 10
+baseline failures by identity.
