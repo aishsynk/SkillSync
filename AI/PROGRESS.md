@@ -1914,3 +1914,51 @@ This was backend-only; no Android files changed, so the
 `android-architecture-validation.yml` workflow was not run for this
 increment (nothing in its scope changed). Phase 3 API-boundary migrations
 resume next, per instruction, now that this is verified.
+
+## 21. Phase 3 increment 6 — AllocationViewModel's remaining direct calls
+
+Closed out `AllocationViewModel.kt`'s three remaining domains, identified
+in increment 4/5's investigation:
+
+- `getAllocationCandidates` and `getAlternativeTrainers` (Trainer/candidate
+  reads) and `bulkAssignSkill` (Trainer-skill write — 1-skill-to-many-
+  reportees) → extended `core/data/TrainerRepository.kt` with
+  `allocationCandidates`, `alternativeTrainers`, `bulkAssignSkill`.
+  `bulkAssignSkill` was flagged in increment 2's doc comment as
+  "a separate concern, not folded in here" — revisited and folded in after
+  all: it is the same trainer-skill-write family as `endorseSkill` (already
+  in `TrainerRepository` since increment 5), just one-to-many instead of
+  one-to-one. Updated that repository's doc comment to say so rather than
+  leave the stale claim standing.
+- `getDemandContext` (Batch/demand read) → extended
+  `core/data/BatchRepository.kt` with `demandContext`.
+
+`AllocationViewModel` now takes three repository constructor params:
+`ManagerRepository` (pre-existing), `TrainerRepository`, `BatchRepository`.
+`RetrofitClient.isNetworkAvailable(context)` calls (4 of them, offline-queue
+and live-polling connectivity checks) intentionally left as-is — same
+rationale as every prior increment: a connectivity check is not a domain
+data call.
+
+New `AllocationViewModelTest.kt` (4 tests: `loadGatedCandidates`,
+`loadDemandContext`, `globalSearch`, `bulkAssignSkill`, each confirming the
+call goes through the repository and the per-row/response shape survives).
+Deliberately does not exercise `load()`/`refresh()`/`fetch()`/`markSkill()`
+— same `android.content.Context`/`LocalCache`/`ActionQueueManager`
+out-of-scope rationale as `Trainer360ViewModelTest`.
+
+Confirmed by re-grep: the only remaining `RetrofitClient` references in
+`AllocationViewModel.kt` are the four `isNetworkAvailable` calls; brace/
+paren balance verified on all touched/new files.
+
+`docs/phase3-api-caller-inventory.md` living architecture map and
+"Remaining violations" table updated — `AllocationViewModel.kt` is no
+longer in the open-violations list.
+
+**Remaining for subsequent increments:** `ActionsViewModel`,
+`CourseCurriculumSheet`, `GrowTeamCard`, `MainScreen`, `MainScreenViewModel`,
+`Version2Workspaces` (status TBD), `CopilotViewModel`. Next planned:
+`GrowTeamCard.kt` (Trainer share flow — likely also `TrainerRepository`).
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.

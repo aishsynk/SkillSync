@@ -7,7 +7,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.skillsync.core.network.MarkSkillRequest
 import com.example.skillsync.core.network.MarkSkillResponse
 import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.data.BatchRepository
 import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.core.data.TrainerRepository
 import com.example.skillsync.feature.training.data.CourseIntelligence
 import com.example.skillsync.core.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,6 +41,8 @@ sealed class MarkState {
 
 class AllocationViewModel(
     private val repository: ManagerRepository = ManagerRepository(),
+    private val trainerRepository: TrainerRepository = TrainerRepository(),
+    private val batchRepository: BatchRepository = BatchRepository(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<AllocationState>(AllocationState.Loading)
@@ -111,7 +115,7 @@ class AllocationViewModel(
         viewModelScope.launch {
             gatedCandidatesLoading.value = true
             try {
-                gatedCandidates.value = RetrofitClient.instance.getAllocationCandidates(
+                gatedCandidates.value = trainerRepository.allocationCandidates(
                     manager = manager, course = course, start = start, end = end,
                     country = country, customer = customer,
                     deliveryMode = deliveryMode,
@@ -139,7 +143,7 @@ class AllocationViewModel(
         viewModelScope.launch {
             demandContextLoading.value = true
             try {
-                demandContext.value = RetrofitClient.instance.getDemandContext(manager, demandId, courseName)
+                demandContext.value = batchRepository.demandContext(manager, demandId, courseName)
             } catch (_: Exception) {
                 demandContextError.value = "Live operational verification is unavailable. Cached demand details remain usable."
             } finally {
@@ -203,7 +207,7 @@ class AllocationViewModel(
         viewModelScope.launch {
             globalSearchData.value = null // reset while loading
             try {
-                globalSearchData.value = RetrofitClient.instance.getAlternativeTrainers(course)
+                globalSearchData.value = trainerRepository.alternativeTrainers(course)
             } catch (e: Exception) {
                 // Ignore
             }
@@ -486,7 +490,7 @@ class AllocationViewModel(
             bulkWorking.value = true
             bulkResults.value = null
             val response = runCatching {
-                com.example.skillsync.core.network.RetrofitClient.instance.bulkAssignSkill(
+                trainerRepository.bulkAssignSkill(
                     com.example.skillsync.core.network.BulkAssignRequest(
                         course_id = courseId,
                         trainers = rows.map { (email, level) ->

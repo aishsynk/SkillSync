@@ -1,5 +1,6 @@
 package com.example.skillsync.core.data
 
+import com.example.skillsync.core.network.DemandContextResponse
 import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.core.network.SkillEdgeApi
 
@@ -8,17 +9,17 @@ import com.example.skillsync.core.network.SkillEdgeApi
  * bolted onto [ManagerRepository], following the [ScheduleRepository]/
  * [SkillRequestsRepository] convention.
  *
- * Starts with the one confirmed batch-domain violation
- * (`BatchDetailScreen.kt` calling `RetrofitClient.instance.getBatchMessage`
- * directly): the server-composed allocation broadcast text for a batch
- * (`GET api/data/batch-message`). This is read-only, no local cache — the
- * screen already holds its own short-lived `serverMsg` UI state and falls
- * back to `BatchShare`'s local composition on failure, both unchanged by
- * this move.
+ * Owns the server-composed allocation broadcast text for a batch (`GET
+ * api/data/batch-message`) and per-demand operational evidence (`GET
+ * api/v2/operations/demand-context`) — both read-only, no local cache.
+ * `BatchDetailScreen.kt`'s `serverMsg` and `AllocationViewModel.kt`'s
+ * `demandContext` remain the screens' own short-lived UI state, unchanged
+ * by this move.
  *
- * Deliberately does not yet own other batch endpoints (e.g. demand context,
- * allocation candidates) — those are evaluated for domain ownership
- * individually as their callers are migrated, not bulk-added here.
+ * Deliberately does not yet own every batch-adjacent endpoint (e.g.
+ * allocation candidates, which is Trainer/candidate domain and lives in
+ * [TrainerRepository]) — each is evaluated for domain ownership
+ * individually as its caller is migrated, not bulk-added here.
  */
 open class BatchRepository(
     private val apiProvider: () -> SkillEdgeApi = { RetrofitClient.instance },
@@ -27,4 +28,7 @@ open class BatchRepository(
 
     open suspend fun batchMessage(demandId: String, recipient: String?): Map<String, Any> =
         api.getBatchMessage(demandId, recipient)
+
+    open suspend fun demandContext(manager: String, demandId: String, courseName: String): DemandContextResponse =
+        api.getDemandContext(manager, demandId, courseName)
 }
