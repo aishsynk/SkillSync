@@ -2372,3 +2372,18 @@ now do (`AuthRepository`, `BatchRepository`, `EligibilityRepository`,
 
 CI verification for this increment is pending — will record the run URL and
 exact test-failure comparison here once green.
+
+**Correction to the placeholder above**: **Verified, commit `d60d725`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34965801700:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** |
+| `testDebugUnitTest` | 243 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+
+Count unchanged at 243 (no new tests this increment). Same exact 10
+baseline failures by identity.
