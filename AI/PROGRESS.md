@@ -1659,6 +1659,17 @@ increments so far, per instruction.
 (`NetworkStaffingSheet.kt` + `TrainerPracticeScreen.kt` +
 `AllocationViewModel`'s trainer-domain calls).
 
-CI verification for this increment is pending — will record the run URL and
-exact test-failure comparison here once green, per the same verification
-discipline as increment 1.
+**Verified, commit `e5acfdd`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34955427354:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** |
+| `testDebugUnitTest` | 233 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+
+Count 232 → 233 matches the 1 new `SessionManagerTest` test exactly, and it
+passes. No change to the pre-existing 10 baseline failures by identity.
