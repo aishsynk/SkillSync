@@ -24,6 +24,19 @@ services:
         value: /var/data
       - key: PYTHONUNBUFFERED
         value: "true"
+    # ── Communication Intelligence model providers (optional) ─────────────
+    #
+    # Resolution: Ollama -> Azure OpenAI / OpenAI -> deterministic generator.
+    # Ollama CANNOT run on this service: the free plan (512 MB RAM, shared
+    # CPU, no long-running side processes, spins down when idle) cannot hold
+    # a multi-GB model. Point OLLAMA_BASE_URL only at a PRIVATE Ollama host
+    # this service can reach (never a public endpoint):
+    #   OLLAMA_BASE_URL          e.g. http://10.0.0.5:11434  (scheme://host:port only)
+    #   OLLAMA_MODEL             installed chat model, e.g. qwen2.5:7b-instruct
+    #   OLLAMA_TIMEOUT_SECONDS   default 20, capped at 60
+    # Unset => provider skipped, no network call. Existing OpenAI/Azure vars
+    # (OPENAI_API_KEY / AZURE_OPENAI_*) remain the second provider.
+    #
     # ── RMS credential env vars (configure as Render secrets via dashboard) ─
     #
     # Every API in _APIS (backend.py) reads its credentials from

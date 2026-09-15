@@ -1,7 +1,7 @@
 """Communication Composer — Generates natural Teams/Viber messages from a CommunicationPlan.
 
 Supports:
-1. LLM Generation (OpenAI / Azure OpenAI) when configured in environment.
+1. Model generation through services.communication.providers (Ollama, then Azure/OpenAI).
 2. Deterministic Generator fallback when no API keys are present (honest, natural, zero template concatenation).
 3. Authoritative Teams/Viber writing policy (3-part layout, italics for names, bold for key action, bold+underline for dates).
 """
@@ -15,6 +15,9 @@ _re = re
 from typing import Optional, Tuple
 
 from domain.communication.models import CommunicationPlan
+
+from . import providers
+from .providers import DETERMINISTIC, Provenance, ProviderResult
 
 from .policy import (
     MAX_LENGTH,
@@ -47,70 +50,36 @@ Output only the final message.
 
 
 def compose_from_plan(plan: CommunicationPlan, context=None) -> Tuple[str, str]:
-    """Central entry point. Tries LLM if configured; otherwise invokes Deterministic Generator."""
-    # 1. Try server-side LLM if configured
-    llm_result, gen_mode = _try_llm_generation(plan)
-    if llm_result:
-        return llm_result, gen_mode
-
-    # 2. Deterministic generator
-    return _compose_deterministic(plan, context), "DETERMINISTIC_GENERATOR"
+    """Central entry point. (text, generation_mode) — see compose_from_plan_detailed."""
+    text, provenance = compose_from_plan_detailed(plan, context)
+    return text, provenance.generation_mode
 
 
-def _try_llm_generation(plan: CommunicationPlan) -> Tuple[Optional[str], str]:
-    """Calls server-side OpenAI or Azure OpenAI if configured in environment."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-    azure_key = os.getenv("AZURE_OPENAI_KEY") or os.getenv("AZURE_OPENAI_API_KEY")
+def compose_from_plan_detailed(plan: CommunicationPlan, context=None) -> Tuple[str, Provenance]:
+    """Model provider first (Ollama → Azure/OpenAI); deterministic generator otherwise."""
+    result = _try_llm_generation(plan)
+    if result:
+        return _clean_formatting(result.text), Provenance(result.provider, result.model, fallback_used=False, attempts=1)
+    return _compose_deterministic(plan, context), Provenance(DETERMINISTIC, "", fallback_used=True, attempts=0)
 
-    if not api_key and not (azure_endpoint and azure_key):
-        return None, "DETERMINISTIC_GENERATOR"
 
-    try:
-        curated_payload = {
-            "recipient": plan.recipient_name,
-            "recipient_type": plan.recipient_type,
-            "purpose": plan.purpose,
-            "situation_summary": plan.situation_summary,
-            "selected_facts": [f"{f.key}={f.value}" for f in plan.selected_facts],
-            "time_references": plan.time_references,
-            "requested_action": plan.requested_action,
-            "tone": plan.tone,
-            "user_message": plan.user_message,
-            "my_message": plan.my_message,
-        }
-        prompt_user = f"Communication Plan:\n{json.dumps(curated_payload, indent=2)}\n"
+def _try_llm_generation(plan: CommunicationPlan) -> Optional[ProviderResult]:
+    """Asks the provider boundary for a message built from the curated plan."""
+    curated_payload = {
+        "recipient": plan.recipient_name,
+        "recipient_type": plan.recipient_type,
+        "purpose": plan.purpose,
+        "situation_summary": plan.situation_summary,
+        "selected_facts": [f"{f.key}={f.value}" for f in plan.selected_facts],
+        "time_references": plan.time_references,
+        "requested_action": plan.requested_action,
+        "tone": plan.tone,
+        "user_message": plan.user_message,
+        "my_message": plan.my_message,
+    }
+    prompt_user = f"Communication Plan:\n{json.dumps(curated_payload, indent=2)}\n"
+    return providers.generate_text(SYSTEM_PROMPT, prompt_user, temperature=0.2, max_tokens=400)
 
-        import urllib.request
-        if azure_endpoint and azure_key:
-            deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-            api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
-            url = f"{azure_endpoint.rstrip('/')}/openai/deployments/{deployment}/chat/completions?api-version={api_version}"
-            headers = {"Content-Type": "application/json", "api-key": azure_key}
-            mode = "LLM_AZURE"
-        else:
-            url = "https://api.openai.com/v1/chat/completions"
-            headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
-            mode = "LLM_OPENAI"
-
-        body = {
-            "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt_user},
-            ],
-            "temperature": 0.2,
-            "max_tokens": 400,
-        }
-        req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            content = data["choices"][0]["message"]["content"].strip()
-            if content:
-                return _clean_formatting(content), mode
-    except Exception:
-        return None, "DETERMINISTIC_GENERATOR"
-    return None, "DETERMINISTIC_GENERATOR"
 
 
 def _compose_deterministic(plan: CommunicationPlan, context=None) -> str:
@@ -452,31 +421,78 @@ def sanitize_morning_greeting(text: str) -> str:
     t = re.sub(r"^\s*(generated message|greeting)\s*:\s*", "", t, flags=re.I)
     t = re.sub(r"\*\*(.+?)\*\*", r"*\1*", t)
     t = re.sub(r"__(.+?)__", r"_\1_", t)
+    t = t.strip()
+    # Models often wrap the whole reply in quotes.
+    while len(t) > 1 and t[0] in "\"'“‘" and t[-1] in "\"'”’":
+        t = t[1:-1].strip()
     return _clean_formatting(t)
 
 
-def morning_greeting_issues(text: str, recent: list) -> list:
+_DAY_NAMES = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def _opening(text: str) -> str:
+    """First sentence or line, normalised — the part a repeated greeting shares."""
+    head = re.split(r"(?<=[.!?])\s|\n", str(text or "").strip(), maxsplit=1)[0]
+    return re.sub(r"[^a-z' ]+", "", head.lower()).strip()
+
+
+def _words(text: str) -> set:
+    return set(re.findall(r"[a-z']+", str(text or "").lower()))
+
+
+def morning_greeting_issues(text: str, recent: list, weekday: str = "") -> list:
+    """Policy check for a morning greeting from any source (model or bank)."""
     issues = []
     low = text.lower()
     if not text.strip():
         issues.append("empty greeting")
     if "```" in text:
         issues.append("contains a code fence")
+    if re.search(r"^\s*(generated message|message|greeting|morning note)\s*:", text, re.I | re.M):
+        issues.append("contains a label")
+    if len(text) < 30:
+        issues.append(f"too short ({len(text)} characters)")
     if len(text) > 260:
         issues.append(f"too long ({len(text)} characters)")
-    if low.startswith("good morning team"):
+    if "**" in text or "__" in text:
+        issues.append("uses markdown doubles instead of Viber markers")
+    if re.sub(r"[^a-z]+", " ", low).split()[:3] == ["good", "morning", "team"]:
         issues.append("stock opening")
+    if re.search(r"~[^~\n]+~\s*[.!]?\s*$", text.strip()):
+        # ~strike~ renders as crossed-out text; as a sign-off it reads as a retraction.
+        issues.append("strikethrough used as a closing")
     for phrase in MORNING_BANNED_PHRASES:
         if phrase in low:
             issues.append(f"banned phrase: {phrase}")
     if re.search(r"[\U0001F300-\U0001FAFF☀-➿]", text):
         issues.append("contains emoji")
-    first = text.split("\n", 1)[0].strip().lower()
+    day = str(weekday or "").lower()
+    if day in _DAY_NAMES[:5]:
+        # Personality anchor: only today, or the next working day, may be named;
+        # Saturday/Sunday may only appear on a Friday ("weekend" chat).
+        idx = _DAY_NAMES.index(day)
+        allowed = {day, "monday" if day == "friday" else _DAY_NAMES[idx + 1]}
+        if day == "friday":
+            allowed |= {"saturday", "sunday"}
+        wrong = [d for d in _DAY_NAMES if re.search(rf"\b{d}\b", low) and d not in allowed]
+        if wrong:
+            issues.append(f"names the wrong day for {day.title()}: {', '.join(wrong)}")
+        if day != "friday" and "weekend" in low and day != "monday":
+            issues.append(f"weekend talk does not fit {day.title()}")
+    first = _opening(text)
+    mine = _words(text)
     for r in recent or []:
-        if first and str(r).split("\n", 1)[0].strip().lower() == first:
+        prev = str(r)
+        if first and _opening(prev) == first:
             issues.append("repeats a recent opening")
             break
+        theirs = _words(prev)
+        if mine and theirs and len(mine & theirs) / len(mine | theirs) > 0.6:
+            issues.append("substantially identical to a recent greeting")
+            break
     return issues
+
 
 
 def _pick_unused(options: list, recent: list, seed: int) -> str:
@@ -502,52 +518,35 @@ def _compose_morning_deterministic(weekday: str, recent: list, variation: int) -
     return f"{opening}\n\n{thought} {closing}"
 
 
-def compose_morning_greeting(weekday: str, recent: list, variation: int = 0) -> Tuple[str, str]:
-    """(greeting, generation_mode). LLM first when configured; deterministic otherwise."""
+def morning_prompt_user(weekday: str, recent: list, variation: int, corrections: Optional[list] = None) -> str:
+    """User/context prompt: the weekday, recent greetings to avoid, and any correction."""
+    payload = {"weekday": weekday, "recent_greetings_to_avoid": list(recent), "variation": variation}
+    text = json.dumps(payload, indent=2)
+    if corrections:
+        text += ("\n\nYour previous attempt was rejected for: " + "; ".join(corrections)
+                 + ". Write a new greeting that fixes every point. Output only the greeting.")
+    return text
+
+
+def compose_morning_greeting(weekday: str, recent: list, variation: int = 0) -> Tuple[str, Provenance]:
+    """Model provider first, validated; one corrective retry; deterministic bank last."""
     weekday = str(weekday or "").upper()
     if weekday not in MORNING_WEEKDAYS:
-        return "", "SUPPRESSED_WEEKEND"
+        return "", Provenance(DETERMINISTIC, "", fallback_used=False, attempts=0)
     recent = [str(r) for r in (recent or []) if str(r).strip()][:10]
-    llm_text, mode = _try_llm_morning(weekday, recent, variation)
-    if llm_text:
-        clean = sanitize_morning_greeting(llm_text)
-        if not morning_greeting_issues(clean, recent):
-            return clean, mode
-    return _compose_morning_deterministic(weekday, recent, variation), "DETERMINISTIC_GENERATOR"
-
-
-def _try_llm_morning(weekday: str, recent: list, variation: int) -> Tuple[Optional[str], str]:
-    api_key = os.getenv("OPENAI_API_KEY")
-    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-    azure_key = os.getenv("AZURE_OPENAI_KEY") or os.getenv("AZURE_OPENAI_API_KEY")
-    if not api_key and not (azure_endpoint and azure_key):
-        return None, "DETERMINISTIC_GENERATOR"
-    try:
-        import urllib.request
-        user = json.dumps({"weekday": weekday, "recent_greetings": recent, "variation": variation}, indent=2)
-        if azure_endpoint and azure_key:
-            deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-            api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
-            url = f"{azure_endpoint.rstrip('/')}/openai/deployments/{deployment}/chat/completions?api-version={api_version}"
-            headers = {"Content-Type": "application/json", "api-key": azure_key}
-            mode = "LLM_AZURE"
-        else:
-            url = "https://api.openai.com/v1/chat/completions"
-            headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
-            mode = "LLM_OPENAI"
-        body = {
-            "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-            "messages": [
-                {"role": "system", "content": MORNING_GREETING_PROMPT},
-                {"role": "user", "content": user},
-            ],
-            "temperature": 0.9,
-            "max_tokens": 160,
-        }
-        req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            content = data["choices"][0]["message"]["content"].strip()
-            return (content or None), mode
-    except Exception:
-        return None, "DETERMINISTIC_GENERATOR"
+    corrections: Optional[list] = None
+    attempts = 0
+    for _ in range(2):  # first attempt + exactly one corrective retry
+        result = providers.generate_text(
+            MORNING_GREETING_PROMPT, morning_prompt_user(weekday, recent, variation, corrections),
+            temperature=0.9, max_tokens=160,
+        )
+        if not result:
+            break  # no model available at all — no point retrying
+        attempts += 1
+        clean = sanitize_morning_greeting(result.text)
+        corrections = morning_greeting_issues(clean, recent, weekday)
+        if not corrections:
+            return clean, Provenance(result.provider, result.model, fallback_used=False, attempts=attempts)
+    return (_compose_morning_deterministic(weekday, recent, variation),
+            Provenance(DETERMINISTIC, "", fallback_used=True, attempts=attempts))
