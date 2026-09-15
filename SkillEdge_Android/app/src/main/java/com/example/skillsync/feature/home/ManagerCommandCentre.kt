@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -28,6 +29,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -98,11 +101,8 @@ fun ManagerCommandCentre(
 ) {
     val sk = MaterialTheme.skill
     val name = profile?.get("name")?.toString()?.ifBlank { null } ?: email.substringBefore("@")
-    val initials = name.trim().split(" ").filter { it.isNotBlank() }
-        .take(2).joinToString("") { it.first().uppercase() }.ifBlank { "?" }
     val todayLabel = SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()).format(Date())
 
-    val unreadCount = kpis?.intOrNull("unread_notifications") ?: recentNotifications.size
     val readiness = kpis?.intOrNull("team_readiness_score")
     val readinessTrend = kpis?.str("readiness_trend")?.takeIf { it.isNotBlank() }
     val utilisation = kpis?.intOrNull("avg_team_utilization")
@@ -147,6 +147,7 @@ fun ManagerCommandCentre(
                 TopPerformer(
                     t.str("trainer_name").ifBlank { return@mapNotNull null },
                     util, t.str("readiness_bucket"), t.str("trainer_email"),
+                    t.str("photo_url").takeIf { it.isNotBlank() },
                 )
             }
             .sortedByDescending { it.utilization }
@@ -159,16 +160,16 @@ fun ManagerCommandCentre(
     ) {
         CommandHeader(
             name = name,
-            initials = initials,
+            photoUrl = profile?.str("photo_url")?.takeIf { it.isNotBlank() },
             dateLabel = todayLabel,
-            unreadCount = unreadCount,
             onOpenProfile = onOpenProfile,
-            onOpenNotifications = onOpenNotifications,
         )
 
         SkillSyncListItem(
             title = "Your schedule",
             subtitle = "Your own deliveries and off-bands, same as any trainer's",
+            leadingIcon = R.drawable.ic_calendar,
+            leadingTint = sk.sky,
             onClick = onOpenMySchedule,
         )
 
@@ -257,32 +258,18 @@ fun ManagerCommandCentre(
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                         attentionItems.forEach { item ->
-                            Box(
-                                Modifier.fillMaxWidth()
-                                    .accentGlass(item.severity.tint(), strong = item.severity == Severity.Critical)
-                                    .pressable(onOpenDemand),
-                            ) {
-                                ActionRow(
-                                    title = item.title,
-                                    modifier = Modifier.padding(horizontal = Space.md),
-                                    supportingText = item.subtitle,
-                                    tint = item.severity.tint(),
-                                    primaryActionLabel = if (item.demandId.isNotBlank()) {
-                                        if (item.recipientType == "INDIVIDUAL" && item.recipientName.isNotBlank()) {
-                                            "Ask ${item.recipientName.substringBefore(" ")}"
-                                        } else "Ask availability"
-                                    } else null,
-                                    onPrimaryAction = if (item.demandId.isNotBlank()) {
-                                        {
-                                            onOpenCommunication(
-                                                item.recipientType, item.recipientName, "AVAILABILITY_REQUEST",
-                                                "demand", item.demandId,
-                                            )
-                                        }
-                                    } else null,
-                                    secondaryContent = { ToneChip(text = item.severity.label, tint = item.severity.tint()) },
-                                )
-                            }
+                            AttentionCard(
+                                item = item,
+                                onOpenDemand = onOpenDemand,
+                                onAskAvailability = if (item.demandId.isNotBlank()) {
+                                    {
+                                        onOpenCommunication(
+                                            item.recipientType, item.recipientName, "AVAILABILITY_REQUEST",
+                                            "demand", item.demandId,
+                                        )
+                                    }
+                                } else null,
+                            )
                         }
                     }
                 }
@@ -384,11 +371,23 @@ fun ManagerCommandCentre(
                     MiniStat("Upcoming", upcomingBatches.size.toString(), sk.sky)
                 }
                 if (unallocatedDemand.isNotEmpty()) {
-                    SkillSyncPrimaryButton(
-                        text = "Allocate ${unallocatedDemand.size} open batch${if (unallocatedDemand.size == 1) "" else "es"}",
-                        onClick = onOpenDemand,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(Radii.chip))
+                            .background(sk.brand.copy(alpha = 0.14f))
+                            .border(1.dp, sk.brand.copy(alpha = 0.30f), RoundedCornerShape(Radii.chip))
+                            .pressable(onOpenDemand)
+                            .padding(horizontal = Space.md, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(painterResource(R.drawable.ic_flag), contentDescription = null, tint = sk.brand, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(Space.sm))
+                        Text("Allocate", style = MaterialTheme.typography.labelLarge, color = sk.brand, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        ToneChip(text = unallocatedDemand.size.toString(), tint = sk.brand)
+                        Spacer(Modifier.width(Space.sm))
+                        Icon(painterResource(R.drawable.ic_chevron), contentDescription = null, tint = sk.brand, modifier = Modifier.size(16.dp))
+                    }
                 }
             }
         }
@@ -499,12 +498,21 @@ fun ManagerCommandCentre(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = sk.subText, modifier = Modifier.width(16.dp))
-                            Avatar(name = p.name, photoUrl = null, size = 32.dp)
+                            Avatar(name = p.name, photoUrl = p.photoUrl, size = 36.dp)
                             Spacer(Modifier.width(Space.sm))
                             Column(Modifier.weight(1f)) {
                                 Text(p.name, style = MaterialTheme.typography.titleSmall, color = sk.frost)
-                                if (p.readinessBucket.isNotBlank()) Text(p.readinessBucket, style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                                if (p.readinessBucket.isNotBlank()) {
+                                    Text(p.readinessBucket, style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                MetricProgress(
+                                    fraction = p.utilization / 100f,
+                                    tint = sk.cyan,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
                             }
+                            Spacer(Modifier.width(Space.sm))
                             Text("${p.utilization}%", style = MaterialTheme.typography.titleMedium, color = sk.cyan, fontWeight = FontWeight.Bold)
                         }
                         if (i < topPerformers.lastIndex) HorizontalDivider(color = sk.cardBorder, thickness = 1.dp)
@@ -559,58 +567,23 @@ fun ManagerCommandCentre(
 @Composable
 private fun CommandHeader(
     name: String,
-    initials: String,
+    photoUrl: String?,
     dateLabel: String,
-    unreadCount: Int,
     onOpenProfile: () -> Unit,
-    onOpenNotifications: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
+    // Identity only — real photo when available, circular initials otherwise.
+    // The notification affordance lives once, in MainScreen's own top bar; a
+    // second bell here would be a duplicate control for the same action.
     Row(
-        Modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth().pressable(onOpenProfile),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(Radii.icon))
-                .background(Brush.linearGradient(listOf(sk.navy, sk.brand)))
-                .pressable(onOpenProfile),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(initials, style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.Bold)
-        }
+        Avatar(name = name, photoUrl = photoUrl, size = 48.dp)
         Spacer(Modifier.width(Space.md))
         Column(Modifier.weight(1f)) {
             Text(name, style = MaterialTheme.typography.titleMedium, color = sk.frost, fontWeight = FontWeight.SemiBold)
             Text(dateLabel, style = MaterialTheme.typography.labelSmall, color = sk.labelText)
-        }
-        Box(
-            Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(Radii.chip))
-                .background(sk.surface2)
-                .pressable(onOpenNotifications),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(R.drawable.ic_alert), contentDescription = "Notifications", tint = sk.frost, modifier = Modifier.size(18.dp))
-            if (unreadCount > 0) {
-                Box(
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = 4.dp, y = (-4).dp)
-                        .size(16.dp)
-                        .clip(CircleShape)
-                        .background(sk.crit),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        if (unreadCount > 9) "9+" else unreadCount.toString(),
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                        color = Color.White,
-                    )
-                }
-            }
         }
     }
 }
@@ -631,14 +604,86 @@ private fun PulseTile(
 ) {
     val sk = MaterialTheme.skill
     val icTint = iconTint ?: tint ?: sk.sky
-    SkillCard(modifier = modifier.pressable(onClick), padding = Space.md) {
-        IconSlot(tint = icTint, size = 26.dp) {
-            Icon(painterResource(icon), contentDescription = null, tint = icTint, modifier = Modifier.size(14.dp))
+    // Horizontal layout — icon beside the figure, not stacked above it — is
+    // what cuts a Pulse tile's height without dropping any of its content.
+    Row(
+        modifier
+            .pressable(onClick)
+            .glassSurface()
+            .padding(horizontal = Space.md, vertical = Space.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconSlot(tint = icTint, size = 32.dp) {
+            Icon(painterResource(icon), contentDescription = null, tint = icTint, modifier = Modifier.size(16.dp))
         }
-        Text(value, style = MaterialTheme.typography.headlineSmall, color = tint ?: sk.frost, fontWeight = FontWeight.Bold)
-        Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.labelText)
-        if (delta != null) {
-            Text(delta, style = MaterialTheme.typography.labelSmall, color = deltaTone(delta, sk) ?: sk.subText)
+        Spacer(Modifier.width(Space.sm))
+        Column {
+            Text(value, style = MaterialTheme.typography.titleLarge, color = tint ?: sk.frost, fontWeight = FontWeight.Bold)
+            Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+            if (delta != null) {
+                Text(delta, style = MaterialTheme.typography.labelSmall, color = deltaTone(delta, sk) ?: sk.subText)
+            }
+        }
+    }
+}
+
+/**
+ * A compact executive priority row for "Needs you today": a severity rail,
+ * the course/meta, and an icon-only action row directly below — not a large
+ * blue "Ask availability" text button or a large red "Critical" pill.
+ * Recipient resolution/behavior is untouched; this only changes presentation.
+ */
+@Composable
+private fun AttentionCard(
+    item: AttentionItem,
+    onOpenDemand: () -> Unit,
+    onAskAvailability: (() -> Unit)?,
+) {
+    val sk = MaterialTheme.skill
+    val tint = item.severity.tint()
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .accentGlass(tint, strong = item.severity == Severity.Critical)
+            .pressable(onOpenDemand)
+            .padding(horizontal = Space.md, vertical = Space.sm),
+    ) {
+        Box(Modifier.padding(top = 5.dp).size(8.dp).clip(CircleShape).background(tint))
+        Spacer(Modifier.width(Space.sm))
+        Column(Modifier.weight(1f)) {
+            Text(item.title, style = MaterialTheme.typography.titleSmall, color = sk.frost, maxLines = 2)
+            Text(item.subtitle, style = MaterialTheme.typography.bodySmall, color = sk.subText, maxLines = 1)
+            Spacer(Modifier.height(Space.xs))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (onAskAvailability != null) {
+                    val askLabel = if (item.recipientType == "INDIVIDUAL" && item.recipientName.isNotBlank()) {
+                        "Ask ${item.recipientName.substringBefore(" ")} availability"
+                    } else {
+                        "Ask trainer availability"
+                    }
+                    IconButton(
+                        onClick = onAskAvailability,
+                        modifier = Modifier.size(40.dp).semantics { contentDescription = askLabel },
+                    ) {
+                        IconSlot(tint = sk.sky, size = 28.dp) {
+                            Icon(painterResource(R.drawable.ic_calendar), contentDescription = null, tint = sk.sky, modifier = Modifier.size(14.dp))
+                        }
+                    }
+                    Spacer(Modifier.width(Space.xs))
+                }
+                if (item.severity == Severity.Critical) {
+                    IconSlot(tint = sk.crit, size = 28.dp) {
+                        Icon(
+                            painterResource(R.drawable.ic_alert),
+                            contentDescription = "Critical",
+                            tint = sk.crit,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                } else {
+                    ToneChip(text = item.severity.label, tint = tint)
+                }
+            }
         }
     }
 }
@@ -654,12 +699,24 @@ private fun MiniStat(label: String, value: String, tint: Color) {
 @Composable
 private fun OperationTile(title: String, subtitle: String, icon: Int, tint: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val sk = MaterialTheme.skill
-    SkillCard(modifier = modifier.pressable(onClick), padding = Space.md) {
-        IconSlot(tint = tint, size = 26.dp) {
-            Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+    // Compact horizontal action row (icon + title/subtitle) instead of a
+    // vertically-stacked square tile — cuts an operation tile's height from a
+    // near-square card down to ~72dp.
+    Row(
+        modifier
+            .pressable(onClick)
+            .glassSurface()
+            .padding(horizontal = Space.md, vertical = Space.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconSlot(tint = tint, size = 30.dp) {
+            Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
         }
-        Text(title, style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.SemiBold, maxLines = 1)
-        Text(subtitle, style = MaterialTheme.typography.labelSmall, color = sk.subText, maxLines = 1)
+        Spacer(Modifier.width(Space.sm))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = sk.subText, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
     }
 }
 
@@ -729,6 +786,8 @@ private data class TopPerformer(
     val readinessBucket: String,
     /** Real capability-row email — powers the Trainer360 drill-down. Never the manager's own email. */
     val trainerEmail: String,
+    /** Real RMS profile photo URL when the capability row carries one; null falls back to circular initials. */
+    val photoUrl: String? = null,
 )
 
 @Composable

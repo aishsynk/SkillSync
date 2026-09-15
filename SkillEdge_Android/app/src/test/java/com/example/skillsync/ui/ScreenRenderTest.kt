@@ -12,6 +12,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.performScrollToNode
 import com.example.skillsync.navigation.HomeTab
 import com.example.skillsync.theme.SkillSyncTheme
@@ -350,7 +351,7 @@ class ScreenRenderTest {
             }
         }
         compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("INTERNATIONAL"))
-        compose.onNodeWithText("Allocate 1 open batch").performClick()
+        compose.onAllNodesWithText("Allocate").onFirst().performClick()
         assertTrue("Demand CTA must route into the pipeline", openedDemand)
     }
 
@@ -579,8 +580,8 @@ class ScreenRenderTest {
                 )
             }
         }
-        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Ask availability"))
-        compose.onNodeWithText("Ask availability").performClick()
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasContentDescription("Ask trainer availability"))
+        compose.onNodeWithContentDescription("Ask trainer availability").performClick()
         // demand_id "264455" is the real fixture id from unallocated_demand_df — never invented.
         org.junit.Assert.assertEquals(
             listOf("TEAM", "", "AVAILABILITY_REQUEST", "demand", "264455"), captured,
@@ -620,8 +621,8 @@ class ScreenRenderTest {
                 )
             }
         }
-        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("Ask Niharika"))
-        compose.onNodeWithText("Ask Niharika").performClick()
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasContentDescription("Ask Niharika availability"))
+        compose.onNodeWithContentDescription("Ask Niharika availability").performClick()
         org.junit.Assert.assertEquals(
             listOf("INDIVIDUAL", "Niharika N", "AVAILABILITY_REQUEST", "demand", "264455"), captured,
         )

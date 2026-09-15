@@ -1050,3 +1050,105 @@ full regression gates) and approved publishing. Version bumped to
 `versionCode 186` / `versionName 3.80.11` (continuing the same `3.80.x`
 patch train), merged `recovery-skillsync-identity` into `main`, tagged
 `v3.80.11.186`, and pushed.
+
+## 9. Today / Manager Brief — UI/UX recovery pass (2026-09-15, branch `today-manager-brief-uiux-recovery`)
+
+**Scope:** visual-only redesign of the Today screen per the operator's SeanTheme/
+Color Admin-referenced spec. No backend contracts, Communication Intelligence
+logic, or SkillSync/SkillEdge branding changed.
+
+**Files touched (exactly 4):** `feature/home/MainScreen.kt`,
+`feature/home/ManagerCommandCentre.kt`, and their two test files
+(`test/.../ScreenRenderTest.kt`, `androidTest/.../PilotScreenshotInstrumentedTest.kt`).
+
+**Changes:**
+- **Header (MainScreen's `TopAppBar`):** removed the gradient/bordered box
+  ("dynamic island") behind the logo — `SkillSyncLogo` now sits directly on
+  the transparent app bar. Right side reduced from three bordered/backed
+  34dp squares to three plain 44dp `IconButton`s: analytics/refresh, bell
+  with a real unread-count badge (was a undifferentiated dot), and a
+  circular `Avatar` (real `profile.photo_url` when present, circular
+  initials fallback) replacing the square initial+status-dot control.
+- **Manager row (`CommandHeader`):** replaced the 44dp gradient-square
+  initials box with a circular `Avatar` (same real-photo/initials pattern);
+  removed its own notification bell+badge entirely — that control now lives
+  once, in the top bar, per the "no duplicate warning icon" instruction.
+- **Your schedule:** added a calendar leading icon to the existing
+  `SkillSyncListItem` row (already compact at 56dp).
+- **Needs You Today:** replaced the single-line `ActionRow` (large blue
+  "Ask availability" text button + large red "Critical" text pill) with a
+  new `AttentionCard`: title/meta on their own line, an icon-only action row
+  below (calendar-availability icon with a real `contentDescription` —
+  "Ask trainer availability" / "Ask <Name> availability" — and a red alert
+  icon for Critical, replacing the pill). `CommunicationPlanner` recipient
+  resolution is byte-for-byte unchanged; only the two controls that trigger
+  it changed shape.
+- **Pulse:** `PulseTile` rebuilt from a vertical `SkillCard` stack (icon
+  above a headline-size value) to a horizontal row (icon beside a
+  title-size value) — cuts each tile's height without dropping strength/
+  utilisation/cert-coverage/at-risk or their deltas.
+- **Demand:** replaced the full-width `SkillSyncPrimaryButton`
+  ("Allocate N open batches") with a ~44dp compact row: flag icon, "Allocate"
+  label, a `ToneChip` count badge, chevron.
+- **Top performers:** `TopPerformer` gained a real `photo_url` field (from
+  `capability.trainers[].photo_url`, already returned by
+  `_capability_for()` in `backend.py` — no backend change needed) fed into
+  `Avatar`; added a `MetricProgress` utilisation bar under each name so the
+  row uses its full width instead of leaving the right two-thirds empty.
+- **Operations:** `OperationTile` rebuilt from a near-square vertical
+  `SkillCard` to a compact horizontal row (icon + title/subtitle), matching
+  the "68–84dp" target; domain colour families (Planning=royal, Delivery=
+  cyan, People=sky, Automation=violet) unchanged.
+- Communicate, Delivery outlook (timeline), Certification coverage, and the
+  readiness hero were left materially as-is — already matched the spec's
+  target patterns (equal-weight coloured actions, connector-line timeline,
+  compact progress row, flagship hero) per direct code inspection.
+
+**Tests updated (presentation-only, same underlying assertions):**
+`ScreenRenderTest.kt` — `today_unallocatedDemandOffersAskAvailabilityWithRealDemandId`
+and `today_unallocatedDemandWithAMatchedCandidate_addressesThatPersonByName`
+now match on the icon's `contentDescription` instead of button text (same
+captured `(recipientType, recipientName, purpose, relatedType, relatedId)`
+tuple asserted, unchanged); `dashboard_demandSummaryOffersASingleRouteIntoThePipeline`
+clicks the new "Allocate" text node instead of the old full sentence.
+`dashboard_attentionCardsCarryTheirRecommendedAction` (a documented
+pre-existing failure) now passes as a side effect — its assertion
+(`onAllNodesWithText("Allocate")`) happens to match the new button's exact
+label.
+
+**Verification:** `compileDebugKotlin`/`compileReleaseKotlin` clean.
+Android unit suite: 244 run, **10 failed (down from the 11 documented
+baseline)**, 0 new failures — the same 6 `ScreenRenderTest` + 4
+`PilotScreenshotTest` pre-existing failures, minus the one that now passes.
+`lintDebug`: 6 errors / 79 warnings / 3 hints, identical to baseline, delta
+0 (all six pre-existing errors are in the Pilot screenshot test harness,
+unrelated). `assembleDebug`/`assembleRelease`: both succeed.
+
+**Real-emulator screenshots** (real Android 15 AVD, `PilotScreenshotInstrumentedTest`
+— Robolectric `captureToImage()` not used) via the new
+`today_uiux_recovery_screenshot` test, saved by the Test Orchestrator:
+`01_header_identity`, `02_readiness_needs`, `03_pulse`,
+`04_demand_communicate`, `05_delivery_certification`, `06_top_performers`,
+`07_operations` (+ `07b_operations_tiles` for the tile grid itself). These
+cover the `DashboardTab`-rendered content (identity row through Operations).
+The `MainScreen` `TopAppBar` chrome change (island removal, 3 plain icons,
+circular avatar) was verified by compilation and code review plus reuse of
+the same `Avatar` composable already proven live in these screenshots, but
+**not captured on a live, authenticated MainScreen** — this environment has
+no real RMS test credentials, the same limitation noted in the prior
+production-contamination recovery's validation gate.
+
+**Not done, per explicit instruction:** no version bump, no merge to `main`,
+no push, no tag/release. Awaiting operator visual review of the branch
+`today-manager-brief-uiux-recovery`.
+
+## 9b. Today / Manager Brief UI/UX recovery — approved and published (2026-09-15)
+
+Operator reviewed the real-emulator screenshots for the redesigned Today
+screen (header, Needs You Today, Pulse, Demand/Communicate, Delivery/
+Certification, Top Performers, Operations) and approved publishing. Version
+bumped to `versionCode 187` / `versionName 3.80.12` (continuing the same
+`3.80.x` patch train), merged `today-manager-brief-uiux-recovery` into
+`main`, tagged `v3.80.12.187`, and pushed. Signing certificate reconfirmed
+identical to the known-good chain (SHA-256 `c6868b14...a1808`); package
+`com.example.skillsync` unchanged.
