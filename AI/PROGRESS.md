@@ -2181,5 +2181,17 @@ the open-violations list.
 `CourseCurriculumSheet`, `MainScreen`, `MainScreenViewModel`,
 `Version2Workspaces` (status TBD), `CopilotViewModel`.
 
-CI verification for this increment is pending — will record the run URL and
-exact test-failure comparison here once green.
+**Verified, commit `2243db5`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34962799407:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** |
+| `testDebugUnitTest` | 241 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+
+Count unchanged at 241 (no new tests this increment, per rationale above).
+Same exact 10 baseline failures by identity.
