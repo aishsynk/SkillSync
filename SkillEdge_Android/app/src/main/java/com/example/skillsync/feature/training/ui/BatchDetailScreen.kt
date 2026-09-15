@@ -106,6 +106,7 @@ fun BatchDetailScreen(
     // it can change without an app release. Fetched lazily per recipient; the
     // local BatchShare builder is the offline fallback only.
     val scope = rememberCoroutineScope()
+    val batchRepository = remember { com.example.skillsync.core.data.BatchRepository() }
     val serverMsg = remember { mutableStateMapOf<String, Pair<String, String>>() }
     fun recipientKey(target: Pair<String, String>?) = target?.first ?: "Team"
     fun ensureServerMessage(target: Pair<String, String>?) {
@@ -114,8 +115,7 @@ fun BatchDetailScreen(
         if (demandId.isBlank() || serverMsg.containsKey(key)) return
         scope.launch {
             try {
-                val r = com.example.skillsync.core.network.RetrofitClient.instance
-                    .getBatchMessage(demandId, if (key == "Team") null else key)
+                val r = batchRepository.batchMessage(demandId, if (key == "Team") null else key)
                 val plain = (r["plain"] as? String).orEmpty()
                 val html = (r["html"] as? String).orEmpty()
                 if (plain.isNotBlank()) serverMsg[key] = plain to html

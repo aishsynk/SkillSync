@@ -1591,3 +1591,74 @@ Batch (`AllocationViewModel`+`BatchDetailScreen`+`EligibilitySheet`+
 `NetworkStaffingSheet`), Today/dashboard (`MainScreen`+`MainScreenViewModel`).
 `SkillEdgeApi.kt`'s 83-method split remains explicitly deferred until
 callers are isolated, per instruction.
+
+## 16. Phase 3 increment 2 — Batch domain, `BatchDetailScreen` migrated
+
+Investigated the remaining 13 direct-API violations for actual domain
+ownership before touching any code, per instruction ("What business
+capability does this call belong to? Who should own this data?"):
+
+- `BatchDetailScreen.kt` — one call, `getBatchMessage` (`GET
+  api/data/batch-message`), the server-composed allocation broadcast text.
+  Classified as **Batch/delivery** domain (the server-side twin of
+  `BatchShare`'s local STRUCTURED OPERATIONAL SHARE composition from the
+  Phase 2 classification), not general Communication domain.
+- `EligibilitySheet.kt` — `getBatchEligibility` (`api/v2/eligibility/batch`).
+  Classified as its own cross-domain, backend-authoritative **Eligibility**
+  capability — not bundled into Batch or Trainer. Not migrated this
+  increment.
+- `NetworkStaffingSheet.kt` — `getNetworkTrainers`. **Trainer/staffing**
+  domain. Not migrated this increment.
+- `TrainerPracticeScreen.kt` — `trainerFeedbackLog`, `trainerRecordings`.
+  **Trainer** domain. Not migrated this increment.
+- `AllocationViewModel.kt` — four calls spanning **three different
+  domains**, not one: `getAllocationCandidates`/`getAlternativeTrainers`
+  (Trainer), `getDemandContext` (Batch/demand), `bulkAssignSkill` (a
+  WRITE/mutation, likely Capability or Trainer-skill-write). Splitting this
+  file across repositories by endpoint domain is its own future increment,
+  not bundled here.
+
+**Migrated this increment:** `BatchDetailScreen.kt`'s `getBatchMessage` call
+→ new `core/data/BatchRepository.kt`, following the `AuthRepository`/
+`ScheduleRepository` convention (`apiProvider` constructor default, `open
+suspend fun`). `BatchDetailScreen` has no ViewModel (a large, stateless,
+parameter-driven Composable) — introducing one solely to hold a repository
+reference would be a larger restructuring than this increment's scope (no
+real orchestration exists here to justify a UseCase layer either), so this
+is documented as a specific, scoped exception: the Composable calls
+`BatchRepository` directly via `remember { BatchRepository() }`. This still
+removes the direct `RetrofitClient.instance` transport violation. Confirmed
+by re-grep: zero `RetrofitClient` references remain in
+`BatchDetailScreen.kt`.
+
+Also added, per the standing instruction, the `SessionManager.saveSession()`
+regression test that was accepted as pending after the Phase 3 increment 1
+fix: `SessionManagerTest.kt` confirms `saveSession()` no longer throws
+`UninitializedPropertyAccessException` when called before `init(context)`
+and still updates `loginState`.
+
+A dedicated `BatchRepository` unit test was not added — this codebase's
+existing convention fakes at the Repository level (subclassing an `open
+class Repository`, as `LoginViewModelTest`'s `FakeRepository` does), not by
+faking the 83-method `SkillEdgeApi` interface directly, and
+`BatchDetailScreen` has no ViewModel to provide that seam. Documented as a
+fast-follow in `docs/phase3-api-caller-inventory.md` rather than silently
+skipped.
+
+`docs/phase3-api-caller-inventory.md` updated with a living architecture map
+(OLD PATH/NEW PATH/DOMAIN OWNER/REPOSITORY/VIEWMODEL-USE CASE/API
+ENDPOINT/CACHE-PERSISTENCE/TEST COVERAGE/CI COMMIT) covering both Phase 3
+increments so far, per instruction.
+
+**Remaining for subsequent increments:** `ActionsViewModel`,
+`CourseCurriculumSheet`, `GrowTeamCard`, `MainScreen`, `MainScreenViewModel`,
+`Version2Workspaces` (status TBD), `AllocationViewModel` (3 domains),
+`CopilotViewModel`, `EligibilitySheet`, `NetworkStaffingSheet`,
+`Trainer360ViewModel`, `TrainerPracticeScreen`. Next planned: Eligibility
+(`EligibilitySheet.kt` → new `EligibilityRepository`), then Trainer/Staffing
+(`NetworkStaffingSheet.kt` + `TrainerPracticeScreen.kt` +
+`AllocationViewModel`'s trainer-domain calls).
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green, per the same verification
+discipline as increment 1.
