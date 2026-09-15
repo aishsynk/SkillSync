@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.data.TrainerRepository
 import com.example.skillsync.core.ui.pressable
 import com.example.skillsync.core.ui.rows
 import com.example.skillsync.core.ui.str
@@ -51,7 +51,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-class TrainerPracticeViewModel : ViewModel() {
+class TrainerPracticeViewModel(
+    private val repository: TrainerRepository = TrainerRepository(),
+) : ViewModel() {
     private val _feedback = MutableStateFlow<List<Map<*, *>>>(emptyList())
     val feedback: StateFlow<List<Map<*, *>>> = _feedback
     private val _recordings = MutableStateFlow<List<Map<*, *>>>(emptyList())
@@ -63,10 +65,10 @@ class TrainerPracticeViewModel : ViewModel() {
         viewModelScope.launch {
             _loading.value = true
             try {
-                _feedback.value = RetrofitClient.instance.trainerFeedbackLog(email).rows("entries")
+                _feedback.value = repository.feedbackLog(email).rows("entries")
             } catch (_: Exception) {}
             try {
-                _recordings.value = RetrofitClient.instance.trainerRecordings(email).rows("recordings")
+                _recordings.value = repository.recordings(email).rows("recordings")
             } catch (_: Exception) {}
             _loading.value = false
         }

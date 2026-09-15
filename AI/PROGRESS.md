@@ -1728,3 +1728,48 @@ https://github.com/aishsynk/SkillSync/actions/runs/34956217724:**
 
 Same 233/10 as the prior increment (no new tests added this pass); same
 exact 10 baseline failures, lint unchanged at 6.
+
+## 18. Phase 3 increment 4 — Trainer domain (practice record, wider network)
+
+Migrated the Trainer-domain cluster identified in increment 3's investigation:
+
+- `TrainerPracticeScreen.kt`'s `TrainerPracticeViewModel` — this one *does*
+  have a real `ViewModel` (unlike Batch/Eligibility), so this is a proper
+  constructor-injection migration like `LoginViewModel`: `class
+  TrainerPracticeViewModel(private val repository: TrainerRepository =
+  TrainerRepository())`. Both `trainerFeedbackLog` and `trainerRecordings`
+  calls moved.
+- `NetworkStaffingSheet.kt` — no ViewModel (stateless Composable, same
+  documented exception as `BatchDetailScreen`/`EligibilitySheet`), calls
+  `TrainerRepository` directly via `remember { TrainerRepository() }`.
+
+New `core/data/TrainerRepository.kt` (`AuthRepository`/`BatchRepository`
+convention) owns all three: `feedbackLog`, `recordings`, `networkTrainers`.
+Bundled into one increment because all three belong to the same domain and
+the same new repository — not a one-file-per-commit rule, a
+domain-coherence one.
+
+New `TrainerPracticeViewModelTest.kt` (1 test, fakes `TrainerRepository`,
+confirms both calls happen and state updates) follows the
+`LoginViewModelTest` pattern — this is the first Trainer-cluster file with
+an actual ViewModel seam to test against.
+
+Confirmed by re-grep: zero `RetrofitClient` references remain in either
+file; brace/paren balance verified on both.
+
+Cleaned up `docs/phase3-api-caller-inventory.md`: removed the stale,
+no-longer-updated "Confirmed violations (still open)" snapshot table (it
+still listed already-migrated files as open) in favor of the living
+architecture map and the "Remaining violations" table, which are now the
+sole source of truth in that doc.
+
+**Remaining for subsequent increments:** `ActionsViewModel`,
+`CourseCurriculumSheet`, `GrowTeamCard`, `MainScreen`, `MainScreenViewModel`,
+`Version2Workspaces` (status TBD), `AllocationViewModel` (3 domains —
+`getAllocationCandidates`/`getAlternativeTrainers` now have a home in
+`TrainerRepository`; `getDemandContext` is Batch/demand; `bulkAssignSkill`
+is a write/mutation needing its own domain decision), `CopilotViewModel`,
+`Trainer360ViewModel` (Trainer domain, likely also `TrainerRepository`).
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.

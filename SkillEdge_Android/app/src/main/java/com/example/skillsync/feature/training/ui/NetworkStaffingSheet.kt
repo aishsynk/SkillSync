@@ -21,7 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
-import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.data.TrainerRepository
 import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.skill
@@ -36,6 +36,7 @@ fun NetworkStaffingSheet(
 ) {
     val sk = MaterialTheme.skill
     val context = LocalContext.current
+    val trainerRepository = remember { TrainerRepository() }
 
     var loading by remember { mutableStateOf(true) }
     var networkData by remember { mutableStateOf<Map<String, Any>?>(null) }
@@ -44,7 +45,7 @@ fun NetworkStaffingSheet(
     LaunchedEffect(courseName) {
         loading = true
         try {
-            val res = RetrofitClient.instance.getNetworkTrainers(course = courseName)
+            val res = trainerRepository.networkTrainers(course = courseName)
             networkData = res
         } catch (_: Exception) {
             networkData = null
