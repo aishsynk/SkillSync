@@ -320,19 +320,9 @@ fun MainScreen(
                 TopAppBar(
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                Modifier.size(36.dp).clip(RoundedCornerShape(12.dp))
-                                    .background(
-                                        Brush.linearGradient(
-                                            listOf(
-                                                MaterialTheme.skill.azure.copy(alpha = 0.35f),
-                                                MaterialTheme.skill.cyan.copy(alpha = 0.35f),
-                                            )
-                                        )
-                                    )
-                                    .border(1.dp, MaterialTheme.skill.sky.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
-                                contentAlignment = Alignment.Center,
-                            ) { SkillSyncLogo(size = 22.dp) }
+                            // Logo sits directly on the page background — no
+                            // gradient/bordered "island" behind it.
+                            SkillSyncLogo(size = 40.dp)
                             Spacer(Modifier.width(12.dp))
                             val showBrief = tab == HomeTab.DASHBOARD && briefCollapsed
                             val briefLine = remember(state) {
@@ -369,79 +359,63 @@ fun MainScreen(
                         }
                     },
                     actions = {
-                        // Quick refresh
-                        IconButton(onClick = {
-                            viewModel.refresh(email, context)
-                            if (tab == HomeTab.DEMAND) allocationViewModel.refresh(email, context)
-                        }) {
-                            Box(
-                                Modifier
-                                    .size(34.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(MaterialTheme.skill.frost.copy(alpha = 0.08f))
-                                    .border(1.dp, MaterialTheme.skill.frost.copy(alpha = 0.16f), RoundedCornerShape(10.dp)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    painterResource(R.drawable.ic_trend),
-                                    contentDescription = "Refresh",
-                                    tint = MaterialTheme.skill.sky,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            }
+                        // Analytics / refresh — plain icon, no boxed background.
+                        IconButton(
+                            onClick = {
+                                viewModel.refresh(email, context)
+                                if (tab == HomeTab.DEMAND) allocationViewModel.refresh(email, context)
+                            },
+                            modifier = Modifier.size(44.dp),
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_trend),
+                                contentDescription = "Analytics refresh",
+                                tint = MaterialTheme.skill.sky,
+                                modifier = Modifier.size(20.dp),
+                            )
                         }
-                        // Notification Center Bell
-                        IconButton(onClick = { showNotificationsSheet = true }) {
-                            Box(
-                                Modifier
-                                    .size(34.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(MaterialTheme.skill.frost.copy(alpha = 0.08f))
-                                    .border(1.dp, MaterialTheme.skill.frost.copy(alpha = 0.16f), RoundedCornerShape(10.dp)),
-                                contentAlignment = Alignment.Center,
-                            ) {
+                        // Notifications — plain icon with a real unread-count badge.
+                        IconButton(
+                            onClick = { showNotificationsSheet = true },
+                            modifier = Modifier.size(44.dp),
+                        ) {
+                            Box {
                                 Icon(
                                     painterResource(R.drawable.ic_alert),
-                                    contentDescription = "Notifications",
+                                    contentDescription = "Notifications, ${notificationEvents.size} unread",
                                     tint = if (notificationEvents.isNotEmpty()) MaterialTheme.skill.sky else MaterialTheme.skill.subText,
-                                    modifier = Modifier.size(16.dp),
+                                    modifier = Modifier.size(20.dp),
                                 )
                                 if (notificationEvents.isNotEmpty()) {
                                     Box(
                                         Modifier
                                             .align(Alignment.TopEnd)
-                                            .padding(3.dp)
-                                            .size(7.dp)
+                                            .offset(x = 5.dp, y = (-3).dp)
+                                            .size(15.dp)
                                             .clip(androidx.compose.foundation.shape.CircleShape)
-                                            .background(MaterialTheme.skill.crit)
-                                    )
-                                }
-                            }
-                        }
-                        IconButton(onClick = { showLogoutConfirm = true }) {
-                            Box(contentAlignment = Alignment.BottomEnd) {
-                                Surface(
-                                    color = MaterialTheme.skill.surface3,
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.skill.sky.copy(alpha = 0.4f)),
-                                ) {
-                                    Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                                            .background(MaterialTheme.skill.crit),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
                                         Text(
-                                            profile?.str("name").orEmpty().trim().take(1).uppercase().ifBlank { "M" },
-                                            color = MaterialTheme.skill.frost,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
+                                            if (notificationEvents.size > 9) "9+" else notificationEvents.size.toString(),
+                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                            color = Color.White,
                                         )
                                     }
                                 }
-                                Box(
-                                    Modifier
-                                        .size(9.dp)
-                                        .clip(androidx.compose.foundation.shape.CircleShape)
-                                        .background(MaterialTheme.skill.aqua)
-                                        .border(1.5.dp, MaterialTheme.skill.navy, androidx.compose.foundation.shape.CircleShape)
-                                )
                             }
+                        }
+                        // Circular profile avatar — real photo when the profile
+                        // model provides one, circular initials otherwise.
+                        IconButton(
+                            onClick = { showLogoutConfirm = true },
+                            modifier = Modifier.size(44.dp),
+                        ) {
+                            Avatar(
+                                name = profile?.str("name").orEmpty().ifBlank { email },
+                                photoUrl = profile?.str("photo_url")?.takeIf { it.isNotBlank() },
+                                size = 34.dp,
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(

@@ -163,6 +163,68 @@ class PilotScreenshotInstrumentedTest {
         save("today_operations")
     }
 
+    /**
+     * The 2026-09-15 "Today / Manager Brief — Complete UI/UX Recovery" pass —
+     * seven shots covering the full vertical page at the operator's requested
+     * granularity, so each redesigned section (identity row, Needs You Today's
+     * icon actions, the compact Pulse grid, the compact Demand action, Top
+     * Performers' real photos/bars, and the compact Operations rows) has its
+     * own real-device capture rather than one that only covers part of it.
+     */
+    @Test
+    fun today_uiux_recovery_screenshot() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                Box(Modifier.fillMaxSize()) {
+                    AuroraBackground()
+                    Scaffold(containerColor = Color.Transparent) { padding ->
+                        Box(Modifier.padding(padding)) {
+                            DashboardTab(
+                                data = dashboardPayload(),
+                                profile = managerProfile(),
+                                capability = capabilityPayload(),
+                                capabilityLoading = false,
+                                email = "aishwar.c@koenig-solutions.com",
+                                onTrainerClick = { _, _ -> }, onOpenProfile = {}, onDrill = {},
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        save("01_header_identity")
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("NEEDS YOU TODAY"))
+        compose.waitForIdle()
+        save("02_readiness_needs")
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("PULSE"))
+        compose.waitForIdle()
+        save("03_pulse")
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("COMMUNICATE"))
+        compose.waitForIdle()
+        save("04_demand_communicate")
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("CERTIFICATION COVERAGE"))
+        compose.waitForIdle()
+        save("05_delivery_certification")
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("TOP PERFORMERS"))
+        compose.waitForIdle()
+        save("06_top_performers")
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("OPERATIONS"))
+        compose.waitForIdle()
+        save("07_operations")
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("AUTOMATION"))
+        compose.waitForIdle()
+        save("07b_operations_tiles")
+    }
+
     // ── This Week ────────────────────────────────────────────────────────────
 
     private fun prioritiesPayload() = mapOf<String, Any>(
