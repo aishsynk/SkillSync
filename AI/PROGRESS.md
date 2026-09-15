@@ -2240,3 +2240,38 @@ https://github.com/aishsynk/SkillSync/actions/runs/34963585179:**
 
 Count unchanged at 241 (no new tests this increment, per rationale above).
 Same exact 10 baseline failures by identity.
+
+## 25. Phase 3 increment 9 — Course/Curriculum domain
+
+Migrated `CourseCurriculumSheet.kt`'s one direct call,
+`RetrofitClient.instance.getCourseCurriculum(...)`, → added
+`ManagerRepository.courseCurriculum(courseName, courseId)`
+(`core/data/DataRepository.kt`), which already owns the rest of the
+Course domain (`syllabus`, `searchCourses`, `courseIntelligence`) — same
+reasoning as increment 8's `ActionsViewModel` writes: keep one domain's
+reads together rather than fragmenting a fourth course-related method
+into a new repository.
+
+Wraps the call in the same `cachedMap` helper every sibling course method
+already uses — checked its actual behavior rather than assuming: it always
+tries the live network first and only falls back to the `LocalCache`
+snapshot on failure (offline resilience), there is no time-based TTL.
+
+Same documented exception as other no-ViewModel Composables:
+`CourseCurriculumSheet` is stateless (`LaunchedEffect`-driven), so it calls
+`ManagerRepository` directly via `remember { ManagerRepository() }`.
+
+Confirmed by re-grep: zero `RetrofitClient` references remain in
+`CourseCurriculumSheet.kt`; brace/paren balance verified on both touched
+files.
+
+`docs/phase3-api-caller-inventory.md` living architecture map and
+"Remaining violations" table updated — `CourseCurriculumSheet.kt` is no
+longer in the open-violations list.
+
+**Remaining for subsequent increments:** `MainScreen`,
+`MainScreenViewModel`, `Version2Workspaces` (status TBD),
+`CopilotViewModel`.
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.

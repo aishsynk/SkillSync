@@ -26,7 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
-import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.data.ManagerRepository
 import com.example.skillsync.core.ui.*
 import com.example.skillsync.feature.communication.engine.CommunicationContextFilter
 import com.example.skillsync.feature.communication.engine.CommunicationPurpose
@@ -42,6 +42,7 @@ fun CourseCurriculumSheet(
 ) {
     val sk = MaterialTheme.skill
     val context = LocalContext.current
+    val repository = remember { ManagerRepository() }
 
     var loading by remember { mutableStateOf(true) }
     var curriculumData by remember { mutableStateOf<Map<String, Any>?>(null) }
@@ -51,7 +52,7 @@ fun CourseCurriculumSheet(
     LaunchedEffect(courseName, courseId) {
         loading = true
         try {
-            val res = RetrofitClient.instance.getCourseCurriculum(courseName = courseName, courseId = courseId)
+            val res = repository.courseCurriculum(courseName = courseName, courseId = courseId)
             curriculumData = res
         } catch (_: Exception) {
             curriculumData = null

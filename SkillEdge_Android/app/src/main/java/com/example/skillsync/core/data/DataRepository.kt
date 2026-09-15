@@ -128,6 +128,12 @@ class ManagerRepository(
     suspend fun courseIntelligence(courseName: String): RepositoryResult<Map<String, Any>> =
         cachedMap("course_intelligence_${courseName.lowercase()}", false) { api.getCourseIntelligence(courseName) }
 
+    /** Modules, lab URLs, TOC and public schedules for one course. */
+    suspend fun courseCurriculum(courseName: String = "", courseId: String = ""): Map<String, Any> =
+        cachedMap("course_curriculum_${courseName.lowercase()}_$courseId", false) {
+            api.getCourseCurriculum(courseName = courseName, courseId = courseId)
+        }.data.orEmpty()
+
     /**
      * Development plan for one reportee. Cache key `devplan_<manager>_<trainer>`;
      * offline-first like every other read here. `suggested` items are recomputed
