@@ -2463,3 +2463,48 @@ https://github.com/aishsynk/SkillSync/actions/runs/34984577963:**
 Count unchanged at 243 (no new tests this increment). Same exact 10
 baseline failures by identity. **Phase 3 is now complete and fully
 CI-verified across all 12 increments.**
+
+## 29. Phase 4 begins — API ownership matrix + increment A (Auth)
+
+Phase 3 accepted complete; proceeding to Phase 4 (domain-segregated API
+surfaces) per instruction. Built `docs/phase4-api-ownership-matrix.md`
+first, per the standing rule to trace before touching code: cross-
+referenced all 83 `SkillEdgeApi.kt` methods against their actual
+repository consumer(s) (grepped, not guessed). Findings recorded there
+rather than assumed: 10 methods have zero Android callers anywhere; one
+(`getDigest`) is called directly from `MonitoringPass.kt`, a background
+poller outside Phase 3's Screens/ViewModels scope; two
+(`getTrainerSentiment`, `endorseSkill`) have confirmed-dead duplicate
+copies left on `ManagerRepository` from before `TrainerRepository`
+existed. `GeneratedApiService.kt` re-confirmed (not re-litigated) as a
+separate RMS integration surface. Proposed 11 domain interfaces plus
+`ManagerApi` for team-wide aggregates; explicitly did not propose a
+Capability API — the authoritative course→skill taxonomy is backend-only,
+consumed but not duplicated by any Android endpoint.
+
+**Increment A (this commit): shared factory + AuthApi.** Refactored
+`RetrofitClient` to expose one private `Retrofit` instance plus a generic
+`inline fun <reified T> create(): T` factory — the target shape from the
+instructions (`RetrofitClient → shared infra → domain APIs →
+repositories`). `instance: SkillEdgeApi` kept as a compatibility alias so
+every not-yet-migrated repository keeps compiling.
+
+Extracted `AuthApi.kt`: `authCheck`, `login`, `setPassword`, `logout` and
+their DTOs (`LoginRequest`, `LoginResponse`, `AuthCheckResponse`,
+`SetPasswordRequest`) moved out of `SkillEdgeApi.kt`. `AuthRepository` now
+takes `apiProvider: () -> AuthApi = { RetrofitClient.create() }` instead of
+`() -> SkillEdgeApi` — its own method signatures, and every caller
+(`LoginViewModel`, `MainScreen`'s logout lambda,
+`LoginViewModelTest`'s fake-repository pattern) are completely unaware of
+the change, per the "API split must be invisible to UI code" requirement.
+Zero behavior change: same endpoints, same request/response shapes, same
+error handling.
+
+Confirmed by re-grep: `AuthRepository.kt` no longer references
+`SkillEdgeApi` at all (only in a doc comment); brace/paren balance
+verified on all four touched/new files.
+
+`docs/phase4-api-ownership-matrix.md`'s migration-status table updated.
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.

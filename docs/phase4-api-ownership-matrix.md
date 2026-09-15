@@ -253,8 +253,8 @@ current truth for what has actually moved.
 
 | Domain API | Status |
 |---|---|
-| Shared `RetrofitClient.create<T>()` factory | Not yet built |
-| `AuthApi` | Not yet extracted |
+| Shared `RetrofitClient.create<T>()` factory | **Built** (increment A) — `retrofit` exposed privately, `create<T>()` generic factory, `instance: SkillEdgeApi` kept as a compatibility alias |
+| `AuthApi` | **Extracted** (increment A) — `authCheck`, `login`, `setPassword`, `logout` + their DTOs moved out of `SkillEdgeApi.kt`; `AuthRepository` now consumes `AuthApi` directly |
 | `TrainerApi` | Not yet extracted |
 | `BatchApi` | Not yet extracted |
 | `AllocationApi` | Not yet extracted |

@@ -1,11 +1,11 @@
 package com.example.skillsync.core.data
 
+import com.example.skillsync.core.network.AuthApi
 import com.example.skillsync.core.network.AuthCheckResponse
 import com.example.skillsync.core.network.LoginRequest
 import com.example.skillsync.core.network.LoginResponse
 import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.core.network.SetPasswordRequest
-import com.example.skillsync.core.network.SkillEdgeApi
 
 /**
  * Sign-in/authentication — its own small repository rather than a method on
@@ -13,12 +13,15 @@ import com.example.skillsync.core.network.SkillEdgeApi
  * happens before a manager session even exists. Same
  * apiProvider-default/`open` convention as [ScheduleRepository]/
  * [SkillRequestsRepository] so a test can fake it directly instead of
- * implementing the whole [SkillEdgeApi] interface.
+ * implementing the whole [AuthApi] interface.
+ *
+ * Consumes [AuthApi] (Phase 4, `docs/phase4-api-ownership-matrix.md`) rather
+ * than the full `SkillEdgeApi` — the first domain interface split out of it.
  */
 open class AuthRepository(
-    private val apiProvider: () -> SkillEdgeApi = { RetrofitClient.instance },
+    private val apiProvider: () -> AuthApi = { RetrofitClient.create() },
 ) {
-    private val api: SkillEdgeApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
+    private val api: AuthApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
 
     open suspend fun authCheck(request: LoginRequest): AuthCheckResponse = api.authCheck(request)
     open suspend fun login(request: LoginRequest): LoginResponse = api.login(request)

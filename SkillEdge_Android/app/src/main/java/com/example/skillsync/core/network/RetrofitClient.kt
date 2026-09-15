@@ -102,13 +102,30 @@ object RetrofitClient {
                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
 
-    val instance: SkillEdgeApi by lazy {
-        val retrofit = Retrofit.Builder()
+    /**
+     * The single shared [Retrofit] instance — same [BASE_URL], same
+     * [okHttpClient] (and therefore the same interceptors/cache/timeouts) for
+     * every domain API interface. Domain repositories get their own narrow
+     * API interface (`AuthApi`, `TrainerApi`, ...) via [create], never their
+     * own [Retrofit]/[OkHttpClient] — the transport layer stays centralized,
+     * only the business-endpoint surface is split.
+     */
+    private val retrofit: Retrofit by lazy {
+        Retrofit.Builder()
             .baseUrl(BASE_URL)
             .addConverterFactory(GsonConverterFactory.create())
             .client(okHttpClient ?: throw IllegalStateException("RetrofitClient not initialized"))
             .build()
-
-        retrofit.create(SkillEdgeApi::class.java)
     }
+
+    /** One Retrofit-backed implementation of a domain API interface. */
+    inline fun <reified T> create(): T = retrofit.create(T::class.java)
+
+    /**
+     * Backward-compatible alias for repositories not yet migrated to a
+     * narrower domain API interface. Kept only until every [SkillEdgeApi]
+     * method has moved to its domain owner and no repository asks for the
+     * whole interface any more (Phase 4, `docs/phase4-api-ownership-matrix.md`).
+     */
+    val instance: SkillEdgeApi by lazy { create<SkillEdgeApi>() }
 }

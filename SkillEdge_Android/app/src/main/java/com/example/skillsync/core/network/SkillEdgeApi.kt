@@ -7,44 +7,15 @@ import retrofit2.http.Path
 import retrofit2.http.Body
 import retrofit2.http.Query
 
-data class LoginRequest(val email: String, val password: String? = null)
-
-data class LoginResponse(
-    val success: Boolean?,
-    val session_id: String?,
-    val email: String?,
-    val role: String?,
-    val code: String?,
-    val manager_email: String?,
-    val must_change: Boolean?,
-    val error: String?,
-    val message: String?,
-)
-
-data class AuthCheckResponse(
-    val ok: Boolean?,
-    val email: String?,
-    val role: String?,
-    val name: String?,
-    val needs_password: Boolean?,
-    val first_login: Boolean?,
-    val error: String?,
-)
-
-data class SetPasswordRequest(val new_password: String)
-
 data class SkillRequestResolve(val decision: String)
 
+/**
+ * The remaining, not-yet-domain-split endpoints. Auth has already moved to
+ * [AuthApi] (Phase 4, `docs/phase4-api-ownership-matrix.md`, migration
+ * status table tracks the rest) — see that file for [LoginRequest],
+ * [LoginResponse], [AuthCheckResponse], [SetPasswordRequest].
+ */
 interface SkillEdgeApi {
-    @POST("api/auth/check")
-    suspend fun authCheck(@Body request: LoginRequest): AuthCheckResponse
-
-    @POST("api/auth/login")
-    suspend fun login(@Body request: LoginRequest): LoginResponse
-
-    @POST("api/auth/set-password")
-    suspend fun setPassword(@Body request: SetPasswordRequest): Map<String, Any>
-
     @GET("api/v2/notifications")
     suspend fun notifications(): Map<String, Any>
 
@@ -77,9 +48,6 @@ interface SkillEdgeApi {
         @Path("id") id: String,
         @Body body: SkillRequestResolve,
     ): Map<String, Any>
-
-    @POST("api/auth/logout")
-    suspend fun logout(): Map<String, Any>
 
     /**
      * [refresh] maps to `?refresh=1`, which purges this manager's server-side
