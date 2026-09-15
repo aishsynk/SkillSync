@@ -2508,3 +2508,26 @@ verified on all four touched/new files.
 
 CI verification for this increment is pending — will record the run URL and
 exact test-failure comparison here once green.
+
+**First push (commit `06ca9d6`, run `34986588682`) failed CI**: a real
+compile error, "Public-API inline function cannot access non-public-API
+property" — Kotlin inline functions copy their body into caller bytecode,
+so the public `inline fun <reified T> create()` couldn't reference the
+`private val retrofit`. Fixed in `d848fa4` by marking `retrofit`
+`@PublishedApi internal` (inline-accessible, still outside the object's
+public API surface).
+
+**Verified, commit `d848fa4`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34986980722:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** |
+| `testDebugUnitTest` | 243 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+
+Count unchanged at 243 (no new tests this increment). Same exact 10
+baseline failures by identity.
