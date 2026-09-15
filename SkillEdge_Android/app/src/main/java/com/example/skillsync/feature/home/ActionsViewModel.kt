@@ -2,7 +2,6 @@ package com.example.skillsync.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.core.data.ManagerRepository
 import com.example.skillsync.feature.home.data.ActionRow
 import com.example.skillsync.feature.home.data.parseActions
@@ -112,7 +111,7 @@ class ActionsViewModel(
         }
         viewModelScope.launch {
             try {
-                RetrofitClient.instance.setActionState(
+                repository.setActionState(
                     actionId,
                     buildMap {
                         put("state", state)
@@ -133,7 +132,7 @@ class ActionsViewModel(
         if (note.isBlank()) return
         viewModelScope.launch {
             try {
-                RetrofitClient.instance.addActionNote(
+                repository.addActionNote(
                     actionId, mapOf("note" to note, "manager_email" to managerEmail),
                 )
                 fetch(managerEmail)
@@ -156,7 +155,7 @@ class ActionsViewModel(
         if (title.isBlank()) return
         viewModelScope.launch {
             try {
-                RetrofitClient.instance.raiseAction(
+                repository.raiseAction(
                     buildMap {
                         put("title", title)
                         put("manager_email", managerEmail)

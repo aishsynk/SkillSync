@@ -50,6 +50,7 @@ boundary explicit"); not merged or deleted.
 | `feature/training/ui/AllocationViewModel.kt` (direct `RetrofitClient.instance` for `getAlternativeTrainers`, `bulkAssignSkill`) | Same file, via `TrainerRepository` (ViewModel already used `ManagerRepository`, gains repository params) | Trainer lookup (read) + Trainer-skill-write (bulk assignment) | `core/data/TrainerRepository.kt` | `AllocationViewModel` | `GET api/data/alternative-trainers`, `POST api/v2/skills/bulk-assign` | None new — existing `MutableStateFlow` UI state (`globalSearchData`, `bulkResults`) unchanged | `AllocationViewModelTest.kt` | Phase 3 increment 6 |
 | `feature/training/ui/AllocationViewModel.kt` (direct `RetrofitClient.instance.getDemandContext`) | Same file, via `BatchRepository` | Batch/demand | `core/data/BatchRepository.kt` | `AllocationViewModel` | `GET api/v2/operations/demand-context` | None new — existing `demandContext` `MutableStateFlow` unchanged | `AllocationViewModelTest.kt` (1 test) | Phase 3 increment 6 |
 | `feature/home/GrowTeamCard.kt` (direct `RetrofitClient.instance.getUpskillMessage`) | Same file, via repository, no ViewModel — same documented exception as BatchDetailScreen | Trainer (server-composed upskill ask for one trainer) | `core/data/TrainerRepository.kt` | None — stateless Composable, `askText`/`askFor` local state | `GET api/data/upskill-message` (`getUpskillMessage`) | None — local dialog state, unchanged; falls back to a local plain-text ask on failure, unchanged | None yet (same rationale as BatchRepository — no ViewModel seam) | Phase 3 increment 7 |
+| `feature/home/ActionsViewModel.kt` (direct `RetrofitClient.instance` for `setActionState`, `addActionNote`, `raiseAction`) | Same file, via `ManagerRepository` (already owned the read side, `actions()`) | Actions/Priorities (writes to the same inbox `ManagerRepository` already reads) | `core/data/DataRepository.kt` (`ManagerRepository`) | `ActionsViewModel` (existing ViewModel, no use case — three independent writes, no orchestration) | `POST api/v2/actions/{id}/state`, `POST api/v2/actions/{id}/note`, `POST api/v2/actions` | None new — existing optimistic-update/rollback `MutableStateFlow` logic unchanged | None yet — `ManagerRepository` is not `open`/subclassable, matching the existing convention (no ViewModel in this codebase fakes it; confirmed by grep, not assumed) | Phase 3 increment 8 |
 
 ### Documented exception: `BatchDetailScreen.kt` has no ViewModel
 
@@ -86,14 +87,13 @@ increment, not bundled into this one.
 
 | File | Classification | Domain | Status |
 |---|---|---|---|
-| `feature/home/ActionsViewModel.kt` | VIEWMODEL | Actions/Priorities | Open |
 | `feature/home/CourseCurriculumSheet.kt` | SCREEN/COMPOSABLE | Course/Curriculum | Open |
 | `feature/home/MainScreen.kt` | SCREEN/COMPOSABLE | Today/dashboard | Open (deferred until underlying repositories exist) |
 | `feature/home/MainScreenViewModel.kt` | VIEWMODEL | Today/dashboard (KPI/trainer) | Open (deferred until underlying repositories exist) |
 | `feature/home/Version2Workspaces.kt` | SCREEN/COMPOSABLE | Unclear — flagged as possibly-dead; confirm before migrating | Open |
 | `feature/training/ui/CopilotViewModel.kt` | VIEWMODEL | AI/Copilot | Open |
 
-Next increment: `ActionsViewModel.kt`,
+Next increment:
 `CourseCurriculumSheet.kt`, `CopilotViewModel.kt`, `Version2Workspaces.kt` (confirm liveness
 first). Today/dashboard
 (`MainScreen`/`MainScreenViewModel`) stays last, as an orchestrator once its underlying

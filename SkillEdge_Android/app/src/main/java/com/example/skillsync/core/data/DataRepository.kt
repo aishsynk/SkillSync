@@ -231,6 +231,17 @@ class ManagerRepository(
         RepositoryResult(null, DataSource.LIVE, error = e.localizedMessage ?: "Could not load actions")
     }
 
+    /** Move an action through its lifecycle, optionally with a note. */
+    suspend fun setActionState(actionId: String, body: Map<String, String>): Map<String, Any> =
+        api.setActionState(actionId, body)
+
+    /** Append a follow-up note to an action without changing its state. */
+    suspend fun addActionNote(actionId: String, body: Map<String, String>): Map<String, Any> =
+        api.addActionNote(actionId, body)
+
+    /** Raise an action by hand (anything RMS cannot infer). */
+    suspend fun raiseAction(body: Map<String, String>): Map<String, Any> = api.raiseAction(body)
+
     suspend fun teamIntelligence(email: String, fresh: Boolean): TeamIntelligence = coroutineScope {
         val capability = async {
             cachedMap("capability_$email", fresh) { api.getTeamCapability(email, fresh.flag()) }

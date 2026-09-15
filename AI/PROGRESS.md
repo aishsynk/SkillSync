@@ -2195,3 +2195,36 @@ https://github.com/aishsynk/SkillSync/actions/runs/34962799407:**
 
 Count unchanged at 241 (no new tests this increment, per rationale above).
 Same exact 10 baseline failures by identity.
+
+## 24. Phase 3 increment 8 — Actions/Priorities domain
+
+Migrated `ActionsViewModel.kt`'s three direct writes —
+`RetrofitClient.instance.setActionState`/`addActionNote`/`raiseAction` —
+to `ManagerRepository` (`core/data/DataRepository.kt`), which already owns
+the read side of this exact domain object (`repository.actions(email)`).
+Added `setActionState`, `addActionNote`, `raiseAction` alongside it rather
+than creating a new repository: these three writes mutate the same action
+inbox `ManagerRepository.actions()` reads, so splitting them into a
+separate repository would have fragmented one domain object's reads and
+writes across two repositories for no reason.
+
+`ManagerRepository` is not `open`/subclassable (confirmed by grep: no
+existing ViewModel test fakes it), so no dedicated `ActionsViewModelTest`
+was added — consistent with the existing convention for every other
+`ManagerRepository`-backed ViewModel, not a new gap introduced by this
+migration. Removed the now-unused `RetrofitClient` import from
+`ActionsViewModel.kt`.
+
+Confirmed by re-grep: zero `RetrofitClient` references remain in
+`ActionsViewModel.kt`; brace/paren balance verified on both touched files.
+
+`docs/phase3-api-caller-inventory.md` living architecture map and
+"Remaining violations" table updated — `ActionsViewModel.kt` is no longer
+in the open-violations list.
+
+**Remaining for subsequent increments:** `CourseCurriculumSheet`,
+`MainScreen`, `MainScreenViewModel`, `Version2Workspaces` (status TBD),
+`CopilotViewModel`.
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.
