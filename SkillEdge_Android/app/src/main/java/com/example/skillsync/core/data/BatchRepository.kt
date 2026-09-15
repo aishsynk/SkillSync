@@ -1,8 +1,8 @@
 package com.example.skillsync.core.data
 
+import com.example.skillsync.core.network.BatchApi
 import com.example.skillsync.core.network.DemandContextResponse
 import com.example.skillsync.core.network.RetrofitClient
-import com.example.skillsync.core.network.SkillEdgeApi
 
 /**
  * Batch/delivery-domain data — its own small repository rather than a method
@@ -20,11 +20,13 @@ import com.example.skillsync.core.network.SkillEdgeApi
  * allocation candidates, which is Trainer/candidate domain and lives in
  * [TrainerRepository]) — each is evaluated for domain ownership
  * individually as its caller is migrated, not bulk-added here.
+ *
+ * Consumes [BatchApi] (Phase 4, `docs/phase4-api-ownership-matrix.md`).
  */
 open class BatchRepository(
-    private val apiProvider: () -> SkillEdgeApi = { RetrofitClient.instance },
+    private val apiProvider: () -> BatchApi = { RetrofitClient.create() },
 ) {
-    private val api: SkillEdgeApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
+    private val api: BatchApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
 
     open suspend fun batchMessage(demandId: String, recipient: String?): Map<String, Any> =
         api.getBatchMessage(demandId, recipient)

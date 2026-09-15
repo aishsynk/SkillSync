@@ -2592,3 +2592,35 @@ https://github.com/aishsynk/SkillSync/actions/runs/34987992809:**
 
 Count unchanged at 243 (no new tests this increment). Same exact 10
 baseline failures by identity. Green on the first push this time.
+
+## 31. Phase 4 increment C — BatchApi, EligibilityApi, ScheduleApi, SkillRequestsApi extraction
+
+Bundled four small domains into one commit rather than four separate ones:
+each was already isolated into its own single-purpose repository from
+Phase 3 (`BatchRepository`, `EligibilityRepository`, `ScheduleRepository`,
+`SkillRequestsRepository`), so splitting each into its own domain API
+interface is a mechanical, low-risk retype with no repository-ownership
+questions to resolve — unlike Allocation, which the user explicitly asked
+to keep as its own independent increment.
+
+Created `BatchApi.kt` (`getBatchMessage`, `getDemandContext` +
+`DemandCourseContext`/`ParticipantInfo`/`ParticipantRosterContext`/
+`SalesConfirmationContext`/`DemandContextResponse`), `EligibilityApi.kt`
+(`getBatchEligibility`), `ScheduleApi.kt` (`trainerCalendar`), and
+`SkillRequestsApi.kt` (`skillRequests`, `resolveSkillRequest` +
+`SkillRequestResolve`). Removed all six methods and their DTOs from
+`SkillEdgeApi.kt`, updating its doc comment. Retyped all four repositories'
+`apiProvider` from `SkillEdgeApi`/`RetrofitClient.instance` to their new
+domain API via `RetrofitClient.create<T>()`; method signatures and bodies
+otherwise unchanged.
+
+Verified before pushing (same discipline established after increment A's
+CI failure): brace/paren balance on all nine touched/created files; grepped
+the whole app for stray `RetrofitClient.instance.<migrated-method>` or
+leftover `SkillEdgeApi` references in the four repositories — none found.
+
+`docs/phase4-api-ownership-matrix.md`'s migration-status table updated for
+all four APIs.
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.

@@ -1,7 +1,7 @@
 package com.example.skillsync.core.data
 
 import com.example.skillsync.core.network.RetrofitClient
-import com.example.skillsync.core.network.SkillEdgeApi
+import com.example.skillsync.core.network.ScheduleApi
 
 /**
  * A trainer/manager's own delivery calendar (`GET /api/v2/trainer/calendar`).
@@ -9,13 +9,15 @@ import com.example.skillsync.core.network.SkillEdgeApi
  * onto [ManagerRepository] — a personal schedule is a different domain from
  * manager/team intelligence, and giving it its own owner keeps that
  * boundary legible instead of growing one repository to own everything.
+ *
+ * Consumes [ScheduleApi] (Phase 4, `docs/phase4-api-ownership-matrix.md`).
  */
 open class ScheduleRepository(
-    private val apiProvider: () -> SkillEdgeApi = { RetrofitClient.instance },
+    private val apiProvider: () -> ScheduleApi = { RetrofitClient.create() },
 ) {
-    private val api: SkillEdgeApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
+    private val api: ScheduleApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
 
     // open: MyScheduleViewModelTest fakes this directly rather than
-    // implementing the entire SkillEdgeApi Retrofit interface for one method.
+    // implementing the entire ScheduleApi Retrofit interface for one method.
     open suspend fun myCalendar(email: String): Map<String, Any> = api.trainerCalendar(email)
 }
