@@ -2817,3 +2817,33 @@ https://github.com/aishsynk/SkillSync/actions/runs/34992991453:**
 
 Count unchanged at 243 (no new tests this increment). Same exact 10
 baseline failures by identity, same 6 lint errors. Green on the first push.
+
+## 36. Phase 4 increment H — OpportunityApi extraction
+
+Same compose-alongside pattern as increments E and G: Opportunity Guardian's
+10 methods (`getGuardianConfig`/`updateGuardianConfig`/`getOpportunities`/
+`createOpportunity`/`acceptOpportunity`/`declineOpportunity`/
+`updateOpportunityDocument`/`matchOpportunity`/`getSkillProfile`/
+`updateSkillProfile`) all live on `ManagerRepository`, not a dedicated
+repository. Created `OpportunityApi.kt` with all 10, moved verbatim out of
+`SkillEdgeApi.kt` (including the existing doc-comment note that
+`matchOpportunity` consumes the capability graph rather than owning a
+second copy of it — rule #6 preserved, not touched). `ManagerRepository`
+gained a fourth composed API field (`opportunityApiProvider`); all 10
+method bodies now call `opportunityApi.*` instead of `api.*`, signatures
+unchanged.
+
+Verified before pushing: brace/paren balance on all three touched/created
+files; confirmed `@Path` still used elsewhere in `SkillEdgeApi.kt` (3
+remaining uses, from the earlier Batch/Eligibility/Schedule/SkillRequests
+increments) so its import stays valid; grepped `DataRepository.kt` for any
+remaining `api.getGuardianConfig`/`.updateGuardianConfig`/
+`.getOpportunities`/`.createOpportunity`/`.acceptOpportunity`/
+`.declineOpportunity`/`.updateOpportunityDocument`/`.matchOpportunity`/
+`.getSkillProfile`/`.updateSkillProfile` — none found; confirmed no test
+constructs `ManagerRepository` with a custom `opportunityApiProvider`.
+
+`docs/phase4-api-ownership-matrix.md`'s migration-status table updated.
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.

@@ -2,6 +2,7 @@ package com.example.skillsync.core.data
 
 import com.example.skillsync.core.network.CommunicationApi
 import com.example.skillsync.core.network.CourseApi
+import com.example.skillsync.core.network.OpportunityApi
 import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.core.network.SkillEdgeApi
 import com.example.skillsync.core.network.MarkSkillRequest
@@ -51,10 +52,12 @@ class ManagerRepository(
     private val apiProvider: () -> SkillEdgeApi = { RetrofitClient.instance },
     private val courseApiProvider: () -> CourseApi = { RetrofitClient.create() },
     private val communicationApiProvider: () -> CommunicationApi = { RetrofitClient.create() },
+    private val opportunityApiProvider: () -> OpportunityApi = { RetrofitClient.create() },
 ) {
     private val api: SkillEdgeApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
     private val courseApi: CourseApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { courseApiProvider() }
     private val communicationApi: CommunicationApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { communicationApiProvider() }
+    private val opportunityApi: OpportunityApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { opportunityApiProvider() }
 
     suspend fun dashboard(email: String, fresh: Boolean): RepositoryResult<Map<String, Any>> =
         cachedMap("dashboard_$email", fresh) { api.getTrainerIntelligence(email, fresh.flag()) }
@@ -312,39 +315,39 @@ class ManagerRepository(
 
     suspend fun guardianConfig(manager: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
         cachedMap("guardian_config_$manager", fresh) {
-            api.getGuardianConfig(manager)
+            opportunityApi.getGuardianConfig(manager)
         }
 
     suspend fun updateGuardianConfig(manager: String, body: Map<String, Any>): Map<String, Any> =
-        api.updateGuardianConfig(body)
+        opportunityApi.updateGuardianConfig(body)
 
     suspend fun opportunities(manager: String, status: String = "", fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
         cachedMap("opportunities_$manager${if (status.isNotEmpty()) "_$status" else ""}", fresh) {
-            api.getOpportunities(manager, status)
+            opportunityApi.getOpportunities(manager, status)
         }
 
     suspend fun createOpportunity(body: Map<String, Any>): Map<String, Any> =
-        api.createOpportunity(body)
+        opportunityApi.createOpportunity(body)
 
     suspend fun acceptOpportunity(id: String): Map<String, Any> =
-        api.acceptOpportunity(id)
+        opportunityApi.acceptOpportunity(id)
 
     suspend fun declineOpportunity(id: String): Map<String, Any> =
-        api.declineOpportunity(id)
+        opportunityApi.declineOpportunity(id)
 
     suspend fun updateOpportunityDocument(id: String, body: Map<String, Any>): Map<String, Any> =
-        api.updateOpportunityDocument(id, body)
+        opportunityApi.updateOpportunityDocument(id, body)
 
     suspend fun matchOpportunity(body: Map<String, Any>): Map<String, Any> =
-        api.matchOpportunity(body)
+        opportunityApi.matchOpportunity(body)
 
     suspend fun skillProfile(manager: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
         cachedMap("skill_profile_$manager", fresh) {
-            api.getSkillProfile(manager)
+            opportunityApi.getSkillProfile(manager)
         }
 
     suspend fun updateSkillProfile(body: Map<String, Any>): Map<String, Any> =
-        api.updateSkillProfile(body)
+        opportunityApi.updateSkillProfile(body)
 
     // ── Communication Intelligence ────────────────────────────────
 
