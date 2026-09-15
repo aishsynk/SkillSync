@@ -2226,5 +2226,17 @@ in the open-violations list.
 `MainScreen`, `MainScreenViewModel`, `Version2Workspaces` (status TBD),
 `CopilotViewModel`.
 
-CI verification for this increment is pending — will record the run URL and
-exact test-failure comparison here once green.
+**Verified, commit `f76bafd`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34963585179:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** |
+| `testDebugUnitTest` | 241 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+
+Count unchanged at 241 (no new tests this increment, per rationale above).
+Same exact 10 baseline failures by identity.
