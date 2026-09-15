@@ -1785,3 +1785,52 @@ https://github.com/aishsynk/SkillSync/actions/runs/34957112519:**
 
 Count 233 → 234 matches the 1 new `TrainerPracticeViewModelTest` test
 exactly, and it passes. Same exact 10 baseline failures by identity.
+
+## 19. Phase 3 increment 5 — Trainer domain continued: Trainer360ViewModel
+
+`Trainer360ViewModel.kt` already used `ManagerRepository` for most of its
+data (trainer360, devPlan, actions, syllabus, markSkill, utilizationHistory)
+but still had four direct `RetrofitClient.instance` calls: `getTrainerSentiment`,
+`getTrainerIndex`, `endorseSkill` (a write — 1-tap IDP skill endorsement to
+RMS), and `getTrainerReadiness`. All four are Trainer-domain, so extended
+`core/data/TrainerRepository.kt` (from increment 4) with `sentiment`,
+`trainerIndex`, `endorseSkill`, `readiness` rather than creating a new
+repository. `Trainer360ViewModel` now takes a second constructor param,
+`trainerRepository: TrainerRepository = TrainerRepository()`, alongside its
+existing `ManagerRepository` param.
+
+Deliberately left `RetrofitClient.isNetworkAvailable(context)` (inside
+`fetch()`) untouched — it's a connectivity check, not a domain data call,
+so it's not a transport violation the same way an endpoint call is.
+
+New `Trainer360ViewModelTest.kt` (3 tests: `fetchSentiment`, `loadReadiness`,
+`endorseSkill`) fakes `TrainerRepository` following the established
+fake-repository pattern. Deliberately does not exercise `load()`/`refresh()`/
+`fetch()` — those take an `android.content.Context` and touch `LocalCache`
+(which, like `SessionManager` before its guard fix, is `lateinit`-backed and
+requires `init(context)`); testing them would need a mocking framework this
+repo doesn't have (`Mockito`/`MockK` are absent — only Robolectric, JUnit,
+and `kotlinx-coroutines-test`), so it's out of scope here rather than
+worked around with an untested shortcut. Confirmed this leaves the tested
+paths' remaining collaborator calls (`repository.devPlan` inside
+`endorseSkill`'s success branch) safe: `ManagerRepository.devPlan()` wraps
+its network call in `cachedMap()`, which catches exceptions and falls back
+to `LocalCache.loadMap()`, which itself catches `UninitializedPropertyAccessException`
+and returns `null` — verified by reading both, not assumed.
+
+Confirmed by re-grep: the only remaining `RetrofitClient` reference in
+`Trainer360ViewModel.kt` is the `isNetworkAvailable` connectivity check;
+brace/paren balance verified on all touched/new files.
+
+`docs/phase3-api-caller-inventory.md` living architecture map and
+"Remaining violations" table updated.
+
+**Remaining for subsequent increments:** `ActionsViewModel`,
+`CourseCurriculumSheet`, `GrowTeamCard`, `MainScreen`, `MainScreenViewModel`,
+`Version2Workspaces` (status TBD), `AllocationViewModel` (`getDemandContext`
+→ Batch; `getAllocationCandidates`/`getAlternativeTrainers` → now have a
+home in `TrainerRepository`; `bulkAssignSkill` → write/mutation, own
+decision needed), `CopilotViewModel`.
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.

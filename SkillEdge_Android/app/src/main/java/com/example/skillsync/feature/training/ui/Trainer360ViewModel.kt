@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.core.data.TrainerRepository
 import com.example.skillsync.core.storage.LocalCache
 import com.example.skillsync.feature.home.data.ActionRow
 import com.example.skillsync.core.network.TrainerIndexDto
@@ -25,6 +26,7 @@ sealed class Trainer360State {
 
 class Trainer360ViewModel(
     private val repository: ManagerRepository = ManagerRepository(),
+    private val trainerRepository: TrainerRepository = TrainerRepository(),
 ) : ViewModel() {
     private val _state = MutableStateFlow<Trainer360State>(Trainer360State.Loading)
     val state: StateFlow<Trainer360State> = _state
@@ -71,7 +73,7 @@ class Trainer360ViewModel(
         if (trainerEmail.isBlank()) return
         viewModelScope.launch {
             sentiment.value = runCatching {
-                com.example.skillsync.core.network.RetrofitClient.instance.getTrainerSentiment(trainerEmail)
+                trainerRepository.sentiment(trainerEmail)
             }.getOrNull()
         }
     }
@@ -80,7 +82,7 @@ class Trainer360ViewModel(
         if (trainerEmail.isBlank()) return
         viewModelScope.launch {
             trainerIndex.value = runCatching {
-                RetrofitClient.instance.getTrainerIndex(trainerEmail).trainer_index
+                trainerRepository.trainerIndex(trainerEmail).trainer_index
             }.getOrNull()
         }
     }
@@ -139,7 +141,7 @@ class Trainer360ViewModel(
     ) {
         viewModelScope.launch {
             try {
-                val res = com.example.skillsync.core.network.RetrofitClient.instance.endorseSkill(
+                val res = trainerRepository.endorseSkill(
                     mapOf(
                         "manager_email" to managerEmail,
                         "trainer_email" to trainerEmail,
@@ -300,8 +302,7 @@ viewModelScope.launch {
         readinessKey = key
         viewModelScope.launch {
             readiness.value = runCatching {
-                com.example.skillsync.core.network.RetrofitClient.instance
-                    .getTrainerReadiness(managerEmail, trainerEmail)
+                trainerRepository.readiness(managerEmail, trainerEmail)
             }.getOrNull()
         }
     }

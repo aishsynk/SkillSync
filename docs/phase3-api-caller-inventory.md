@@ -43,7 +43,8 @@ boundary explicit"); not merged or deleted.
 | `feature/training/ui/BatchDetailScreen.kt` (direct `RetrofitClient.instance.getBatchMessage`) | `feature/training/ui/BatchDetailScreen.kt` (via repository, no ViewModel — documented exception below) | Batch/delivery | `core/data/BatchRepository.kt` | None — stateless Composable, see exception note | `GET api/data/batch-message` (`getBatchMessage`) | None — ephemeral `serverMsg` Compose state, unchanged; falls back to `BatchShare` local composition on failure | None yet (pending — see Pending below) | Phase 3 increment 2 |
 | `feature/training/ui/EligibilitySheet.kt` (direct `RetrofitClient.instance.getBatchEligibility`, 2 call sites) | `feature/training/ui/EligibilitySheet.kt` (via repository, no ViewModel — same documented exception) | Certification/eligibility | `core/data/EligibilityRepository.kt` | None — stateless Composable driven by `LaunchedEffect` | `GET api/v2/eligibility/batch` (`getBatchEligibility`) | None — local `data`/`loading`/`failed` Compose state, unchanged; retry-loop and stale-view-on-error behavior unchanged | None yet (same rationale as BatchRepository) | Phase 3 increment 3 |
 | `feature/training/ui/TrainerPracticeScreen.kt`'s `TrainerPracticeViewModel` (direct `RetrofitClient.instance.trainerFeedbackLog`/`trainerRecordings`) | Same file, `TrainerPracticeViewModel(repository: TrainerRepository = TrainerRepository())` | Trainer | `core/data/TrainerRepository.kt` | `TrainerPracticeViewModel` (existing ViewModel, no use case needed — two independent reads, no orchestration) | `GET api/v2/trainer/feedback-log`/`trainerFeedbackLog`, `GET api/v2/trainer/recordings`/`trainerRecordings` | None — `MutableStateFlow` UI state, unchanged | `TrainerPracticeViewModelTest.kt` (1 test, both calls) | Phase 3 increment 4 (this commit) |
-| `feature/training/ui/NetworkStaffingSheet.kt` (direct `RetrofitClient.instance.getNetworkTrainers`) | Same file, via repository, no ViewModel — same documented exception as BatchDetailScreen | Trainer/staffing | `core/data/TrainerRepository.kt` | None — stateless Composable driven by `LaunchedEffect` | `GET api/v2/network/trainers`/`getNetworkTrainers` | None — local `networkData`/`loading` Compose state, unchanged | None yet (same rationale as BatchRepository) | Phase 3 increment 4 (this commit) |
+| `feature/training/ui/NetworkStaffingSheet.kt` (direct `RetrofitClient.instance.getNetworkTrainers`) | Same file, via repository, no ViewModel — same documented exception as BatchDetailScreen | Trainer/staffing | `core/data/TrainerRepository.kt` | None — stateless Composable driven by `LaunchedEffect` | `GET api/v2/network/trainers`/`getNetworkTrainers` | None — local `networkData`/`loading` Compose state, unchanged | None yet (same rationale as BatchRepository) | Phase 3 increment 4 |
+| `feature/training/ui/Trainer360ViewModel.kt` (direct `RetrofitClient.instance` for `getTrainerSentiment`, `getTrainerIndex`, `endorseSkill`, `getTrainerReadiness`) | Same file, via `TrainerRepository` (ViewModel already existed, already partly used `ManagerRepository` for other calls) | Trainer | `core/data/TrainerRepository.kt` | `Trainer360ViewModel` (existing ViewModel, gains a second repository param alongside `ManagerRepository`) | `GET api/v2/trainer/sentiment`, `GET api/v2/trainer/trainer-index`, `POST api/v2/skills/endorse`, `GET api/v2/trainer/readiness` | None new — existing `MutableStateFlow` UI state unchanged; `RetrofitClient.isNetworkAvailable(context)` intentionally left as-is (a connectivity check, not a domain data call) | `Trainer360ViewModelTest.kt` (3 tests: sentiment, readiness, endorseSkill) | Phase 3 increment 5 (this commit) |
 
 ### Documented exception: `BatchDetailScreen.kt` has no ViewModel
 
@@ -88,14 +89,12 @@ increment, not bundled into this one.
 | `feature/home/Version2Workspaces.kt` | SCREEN/COMPOSABLE | Unclear — flagged as possibly-dead; confirm before migrating | Open |
 | `feature/training/ui/AllocationViewModel.kt` | VIEWMODEL | Batch/demand, Trainer/candidate, Trainer-skill-write (3 domains) | Open |
 | `feature/training/ui/CopilotViewModel.kt` | VIEWMODEL | AI/Copilot | Open |
-| `feature/training/ui/Trainer360ViewModel.kt` | VIEWMODEL | Trainer | Open |
 
 Next increment: `AllocationViewModel.kt`'s three domains, split by endpoint —
-`getAllocationCandidates`/`getAlternativeTrainers` now have a home in the just-created
-`TrainerRepository`; `getDemandContext` is Batch/demand (candidate for `BatchRepository`);
-`bulkAssignSkill` is a write/mutation needing its own decision (Capability or
-Trainer-skill-write). Then `Trainer360ViewModel.kt` (Trainer domain, likely also
-`TrainerRepository`), `GrowTeamCard.kt` (Trainer share flow), `ActionsViewModel.kt`,
-`CourseCurriculumSheet.kt`, `CopilotViewModel.kt`, `Version2Workspaces.kt` (confirm
-liveness first). Today/dashboard (`MainScreen`/`MainScreenViewModel`) stays last, as an
-orchestrator once its underlying repositories exist.
+`getAllocationCandidates`/`getAlternativeTrainers` now have a home in `TrainerRepository`;
+`getDemandContext` is Batch/demand (candidate for `BatchRepository`); `bulkAssignSkill` is a
+write/mutation needing its own decision (Capability or Trainer-skill-write). Then
+`GrowTeamCard.kt` (Trainer share flow), `ActionsViewModel.kt`, `CourseCurriculumSheet.kt`,
+`CopilotViewModel.kt`, `Version2Workspaces.kt` (confirm liveness first). Today/dashboard
+(`MainScreen`/`MainScreenViewModel`) stays last, as an orchestrator once its underlying
+repositories exist.
