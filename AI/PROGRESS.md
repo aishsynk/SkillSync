@@ -2322,3 +2322,18 @@ is resolved.
 
 CI verification for this increment is pending — will record the run URL and
 exact test-failure comparison here once green.
+
+**Correction to the placeholder above**: **Verified, commit `b7edab7`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34965104267:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** |
+| `testDebugUnitTest` | 243 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+
+Count 241 → 243 matches the 2 new `CopilotViewModelTest` tests exactly,
+both passing. Same exact 10 baseline failures by identity.
