@@ -80,7 +80,7 @@ data class TrainerIndexResponseDto(
  * Deliberately conservative for this first increment: only the endpoints
  * `TrainerRepository` already consumed pre-split (`markSkill`,
  * `getTrainer360`, the dev-plan cluster and `getTrainerUtilizationHistory`
- * stay on `ManagerRepository`/`SkillEdgeApi` for now — moving *repository*
+ * stay on `ManagerRepository`/`ManagerApi` for now — moving *repository*
  * ownership, not just the transport interface, is a separate, larger
  * decision tracked in `docs/phase4-api-ownership-matrix.md`).
  */

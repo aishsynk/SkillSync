@@ -16,7 +16,7 @@ import com.example.skillsync.core.network.SetPasswordRequest
  * implementing the whole [AuthApi] interface.
  *
  * Consumes [AuthApi] (Phase 4, `docs/phase4-api-ownership-matrix.md`) rather
- * than the full `SkillEdgeApi` — the first domain interface split out of it.
+ * than the full `ManagerApi` (formerly `SkillEdgeApi`) — the first domain interface split out of it.
  */
 open class AuthRepository(
     private val apiProvider: () -> AuthApi = { RetrofitClient.create() },

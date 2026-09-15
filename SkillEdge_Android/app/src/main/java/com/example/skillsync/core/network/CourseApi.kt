@@ -6,7 +6,7 @@ import retrofit2.http.Query
 /**
  * Course/curriculum-catalogue domain — see [com.example.skillsync.core.data.ManagerRepository]'s
  * `syllabus`/`searchCourses`/`courseIntelligence`/`courseCurriculum`. `ManagerRepository` composes
- * this alongside [SkillEdgeApi] rather than owning a dedicated small repository, since these reads
+ * this alongside [ManagerApi] rather than owning a dedicated small repository, since these reads
  * are consumed only as part of the manager-intelligence surface today.
  */
 interface CourseApi {

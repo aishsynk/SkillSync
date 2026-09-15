@@ -19,7 +19,7 @@ data class ComposeMessageResponse(
  * [com.example.skillsync.feature.communication.domain.CommunicationRepository]
  * (`composeMessage`) and [com.example.skillsync.core.data.ManagerRepository]
  * (`generateCommunication`/`saveCommunication`/`communicationHistory`, still
- * composed alongside `SkillEdgeApi` there rather than in a dedicated
+ * composed alongside `ManagerApi` there rather than in a dedicated
  * repository, following the [CourseApi] pattern).
  */
 interface CommunicationApi {

@@ -4,7 +4,7 @@ import com.example.skillsync.core.network.CommunicationApi
 import com.example.skillsync.core.network.CourseApi
 import com.example.skillsync.core.network.OpportunityApi
 import com.example.skillsync.core.network.RetrofitClient
-import com.example.skillsync.core.network.SkillEdgeApi
+import com.example.skillsync.core.network.ManagerApi
 import com.example.skillsync.core.network.MarkSkillRequest
 import com.example.skillsync.core.network.MarkSkillResponse
 import com.example.skillsync.core.network.CapacityPlanResponse
@@ -49,12 +49,12 @@ data class SyncResult(
  * longer makes Actions disappear, and vice versa.
  */
 class ManagerRepository(
-    private val apiProvider: () -> SkillEdgeApi = { RetrofitClient.instance },
+    private val apiProvider: () -> ManagerApi = { RetrofitClient.instance },
     private val courseApiProvider: () -> CourseApi = { RetrofitClient.create() },
     private val communicationApiProvider: () -> CommunicationApi = { RetrofitClient.create() },
     private val opportunityApiProvider: () -> OpportunityApi = { RetrofitClient.create() },
 ) {
-    private val api: SkillEdgeApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
+    private val api: ManagerApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
     private val courseApi: CourseApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { courseApiProvider() }
     private val communicationApi: CommunicationApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { communicationApiProvider() }
     private val opportunityApi: OpportunityApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { opportunityApiProvider() }

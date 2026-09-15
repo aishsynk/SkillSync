@@ -8,12 +8,16 @@ import retrofit2.http.Body
 import retrofit2.http.Query
 
 /**
- * The remaining, not-yet-domain-split endpoints. Auth, Trainer, Batch,
- * Eligibility, Schedule, Skill-requests and Allocation have already moved to
- * their own domain interfaces (Phase 4, `docs/phase4-api-ownership-matrix.md`,
- * migration status table tracks the rest).
+ * Manager/dashboard domain — what remains after Auth, Trainer, Batch,
+ * Eligibility, Schedule, Skill-requests, Allocation, Course, Copilot,
+ * Communication and Opportunity Guardian moved to their own domain
+ * interfaces (Phase 4, `docs/phase4-api-ownership-matrix.md`). Renamed from
+ * `SkillEdgeApi` (increment I) now that what's left genuinely is one
+ * cohesive domain — the manager's own action inbox, dev-plan, Viber
+ * dispatch/config, and the report/digest/priorities/capacity surface — not
+ * a residual catch-all.
  */
-interface SkillEdgeApi {
+interface ManagerApi {
     @GET("api/v2/notifications")
     suspend fun notifications(): Map<String, Any>
 

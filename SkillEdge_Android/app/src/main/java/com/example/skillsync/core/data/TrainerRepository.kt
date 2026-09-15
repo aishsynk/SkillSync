@@ -24,7 +24,7 @@ import com.example.skillsync.core.network.TrainerIndexResponseDto
  * exists to break apart.
  *
  * Consumes [TrainerApi] (Phase 4, `docs/phase4-api-ownership-matrix.md`)
- * rather than the full `SkillEdgeApi` — this repository's own shape is
+ * rather than the full `ManagerApi` (formerly `SkillEdgeApi`) — this repository's own shape is
  * completely unchanged by that split, per the "API split must be invisible
  * to UI code" requirement (it was already invisible to ViewModels; now the
  * transport interface underneath it is narrower too).

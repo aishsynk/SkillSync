@@ -2862,3 +2862,59 @@ https://github.com/aishsynk/SkillSync/actions/runs/34994022081:**
 
 Count unchanged at 243 (no new tests this increment). Same exact 10
 baseline failures by identity, same 6 lint errors. Green on the first push.
+
+## 37. Phase 4 increment I — SkillEdgeApi renamed to ManagerApi (definition of done reached)
+
+The final increment: after A-H moved every other domain out, the ~39
+methods left on `SkillEdgeApi.kt` (manager action inbox, dev-plan, Viber
+dispatch/config, HR/weekly/capacity/benchmark/ramp/accounts reports,
+digest, priorities, `getAllocationDesk`, `getTeamCapability`, etc.) are
+genuinely one cohesive Manager/dashboard domain — not a residual catch-all
+that still needs splitting. So this increment is a rename, not another
+split: `SkillEdgeApi.kt` → `ManagerApi.kt`, `interface SkillEdgeApi` →
+`interface ManagerApi`, no method moved, no signature changed.
+
+Updated: `RetrofitClient.kt`'s `instance` alias retyped `SkillEdgeApi` →
+`ManagerApi` (still serves `ManagerRepository` plus two direct call sites,
+`MonitoringPass.kt`'s `getDigest` poll and `ActionQueueManager.kt`'s
+`markSkill` retry queue — both untouched, since neither imports the type by
+name, only calls through `RetrofitClient.instance`). `DataRepository.kt`'s
+`ManagerRepository` retyped its `apiProvider`/`api` field from
+`SkillEdgeApi` to `ManagerApi`. Six stray doc-comment references to
+`SkillEdgeApi` in `CommunicationApi.kt`/`TrainerApi.kt`/`OpportunityApi.kt`/
+`CourseApi.kt`/`TrainerRepository.kt`/`AuthRepository.kt` (some using `[..]`
+KDoc-link syntax) updated to `ManagerApi` for accuracy — cosmetic, no
+behavior change.
+
+Verified before pushing: grepped the whole app for any remaining code
+reference to `SkillEdgeApi` — the only four hits left are intentional
+historical text ("formerly `SkillEdgeApi`") in `ManagerApi.kt`'s own doc
+comment, `RetrofitClient.kt`, `TrainerRepository.kt`, `AuthRepository.kt`;
+confirmed zero test files reference the old type name; brace/paren balance
+on `ManagerApi.kt`/`RetrofitClient.kt`/`DataRepository.kt`.
+
+`docs/phase4-api-ownership-matrix.md`'s migration-status table updated —
+this closes the table: every domain API row now reads Extracted/Done.
+
+**This reaches Phase 4's stated Definition of Done**: `SkillEdgeApi.kt` no
+longer exists as an 83-method cross-domain surface; every active endpoint
+has explicit domain ownership (`AuthApi`/`TrainerApi`/`BatchApi`/
+`EligibilityApi`/`ScheduleApi`/`SkillRequestsApi`/`AllocationApi`/
+`CourseApi`/`CopilotApi`/`CommunicationApi`/`OpportunityApi`/`ManagerApi`);
+repositories consume the appropriate domain API (dedicated small
+repositories from increments A/B/C/D/F, or composed-alongside from
+increments E/G/H); Screens/ViewModels never changed a single call site
+across all nine increments; shared Retrofit/network infra
+(`RetrofitClient.create<T>()`) stays centralized; Allocation stayed
+separated from trainer facts throughout (increment D, its own review);
+skill/capability ownership stayed singular (no new capability system
+introduced anywhere in this phase); the availability-reconciliation
+invariant was never touched (no DTO/mapping changes anywhere near that
+boundary); `GeneratedApiService.kt`'s separate-surface role was confirmed
+early and never revisited; Android CI showed zero new regressions across
+all nine pushes (same 243 tests/10 known failures/6 lint errors baseline
+throughout); endpoint ownership is documented in
+`docs/phase4-api-ownership-matrix.md`.
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.

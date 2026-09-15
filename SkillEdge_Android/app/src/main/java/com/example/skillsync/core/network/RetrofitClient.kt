@@ -123,10 +123,12 @@ object RetrofitClient {
     inline fun <reified T> create(): T = retrofit.create(T::class.java)
 
     /**
-     * Backward-compatible alias for repositories not yet migrated to a
-     * narrower domain API interface. Kept only until every [SkillEdgeApi]
-     * method has moved to its domain owner and no repository asks for the
-     * whole interface any more (Phase 4, `docs/phase4-api-ownership-matrix.md`).
+     * [ManagerApi] (formerly `SkillEdgeApi`) — the manager/dashboard domain
+     * interface (Phase 4, `docs/phase4-api-ownership-matrix.md`). Named
+     * `instance` rather than exposed only via [create] because
+     * `ManagerRepository` and a couple of direct call sites
+     * (`MonitoringPass.kt`, `ActionQueueManager.kt`) still reference it by
+     * this name; equivalent to `create<ManagerApi>()`.
      */
-    val instance: SkillEdgeApi by lazy { create<SkillEdgeApi>() }
+    val instance: ManagerApi by lazy { create<ManagerApi>() }
 }

@@ -8,7 +8,7 @@ import retrofit2.http.Query
 
 /**
  * Opportunity Guardian domain — see [com.example.skillsync.core.data.ManagerRepository],
- * which composes this alongside [SkillEdgeApi]/[CourseApi]/[CommunicationApi]. `matchOpportunity`
+ * which composes this alongside [ManagerApi]/[CourseApi]/[CommunicationApi]. `matchOpportunity`
  * reads the skill/capability graph to score a match; it consumes capability data, it does not own
  * a second copy of it. `getSkillProfile`/`updateSkillProfile` are the *manager's own* skill
  * profile for opportunity matching — distinct from trainer capability/course-skill taxonomy,
