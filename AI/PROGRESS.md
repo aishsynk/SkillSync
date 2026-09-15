@@ -3004,3 +3004,33 @@ it's read every session before any release action).
 
 No code changed. No release triggered this entry — this is a memory/docs
 update only.
+
+## 40. v3.80.13.188 released — signed release APK published
+
+Operator explicitly authorized triggering the release workflow. Ran
+`android-release.yml` via `workflow_dispatch` on `claude/nifty-shannon-
+yrkzvc` (run [34998252180](https://github.com/aishsynk/SkillSync/actions/runs/34998252180),
+commit `d170e16`) — no merge to `main` was needed; the workflow builds and
+releases from whatever ref it's given.
+
+**Published**: https://github.com/aishsynk/SkillSync/releases/tag/v3.80.13.188
+- Tag: `v3.80.13.188`
+- Asset: `SkillEdge-v3.80.13.188.apk` (13,860,390 bytes), release-signed with
+  the production keystore (same signing identity as every prior release —
+  the workflow's existing `KEYSTORE_B64`/`KEYSTORE_PASSWORD`/`KEY_ALIAS`/
+  `KEY_PASSWORD` secrets, unchanged).
+- This is a real, installable, production-signed release built from the
+  Phase 1-4 architecture branch — unlike the earlier debug artifact
+  (§38/§39), this one carries the production `com.example.skillsync`
+  package and production certificate, so it will offer a genuine in-place
+  upgrade over the previously installed SkillSync version.
+
+Per the just-recorded permanent decision (§39), this and every future
+release lives at `https://github.com/aishsynk/SkillSync/releases` — nowhere
+else.
+
+**Still not validated by this session**: install, upgrade, and the full
+device smoke-test checklist handed to the operator in §38's report — this
+sandboxed session still has no device/emulator/browser access. That
+checklist stands unchanged; only the artifact it should be run against has
+changed from a debug side-install to the real release APK.
