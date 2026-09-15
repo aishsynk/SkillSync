@@ -110,7 +110,8 @@ object RetrofitClient {
      * own [Retrofit]/[OkHttpClient] — the transport layer stays centralized,
      * only the business-endpoint surface is split.
      */
-    private val retrofit: Retrofit by lazy {
+    @PublishedApi
+    internal val retrofit: Retrofit by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
             .addConverterFactory(GsonConverterFactory.create())
