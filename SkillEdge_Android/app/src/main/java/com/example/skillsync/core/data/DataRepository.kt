@@ -191,29 +191,6 @@ class ManagerRepository(
     suspend fun deliveryCompliance(manager: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
         cachedMap("compliance_$manager", fresh) { api.getDeliveryCompliance(manager) }
 
-    suspend fun endorseSkill(
-        managerEmail: String,
-        trainerEmail: String,
-        courseId: String,
-        courseName: String,
-        skillLevel: Int,
-        fromDate: String = "",
-        devPlanId: String = "",
-    ): Map<String, Any> = api.endorseSkill(
-        mapOf(
-            "manager_email" to managerEmail,
-            "trainer_email" to trainerEmail,
-            "course_id" to courseId,
-            "course_name" to courseName,
-            "skill_level" to skillLevel,
-            "from_date" to fromDate,
-            "dev_plan_id" to devPlanId,
-        )
-    )
-
-    suspend fun trainerSentiment(trainerEmail: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
-        cachedMap("sentiment_$trainerEmail", fresh) { api.getTrainerSentiment(trainerEmail) }
-
     suspend fun viberQueue(manager: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
         cachedMap("viber_queue_$manager", fresh) { api.getViberQueue(manager) }
 

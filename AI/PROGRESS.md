@@ -2531,3 +2531,49 @@ https://github.com/aishsynk/SkillSync/actions/runs/34986980722:**
 
 Count unchanged at 243 (no new tests this increment). Same exact 10
 baseline failures by identity.
+
+## 30. Phase 4 increment B — TrainerApi extraction (conservative scope)
+
+Extracted `TrainerApi.kt`: the 10 methods `TrainerRepository` already
+consumed (`trainerFeedbackLog`, `trainerRecordings`, `getNetworkTrainers`,
+`getAlternativeTrainers`, `getTrainerSentiment`, `getTrainerIndex`,
+`getTrainerReadiness`, `getUpskillMessage`, `endorseSkill`,
+`bulkAssignSkill`) plus their DTOs (`BulkAssignRequest`/`Row`/`Response`/
+`Result`, `TrainerIndexDto`/`CriteriaDto`/`ResponseDto`) moved out of
+`SkillEdgeApi.kt`. `TrainerRepository` now takes `apiProvider: () ->
+TrainerApi = { RetrofitClient.create() }` — same method signatures, zero
+change to any ViewModel or test (`Trainer360ViewModelTest`,
+`TrainerPracticeViewModelTest`, `AllocationViewModelTest`'s fake
+repositories subclass `TrainerRepository` itself, never touch the API type
+directly).
+
+Deliberately conservative scope, per the matrix's own note: `markSkill`,
+`getTrainer360`, the dev-plan cluster (`getDevPlan`/`createDevPlanItem`/
+`updateDevPlanItem`), and `getTrainerUtilizationHistory` are Trainer-domain
+by ownership but currently live on `ManagerRepository` — moving them means
+changing which *repository* owns them (touching `AllocationViewModel`,
+`Trainer360ViewModel` and others' call sites), a larger decision than a
+pure transport-interface split. Left for a later increment, tracked in the
+matrix.
+
+**Also deleted, not migrated**: `ManagerRepository.endorseSkill` and
+`.trainerSentiment` — the two confirmed-dead duplicate methods the matrix
+flagged (zero callers anywhere, verified by grep before deletion). Removing
+their transport methods from `SkillEdgeApi` would have broken
+`DataRepository.kt`'s compile otherwise, so this was not optional cleanup —
+migrating `TrainerApi` out required it.
+
+Learned from increment A's CI failure: manually re-verified no other file
+in the whole app still references any of the 10 migrated methods via
+`RetrofitClient.instance` or the old `SkillEdgeApi` type before pushing
+(grepped, not assumed), and confirmed no duplicate top-level declarations
+across `core/network/*.kt`.
+
+Confirmed by re-grep: zero stray references to the migrated methods remain
+outside `TrainerApi.kt`/`TrainerRepository.kt`; brace/paren balance
+verified on all four touched/new files.
+
+`docs/phase4-api-ownership-matrix.md`'s migration-status table updated.
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.

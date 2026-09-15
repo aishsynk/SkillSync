@@ -255,7 +255,7 @@ current truth for what has actually moved.
 |---|---|
 | Shared `RetrofitClient.create<T>()` factory | **Built** (increment A) — `retrofit` exposed privately, `create<T>()` generic factory, `instance: SkillEdgeApi` kept as a compatibility alias |
 | `AuthApi` | **Extracted** (increment A) — `authCheck`, `login`, `setPassword`, `logout` + their DTOs moved out of `SkillEdgeApi.kt`; `AuthRepository` now consumes `AuthApi` directly |
-| `TrainerApi` | Not yet extracted |
+| `TrainerApi` | **Extracted, conservative scope** (increment B) — the 10 methods `TrainerRepository` already consumed (`trainerFeedbackLog`, `trainerRecordings`, `getNetworkTrainers`, `getAlternativeTrainers`, `getTrainerSentiment`, `getTrainerIndex`, `getTrainerReadiness`, `getUpskillMessage`, `endorseSkill`, `bulkAssignSkill`) plus their DTOs. `markSkill`, `getTrainer360`, the dev-plan cluster, and `getTrainerUtilizationHistory` deliberately **not** moved this increment — they are Trainer-domain by the matrix but currently live on `ManagerRepository`, so moving them means changing *repository* ownership (touching ViewModel call sites), not just the transport interface; tracked as a separate, later decision. Deleted two confirmed-dead duplicate methods (`ManagerRepository.endorseSkill`/`.trainerSentiment`, zero callers verified) rather than migrate them. |
 | `BatchApi` | Not yet extracted |
 | `AllocationApi` | Not yet extracted |
 | `EligibilityApi` | Not yet extracted |

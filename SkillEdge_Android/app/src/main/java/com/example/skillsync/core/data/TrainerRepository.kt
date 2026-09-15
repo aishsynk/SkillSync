@@ -3,7 +3,7 @@ package com.example.skillsync.core.data
 import com.example.skillsync.core.network.BulkAssignRequest
 import com.example.skillsync.core.network.BulkAssignResponse
 import com.example.skillsync.core.network.RetrofitClient
-import com.example.skillsync.core.network.SkillEdgeApi
+import com.example.skillsync.core.network.TrainerApi
 import com.example.skillsync.core.network.TrainerIndexResponseDto
 
 /**
@@ -23,14 +23,20 @@ import com.example.skillsync.core.network.TrainerIndexResponseDto
  * trainer — that would just rebuild the god-repository this migration
  * exists to break apart.
  *
+ * Consumes [TrainerApi] (Phase 4, `docs/phase4-api-ownership-matrix.md`)
+ * rather than the full `SkillEdgeApi` — this repository's own shape is
+ * completely unchanged by that split, per the "API split must be invisible
+ * to UI code" requirement (it was already invisible to ViewModels; now the
+ * transport interface underneath it is narrower too).
+ *
  * Follows the [AuthRepository]/[BatchRepository] convention (`apiProvider`
  * constructor default, `open suspend fun` per call so tests can fake it
  * directly).
  */
 open class TrainerRepository(
-    private val apiProvider: () -> SkillEdgeApi = { RetrofitClient.instance },
+    private val apiProvider: () -> TrainerApi = { RetrofitClient.create() },
 ) {
-    private val api: SkillEdgeApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
+    private val api: TrainerApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
 
     open suspend fun feedbackLog(email: String): Map<String, Any> = api.trainerFeedbackLog(email)
 
@@ -51,7 +57,7 @@ open class TrainerRepository(
 
     open suspend fun bulkAssignSkill(request: BulkAssignRequest): BulkAssignResponse = api.bulkAssignSkill(request)
 
-    /** Server-composed "please build this skill" ask for one trainer — see [SkillEdgeApi.getUpskillMessage]. */
+    /** Server-composed "please build this skill" ask for one trainer — see [TrainerApi.getUpskillMessage]. */
     open suspend fun upskillMessage(
         course: String, trainerName: String? = null, level: String? = null,
         readyBy: String? = null, batches: String? = null,
