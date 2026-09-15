@@ -3,10 +3,17 @@
 Strictly adheres to:
 1. Privacy Filter: screens sensitive facts (salary, margin, billing_rate, etc.).
 2. Clean Separation of Concerns: outputs structured CommunicationPlan only (NO finished prose or markdown).
-3. Semantic Priority:
-   - User Message is PRIMARY (what is being responded to).
-   - My Message is POSITION / INSTRUCTION.
-   - Verified Context is SUPPORTING EVIDENCE.
+3. Semantic Priority: there is no external "[User Message]" input for manager
+   communication. Aishwar (the manager) is always the sender. `my_message` is
+   his own optional instruction/position — it may shape tone, emphasis, or
+   which purpose to lead with, but it is never primary business context, and
+   it can never override `verified_context` (Verified Context is the
+   SUPPORTING EVIDENCE, i.e. authoritative facts). `user_message` remains
+   accepted on the wire for API-shape compatibility (a future, separate
+   "draft a reply to an inbound message" feature may reintroduce a real use
+   for it under its own contract) but is no longer treated as primary intent
+   here — no live caller in this repository populates it as of the Phase 2
+   architecture restructuring (2026-09), confirmed by a repo-wide search.
 4. Auto-generation evaluates the WHOLE operational situation, not simple first-match KPI branching.
 5. Suppresses communication noise with NO_MEANINGFUL_MESSAGE when operations are steady or load is self-managing.
 """
@@ -88,7 +95,10 @@ class ContextSelector:
         requires_comm = True
         no_msg_reason = None
 
-        # ── FLOW A: CONVERSATION REWRITE (USER MESSAGE OR MY MESSAGE PROVIDED) ──
+        # ── FLOW A: MANAGER-INSTRUCTION-LED (my_message supplied) ──────────────
+        # `um` is intentionally not branched on for intent/purpose here — see
+        # the module docstring. It still contributes to recipient-type/time-
+        # reference extraction above (benign parsing, not intent).
         if has_manual_input:
             opp = clean_context.get("opportunity") if isinstance(clean_context.get("opportunity"), dict) else {}
             course = getattr(inferred_intent, "course", "") or clean_context.get("course_code") or clean_context.get("course") or opp.get("course_code") or opp.get("course") or ""
@@ -98,95 +108,55 @@ class ContextSelector:
             elif course:
                 selected_facts.append(FactItem("course", course, "EXPLICIT_USER_INPUT" if course in f"{um} {mm}" else "VERIFIED_SKILLSYNC_CONTEXT"))
 
-            # User message exists: PRIMARY conversational context
-            if um:
-                if purpose == "OPPORTUNITY_RESPONSE":
-                    situation_summary = f"Responding to delivery inquiry for {course or 'the batch'}."
-                    if getattr(inferred_intent, "response_position", "") == "DECLINE":
-                        requested_action = "decline_delivery_with_reason"
-                        expected_outcome = "Sender is informed of unavailability and reallocates batch."
-                    elif "preparation" in getattr(inferred_intent, "qualifiers", []):
-                        requested_action = "confirm_acceptance_and_request_schedule"
-                        expected_outcome = "Sender is informed of confirmation and provides schedule/requirements for prep."
-                    else:
-                        requested_action = "confirm_acceptance"
-                        expected_outcome = "Sender confirms allocation."
+            if purpose == "COURSE_PREPARATION_CHECK":
+                situation_summary = f"Inquiring about trainer readiness and confidence for {course or 'upcoming curriculum'}."
+                requested_action = "check_readiness_and_preparation"
+                expected_outcome = "Trainer confirms confidence and readiness timeline."
+                # If recipient has capability context, select it
+                if "fabric" in mm.lower() or "fabric" in clean_context:
+                    selected_facts.append(FactItem("capability_background", "Fabric", "VERIFIED_SKILLSYNC_CONTEXT"))
 
-                elif purpose == "AVAILABILITY_RESPONSE":
-                    situation_summary = "Responding to availability inquiry."
-                    if getattr(inferred_intent, "response_position", "") == "DECLINE":
-                        requested_action = "clarify_unavailability_and_propose_alternate"
-                        expected_outcome = "Sender is informed of current delivery and alternate connection time."
-                    else:
-                        requested_action = "confirm_availability"
-                        expected_outcome = "Sender confirms connection schedule."
+            elif purpose == "AVAILABILITY_REQUEST":
+                situation_summary = f"Checking availability across team for {course or 'open delivery requirement'}."
+                requested_action = "request_availability_confirmation"
+                expected_outcome = "Available trainer confirms willingness to take up delivery."
+                if "open_demand" in clean_context:
+                    selected_facts.append(FactItem("open_demand", clean_context["open_demand"], "VERIFIED_SKILLSYNC_CONTEXT"))
+                if "bench" in clean_context:
+                    selected_facts.append(FactItem("bench", clean_context["bench"], "VERIFIED_SKILLSYNC_CONTEXT"))
 
-                elif purpose == "STATUS_UPDATE":
-                    situation_summary = "Responding with status confirmation on requested task/report."
-                    requested_action = "confirm_completion_and_delivery"
-                    expected_outcome = "Sender receives completion confirmation."
+            elif purpose == "TASK_ASSIGNMENT":
+                situation_summary = "Manager directing task provisioning or completion."
+                requested_action = "ensure_task_provisioning"
+                expected_outcome = "Recipient ensures required environments and tasks are completed."
 
-                elif purpose == "TASK_FOLLOWUP":
-                    situation_summary = "Directing action or following up on requested task."
-                    requested_action = "request_review_and_feedback"
-                    expected_outcome = "Recipient reviews and provides required output."
+            elif purpose == "APPRECIATION":
+                situation_summary = "Manager expressing recognition for team delivery performance."
+                requested_action = "share_appreciation"
+                expected_outcome = "Team feels recognized and motivated."
+                avg_r = clean_context.get("avg_rating") or clean_context.get("average_rating")
+                if avg_r is not None:
+                    try:
+                        r_float = float(avg_r)
+                        if r_float >= 4.0:
+                            selected_facts.append(FactItem("avg_rating", r_float, "VERIFIED_SKILLSYNC_CONTEXT"))
+                    except (ValueError, TypeError):
+                        pass
 
-                else:
-                    situation_summary = f"Responding to: {um}"
-                    requested_action = "convey_response"
-                    expected_outcome = "Recipient receives clear response."
+            elif purpose == "DELIVERY_UPDATE":
+                situation_summary = "Providing update on active training session and status."
+                requested_action = "share_delivery_update"
+                expected_outcome = "Recipient is briefed on training progress."
 
-            # My message only: MY MESSAGE IS ENTIRE INTENT
+            elif purpose == "TRAVEL_COORDINATION":
+                situation_summary = "Coordinating travel logistics and desk arrangements."
+                requested_action = "coordinate_travel_arrangements"
+                expected_outcome = "Travelers confirm arrangements in advance."
+
             else:
-                if purpose == "COURSE_PREPARATION_CHECK":
-                    situation_summary = f"Inquiring about trainer readiness and confidence for {course or 'upcoming curriculum'}."
-                    requested_action = "check_readiness_and_preparation"
-                    expected_outcome = "Trainer confirms confidence and readiness timeline."
-                    # If recipient has capability context, select it
-                    if "fabric" in mm.lower() or "fabric" in clean_context:
-                        selected_facts.append(FactItem("capability_background", "Fabric", "VERIFIED_SKILLSYNC_CONTEXT"))
-
-                elif purpose == "AVAILABILITY_REQUEST":
-                    situation_summary = f"Checking availability across team for {course or 'open delivery requirement'}."
-                    requested_action = "request_availability_confirmation"
-                    expected_outcome = "Available trainer confirms willingness to take up delivery."
-                    if "open_demand" in clean_context:
-                        selected_facts.append(FactItem("open_demand", clean_context["open_demand"], "VERIFIED_SKILLSYNC_CONTEXT"))
-                    if "bench" in clean_context:
-                        selected_facts.append(FactItem("bench", clean_context["bench"], "VERIFIED_SKILLSYNC_CONTEXT"))
-
-                elif purpose == "TASK_ASSIGNMENT":
-                    situation_summary = "Manager directing task provisioning or completion."
-                    requested_action = "ensure_task_provisioning"
-                    expected_outcome = "Recipient ensures required environments and tasks are completed."
-
-                elif purpose == "APPRECIATION":
-                    situation_summary = "Manager expressing recognition for team delivery performance."
-                    requested_action = "share_appreciation"
-                    expected_outcome = "Team feels recognized and motivated."
-                    avg_r = clean_context.get("avg_rating") or clean_context.get("average_rating")
-                    if avg_r is not None:
-                        try:
-                            r_float = float(avg_r)
-                            if r_float >= 4.0:
-                                selected_facts.append(FactItem("avg_rating", r_float, "VERIFIED_SKILLSYNC_CONTEXT"))
-                        except (ValueError, TypeError):
-                            pass
-
-                elif purpose == "DELIVERY_UPDATE":
-                    situation_summary = "Providing update on active training session and status."
-                    requested_action = "share_delivery_update"
-                    expected_outcome = "Recipient is briefed on training progress."
-
-                elif purpose == "TRAVEL_COORDINATION":
-                    situation_summary = "Coordinating travel logistics and desk arrangements."
-                    requested_action = "coordinate_travel_arrangements"
-                    expected_outcome = "Travelers confirm arrangements in advance."
-
-                else:
-                    situation_summary = f"Manager communication: {mm}"
-                    requested_action = "communicate_intent"
-                    expected_outcome = "Recipient acts on communication."
+                situation_summary = f"Manager communication: {mm}"
+                requested_action = "communicate_intent"
+                expected_outcome = "Recipient acts on communication."
 
             # Reject unneeded general metrics in manual input mode
             for k in ["total_pax", "total_participants", "total_batches", "avg_rating", "total_gaps", "delivering", "headcount"]:

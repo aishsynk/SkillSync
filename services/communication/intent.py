@@ -1,10 +1,13 @@
 """MessageIntentAnalyzer — works out WHO / WHY / WHAT / WHEN / HOW FIRM.
 
-The authoritative rule:
-- If User Message exists: User Message is the PRIMARY source of intent (what the communication responds to).
-- If User Message is empty: derive intent entirely from My Message.
-- If both exist: understand them together; User Message defines what the communication is responding to,
-  and My Message defines what I want to communicate/do about it.
+There is no external "[User Message]" input for manager communication —
+Aishwar (the manager) is always the sender. This module extracts tone/
+urgency/purpose signals from whatever text it is given (`my_message` is the
+manager's own optional instruction); it does not itself decide business
+purpose or recipient (see `ContextSelector`, which no longer branches on
+`user_message` as primary intent — Phase 2 architecture restructuring,
+2026-09). `user_message` remains an accepted parameter for API-shape
+compatibility; no live caller in this repository populates it.
 """
 
 from __future__ import annotations

@@ -46,12 +46,15 @@ class CommunicationEngineTest {
     }
 
     @Test
-    fun userMessageOverridesFirmnessAndMonday() {
+    fun managerInstructionCarriesFirmnessAndMonday() {
+        // There is no external "[User Message]" input for manager
+        // communication — this now expresses the same situation entirely as
+        // the manager's own instruction (myMessage), per the Phase 2
+        // architecture restructuring.
         val out = generate(
             mapOf(
                 "recipient" to mapOf("name" to "", "type" to "REPORTEE"),
-                "userMessage" to "Please make it firmer because the task has been pending since Monday.",
-                "myMessage" to "Can you please complete this when possible?",
+                "myMessage" to "Please make it firmer because the task has been pending since Monday. Can you please complete this when possible?",
             ),
         )
         val text = out.text

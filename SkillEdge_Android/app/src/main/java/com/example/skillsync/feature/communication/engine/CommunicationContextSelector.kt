@@ -78,7 +78,15 @@ object CommunicationContextSelector {
         var requiresComm = true
         var noMsgReason: String? = null
 
-        // ── FLOW A: CONVERSATION REWRITE (MANUAL INPUT PROVIDED) ──────────────
+        // ── FLOW A: MANAGER-INSTRUCTION-LED (mm supplied) ──────────────────────
+        // `um` is intentionally not branched on for intent/purpose here — there
+        // is no external "[User Message]" input for manager communication.
+        // Aishwar (the manager) is always the sender; `um` still contributes to
+        // recipient-type/time-reference extraction above (benign parsing, not
+        // intent). No live caller in this repository populates it as of the
+        // Phase 2 architecture restructuring (2026-09), confirmed by a
+        // repo-wide search. See the mirrored Python
+        // services/communication/context_selector.py for the same change.
         if (hasManualInput) {
             requiresComm = true
             val oppMap = cleanContext["opportunity"] as? Map<*, *>
@@ -94,96 +102,53 @@ object CommunicationContextSelector {
                 selectedFacts.add(FactItem("course", course, if ("$um $mm".contains(course)) "EXPLICIT_USER_INPUT" else "VERIFIED_SKILLSYNC_CONTEXT"))
             }
 
-            if (um.isNotEmpty()) {
-                when (purpose) {
-                    "OPPORTUNITY_RESPONSE" -> {
-                        situationSummary = "Responding to delivery inquiry for ${course.ifEmpty { "the batch" }}."
-                        if (inferredIntent?.responsePosition == "DECLINE") {
-                            requestedAction = "decline_delivery_with_reason"
-                            expectedOutcome = "Sender is informed of unavailability and reallocates batch."
-                        } else if (inferredIntent?.qualifiers?.contains("preparation") == true) {
-                            requestedAction = "confirm_acceptance_and_request_schedule"
-                            expectedOutcome = "Sender is informed of confirmation and provides schedule/requirements for prep."
-                        } else {
-                            requestedAction = "confirm_acceptance"
-                            expectedOutcome = "Sender confirms allocation."
-                        }
-                    }
-                    "AVAILABILITY_RESPONSE" -> {
-                        situationSummary = "Responding to availability inquiry."
-                        if (inferredIntent?.responsePosition == "DECLINE") {
-                            requestedAction = "clarify_unavailability_and_propose_alternate"
-                            expectedOutcome = "Sender is informed of current delivery and alternate connection time."
-                        } else {
-                            requestedAction = "confirm_availability"
-                            expectedOutcome = "Sender confirms connection schedule."
-                        }
-                    }
-                    "STATUS_UPDATE" -> {
-                        situationSummary = "Responding with status confirmation on requested task/report."
-                        requestedAction = "confirm_completion_and_delivery"
-                        expectedOutcome = "Sender receives completion confirmation."
-                    }
-                    "TASK_FOLLOWUP" -> {
-                        situationSummary = "Directing action or following up on requested task."
-                        requestedAction = "request_review_and_feedback"
-                        expectedOutcome = "Recipient reviews and provides required output."
-                    }
-                    else -> {
-                        situationSummary = "Responding to: $um"
-                        requestedAction = "convey_response"
-                        expectedOutcome = "Recipient receives clear response."
+            when (purpose) {
+                "COURSE_PREPARATION_CHECK" -> {
+                    situationSummary = "Inquiring about trainer readiness and confidence for ${course.ifEmpty { "upcoming curriculum" }}."
+                    requestedAction = "check_readiness_and_preparation"
+                    expectedOutcome = "Trainer confirms confidence and readiness timeline."
+                    if (mm.lowercase(Locale.getDefault()).contains("fabric") || cleanContext.containsKey("fabric")) {
+                        selectedFacts.add(FactItem("capability_background", "Fabric", "VERIFIED_SKILLSYNC_CONTEXT"))
                     }
                 }
-            } else {
-                when (purpose) {
-                    "COURSE_PREPARATION_CHECK" -> {
-                        situationSummary = "Inquiring about trainer readiness and confidence for ${course.ifEmpty { "upcoming curriculum" }}."
-                        requestedAction = "check_readiness_and_preparation"
-                        expectedOutcome = "Trainer confirms confidence and readiness timeline."
-                        if (mm.lowercase(Locale.getDefault()).contains("fabric") || cleanContext.containsKey("fabric")) {
-                            selectedFacts.add(FactItem("capability_background", "Fabric", "VERIFIED_SKILLSYNC_CONTEXT"))
+                "AVAILABILITY_REQUEST" -> {
+                    situationSummary = "Checking availability across team for ${course.ifEmpty { "open delivery requirement" }}."
+                    requestedAction = "request_availability_confirmation"
+                    expectedOutcome = "Available trainer confirms willingness to take up delivery."
+                    cleanContext["open_demand"]?.let { selectedFacts.add(FactItem("open_demand", it, "VERIFIED_SKILLSYNC_CONTEXT")) }
+                    cleanContext["bench"]?.let { selectedFacts.add(FactItem("bench", it, "VERIFIED_SKILLSYNC_CONTEXT")) }
+                }
+                "TASK_ASSIGNMENT" -> {
+                    situationSummary = "Manager directing task provisioning or completion."
+                    requestedAction = "ensure_task_provisioning"
+                    expectedOutcome = "Recipient ensures required environments and tasks are completed."
+                }
+                "APPRECIATION" -> {
+                    situationSummary = "Manager expressing recognition for team delivery performance."
+                    requestedAction = "share_appreciation"
+                    expectedOutcome = "Team feels recognized and motivated."
+                    val avgR = cleanContext["avg_rating"] ?: cleanContext["average_rating"]
+                    if (avgR != null) {
+                        val rFloat = (avgR as? Number)?.toDouble() ?: avgR.toString().toDoubleOrNull()
+                        if (rFloat != null && rFloat >= 4.0) {
+                            selectedFacts.add(FactItem("avg_rating", rFloat, "VERIFIED_SKILLSYNC_CONTEXT"))
                         }
                     }
-                    "AVAILABILITY_REQUEST" -> {
-                        situationSummary = "Checking availability across team for ${course.ifEmpty { "open delivery requirement" }}."
-                        requestedAction = "request_availability_confirmation"
-                        expectedOutcome = "Available trainer confirms willingness to take up delivery."
-                        cleanContext["open_demand"]?.let { selectedFacts.add(FactItem("open_demand", it, "VERIFIED_SKILLSYNC_CONTEXT")) }
-                        cleanContext["bench"]?.let { selectedFacts.add(FactItem("bench", it, "VERIFIED_SKILLSYNC_CONTEXT")) }
-                    }
-                    "TASK_ASSIGNMENT" -> {
-                        situationSummary = "Manager directing task provisioning or completion."
-                        requestedAction = "ensure_task_provisioning"
-                        expectedOutcome = "Recipient ensures required environments and tasks are completed."
-                    }
-                    "APPRECIATION" -> {
-                        situationSummary = "Manager expressing recognition for team delivery performance."
-                        requestedAction = "share_appreciation"
-                        expectedOutcome = "Team feels recognized and motivated."
-                        val avgR = cleanContext["avg_rating"] ?: cleanContext["average_rating"]
-                        if (avgR != null) {
-                            val rFloat = (avgR as? Number)?.toDouble() ?: avgR.toString().toDoubleOrNull()
-                            if (rFloat != null && rFloat >= 4.0) {
-                                selectedFacts.add(FactItem("avg_rating", rFloat, "VERIFIED_SKILLSYNC_CONTEXT"))
-                            }
-                        }
-                    }
-                    "DELIVERY_UPDATE" -> {
-                        situationSummary = "Providing update on active training session and status."
-                        requestedAction = "share_delivery_update"
-                        expectedOutcome = "Recipient is briefed on training progress."
-                    }
-                    "TRAVEL_COORDINATION" -> {
-                        situationSummary = "Coordinating travel logistics and desk arrangements."
-                        requestedAction = "coordinate_travel_arrangements"
-                        expectedOutcome = "Travelers confirm arrangements in advance."
-                    }
-                    else -> {
-                        situationSummary = "Manager communication: $mm"
-                        requestedAction = "communicate_intent"
-                        expectedOutcome = "Recipient acts on communication."
-                    }
+                }
+                "DELIVERY_UPDATE" -> {
+                    situationSummary = "Providing update on active training session and status."
+                    requestedAction = "share_delivery_update"
+                    expectedOutcome = "Recipient is briefed on training progress."
+                }
+                "TRAVEL_COORDINATION" -> {
+                    situationSummary = "Coordinating travel logistics and desk arrangements."
+                    requestedAction = "coordinate_travel_arrangements"
+                    expectedOutcome = "Travelers confirm arrangements in advance."
+                }
+                else -> {
+                    situationSummary = "Manager communication: $mm"
+                    requestedAction = "communicate_intent"
+                    expectedOutcome = "Recipient acts on communication."
                 }
             }
 

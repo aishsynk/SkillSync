@@ -8861,50 +8861,6 @@ def copilot_team_v2():
     return jsonify(_copilot_team_answer(intent, question, team, demand)), 200
 
 
-@app.route('/api/v2/message/rewrite', methods=['POST'])
-def message_rewrite():
-    """
-    Rewrites [User Message] and/or [My Message] into a Teams/Viber house-style
-    message. At least one of the two inputs must be present.
-    Body: { manager_email, user_message, my_message, target_name, is_team, style, evidence_context }
-    style: teams (default, emits **bold**, _italic_, __underline__) or plain.
-    Uses the deterministic rewrite engine above; no LLM call, but the seam is
-    preserved for an eventual model.
-    """
-    body = request.get_json(force=True, silent=True) or {}
-    manager_email = str(body.get("manager_email", "") or body.get("manager", "") or "").strip().lower()
-    # Auth gate — same as other v2 routes
-    _, error = _v2_manager_session(manager_email, manager_only=True)
-    if error:
-        return error
-    user_message = str(body.get("user_message", "") or body.get("User Message", "") or "")
-    my_message = str(body.get("my_message", "") or body.get("My Message", "") or "")
-    target_name = str(body.get("target_name", "") or body.get("trainer_name", "") or "").strip()
-    is_team = bool(body.get("is_team", False))
-    style = str(body.get("style", "teams") or "teams").strip().lower()
-    if style not in ("teams", "plain"):
-        style = "teams"
-    evidence_context = body.get("evidence_context") if isinstance(body.get("evidence_context"), dict) else None
-    if not str(user_message or "").strip() and not str(my_message or "").strip():
-        return error_response("MISSING_INPUT", "At least one of user_message or my_message is required", 400)
-    try:
-        rewritten = _compose_rewritten(user_message, my_message, style=style,
-                                       target_name=target_name, is_team=is_team,
-                                       evidence_context=evidence_context)
-    except ValueError as e:
-        return error_response("REWRITE_ERROR", str(e), 400)
-    except Exception as e:
-        return error_response("REWRITE_ERROR", f"Rewrite failed: {e}", 500)
-    intent = _detect_intent(user_message, my_message)
-    return jsonify({
-        "rewritten": rewritten,
-        "style": style,
-        "length": len(rewritten),
-        "detected": intent,
-        "greeting": rewritten.split("\n")[0] if rewritten else "",
-    }), 200
-
-
 @app.route('/api/v2/message/compose', methods=['GET', 'POST'])
 def message_compose():
     """

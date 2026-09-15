@@ -115,3 +115,93 @@ row below is based on reading the actual implementation, not inferred from namin
   composer would change a format the business explicitly requires. Their delivery
   mechanics (`copyMessage`/`shareAnywhere`/`openUrl`) were correctly already
   separate from composition and were not touched.
+
+## Phase 2 closure pass (2026-09-15, same session)
+
+The operator correctly rejected the items above marked "deferred" as an
+acceptable way to close Phase 2 — classification is not closure. This
+section records what the closure pass actually did.
+
+1. **`WeeklyMessage.composeTeamMessage`/`composeReporteeMessage` deleted.**
+   Verified zero production callers repository-wide (only
+   `WeeklyMessageTest.kt`, itself updated). Their private helpers
+   (`assemble`, `sanitise`, `trimToLimit`, `formatManagerNote`, `bold`,
+   `italic`, `count`, `nextAvailabilityDeadline`, `weekReference`) were
+   dead-code-only for those two functions and removed with them.
+   `TeamSignals`/`ReporteeSignals` (still real, used as evidence structs by
+   `WeeklyReportScreen.kt`) and `composeManagerStandpointNote` (still live,
+   a distinct labelled-field internal note, not Teams/Viber prose) are
+   retained.
+
+2. **`BatchShare`/`BulkBatchShare` — classification confirmed, not
+   re-plumbed.** Re-read `BatchShare.kt` end to end: its only "decision" is
+   a fixed field-presence check (a label prints only when RMS returned that
+   field); it does not choose tone, purpose, appreciation/correction
+   framing, or KPI interpretation anywhere. Classified `STRUCTURED
+   OPERATIONAL SHARE` in `AI/CONTEXT.md`'s canonical architecture section.
+   No code change.
+
+3. **Backend Flow A retired**, mirroring the Android change already made in
+   the main Phase 2 pass:
+   - `services/communication/context_selector.py`'s `if um: ... else: ...`
+     split (the literal "user_message is PRIMARY" branch, 4 purpose cases +
+     a generic fallback) is removed; the `my_message`-only logic is now
+     unconditional inside `ContextSelector.evaluate_and_select`'s
+     `has_manual_input` branch. `user_message` remains an accepted
+     parameter (API-shape compatibility) and still contributes to
+     recipient-type/time-reference text scanning (benign parsing, not
+     intent), per the corrected module docstring.
+   - The Kotlin mirror, `CommunicationContextSelector.kt`, received the
+     identical change (the `if (um.isNotEmpty())`/`else` split removed) so
+     the two engines do not silently diverge.
+   - `services/communication/intent.py`'s module docstring, which
+     literally asserted "User Message is the PRIMARY source of intent" as
+     a current rule, corrected — logic unchanged (it is a tone/urgency
+     signal extractor, not a purpose/recipient decision-maker; that
+     decision lives in `ContextSelector`, which was fixed).
+   - **A previously-undiscovered third entry point found and retired**:
+     Android's `SkillEdgeApi.kt` declared a `POST api/v2/message/rewrite`
+     endpoint (`rewriteMessage`/`RewriteRequest`/`RewriteResponse`) with
+     zero callers anywhere in the app — confirmed by repo-wide search. Its
+     backend counterpart, `backend.py`'s `/api/v2/message/rewrite` route
+     (`message_rewrite()`, calling `_compose_rewritten`/`_detect_intent`),
+     had zero test coverage and zero other internal callers. The Android
+     declaration was deleted outright; the backend **route** was removed
+     (confirmed exact boundaries before editing), while `_compose_rewritten`/
+     `_detect_intent` themselves were left in place as now-unreferenced
+     dead code rather than risking an imprecise deletion inside a
+     15,000-line file with no test coverage protecting that specific
+     removal — flagged here as a follow-up cleanup item, not silently left
+     reachable (the reachable HTTP path is gone).
+
+4. **Repository-wide search, final pass** — every remaining hit for
+   `User Message`/`userMessage`/`user_message`/`My Message`/`myMessage`/
+   `my_message`/`MessageRewriter`/`WeeklyMessage`/direct
+   `CommunicationComposer`/`CommunicationGenerator` calls was individually
+   classified (see the search output preserved in this session's record).
+   Remaining hits are: (a) parameter names still accepted for API-shape
+   compatibility but no longer treated as primary intent by any live
+   caller (`userMessage`/`user_message` fields on `ContextSelectionPlan`/
+   `CommunicationContext`/`CommunicationPlan`), (b) an unrelated
+   `Throwable.userMessage(verb)` error-formatting extension function
+   (`core/common/Errors.kt`) that has nothing to do with communication
+   semantics, (c) doc comments/tests explicitly describing the retired
+   behaviour as historical context, and (d) the two legitimate direct
+   `CommunicationComposer`/`CommunicationGenerator` callers
+   (`ManagerCommunicationComposer`, `CommunicationViewModel`) which are the
+   correct, intended call sites. No hidden manager-communication path
+   using the retired semantics remains.
+
+5. **Verification**: Android — see `AI/PROGRESS.md`'s Phase 2 closure
+   entry for the CI run and failure-identity comparison. Backend — full
+   suite (`python3 -m pytest tests/ -q`) run after each backend edit in
+   this closure pass (context_selector.py, intent.py, backend.py route
+   removal): **370 passed, 25 subtests passed, 0 failed** throughout, no
+   regressions at any step.
+
+6. **Durable architecture record**: `AI/CONTEXT.md`'s "Manager
+   Communication Architecture (effective 2026-09-15)" section now states
+   the canonical pipeline, supersedes the 2026-09-12 entry explicitly
+   (append-and-supersede, per this repo's own documentation convention —
+   the superseded text is retained below it as history, not deleted), and
+   covers every point the operator's closure instructions required.

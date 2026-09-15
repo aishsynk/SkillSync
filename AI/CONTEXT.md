@@ -141,14 +141,81 @@
   others). Do not write UI or backend code against an assumed schema for those without a live
   authenticated probe first — see [[feedback_verification_standards]].
 
-## Communication Intelligence Service Architecture (effective 2026-09-12)
+## Manager Communication Architecture (effective 2026-09-15 — supersedes the
+## 2026-09-12 "User Message / My Message Precedence" entry below; do not
+## relitigate this)
 
-- **Authoritative Pipeline**:
-  `User Message + My Message + Current Context` → `Intent Analysis` → `Recipient/Relationship Understanding` → `Situation Evaluation` → `Important Fact Selection` → `Irrelevant Fact Rejection` → `Sensitive Fact Rejection` → `Action Determination` → `Message Planning` → `Natural Generation (LLM or Intelligent Native Engine)` → `Policy/Formatting Validation` → `Final Message`.
-- **User Message / My Message Precedence**:
-  - If `user_message` is present, it is the PRIMARY conversational intent (what is being responded to).
-  - If `user_message` is empty, derive intent from `my_message`.
-  - When both exist, `user_message` defines inbound context while `my_message` defines the sender's position, qualifiers, and instructions.
+- **There is no external `[User Message]` input in manager communication.**
+  Aishwar (or whichever manager account is signed in) is always the sender.
+  The 2026-09-12 entry's "`user_message` is the PRIMARY conversational
+  intent" rule was the exact anti-pattern the Phase 1/2 architecture
+  restructuring (2026-09-15, branch `claude/nifty-shannon-yrkzvc`) removed:
+  a caller-supplied free-text field was able to drive what the system
+  claimed as business fact. It is retired everywhere confirmed reachable by
+  a repo-wide search (Android `feature/communication/*`, backend
+  `services/communication/*`, `backend.py`'s `/api/v2/message/compose` and
+  `/api/v2/communication/generate` routes) — see
+  `docs/phase2-communication-classification.md` for the full audit and file-
+  level evidence.
+- **Canonical pipeline**:
+  verified domain facts (repository/backend-computed) → deterministic
+  calculations (owned by the domain/KPI layer, never by communication) →
+  structured business insights → `CommunicationContext`/`CommunicationRequest`
+  → `CommunicationPurpose` → `CommunicationPolicy`
+  (`CommunicationContextFilter` sanitisation + `CommunicationValidator`
+  factual-integrity checks) → message composition
+  (`CommunicationComposer`/`ManagerCommunicationComposer`) → channel
+  rendering (Teams/Viber-specific emphasis markers) → delivery (share
+  intent/clipboard/Viber queue — a separate concern from composition).
+- **Manager instruction is optional and subordinate to verified facts.**
+  `managerInstruction`/`my_message` may shape tone, emphasis, which purpose
+  to lead with, or a specific point to mention. It can never override,
+  replace, or invent a verified fact (utilisation, cert gaps, learner
+  rating, batch/delivery/certification data, deadlines, responsibilities).
+  `ManagerCommunicationComposer` always composes evidence-derived sentences
+  first and can only append one instruction-derived sentence; the shared
+  `CommunicationValidator.validate`/`validateFactualIntegrity` (and its
+  Python mirror) reject a composed message that states a course/day/number/
+  name absent from verified facts or the instruction text itself. Covered
+  by `ManagerCommunicationComposerTest`, `CommunicationEngineTest`,
+  `CommunicationViewModelTest`.
+- **Communication does not calculate authoritative KPI values and does not
+  fetch arbitrary trainer/KPI/batch data itself.** It consumes evidence
+  already prepared by the domain/repository layer that called it
+  (`CommunicationEvidence`, `verified_context`). The one Android-side
+  deterministic calculation identified anywhere in the codebase
+  (`projectNextUtilization`/`averageMonthOverMonthDelta`, a linear trend
+  projection) lives in `feature/home/DashboardSections.kt`, not in any
+  communication file — flagged as architecturally misplaced but out of
+  Phase 2's scope (see `docs/architecture-assessment.md`).
+- **Composition and delivery are separate.** `BatchShare`/`BulkBatchShare`
+  own actual send/queue mechanics (`copyMessage`/`shareAnywhere`/`openUrl`)
+  separately from their message-building functions; `ManagerCommunicationComposer`/
+  `CommunicationComposer` only ever return text, never send anything.
+- **Structured operational exports are not automatically manager prose
+  generation.** `BatchShare`/`BulkBatchShare` produce a fixed, mandated,
+  labelled-field broadcast ("Course :", "Schedule :", "Delivery Mode :", …
+  — "the RMS allocation broadcast, applied literally") for trainer-facing
+  assignment notifications. This is classified `STRUCTURED OPERATIONAL
+  SHARE`, a different responsibility from manager-to-team/reportee prose
+  communication, and is correctly not routed through
+  `CommunicationComposer`. It must not independently decide tone, manager
+  intent, appreciation/correction framing, performance interpretation, or
+  KPI meaning — confirmed by direct code review it does not (its only
+  "decision" is a fixed field-presence check: a label prints only when RMS
+  actually returned that field). If either `BatchShare` implementation is
+  ever extended to make a tone/intent/performance decision, that
+  responsibility must be extracted into the canonical communication
+  pipeline; the structured field-assembly and delivery mechanics may stay
+  separate.
+- **Legacy pre-2026-09-15 pipeline description (retained for history, not
+  current instruction)**: `User Message + My Message + Current Context` →
+  `Intent Analysis` → `Recipient/Relationship Understanding` → `Situation
+  Evaluation` → `Important Fact Selection` → `Irrelevant Fact Rejection` →
+  `Sensitive Fact Rejection` → `Action Determination` → `Message Planning` →
+  `Natural Generation (LLM or Intelligent Native Engine)` → `Policy/
+  Formatting Validation` → `Final Message`, with `user_message` as PRIMARY
+  conversational intent when present. Do not restore this.
 - **Clean Separation of Concerns**:
   `ContextSelector` outputs structured meaning only (`CommunicationPlan` / `ContextSelectionPlan`) with zero finished prose or markdown sentences. `Composer` generates the natural language.
 - **Single-Priority Focus vs. Metric Dump**:
