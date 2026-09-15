@@ -1832,5 +1832,17 @@ brace/paren balance verified on all touched/new files.
 home in `TrainerRepository`; `bulkAssignSkill` → write/mutation, own
 decision needed), `CopilotViewModel`.
 
-CI verification for this increment is pending — will record the run URL and
-exact test-failure comparison here once green.
+**Verified, commit `b97715b`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34957914291:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** |
+| `testDebugUnitTest` | 237 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+
+Count 234 → 237 matches the 3 new `Trainer360ViewModelTest` tests exactly,
+all passing. Same exact 10 baseline failures by identity.
