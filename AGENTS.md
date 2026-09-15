@@ -31,12 +31,19 @@ Follow only the ANDROID workflow:
 
 `Inspect → Implement → Compile → Unit Test → Lint → Build/Assemble → Validate User Flows`
 
-- **Releases:** increment version correctly (see `AI/DECISIONS.md` — ONE
-  continuous `3.80.x` patch sequence; `versionCode` always +1, `versionName`
-  patch digit only; rebrand alone is never a MINOR bump). Preserve package name,
-  signing key, and user data. Generate APK/AAB and validate upgrade from the
-  previous version. Uninstall/reinstall requirement or data loss = release
-  blocker.
+- **Releases:** always check `https://github.com/aishsynk/SkillSync/releases`
+  first — the sole source of truth for the next version, never
+  `build.gradle.kts`/`AI/PROGRESS.md`/tags/memory. Version is
+  `MAJOR.MINOR.PATCH.BUILD` (e.g. `3.80.13.188` = `versionName "3.80.13"` +
+  `versionCode 188`); for a normal release only `versionCode` (the rightmost,
+  4th component) increments — `versionName` stays fixed until `versionCode`'s
+  portion reaches 999, which rolls the next component up (see
+  `AI/DECISIONS.md`, "Versioning rule replaced"). Rebrand alone is never a
+  MINOR bump. Preserve package name, signing key, and user data. Generate
+  APK/AAB and validate upgrade from the previous version. Uninstall/reinstall
+  requirement or data loss = release blocker. Every completed, validated
+  user-facing fix should result in a new published release unless the
+  operator explicitly says test-only/do-not-release/hold.
 - **WEB/VS and BACKEND/API workflows do not apply** to this repo; never trigger
   Web/Azure production deployment from Android work unless the task explicitly
   includes the backend.

@@ -1,5 +1,31 @@
 # SkillEdge / Manager OS — Decisions
 
+## 2026-09-15 — Versioning rule replaced: build number (4th component) increments, not the patch digit
+
+- **Decision (operator instruction, supersedes the `2026-09-15` "Versioning
+  correction" entry below on this one point — do not relitigate):** SkillSync
+  releases are identified by four components, `MAJOR.MINOR.PATCH.BUILD` (e.g.
+  `3.80.13.188` = `versionName "3.80.13"` + `versionCode 188`). For every
+  normal release, only the **rightmost** component (`versionCode`, the
+  4th/BUILD number) increments — `versionName` (`3.80.13`) stays **fixed**.
+  Example: `3.80.13.188` → `3.80.13.189` → `3.80.13.190` → … → `3.80.13.999`.
+  Only when `versionCode`'s portion reaches `999` does the next-higher
+  component roll over (`3.80.13.999` → `3.80.14.000` → `3.80.14.001`, …),
+  same right-to-left principle repeating.
+- **This replaces, for this one axis, the earlier "patch digit increments
+  every release" rule** (the `versionName`'s third number used to move with
+  every release, e.g. `3.80.12` → `3.80.13` → `3.80.14`; it no longer does).
+  The earlier entry's other point — never bump `MINOR` without explicit
+  instruction, no accidental jump to `3.81.0` — still stands unchanged.
+- **Correction applied this session:** commit had incorrectly set
+  `versionCode 189` / `versionName "3.80.14"` for the next test candidate
+  (still applying the old patch-digit-every-release rule). Corrected in
+  place to `versionCode 189` / `versionName "3.80.13"` (unchanged from the
+  last published `v3.80.13.188`) before any further release action.
+- **Always check `https://github.com/aishsynk/SkillSync/releases` before
+  calculating any version** — it is the sole source of truth, never
+  `build.gradle.kts`, `AI/PROGRESS.md`, git tags alone, or memory.
+
 ## 2026-09-15 — Canonical release destination: always `https://github.com/aishsynk/SkillSync/releases`
 
 - **Decision (operator instruction, permanent, applies to every future
