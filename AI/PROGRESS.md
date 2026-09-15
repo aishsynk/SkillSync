@@ -2936,3 +2936,52 @@ baseline failures by identity, same 6 lint errors. Green on the first push.
 
 **Phase 4 is complete: all nine increments (A-I) verified green with zero
 regressions throughout, definition of done reached.**
+
+## 38. Release-candidate validation — v3.80.13 (188)
+
+User explicitly stopped further architectural phases to get a real,
+installable SkillSync candidate exercised before Phase 5. This is release-
+candidate/device-validation work, not Phase 5.
+
+- Verified current shipping version directly from
+  `SkillEdge_Android/app/build.gradle.kts`: `versionCode 187` /
+  `versionName 3.80.12`, matching the user's stated baseline exactly (not
+  guessed). Bumped to `versionCode 188` / `versionName 3.80.13` (commit
+  `13dbe6f`). App identity (`SkillSync`), `applicationId`/`namespace`
+  (`com.example.skillsync`), signing config and backend URLs untouched.
+- Source audit before building: clean working tree, all Phase 1-4 commits
+  present, no InTouch/LinkedIn Capture code or branding anywhere in
+  `app/src/main`, app label confirmed `SkillSync`
+  (`strings.xml`/`manifestPlaceholders`), Phase 4 domain API structure
+  confirmed present (12 domain interfaces), zero remaining `SkillEdgeApi`
+  monolith references (only intentional "(formerly SkillEdgeApi)" doc
+  text), zero Screen/ViewModel transport-boundary violations (every
+  `feature/**/ui` `RetrofitClient.*` hit is `isNetworkAvailable(...)`, a
+  connectivity check, not a transport call).
+- Automated gates: Android CI run
+  [34996735432](https://github.com/aishsynk/SkillSync/actions/runs/34996735432)
+  (commit `13dbe6f`) green — compileDebugKotlin, 243 unit tests/10 known
+  failures (baseline), lint 6 errors (baseline), assembleDebug all pass.
+  Backend: full suite 404 passed locally; focused
+  allocation/communication/viber/availability/candidate subset 116 passed.
+- **Could not perform**: fresh install, upgrade-over-production, on-device
+  smoke test, or the Recommended Trainers rendered-value check. This
+  sandboxed session has no attached device, emulator, or browser. Separately,
+  the only APK buildable without production signing secrets (the
+  `android-architecture-validation.yml` debug artifact) carries a different
+  applicationId (`com.example.skillsync.debug`) and a different signing
+  certificate than production, so even a manual run of it would not exercise
+  a true upgrade path — and the production `android-release.yml` workflow,
+  which does hold those secrets, was correctly not triggered per explicit
+  instruction. This session's outbound network is also allow-listed and does
+  not include the Azure Blob Storage host GitHub Actions serves artifact
+  downloads from, so the built debug APK could not be pulled into this
+  session to hand over directly either — it is linked for the user to
+  download themselves from the CI run page.
+- Full report: `docs/release-candidate-3.80.13.md`. It is explicit about
+  what is proven (architecture compiles/tests clean end to end, zero
+  regressions, backend green) versus what is not (nothing about the app
+  running as installed software was confirmed).
+- **Stopped here per explicit instruction** — did not proceed to Phase 5.
+  Handed the user the debug APK link and a manual test checklist to execute
+  themselves.
