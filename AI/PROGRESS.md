@@ -1771,5 +1771,17 @@ sole source of truth in that doc.
 is a write/mutation needing its own domain decision), `CopilotViewModel`,
 `Trainer360ViewModel` (Trainer domain, likely also `TrainerRepository`).
 
-CI verification for this increment is pending — will record the run URL and
-exact test-failure comparison here once green.
+**Verified, commit `1051d61`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34957112519:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** |
+| `testDebugUnitTest` | 234 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+
+Count 233 → 234 matches the 1 new `TrainerPracticeViewModelTest` test
+exactly, and it passes. Same exact 10 baseline failures by identity.
