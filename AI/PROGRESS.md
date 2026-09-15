@@ -1427,3 +1427,67 @@ this exact commit is verified with real evidence, not assumed.
 **Next:** Phase 2 (message-generation consolidation design —
 `MessageRewriter`/`WeeklyMessage`/`BatchShare`/`BulkBatchShare`/backend
 `_viber_queue_build`).
+
+## 13. Phase 2 — communication consolidation, verified green (2026-09-15, same branch)
+
+Full audit/classification matrix: `docs/phase2-communication-classification.md`.
+Summary of the changes themselves is in commit `7b5d663`'s message; see that
+commit and the classification doc for the complete reasoning. This entry
+records verification only.
+
+**First push (`7b5d663`) failed CI** — two real compile errors in test code
+that manual review missed: `WeeklyMessageTest.kt` still imported the deleted
+`MessageRewriter`; `ManagerCommunicationComposerTest.kt` referenced
+`CommunicationPurpose` without importing it from its new location. Per the
+drive-to-green rule, fixed immediately in `b33ee61` (imports only, no
+production code touched) and re-pushed — this is the honest record of a
+real CI catch, not a hidden retry.
+
+**Final verified result, commit `b33ee61`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34934376762:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** (1m 12s) |
+| `testDebugUnitTest` | 247 tests completed, 10 failed |
+| Compare unit test results to baseline | **PASS** — "10 <= baseline 10" |
+| `lintDebug` | 6 errors (matches baseline exactly) |
+| Compare lint results to baseline | **PASS** — "6 <= baseline 6" |
+| `assembleDebug` | **BUILD SUCCESSFUL** (1m) |
+
+**Test count verified by arithmetic, not just baseline comparison:** 249 (Phase 1
+verified count) − 4 (`MessageRewriter` tests removed, since that class no longer
+exists) + 2 (`CommunicationViewModelTest`, new) = **247**, exactly matching
+the run's actual count. **Same 10 failing tests by name** as every prior
+verified run this session: `PilotScreenshotTest > {today_screenshot,
+thisWeek_populated_screenshot, capacityRunway_screenshot,
+thisWeek_empty_screenshot}` and `ScreenRenderTest >
+{dashboard_certKpisAreNotZeroBeforeCapabilityLoads,
+dashboard_identifiesTheSignedInManager,
+dashboard_isAManagerCommandCentreNotCriticalPulse,
+dashboard_showsRealAvailabilitySeparatelyFromWorkloadBands,
+dashboard_showsDeliveryAndCapacityDecisions,
+dashboard_usesCompactSemanticKpisAndRestoresTopPerformers}`. Lint's single
+error is the same pre-existing `ViewModelConstructorInComposable` in the
+Pilot screenshot test harness recorded since Phase 1. **Zero new failures,
+zero new lint errors, confirmed by identity, not just count.**
+
+**Backend:** `python3 -m pytest tests/ -q` — 370 passed, 25 subtests passed,
+0 failed (re-run after Phase 2, unchanged from the pre-Phase-2 run recorded
+in commit `7b5d663`'s message; no backend files were touched this phase).
+
+Phase 2 satisfies its definition of done: no report Composable or the
+Communication screen invokes communication-engine classes directly anymore;
+`ManagerCommunicationComposer`/`CommunicationGenerator` both go through
+`CommunicationComposer`; the manager-communication contract has no
+`[User Message]` field; `managerInstruction` is subordinate to evidence by
+construction and by test; `MessageRewriter` (the old-semantics fallback) is
+deleted; online/offline both consume the same `CommunicationComposer`;
+duplicate `CommunicationPurpose` ownership is resolved to one enum; Android
+CI shows zero new regressions by name; backend suite is green and untouched.
+Deliberately deferred items are listed in the classification doc's "What
+this pass deliberately did NOT do" section, not silently dropped.
+
+**Next:** Phase 3 (close remaining direct API bypasses), only on explicit
+instruction — per the operator's scope guard, this session does not move to
+Phase 3 unassigned.
