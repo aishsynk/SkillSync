@@ -2,8 +2,8 @@ package com.example.skillsync.feature.auth.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.skillsync.core.data.AuthRepository
 import com.example.skillsync.core.network.LoginRequest
-import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.core.network.SetPasswordRequest
 import com.example.skillsync.core.common.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,7 +41,9 @@ fun roleLabel(role: String?): String = when (role) {
     else -> "Team member"
 }
 
-class LoginViewModel : ViewModel() {
+class LoginViewModel(
+    private val repository: AuthRepository = AuthRepository(),
+) : ViewModel() {
     private val _loginState = MutableStateFlow<LoginState>(LoginState.Idle)
     val loginState: StateFlow<LoginState> = _loginState
 
@@ -85,7 +87,7 @@ class LoginViewModel : ViewModel() {
         viewModelScope.launch {
             _loginState.value = LoginState.Loading
             try {
-                val res = RetrofitClient.instance.authCheck(LoginRequest(email = "$id$DOMAIN"))
+                val res = repository.authCheck(LoginRequest(email = "$id$DOMAIN"))
                 if (res.ok == true) {
                     _identity.value = Identity(
                         name = res.name ?: id,
@@ -120,7 +122,7 @@ class LoginViewModel : ViewModel() {
         viewModelScope.launch {
             _loginState.value = LoginState.Loading
             try {
-                val response = RetrofitClient.instance.login(
+                val response = repository.login(
                     LoginRequest(email = "$id$DOMAIN", password = password?.ifBlank { null }),
                 )
                 when {
@@ -168,7 +170,7 @@ class LoginViewModel : ViewModel() {
         viewModelScope.launch {
             _loginState.value = LoginState.Loading
             try {
-                RetrofitClient.instance.setPassword(SetPasswordRequest(newPassword))
+                repository.setPassword(SetPasswordRequest(newPassword))
                 com.example.skillsync.core.data.SessionManager.clearMustChange()
                 val email = com.example.skillsync.core.data.SessionManager.getEmail() ?: "$pendingId$DOMAIN"
                 val sid = com.example.skillsync.core.data.SessionManager.getSessionId() ?: ""
