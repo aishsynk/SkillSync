@@ -106,26 +106,6 @@ interface SkillEdgeApi {
     @GET("api/data/trainer-utilization-history")
     suspend fun getTrainerUtilizationHistory(@Query("email") email: String): Map<String, Any>
 
-    /** Syllabus lookup for one course. Returns { found, syllabus_url, ... }.
-     *  RMS holds a link to a syllabus PDF, not table-of-contents content. */
-    @GET("api/data/course-syllabus")
-    suspend fun getCourseSyllabus(@Query("courseName") courseName: String): Map<String, Any>
-
-    /** Full RMS catalogue search, including courses not mapped to this team. */
-    @GET("api/data/course-search")
-    suspend fun searchCourses(@Query("q") query: String): Map<String, Any>
-
-    /** Verified catalogue metadata plus future public schedule dates. */
-    @GET("api/data/course-intelligence")
-    suspend fun getCourseIntelligence(@Query("courseName") courseName: String): Map<String, Any>
-
-    /** V2 Course Curriculum: Modules, lab URLs, TOC, public schedules (Keys 206, 156, 246, 248) */
-    @GET("api/v2/course/curriculum")
-    suspend fun getCourseCurriculum(
-        @Query("courseName") courseName: String = "",
-        @Query("courseId") courseId: String = "",
-    ): Map<String, Any>
-
     /** V2 Enrolled Participant Roster (Key 208) */
     @GET("api/v2/operations/batch-pax")
     suspend fun getBatchPax(

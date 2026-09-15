@@ -1,5 +1,6 @@
 package com.example.skillsync.core.data
 
+import com.example.skillsync.core.network.CourseApi
 import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.core.network.SkillEdgeApi
 import com.example.skillsync.core.network.MarkSkillRequest
@@ -47,8 +48,10 @@ data class SyncResult(
  */
 class ManagerRepository(
     private val apiProvider: () -> SkillEdgeApi = { RetrofitClient.instance },
+    private val courseApiProvider: () -> CourseApi = { RetrofitClient.create() },
 ) {
     private val api: SkillEdgeApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
+    private val courseApi: CourseApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { courseApiProvider() }
 
     suspend fun dashboard(email: String, fresh: Boolean): RepositoryResult<Map<String, Any>> =
         cachedMap("dashboard_$email", fresh) { api.getTrainerIntelligence(email, fresh.flag()) }
@@ -115,10 +118,10 @@ class ManagerRepository(
         cachedMap("utilization_${email.lowercase()}", false) { api.getTrainerUtilizationHistory(email) }.data.orEmpty()
 
     suspend fun syllabus(courseName: String) =
-        cachedMap("syllabus_${courseName.lowercase()}", false) { api.getCourseSyllabus(courseName) }.data.orEmpty()
+        cachedMap("syllabus_${courseName.lowercase()}", false) { courseApi.getCourseSyllabus(courseName) }.data.orEmpty()
 
     suspend fun searchCourses(query: String) =
-        cachedMap("course_search_${query.lowercase()}", false) { api.searchCourses(query) }.data.orEmpty()
+        cachedMap("course_search_${query.lowercase()}", false) { courseApi.searchCourses(query) }.data.orEmpty()
 
     /**
      * Returns the parsed result rather than an empty map so the caller can
@@ -126,12 +129,12 @@ class ManagerRepository(
      * failure into an empty dataset is what let a screen lie about its source.
      */
     suspend fun courseIntelligence(courseName: String): RepositoryResult<Map<String, Any>> =
-        cachedMap("course_intelligence_${courseName.lowercase()}", false) { api.getCourseIntelligence(courseName) }
+        cachedMap("course_intelligence_${courseName.lowercase()}", false) { courseApi.getCourseIntelligence(courseName) }
 
     /** Modules, lab URLs, TOC and public schedules for one course. */
     suspend fun courseCurriculum(courseName: String = "", courseId: String = ""): Map<String, Any> =
         cachedMap("course_curriculum_${courseName.lowercase()}_$courseId", false) {
-            api.getCourseCurriculum(courseName = courseName, courseId = courseId)
+            courseApi.getCourseCurriculum(courseName = courseName, courseId = courseId)
         }.data.orEmpty()
 
     /**

@@ -2689,3 +2689,35 @@ https://github.com/aishsynk/SkillSync/actions/runs/34990160499:**
 
 Count unchanged at 243 (no new tests this increment). Same exact 10
 baseline failures by identity, same 6 lint errors. Green on the first push.
+
+## 33. Phase 4 increment E — CourseApi extraction
+
+First increment where the source domain has no dedicated small repository:
+`syllabus`/`searchCourses`/`courseIntelligence`/`courseCurriculum` all live
+on the large `ManagerRepository` (`core/data/DataRepository.kt`) alongside
+~30 other unrelated reads. Rather than force a bigger repository-ownership
+change (moving these 4 methods to a brand-new `CourseRepository` would
+touch every ViewModel call site that currently calls
+`ManagerRepository.searchCourses(...)` etc.), `ManagerRepository` now
+composes two transport interfaces — its existing `SkillEdgeApi` plus a new
+`CourseApi` via a second lazy-provider constructor param
+(`courseApiProvider: () -> CourseApi = { RetrofitClient.create() }`) — and
+the four methods delegate to `courseApi` instead of `api`. Call sites and
+method signatures are unchanged; ViewModels remain unaware anything moved.
+
+Created `CourseApi.kt` (`getCourseSyllabus`, `searchCourses`,
+`getCourseIntelligence`, `getCourseCurriculum`), removed the same four
+methods and their doc comments from `SkillEdgeApi.kt`.
+
+Verified before pushing: brace/paren balance on all three touched/created
+files; grepped `DataRepository.kt` for any remaining `api.getCourseSyllabus`
+/`.searchCourses`/`.getCourseIntelligence`/`.getCourseCurriculum` — none
+found; confirmed the three test files constructing `ManagerRepository`
+(`ScreenRenderTest`, `Trainer360ViewModelTest`, `AllocationViewModelTest`)
+all use the no-arg default constructor, never a custom `SkillEdgeApi` fake
+that would need updating for the new `courseApiProvider` param.
+
+`docs/phase4-api-ownership-matrix.md`'s migration-status table updated.
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.
