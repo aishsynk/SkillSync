@@ -1714,5 +1714,17 @@ this increment's row.
 `AllocationViewModel`'s trainer-domain calls → a `TrainerRepository`, name
 TBD after further investigation).
 
-CI verification for this increment is pending — will record the run URL and
-exact test-failure comparison here once green.
+**Verified, commit `bcc7274`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34956217724:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** |
+| `testDebugUnitTest` | 233 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+
+Same 233/10 as the prior increment (no new tests added this pass); same
+exact 10 baseline failures, lint unchanged at 6.
