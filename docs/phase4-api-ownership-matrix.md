@@ -263,6 +263,6 @@ current truth for what has actually moved.
 | `SkillRequestsApi` | **Extracted** (increment C) — `skillRequests`, `resolveSkillRequest` + `SkillRequestResolve`; `SkillRequestsRepository` now consumes `SkillRequestsApi` directly. Increment C bundled these four domains (Batch/Eligibility/Schedule/SkillRequests) into one commit — each was already isolated into its own small, single-purpose repository from Phase 3, so the split-and-retype was mechanical and low-risk for all four; only Allocation is being held to its own increment per the explicit instruction. |
 | `CourseApi` | **Extracted** (increment E) — `getCourseSyllabus`, `searchCourses`, `getCourseIntelligence`, `getCourseCurriculum`. Unlike increments A-D, this domain has no dedicated small repository: `ManagerRepository` now composes both `SkillEdgeApi` and `CourseApi` (a second lazy-provider field) rather than owning a single transport interface, since these four reads are consumed only as part of the manager-intelligence surface today. Call sites (`ManagerRepository.syllabus`/`.searchCourses`/`.courseIntelligence`/`.courseCurriculum`) unchanged. |
 | `CommunicationApi` | Not yet extracted |
-| `CopilotApi` | Not yet extracted |
+| `CopilotApi` | **Extracted** (increment F) — `agentAsk`, `askCopilotTeam` + `AgentAskRequest`/`AgentAskResponse`; `CopilotRepository` (already existed as its own small repository from Phase 3) now consumes `CopilotApi` directly. |
 | `OpportunityApi` | Not yet extracted |
 | `ManagerApi` | Not yet extracted |

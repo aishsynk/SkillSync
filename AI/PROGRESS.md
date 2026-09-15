@@ -2736,3 +2736,27 @@ https://github.com/aishsynk/SkillSync/actions/runs/34991041298:**
 
 Count unchanged at 243 (no new tests this increment). Same exact 10
 baseline failures by identity, same 6 lint errors. Green on the first push.
+
+## 34. Phase 4 increment F — CopilotApi extraction
+
+Back to the increments A-D pattern: `CopilotRepository` already existed as
+its own small, single-purpose repository (from Phase 3), so this was a
+mechanical retype like increment C, not a compose-alongside-ManagerRepository
+move like increment E.
+
+Created `CopilotApi.kt` (`agentAsk`, `askCopilotTeam` +
+`AgentAskRequest`/`AgentAskResponse`, moved verbatim out of
+`SkillEdgeApi.kt`). `CopilotRepository`'s `apiProvider` retyped from
+`SkillEdgeApi`/`RetrofitClient.instance` to `CopilotApi` via
+`RetrofitClient.create()`; `ask`/`askTeam` signatures and bodies unchanged.
+
+Verified before pushing: brace/paren balance on all three touched/created
+files; confirmed `@POST`/`@Body` imports still used elsewhere in
+`SkillEdgeApi.kt` (33 remaining uses) before relying on them staying valid;
+grepped for stray `RetrofitClient.instance.agentAsk`/`.askCopilotTeam` or
+leftover `SkillEdgeApi` references in `CopilotRepository.kt` — none found.
+
+`docs/phase4-api-ownership-matrix.md`'s migration-status table updated.
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.
