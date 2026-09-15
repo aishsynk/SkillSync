@@ -960,6 +960,7 @@ internal fun DashboardTab(
     var showProfileMenu by remember { mutableStateOf(false) }
     val sessionScope = rememberCoroutineScope()
     val logoutContext = androidx.compose.ui.platform.LocalContext.current
+    val authRepository = remember { com.example.skillsync.core.data.AuthRepository() }
 
     if (showProfileMenu) {
         ProfileMenuBottomSheet(
@@ -968,7 +969,7 @@ internal fun DashboardTab(
             onLogout = {
                 showProfileMenu = false
                 sessionScope.launch {
-                    runCatching { com.example.skillsync.core.network.RetrofitClient.instance.logout() }
+                    runCatching { authRepository.logout() }
                     com.example.skillsync.core.data.SessionManager.clearSession()
                     com.example.skillsync.core.notification.MonitoringService.stop(logoutContext)
                     onLogout()

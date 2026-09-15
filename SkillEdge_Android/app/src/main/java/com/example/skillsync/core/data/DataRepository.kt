@@ -248,6 +248,16 @@ class ManagerRepository(
     /** Raise an action by hand (anything RMS cannot infer). */
     suspend fun raiseAction(body: Map<String, String>): Map<String, Any> = api.raiseAction(body)
 
+    /** Certification calendar + demand-led certification ranking for this manager's team. */
+    suspend fun certIntel(email: String): Map<String, Any> = api.getCertIntel(email)
+
+    /** Demand-led upskilling opportunities correlated against this manager's team competency. */
+    suspend fun demandUpskillingOpportunities(manager: String? = null): Map<String, Any> =
+        api.getDemandUpskillingOpportunities(manager)
+
+    /** Real leave and commitments for every reportee, one row each. */
+    suspend fun teamReadiness(manager: String): Map<String, Any> = api.getTeamReadiness(manager)
+
     suspend fun teamIntelligence(email: String, fresh: Boolean): TeamIntelligence = coroutineScope {
         val capability = async {
             cachedMap("capability_$email", fresh) { api.getTeamCapability(email, fresh.flag()) }

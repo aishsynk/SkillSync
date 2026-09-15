@@ -147,7 +147,7 @@ class MainScreenViewModel(
                 if (_certIntel.value == null) _certIntel.value = LocalCache.loadMap(certIntelCacheKey(email))
                 return@launch
             }
-            runCatching { RetrofitClient.instance.getCertIntel(email) }
+            runCatching { repository.certIntel(email) }
                 .onSuccess { body ->
                     if (body["loading"] != true) {
                         _certIntel.value = body
@@ -172,7 +172,7 @@ class MainScreenViewModel(
                 if (_upskilling.value == null) _upskilling.value = LocalCache.loadMap("upskilling_$email")
                 return@launch
             }
-            runCatching { RetrofitClient.instance.getDemandUpskillingOpportunities(email) }
+            runCatching { repository.demandUpskillingOpportunities(email) }
                 .onSuccess { body ->
                     _upskilling.value = body
                     LocalCache.saveMap("upskilling_$email", body)
@@ -438,7 +438,7 @@ class MainScreenViewModel(
         if (readinessFor == email) return
         readinessFor = email
         viewModelScope.launch {
-            runCatching { RetrofitClient.instance.getTeamReadiness(email) }
+            runCatching { repository.teamReadiness(email) }
                 .onSuccess { body ->
                     @Suppress("UNCHECKED_CAST")
                     val rows = (body["trainers"] as? List<Map<String, Any>>).orEmpty()

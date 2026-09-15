@@ -55,6 +55,8 @@ boundary explicit"); not merged or deleted.
 | `feature/home/CourseCurriculumSheet.kt` (direct `RetrofitClient.instance.getCourseCurriculum`) | Same file, via `ManagerRepository` (already owned `syllabus`/`searchCourses`/`courseIntelligence` — same Course domain) | Course/Curriculum | `core/data/DataRepository.kt` (`ManagerRepository`) | None — stateless Composable driven by `LaunchedEffect` | `GET api/v2/course/curriculum` (`getCourseCurriculum`) | `cachedMap` offline fallback (`course_curriculum_<name>_<id>`) — always tries live network first, falls back to the `LocalCache` snapshot only on failure (no time-based TTL; matches every sibling course method's convention) | None yet — same no-ViewModel-seam rationale as other stateless Composables | Phase 3 increment 9 |
 | `feature/training/ui/CopilotViewModel.kt` (direct `RetrofitClient.instance` for `agentAsk`, `askCopilotTeam`) | Same file, `CopilotViewModel(repository: CopilotRepository = CopilotRepository())` | AI/Copilot | `core/data/CopilotRepository.kt` (new) | `CopilotViewModel` (existing ViewModel, no use case — two independent chat calls, no orchestration) | `POST api/agent/ask`, `POST api/v2/copilot/team` | None — `MutableStateFlow<List<ChatMessage>>` UI state unchanged | `CopilotViewModelTest.kt` (2 tests) | Phase 3 increment 10 |
 | `feature/home/Version2Workspaces.kt`'s `UniversalCommandSearch` (direct `RetrofitClient.instance.askCopilotTeam`) | Same file, via `CopilotRepository`, no ViewModel — same documented exception as other no-ViewModel Composables | AI/Copilot | `core/data/CopilotRepository.kt` | None — stateless Composable, `answer`/`answering` local state | `POST api/v2/copilot/team` (`askCopilotTeam`) | None — local answer state, unchanged | None yet — no ViewModel seam | Phase 3 increment 11 |
+| `feature/home/MainScreenViewModel.kt` (direct `RetrofitClient.instance` for `getCertIntel`, `getDemandUpskillingOpportunities`, `getTeamReadiness`) | Same file, via `ManagerRepository` (already the Today/dashboard orchestrator) | Today/dashboard — all three are manager-team-wide aggregates, not single-trainer/single-batch scoped | `core/data/DataRepository.kt` (`ManagerRepository`) | `MainScreenViewModel` (existing orchestrator ViewModel, no new use case — three independent reads it already coordinates via separate `MutableStateFlow`s) | `GET api/v2/capability/cert-intel`, `GET api/v2/upskilling/demand-opportunities`, `GET api/v2/team/readiness` | `LocalCache` fallback on each, unchanged — offline behavior untouched | None yet — `ManagerRepository` is not `open`/subclassable, same convention as increment 8 | Phase 3 increment 12 (final) |
+| `feature/home/MainScreen.kt` (direct `RetrofitClient.instance.logout`) | Same file, via `AuthRepository`, no ViewModel — logout is a one-off Composable-lambda call, same documented exception | Auth | `core/data/AuthRepository.kt` | None — inline in `ProfileMenuBottomSheet`'s `onLogout` lambda | `POST api/auth/logout` | None — `SessionManager.clearSession()`/`MonitoringService.stop()` unchanged | None yet — no ViewModel seam | Phase 3 increment 12 (final) |
 
 ### Documented exception: `BatchDetailScreen.kt` has no ViewModel
 
@@ -89,13 +91,10 @@ increment, not bundled into this one.
 
 ## Remaining violations (still open, post this increment)
 
-| File | Classification | Domain | Status |
-|---|---|---|---|
-| `feature/home/MainScreen.kt` | SCREEN/COMPOSABLE | Today/dashboard | Open (deferred until underlying repositories exist) |
-| `feature/home/MainScreenViewModel.kt` | VIEWMODEL | Today/dashboard (KPI/trainer) | Open (deferred until underlying repositories exist) |
-
-Only `MainScreen.kt`/`MainScreenViewModel.kt` remain — Today/dashboard, deferred as an
-orchestrator once its underlying repositories exist. Every other domain repository this
-migration built (`AuthRepository`, `BatchRepository`, `EligibilityRepository`,
-`TrainerRepository`, `AllocationRepository`, `CopilotRepository`, plus `ManagerRepository`
-extensions) is now available for `MainScreenViewModel` to orchestrate against.
+None. `MainScreen.kt`/`MainScreenViewModel.kt`'s three remaining direct calls
+(`getCertIntel`, `getDemandUpskillingOpportunities`, `getTeamReadiness` — all manager-
+team-wide aggregates, none single-trainer/single-batch scoped) were added to
+`ManagerRepository`, which already owns this exact class of read (dashboard, team
+capability, actions, capacity plan). `MainScreen.kt`'s one direct call (`logout()`) was
+added to `AuthRepository`. Every direct `RetrofitClient.instance` violation identified in
+the Phase 0/3 inventory is now resolved.

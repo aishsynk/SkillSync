@@ -23,4 +23,5 @@ open class AuthRepository(
     open suspend fun authCheck(request: LoginRequest): AuthCheckResponse = api.authCheck(request)
     open suspend fun login(request: LoginRequest): LoginResponse = api.login(request)
     open suspend fun setPassword(request: SetPasswordRequest): Map<String, Any> = api.setPassword(request)
+    open suspend fun logout(): Map<String, Any> = api.logout()
 }
