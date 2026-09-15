@@ -1248,3 +1248,123 @@ yet; communication architecture is the first business priority).
 **Next:** await CI result on this push, then continue to Phase 2
 (message-generation consolidation design) only after Phase 1 is confirmed
 green — per the operator's own "compile/test after each phase" instruction.
+
+## 11. Phase 1 correction — communication contract deepened, "no behavior
+change" retracted (2026-09-15, same branch)
+
+The operator reviewed §10 and correctly rejected it as an incomplete Phase
+1: it fixed the UI→engine/UI→network layering violation but still routed
+the offline fallback through `MessageRewriter`'s old
+`[User Message]`+`[My Message]` intent-inference model via a
+`quotedInboundText` field on the new contract — i.e. the old semantics were
+relocated behind a repository, not removed. **§10's "no behavior change"
+statement is retracted.** This pass is a deliberate domain/semantic change:
+removing the external-message-primary architecture for manager
+communication was always one of this restructuring's explicit objectives,
+not incidental collateral to avoid.
+
+**What changed on top of §10:**
+- **Removed `quotedInboundText` entirely** from `CommunicationRequest`.
+  There is no external `[User Message]` input anywhere in this contract —
+  Aishwar is always the sender. A future "draft a reply to an inbound
+  message" feature, if built, gets its own separate contract; it must not
+  be re-added here.
+- **`managerInstruction` is now explicitly documented and behaviourally
+  enforced as subordinate to verified evidence**: `ManagerCommunicationComposer`
+  always composes evidence-derived sentences (utilisation, cert gaps,
+  learner rating) first, and an instruction can only append one further
+  sentence — it never replaces or precedes an evidence sentence, and cannot
+  cause the generator to state a fact absent from `CommunicationEvidence`.
+  Covered by `ManagerCommunicationComposerTest` (new): evidence appears
+  with and without an instruction present; an instruction referencing a
+  number/course not in evidence does not cause that value to appear as a
+  stated fact.
+- **New `feature/communication/domain/ManagerCommunicationComposer.kt`**
+  replaces `MessageRewriter` as the offline/local composition path. It
+  builds a `ContextSelectionPlan` directly from the structured
+  `CommunicationRequest` (never populating `userMessage`) and calls the
+  existing `CommunicationComposer.composeFromPlan` + `validate` — the same
+  structured-plan→prose composer and factual-integrity validator the
+  "good," already-fact-driven auto-generation flow used. Two new purposes,
+  `TEAM_PERIODIC_UPDATE`/`INDIVIDUAL_PERIODIC_UPDATE`, were added to
+  `CommunicationComposer.composeFromPlan` for this. The authoritative
+  server path (`GET /api/v2/message/compose`) and this local mirror now
+  follow the same contract (facts + optional manager note); neither can be
+  driven by a caller-supplied free-text "primary intent" string. This is
+  the "business-logic fallback, not just a transport fallback" the operator
+  required — `MessageRewriter` is no longer used by report screens at all.
+- **New `feature/communication/domain/ComposeManagerMessageUseCase.kt`**
+  sits between the ViewModels and `CommunicationRepository`, so the
+  dependency chain is UI → ViewModel → UseCase → Repository → composer/API,
+  not UI → ViewModel → Repository. Narrowly scoped to this one operation
+  (not a generic `CommunicationUseCase`).
+- **`CommunicateHint`/`communicateHintFor` in `PrioritiesViewModel.kt`
+  reconsidered per the operator's challenge:** the function does recipient/
+  purpose/availability reasoning (real communication-intent logic), not UI-
+  state shaping, so moving it into a ViewModel in §10 was papering over the
+  ownership question, not resolving it. The reasoning itself now lives in
+  new `feature/communication/domain/CommunicationHint.kt`
+  (`CommunicationHintResolver`, decoupled from the report feature's
+  `PriorityItem` type so the domain layer does not depend on a feature
+  model); `PrioritiesViewModel.communicateHintFor` is now only the
+  feature-local "which resolver call applies to this board item" dispatch,
+  with `CommunicateHint` kept as a type alias so the screen's call shape is
+  unchanged.
+- **UI labels corrected now, not deferred to Phase 6:** removed the
+  "User Message [User Message: …]" field entirely from
+  `WeeklyReportScreen.kt` (team + per-reportee) and
+  `HrMonthlyReportScreen.kt`; "My Message" renamed to "Manager instruction
+  (optional)" with placeholder text stating verified facts are always
+  included. This is a semantic/domain correction (the label was asserting
+  the old input model exists), not a Phase 6 visual restyle — no other
+  visual treatment (colour, spacing, card structure) was touched.
+- **Real, intentional behavior changes from this pass** (documented, not
+  hidden): (1) a per-reportee/team message can no longer be generated from
+  a pasted inbound message — only from verified evidence plus an optional
+  manager instruction; (2) the offline/local fallback text is now always
+  freshly composed from current evidence rather than falling back to a
+  previously-cached `standpointNote`/`teamDigest` string when the manager
+  supplies an instruction; (3) new deterministic wording (the
+  `TEAM_PERIODIC_UPDATE`/`INDIVIDUAL_PERIODIC_UPDATE` sentences) replaces
+  what `MessageRewriter` would have produced for these two report screens'
+  compose actions specifically. `MessageRewriter`, `WeeklyMessage`,
+  `BatchShare`/`BulkBatchShare` and the Today/`ManagerCommandCentre` /
+  Priorities-board communication paths are untouched by this pass — that
+  wider consolidation is still Phase 2.
+- **CI status — checked directly, not assumed:** `gh`/GitHub API queried
+  for branch `claude/nifty-shannon-yrkzvc` and PR
+  aishsynk/SkillSync#1: **zero workflow runs exist for this branch**
+  (`total_count: 0`), and the PR's combined status is empty. None of the
+  repository's three workflows (`android-release.yml`: `push: main` only;
+  `android-visual-check.yml`: branch `design-v2-visual-check`;
+  `android-p1-validation.yml`: branch `skilledge-p1-validation`) trigger on
+  this branch or on pull requests at all. There is no CI gate currently
+  running for this work — not a pending one. Verification for this
+  correction, as for §10, relied on manual read-through of every changed
+  file, brace/paren balance checks, and careful hand-tracing of
+  `ManagerCommunicationComposerTest`'s expected control flow through
+  `CommunicationComposer.composeFromPlan`/`validate` (both existing,
+  previously-covered code paths). A real Kotlin compiler/test run has not
+  confirmed this code compiles — that remains an open risk until this
+  branch is built somewhere with the Android SDK available (a future
+  session, or the operator's own machine/CI setup), and should not be
+  represented as verified beyond what is stated here.
+
+**Files changed on top of §10:** `feature/communication/domain/
+{CommunicationRequest,CommunicationRepository,ManagerCommunicationComposer,
+ComposeManagerMessageUseCase,CommunicationHint}.kt`,
+`feature/communication/engine/CommunicationComposer.kt` (two new purpose
+branches only — no existing branch's behavior changed),
+`feature/report/ui/{WeeklyReportScreen,WeeklyReportViewModel,
+HrMonthlyReportScreen,HrMonthlyReportViewModel,PrioritiesViewModel}.kt`,
+new test `feature/communication/domain/ManagerCommunicationComposerTest.kt`.
+
+**Still not done / Phase 1 definition-of-done items still open:** an actual
+successful compile/test run (blocked by this sandbox's missing Android SDK
+and unreachable Gradle plugin repositories, as before) — this must be
+confirmed before Phase 1 is called complete, not merely attempted.
+
+**Next:** get this branch built and tested somewhere with real tooling
+(flagging this explicitly to the operator rather than proceeding on
+assumed-green), then continue to Phase 2 only once that confirmation
+exists.

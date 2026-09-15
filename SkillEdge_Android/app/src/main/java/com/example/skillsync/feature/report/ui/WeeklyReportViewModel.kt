@@ -108,26 +108,22 @@ class WeeklyReportViewModel(
 
     private fun cacheKey() = "weekly_report_${managerEmail}_${weekKey()}"
 
+    private val composeManagerMessage = com.example.skillsync.feature.communication.domain.ComposeManagerMessageUseCase()
+
     /**
      * Single entry point for composing a weekly/monthly message from this
-     * screen. Screens must call this instead of hitting
-     * `RetrofitClient`/`MessageRewriter` directly — see
-     * `feature/communication/domain/CommunicationRepository`.
+     * screen. Screens must call this use case instead of hitting
+     * `RetrofitClient`/an engine class directly.
      */
     suspend fun composeMessage(
         request: com.example.skillsync.feature.communication.domain.CommunicationRequest,
-        offlineFallback: String = "",
     ): com.example.skillsync.feature.communication.domain.ComposeResult =
-        com.example.skillsync.feature.communication.domain.CommunicationRepository.compose(
-            managerEmail = managerEmail,
-            request = request,
-            offlineFallback = offlineFallback,
-        )
+        composeManagerMessage(managerEmail, request)
 
     /** Synchronous, no-network variant for a "copy now" action. */
     fun composeMessageOffline(
         request: com.example.skillsync.feature.communication.domain.CommunicationRequest,
-    ): String = com.example.skillsync.feature.communication.domain.CommunicationRepository.composeOffline(request)
+    ): String = composeManagerMessage.offline(request)
 
     fun init(email: String, context: Context) {
         appContext = context.applicationContext

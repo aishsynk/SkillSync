@@ -174,6 +174,41 @@ object CommunicationComposer {
                     mainSentences.add("**Please keep me updated on your progress.**")
                 }
             }
+            "TEAM_PERIODIC_UPDATE", "INDIVIDUAL_PERIODIC_UPDATE" -> {
+                // Evidence sentences are composed first and always from
+                // plan.selectedFacts — a manager instruction (plan.myMessage)
+                // may only append a further sentence, never replace or
+                // precede the evidence-based one. See
+                // ManagerCommunicationComposer, the only caller that uses
+                // these two purposes.
+                val util = pDict["current_utilization"]?.toString()?.toIntOrNull()
+                val certGaps = (pDict["cert_gap_courses"] as? String)?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+                val rating = pDict["avg_rating"]
+                val ratingCount = pDict["avg_rating_count"]?.toString()?.toIntOrNull() ?: 0
+
+                if (util != null) {
+                    mainSentences.add(
+                        if (p == "TEAM_PERIODIC_UPDATE") "The team's average utilisation currently stands at $util%."
+                        else "Your current utilisation stands at $util%.",
+                    )
+                }
+                if (rating != null && ratingCount > 0) {
+                    mainSentences.add("Participant feedback averages $rating out of 5 across $ratingCount responses.")
+                }
+                if (certGaps.isNotEmpty()) {
+                    val coursesStr = if (certGaps.size <= 2) certGaps.joinToString(" and ") else certGaps.dropLast(1).joinToString(", ") + ", and " + certGaps.last()
+                    mainSentences.add("Open certification gaps remain in $coursesStr.")
+                }
+                if (mainSentences.isEmpty()) {
+                    mainSentences.add(
+                        if (p == "TEAM_PERIODIC_UPDATE") "No exceptions to report for the team this period."
+                        else "No exceptions to report this period.",
+                    )
+                }
+                if (plan.myMessage.isNotBlank()) {
+                    mainSentences.add("**${stripLeadingDirectives(plan.myMessage).trimEnd('.')}**.")
+                }
+            }
             else -> {
                 val sourceText = if (plan.myMessage.isNotEmpty()) plan.myMessage else if (plan.userMessage.isNotEmpty()) plan.userMessage else plan.intent
                 var cleaned = if (sourceText.isNotBlank()) stripLeadingDirectives(sourceText) else "Please review the current operational requirements."

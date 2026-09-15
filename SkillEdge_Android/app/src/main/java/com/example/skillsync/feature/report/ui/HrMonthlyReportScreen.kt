@@ -450,7 +450,6 @@ private fun ReporteeSnapshotCard(
     vm: HrMonthlyReportViewModel,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var userMessage by remember(rep.email) { mutableStateOf("") }
     var myMessage by remember(rep.email) { mutableStateOf("") }
     var rewritten by remember(rep.email) { mutableStateOf("") }
     var rewriting by remember { mutableStateOf(false) }
@@ -700,26 +699,10 @@ private fun ReporteeSnapshotCard(
                             )
                         }
                         androidx.compose.material3.OutlinedTextField(
-                            value = userMessage,
-                            onValueChange = { userMessage = it; rewritten = "" },
-                            label = { Text("User Message [User Message: …]") },
-                            placeholder = { Text("Paste their message — Hinglish is fine") },
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                            minLines = 2,
-                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = sk.brand,
-                                unfocusedBorderColor = sk.cardBorder,
-                                focusedTextColor = sk.bodyText,
-                                unfocusedTextColor = sk.bodyText,
-                                cursorColor = sk.brand,
-                            ),
-                        )
-                        androidx.compose.material3.OutlinedTextField(
                             value = myMessage,
                             onValueChange = { myMessage = it; rewritten = "" },
-                            label = { Text("My Message [My Message: …]") },
-                            placeholder = { Text("Your intent — at least one required") },
+                            label = { Text("Manager instruction (optional)") },
+                            placeholder = { Text("A point to emphasise — verified facts are always included") },
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth(),
                             minLines = 2,
@@ -742,16 +725,15 @@ private fun ReporteeSnapshotCard(
                                                 name = rep.name,
                                                 email = rep.email,
                                             ),
+                                            purpose = com.example.skillsync.feature.communication.domain.CommunicationPurpose.INDIVIDUAL_PERIODIC_UPDATE,
                                             cadence = if (monthendSelected) "monthend" else "monthly",
                                             evidence = com.example.skillsync.feature.communication.domain.CommunicationEvidence(
                                                 currentUtilisation = rep.utilisationPct.toInt(),
                                                 certGapCourses = rep.topCourses,
                                             ),
                                             managerInstruction = myMessage,
-                                            quotedInboundText = userMessage,
-                                            style = com.example.skillsync.feature.communication.engine.MessageStyle.TEAMS,
                                         )
-                                        val result = vm.composeMessage(request, rep.structuredFeedback.formattedText)
+                                        val result = vm.composeMessage(request)
                                         rewritten = result.text
                                         notify.success(if (result.fromServer) "Message composed" else "Composed locally (offline)")
                                         rewriting = false
@@ -765,8 +747,8 @@ private fun ReporteeSnapshotCard(
                                 if (rewriting) androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Color.White)
                                 else Text(if (rewritten.isBlank()) "Rewrite for Teams" else "Rewrite Again", fontSize = 12.sp)
                             }
-                            if (userMessage.isNotBlank() || myMessage.isNotBlank()) {
-                                androidx.compose.material3.TextButton(onClick = { userMessage = ""; myMessage = ""; rewritten = "" }, modifier = Modifier.weight(1f)) {
+                            if (myMessage.isNotBlank()) {
+                                androidx.compose.material3.TextButton(onClick = { myMessage = ""; rewritten = "" }, modifier = Modifier.weight(1f)) {
                                     Text("Clear", color = sk.subText, fontSize = 12.sp)
                                 }
                             }

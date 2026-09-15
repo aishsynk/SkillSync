@@ -91,7 +91,6 @@ fun WeeklyReportScreen(
     var style by rememberSaveable { mutableStateOf(MessageStyle.TEAMS) }
     // Screen-level message cadence: false = "This week" (Monday plan), true = "Weekend" (Friday wrap-up).
     var weekendSelected by rememberSaveable { mutableStateOf(false) }
-    var teamUserMessage by rememberSaveable { mutableStateOf("") }
     var teamMyMessage by rememberSaveable { mutableStateOf("") }
     var teamRewritten by rememberSaveable { mutableStateOf("") }
     var teamRewriting by remember { mutableStateOf(false) }
@@ -273,26 +272,10 @@ fun WeeklyReportScreen(
                                         }
 
                                         OutlinedTextField(
-                                            value = teamUserMessage,
-                                            onValueChange = { teamUserMessage = it; teamRewritten = "" },
-                                            label = { Text("User Message [User Message: …]") },
-                                            placeholder = { Text("Paste their message — Hinglish or informal is fine") },
-                                            shape = RoundedCornerShape(Radii.chip),
-                                            modifier = Modifier.fillMaxWidth(),
-                                            minLines = 2,
-                                            colors = OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = sk.brand,
-                                                unfocusedBorderColor = sk.glassBorder,
-                                                focusedTextColor = sk.bodyText,
-                                                unfocusedTextColor = sk.bodyText,
-                                                cursorColor = sk.brand,
-                                            ),
-                                        )
-                                        OutlinedTextField(
                                             value = teamMyMessage,
                                             onValueChange = { teamMyMessage = it; teamRewritten = "" },
-                                            label = { Text("My Message [My Message: …]") },
-                                            placeholder = { Text("Your intent in your own words — at least one is required") },
+                                            label = { Text("Manager instruction (optional)") },
+                                            placeholder = { Text("A point to emphasise — verified team facts are always included") },
                                             shape = RoundedCornerShape(Radii.chip),
                                             modifier = Modifier.fillMaxWidth(),
                                             minLines = 2,
@@ -327,13 +310,11 @@ fun WeeklyReportScreen(
                                                             audience = com.example.skillsync.feature.communication.domain.CommunicationAudience(
                                                                 type = com.example.skillsync.feature.communication.domain.CommunicationAudienceType.TEAM,
                                                             ),
+                                                            purpose = com.example.skillsync.feature.communication.domain.CommunicationPurpose.TEAM_PERIODIC_UPDATE,
                                                             cadence = if (weekendSelected) "weekend" else "weekly",
                                                             managerInstruction = teamMyMessage,
-                                                            quotedInboundText = teamUserMessage,
-                                                            style = style,
                                                         )
-                                                        val offlineFallback = (if (weekendSelected) repData.teamDigestWeekend else repData.teamDigest)
-                                                        val result = vm.composeMessage(request, offlineFallback)
+                                                        val result = vm.composeMessage(request)
                                                         teamRewritten = result.text
                                                         notify.success(if (result.fromServer) "Message composed" else "Composed locally (offline)")
                                                         teamRewriting = false
@@ -353,17 +334,16 @@ fun WeeklyReportScreen(
                                             FilledTonalButton(
                                                 onClick = {
                                                     val source = teamRewritten.ifBlank {
-                                                        if (teamUserMessage.isBlank() && teamMyMessage.isBlank())
+                                                        if (teamMyMessage.isBlank())
                                                             (if (weekendSelected) repData.teamDigestWeekend else repData.teamDigest)
                                                         else vm.composeMessageOffline(
                                                             com.example.skillsync.feature.communication.domain.CommunicationRequest(
                                                                 audience = com.example.skillsync.feature.communication.domain.CommunicationAudience(
                                                                     type = com.example.skillsync.feature.communication.domain.CommunicationAudienceType.TEAM,
                                                                 ),
+                                                                purpose = com.example.skillsync.feature.communication.domain.CommunicationPurpose.TEAM_PERIODIC_UPDATE,
                                                                 cadence = if (weekendSelected) "weekend" else "weekly",
                                                                 managerInstruction = teamMyMessage,
-                                                                quotedInboundText = teamUserMessage,
-                                                                style = style,
                                                             ),
                                                         )
                                                     }
@@ -391,8 +371,8 @@ fun WeeklyReportScreen(
                                             ) {
                                                 Text("Export CSV", style = MaterialTheme.typography.labelMedium, color = sk.sky)
                                             }
-                                            if (teamUserMessage.isNotBlank() || teamMyMessage.isNotBlank()) {
-                                                TextButton(onClick = { teamUserMessage = ""; teamMyMessage = ""; teamRewritten = "" }, modifier = Modifier.weight(1f)) {
+                                            if (teamMyMessage.isNotBlank()) {
+                                                TextButton(onClick = { teamMyMessage = ""; teamRewritten = "" }, modifier = Modifier.weight(1f)) {
                                                     Text("Clear", color = sk.subText)
                                                 }
                                             }
@@ -607,7 +587,6 @@ private fun WeeklyReporteeLiveCard(
     vm: WeeklyReportViewModel,
 ) {
     var expanded by rememberSaveable(rep.email) { mutableStateOf(false) }
-    var userMessage by rememberSaveable(rep.email) { mutableStateOf("") }
     var myMessage by rememberSaveable(rep.email) { mutableStateOf("") }
     var rewritten by rememberSaveable(rep.email) { mutableStateOf("") }
     var rewriting by remember { mutableStateOf(false) }
@@ -792,29 +771,13 @@ private fun WeeklyReporteeLiveCard(
 
             // Expanded view
             if (expanded) {
-                // ── Rewrite studio: [User Message] + [My Message] → house-style Teams message ──
+                // ── Compose from verified facts, with an optional manager instruction ──
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = userMessage,
-                        onValueChange = { userMessage = it; rewritten = "" },
-                        label = { Text("User Message [User Message: …]") },
-                        placeholder = { Text("Paste their Hinglish/informal message") },
-                        shape = RoundedCornerShape(Radii.chip),
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 2,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = sk.brand,
-                            unfocusedBorderColor = sk.glassBorder,
-                            focusedTextColor = sk.bodyText,
-                            unfocusedTextColor = sk.bodyText,
-                            cursorColor = sk.brand,
-                        ),
-                    )
                     OutlinedTextField(
                         value = myMessage,
                         onValueChange = { myMessage = it; rewritten = "" },
-                        label = { Text("My Message [My Message: …]") },
-                        placeholder = { Text("Your intent — at least one required") },
+                        label = { Text("Manager instruction (optional)") },
+                        placeholder = { Text("A point to emphasise — verified facts are always included") },
                         shape = RoundedCornerShape(Radii.chip),
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 2,
@@ -837,6 +800,7 @@ private fun WeeklyReporteeLiveCard(
                                             name = rep.name,
                                             email = rep.email,
                                         ),
+                                        purpose = com.example.skillsync.feature.communication.domain.CommunicationPurpose.INDIVIDUAL_PERIODIC_UPDATE,
                                         cadence = if (weekendSelected) "weekend" else "weekly",
                                         evidence = com.example.skillsync.feature.communication.domain.CommunicationEvidence(
                                             currentUtilisation = rep.currentUtilization,
@@ -845,10 +809,8 @@ private fun WeeklyReporteeLiveCard(
                                             learnerRatingCount = rep.learnerRatingCount,
                                         ),
                                         managerInstruction = myMessage,
-                                        quotedInboundText = userMessage,
-                                        style = style,
                                     )
-                                    val result = vm.composeMessage(request, rep.standpointNote)
+                                    val result = vm.composeMessage(request)
                                     rewritten = result.text
                                     notify.success(if (result.fromServer) "Message composed" else "Composed locally (offline)")
                                     rewriting = false
@@ -862,8 +824,8 @@ private fun WeeklyReporteeLiveCard(
                             if (rewriting) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Color.White)
                             else Text(if (rewritten.isBlank()) "Rewrite for Teams" else "Rewrite Again", style = MaterialTheme.typography.labelMedium)
                         }
-                        if (userMessage.isNotBlank() || myMessage.isNotBlank()) {
-                            TextButton(onClick = { userMessage = ""; myMessage = ""; rewritten = "" }, modifier = Modifier.weight(1f)) {
+                        if (myMessage.isNotBlank()) {
+                            TextButton(onClick = { myMessage = ""; rewritten = "" }, modifier = Modifier.weight(1f)) {
                                 Text("Clear", color = sk.subText)
                             }
                         }
