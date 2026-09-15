@@ -108,6 +108,27 @@ class WeeklyReportViewModel(
 
     private fun cacheKey() = "weekly_report_${managerEmail}_${weekKey()}"
 
+    /**
+     * Single entry point for composing a weekly/monthly message from this
+     * screen. Screens must call this instead of hitting
+     * `RetrofitClient`/`MessageRewriter` directly — see
+     * `feature/communication/domain/CommunicationRepository`.
+     */
+    suspend fun composeMessage(
+        request: com.example.skillsync.feature.communication.domain.CommunicationRequest,
+        offlineFallback: String = "",
+    ): com.example.skillsync.feature.communication.domain.ComposeResult =
+        com.example.skillsync.feature.communication.domain.CommunicationRepository.compose(
+            managerEmail = managerEmail,
+            request = request,
+            offlineFallback = offlineFallback,
+        )
+
+    /** Synchronous, no-network variant for a "copy now" action. */
+    fun composeMessageOffline(
+        request: com.example.skillsync.feature.communication.domain.CommunicationRequest,
+    ): String = com.example.skillsync.feature.communication.domain.CommunicationRepository.composeOffline(request)
+
     fun init(email: String, context: Context) {
         appContext = context.applicationContext
         if (managerEmail == email && _state.value is WeeklyReportState.Success) return

@@ -128,6 +128,22 @@ class HrMonthlyReportViewModel(
 
     private fun cacheKey() = "hr_report_${managerEmail}_${currentMonth.format(fmt)}"
 
+    /**
+     * Single entry point for composing a monthly message from this screen.
+     * Screens must call this instead of hitting `RetrofitClient`/
+     * `MessageRewriter` directly — see
+     * `feature/communication/domain/CommunicationRepository`.
+     */
+    suspend fun composeMessage(
+        request: com.example.skillsync.feature.communication.domain.CommunicationRequest,
+        offlineFallback: String = "",
+    ): com.example.skillsync.feature.communication.domain.ComposeResult =
+        com.example.skillsync.feature.communication.domain.CommunicationRepository.compose(
+            managerEmail = managerEmail,
+            request = request,
+            offlineFallback = offlineFallback,
+        )
+
     fun previousMonth() {
         currentMonth = currentMonth.minusMonths(1)
         _displayMonth.value = currentMonth.format(fmt)

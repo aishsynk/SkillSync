@@ -1152,3 +1152,99 @@ bumped to `versionCode 187` / `versionName 3.80.12` (continuing the same
 `main`, tagged `v3.80.12.187`, and pushed. Signing certificate reconfirmed
 identical to the known-good chain (SHA-256 `c6868b14...a1808`); package
 `com.example.skillsync` unchanged.
+
+## 10. Architecture restructuring — Phase 0 + Phase 1 (2026-09-15, branch `claude/nifty-shannon-yrkzvc`)
+
+**Full inspection preceding this phase:** `docs/architecture-assessment.md`
+(committed earlier this session) — verified shipping project, API/data-flow
+map, KPI-calculation map, communication-flow map, People/Today design-system
+findings, cross-feature coupling, and test baseline, each tied to a file
+actually read this session. Operator reviewed it and issued authoritative
+decisions superseding stale repo notes (notably: People, not Today's Design
+V2, is the current visual-quality reference; do not merge `theme/`+`core/ui/`
+yet; communication architecture is the first business priority).
+
+**Phase 0 — safety baseline:**
+- Confirmed identity unchanged: `applicationId`/`namespace` = `com.example.skillsync`
+  (`SkillEdge_Android/app/build.gradle.kts`), `versionCode 187`/`versionName
+  3.80.12` untouched, `appName` = SkillSync, no InTouch/LinkedIn-capture code
+  present (grep-verified absent from the tree).
+- **Local build/test verification is not possible in this session's
+  sandbox** — no Android SDK (`ANDROID_HOME`/`ANDROID_SDK_ROOT` unset, no
+  SDK directory found) and the Gradle plugin repositories (`com.android.
+  application`, `org.gradle.toolchains.foojay-resolver-convention`) are not
+  reachable from this environment even online. This is the same limitation
+  prior sessions recorded ("no Android SDK or emulator exists in this
+  development environment"). Verification for this phase relied on: manual
+  read-through of every changed file, brace/paren balance checks, and the
+  repo's own `android-release.yml`/CI (real Android SDK) as the actual
+  build/test gate on push — consistent with this project's honesty rule
+  (no claim of a local green build that wasn't actually run).
+- No versioning/release-config changes made, per instruction.
+
+**Phase 1 — communication domain boundary:**
+- **New:** `feature/communication/domain/CommunicationRequest.kt` — a
+  structured request type (`CommunicationAudience`, `CommunicationEvidence`,
+  `CommunicationRequest`) replacing ad-hoc `userMessage`/`myMessage` string
+  pairs passed straight into the rewrite engine from Composables.
+  `managerInstruction` maps to the backend's existing `my_message` note
+  field (already "sender's position/instruction," not business truth, per
+  `AI/CONTEXT.md`'s Communication Intelligence section). `quotedInboundText`
+  is kept as a separate, clearly-scoped field for the one real "draft a
+  reply to what someone pasted" use case; it is never sent to the
+  authoritative backend composer (`GET /api/v2/message/compose` has no such
+  parameter) and is deliberately excluded from `CommunicationEvidence` — it
+  cannot pose as a verified fact.
+- **New:** `feature/communication/domain/CommunicationRepository.kt` — the
+  one place that now does "try the authoritative server composer, fall back
+  to the deterministic local `MessageRewriter` mirror," replacing three
+  independent inline copies of that same try/catch previously living in
+  `WeeklyReportScreen.kt` (x2) and `HrMonthlyReportScreen.kt`.
+- **Fixed, the confirmed UI→engine/UI→network bypass from the architecture
+  assessment:** `WeeklyReportScreen.kt`, `HrMonthlyReportScreen.kt` no
+  longer import `MessageRewriter` or call `RetrofitClient.instance.
+  composeMessage` directly from a Composable — both routes now go through
+  `WeeklyReportViewModel.composeMessage()`/`composeMessageOffline()` and
+  `HrMonthlyReportViewModel.composeMessage()`, which delegate to
+  `CommunicationRepository`.
+- `PrioritiesScreen.kt` no longer imports `CommunicationPlanner` directly;
+  `communicateHintFor()`/`CommunicateHint` moved into `PrioritiesViewModel.kt`
+  (same package, so the screen calls it without an engine import) —
+  behavior unchanged, this was already a fact-only, no-free-text path.
+- **Explicitly not done this phase, deferred to Phase 2 per the operator's
+  own phase breakdown:** `MessageRewriter`'s Flow A ("conversation rewrite,"
+  driven by `userMessage`+`myMessage` as primary intent) was not rewritten —
+  only relocated behind the new repository/ViewModel boundary, with its
+  free-text input renamed at the new domain-contract layer
+  (`quotedInboundText`, not `userMessage`) and explicitly excluded from
+  `CommunicationEvidence`. Consolidating `MessageRewriter`/`WeeklyMessage`/
+  `BatchShare`/`BulkBatchShare`/backend `_viber_queue_build` into one engine
+  is Phase 2, not started. No UI copy/labels changed (still says "User
+  Message"/"My Message" on screen) — that is a Phase 6 visual concern, out
+  of scope here.
+- **No behavior change intended:** every call site's exact prior fallback
+  text/evidence fields were preserved; the only externally-visible diff is
+  the notify-toast wording distinction (server vs. offline) now being
+  computed once in `CommunicationRepository`'s `ComposeResult.fromServer`
+  instead of duplicated per call site — same two strings as before
+  ("Message composed" / "Composed locally (offline)").
+- **Files changed:** `feature/communication/domain/{CommunicationRequest,
+  CommunicationRepository}.kt` (new), `feature/report/ui/{WeeklyReportScreen,
+  WeeklyReportViewModel,HrMonthlyReportScreen,HrMonthlyReportViewModel,
+  PrioritiesScreen,PrioritiesViewModel}.kt` (modified).
+- **Verification performed:** brace/paren balance checked clean on every
+  changed file; manual read of every diff hunk; confirmed (grep) zero
+  remaining `MessageRewriter`/`RetrofitClient.instance.composeMessage`/
+  `CommunicationPlanner` references inside `feature/report/ui/*Screen.kt`.
+  **Not performed (sandbox limitation, see Phase 0):** `compileDebugKotlin`,
+  unit test run, lint. This push relies on CI (`android-release.yml`) to
+  provide that gate; any failure there will be diagnosed and fixed as a
+  follow-up commit on this same branch.
+- **Not touched:** root `app/`, `SkillEdge_Local/`, `theme/`/`core/ui/`
+  packages (Phase 7, not this phase), `SkillEdgeApi.kt` (Phase 5),
+  `FactBuilder`/`DashboardSections` calculations (Phase 4), any other
+  direct-API-bypass call site from the assessment's §C list (Phase 3).
+
+**Next:** await CI result on this push, then continue to Phase 2
+(message-generation consolidation design) only after Phase 1 is confirmed
+green — per the operator's own "compile/test after each phase" instruction.

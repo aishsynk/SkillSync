@@ -7,7 +7,6 @@ import com.example.skillsync.feature.communication.engine.ReporteeSignals
 
 import com.example.skillsync.feature.communication.engine.MessageStyle
 
-import com.example.skillsync.feature.communication.engine.MessageRewriter
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -321,27 +320,23 @@ fun WeeklyReportScreen(
                                         }
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             FilledTonalButton(
-                                                onClick = {
+    onClick = {
                                                     teamRewriting = true
                                                     teamScope.launch {
-                                                        try {
-                                                            val resp = com.example.skillsync.core.network.RetrofitClient.instance.composeMessage(
-                                                                manager = managerEmail,
-                                                                cadence = if (weekendSelected) "weekend" else "weekly",
-                                                                target = "",
-                                                                myMessage = teamMyMessage,
-                                                            )
-                                                            teamRewritten = resp.message
-                                                            notify.success("Message composed")
-                                                        } catch (_: Exception) {
-                                                            teamRewritten = (if (weekendSelected) repData.teamDigestWeekend else repData.teamDigest).ifBlank {
-                                                                MessageRewriter.compose(
-                                                                    userMessage = "", myMessage = teamMyMessage,
-                                                                    style = style, isTeam = true,
-                                                                )
-                                                            }
-                                                            notify.success("Composed locally (offline)")
-                                                        } finally { teamRewriting = false }
+                                                        val request = com.example.skillsync.feature.communication.domain.CommunicationRequest(
+                                                            audience = com.example.skillsync.feature.communication.domain.CommunicationAudience(
+                                                                type = com.example.skillsync.feature.communication.domain.CommunicationAudienceType.TEAM,
+                                                            ),
+                                                            cadence = if (weekendSelected) "weekend" else "weekly",
+                                                            managerInstruction = teamMyMessage,
+                                                            quotedInboundText = teamUserMessage,
+                                                            style = style,
+                                                        )
+                                                        val offlineFallback = (if (weekendSelected) repData.teamDigestWeekend else repData.teamDigest)
+                                                        val result = vm.composeMessage(request, offlineFallback)
+                                                        teamRewritten = result.text
+                                                        notify.success(if (result.fromServer) "Message composed" else "Composed locally (offline)")
+                                                        teamRewriting = false
                                                     }
                                                 },
                                                 modifier = Modifier.weight(1f),
@@ -360,7 +355,17 @@ fun WeeklyReportScreen(
                                                     val source = teamRewritten.ifBlank {
                                                         if (teamUserMessage.isBlank() && teamMyMessage.isBlank())
                                                             (if (weekendSelected) repData.teamDigestWeekend else repData.teamDigest)
-                                                        else MessageRewriter.compose(teamUserMessage, teamMyMessage, style, isTeam = true)
+                                                        else vm.composeMessageOffline(
+                                                            com.example.skillsync.feature.communication.domain.CommunicationRequest(
+                                                                audience = com.example.skillsync.feature.communication.domain.CommunicationAudience(
+                                                                    type = com.example.skillsync.feature.communication.domain.CommunicationAudienceType.TEAM,
+                                                                ),
+                                                                cadence = if (weekendSelected) "weekend" else "weekly",
+                                                                managerInstruction = teamMyMessage,
+                                                                quotedInboundText = teamUserMessage,
+                                                                style = style,
+                                                            ),
+                                                        )
                                                     }
                                                     copyToClipboard(context, "Team Digest", source)
                                                     notify.success("Copied broadcast message")
@@ -443,6 +448,7 @@ fun WeeklyReportScreen(
                                     context = context,
                                     notify = notify,
                                     sk = sk,
+                                    vm = vm,
                                 )
                             }
                         }
@@ -598,6 +604,7 @@ private fun WeeklyReporteeLiveCard(
     context: Context,
     notify: NotifyState,
     sk: SkillColors,
+    vm: WeeklyReportViewModel,
 ) {
     var expanded by rememberSaveable(rep.email) { mutableStateOf(false) }
     var userMessage by rememberSaveable(rep.email) { mutableStateOf("") }
@@ -824,30 +831,27 @@ private fun WeeklyReporteeLiveCard(
                             onClick = {
                                 rewriting = true
                                 cardScope.launch {
-                                    try {
-                                        val resp = com.example.skillsync.core.network.RetrofitClient.instance.composeMessage(
-                                            manager = managerEmail,
-                                            cadence = if (weekendSelected) "weekend" else "weekly",
-                                            target = rep.email,
-                                            myMessage = myMessage,
-                                        )
-                                        rewritten = resp.message
-                                        notify.success("Message composed")
-                                    } catch (_: Exception) {
-                                        rewritten = rep.standpointNote.ifBlank {
-                                            MessageRewriter.compose(
-                                                userMessage = userMessage, myMessage = myMessage, style = style,
-                                                targetName = rep.name, isTeam = false,
-                                                evidence = MessageRewriter.EvidenceContext(
-                                                    certGapCourses = rep.certGapCourses,
-                                                    learnerRating = rep.learnerRating,
-                                                    learnerRatingCount = rep.learnerRatingCount,
-                                                    utilisation = rep.currentUtilization,
-                                                ),
-                                            )
-                                        }
-                                        notify.success("Composed locally (offline)")
-                                    } finally { rewriting = false }
+                                    val request = com.example.skillsync.feature.communication.domain.CommunicationRequest(
+                                        audience = com.example.skillsync.feature.communication.domain.CommunicationAudience(
+                                            type = com.example.skillsync.feature.communication.domain.CommunicationAudienceType.INDIVIDUAL,
+                                            name = rep.name,
+                                            email = rep.email,
+                                        ),
+                                        cadence = if (weekendSelected) "weekend" else "weekly",
+                                        evidence = com.example.skillsync.feature.communication.domain.CommunicationEvidence(
+                                            currentUtilisation = rep.currentUtilization,
+                                            certGapCourses = rep.certGapCourses,
+                                            learnerRating = rep.learnerRating,
+                                            learnerRatingCount = rep.learnerRatingCount,
+                                        ),
+                                        managerInstruction = myMessage,
+                                        quotedInboundText = userMessage,
+                                        style = style,
+                                    )
+                                    val result = vm.composeMessage(request, rep.standpointNote)
+                                    rewritten = result.text
+                                    notify.success(if (result.fromServer) "Message composed" else "Composed locally (offline)")
+                                    rewriting = false
                                 }
                             },
                             modifier = Modifier.weight(1f),

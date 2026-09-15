@@ -7,6 +7,7 @@ import com.example.skillsync.core.data.ManagerRepository
 import com.example.skillsync.core.data.RepositoryResult
 import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.core.storage.LocalCache
+import com.example.skillsync.feature.communication.engine.CommunicationPlanner
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +38,67 @@ data class PriorityItem(
     val matchingTrainers: List<PriorityMatchingTrainer> = emptyList(),
 ) {
     val targetName: String get() = title
+}
+
+/**
+ * A recipient/purpose only when the item genuinely names one — an
+ * `action_overdue` item is about a task, not a person, and gets no hint.
+ * Purpose is a starting point for the shared Communication engine, never a
+ * pre-written sentence: the engine still selects its own facts.
+ */
+data class CommunicateHint(
+    val recipientType: String,
+    val recipientName: String,
+    val purpose: String,
+    val relatedEntityType: String,
+    val relatedEntityId: String,
+)
+
+/**
+ * Screens must not import [CommunicationPlanner] directly — this is the
+ * ViewModel-owned entry point that resolves a communicate hint from
+ * already-loaded [PriorityItem] data.
+ */
+fun communicateHintFor(item: PriorityItem): CommunicateHint? = when (item.kind) {
+    "unstaffed_demand" -> {
+        // Real, skill-matched candidates from the backend (see
+        // backend.py _match_trainers_for_demand) — never an aggregate
+        // "team is coverable" broadcast when a real person can be named.
+        // Same CommunicationPlanner pattern as Today's unallocated-demand
+        // card (ManagerCommandCentre.kt).
+        val candidates = item.matchingTrainers.map { t ->
+            CommunicationPlanner.CandidateTrainer(
+                name = t.name, email = t.email, capabilityMatch = t.capabilityMatch,
+                availability = when (t.availability) {
+                    "AVAILABLE" -> CommunicationPlanner.AvailabilityState.AVAILABLE
+                    "COMMITTED" -> CommunicationPlanner.AvailabilityState.COMMITTED
+                    else -> CommunicationPlanner.AvailabilityState.UNKNOWN
+                },
+            )
+        }
+        val plan = CommunicationPlanner.planUnallocatedDemand(
+            CommunicationPlanner.DemandFact(demandId = item.targetId, course = item.title.removePrefix("Unstaffed: ")),
+            candidates,
+        ).firstOrNull()
+        CommunicateHint(
+            recipientType = plan?.recipientType ?: "TEAM", recipientName = plan?.recipientName.orEmpty(),
+            purpose = "AVAILABILITY_REQUEST",
+            relatedEntityType = "demand", relatedEntityId = item.targetId,
+        )
+    }
+    "one_to_one" -> CommunicateHint(
+        recipientType = "INDIVIDUAL", recipientName = item.title.removePrefix("1:1 with "),
+        purpose = "GENERAL_PROFESSIONAL", relatedEntityType = "trainer", relatedEntityId = item.targetId,
+    )
+    "overload" -> CommunicateHint(
+        recipientType = "INDIVIDUAL", recipientName = item.title.removeSuffix(" is overloaded"),
+        purpose = "GENERAL_PROFESSIONAL", relatedEntityType = "trainer", relatedEntityId = item.targetId,
+    )
+    "cert_gap" -> CommunicateHint(
+        recipientType = "INDIVIDUAL", recipientName = item.title.removeSuffix(" teaching without cert"),
+        purpose = "CAPABILITY_DEVELOPMENT", relatedEntityType = "trainer", relatedEntityId = item.targetId,
+    )
+    else -> null
 }
 
 sealed class PrioritiesState {

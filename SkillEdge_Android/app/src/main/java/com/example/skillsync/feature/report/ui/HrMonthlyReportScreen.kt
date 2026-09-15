@@ -1,5 +1,4 @@
 package com.example.skillsync.feature.report.ui
-import com.example.skillsync.feature.communication.engine.MessageRewriter
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -249,6 +248,7 @@ fun HrMonthlyReportScreen(
                                     copyToClipboard(context, text)
                                     notify.success("Copied ${rep.name.substringBefore(" ")}'s summary")
                                 },
+                                vm = vm,
                             )
                         }
                         item { Spacer(Modifier.height(24.dp)) }
@@ -447,6 +447,7 @@ private fun ReporteeSnapshotCard(
     onTrainerClick: () -> Unit,
     onInspectCriteria: () -> Unit,
     onCopy: () -> Unit,
+    vm: HrMonthlyReportViewModel,
 ) {
     var expanded by remember { mutableStateOf(false) }
     var userMessage by remember(rep.email) { mutableStateOf("") }
@@ -735,29 +736,25 @@ private fun ReporteeSnapshotCard(
                                 onClick = {
                                     rewriting = true
                                     hrCardScope.launch {
-                                        try {
-                                            val resp = com.example.skillsync.core.network.RetrofitClient.instance.composeMessage(
-                                                manager = managerEmail,
-                                                cadence = if (monthendSelected) "monthend" else "monthly",
-                                                target = rep.email,
-                                                myMessage = myMessage,
-                                            )
-                                            rewritten = resp.message
-                                            notify.success("Message composed")
-                                        } catch (_: Exception) {
-                                            rewritten = rep.structuredFeedback.formattedText.ifBlank {
-                                                com.example.skillsync.feature.communication.engine.MessageRewriter.compose(
-                                                    userMessage = userMessage, myMessage = myMessage,
-                                                    style = com.example.skillsync.feature.communication.engine.MessageStyle.TEAMS,
-                                                    targetName = rep.name, isTeam = false,
-                                                    evidence = com.example.skillsync.feature.communication.engine.MessageRewriter.EvidenceContext(
-                                                        certGapCourses = rep.topCourses,
-                                                        utilisation = rep.utilisationPct.toInt(),
-                                                    ),
-                                                )
-                                            }
-                                            notify.success("Composed locally (offline)")
-                                        } finally { rewriting = false }
+                                        val request = com.example.skillsync.feature.communication.domain.CommunicationRequest(
+                                            audience = com.example.skillsync.feature.communication.domain.CommunicationAudience(
+                                                type = com.example.skillsync.feature.communication.domain.CommunicationAudienceType.INDIVIDUAL,
+                                                name = rep.name,
+                                                email = rep.email,
+                                            ),
+                                            cadence = if (monthendSelected) "monthend" else "monthly",
+                                            evidence = com.example.skillsync.feature.communication.domain.CommunicationEvidence(
+                                                currentUtilisation = rep.utilisationPct.toInt(),
+                                                certGapCourses = rep.topCourses,
+                                            ),
+                                            managerInstruction = myMessage,
+                                            quotedInboundText = userMessage,
+                                            style = com.example.skillsync.feature.communication.engine.MessageStyle.TEAMS,
+                                        )
+                                        val result = vm.composeMessage(request, rep.structuredFeedback.formattedText)
+                                        rewritten = result.text
+                                        notify.success(if (result.fromServer) "Message composed" else "Composed locally (offline)")
+                                        rewriting = false
                                     }
                                 },
                                 enabled = !rewriting,
