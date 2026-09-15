@@ -1,5 +1,6 @@
 package com.example.skillsync.feature.training.ui
 
+import com.example.skillsync.core.data.AllocationRepository
 import com.example.skillsync.core.data.BatchRepository
 import com.example.skillsync.core.data.ManagerRepository
 import com.example.skillsync.core.data.TrainerRepository
@@ -21,8 +22,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Confirms AllocationViewModel's Trainer/candidate and Batch/demand calls
- * go through TrainerRepository/BatchRepository, not a direct Retrofit call.
+ * Confirms AllocationViewModel's Allocation-recommendation, Trainer, and
+ * Batch/demand calls go through AllocationRepository/TrainerRepository/
+ * BatchRepository respectively, not a direct Retrofit call.
  * Deliberately does not exercise load()/refresh()/fetch()/markSkill(), which
  * take an android.content.Context and touch LocalCache/ActionQueueManager --
  * same out-of-scope rationale as Trainer360ViewModelTest.
@@ -30,18 +32,21 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class AllocationViewModelTest {
 
-    private class FakeTrainerRepository : TrainerRepository() {
-        var allocationCandidatesCalls = 0
-        var alternativeTrainersCalls = 0
-        var bulkAssignSkillCalls = 0
+    private class FakeAllocationRepository : AllocationRepository() {
+        var candidatesCalls = 0
 
-        override suspend fun allocationCandidates(
+        override suspend fun candidates(
             manager: String, course: String, start: String, end: String,
             country: String, customer: String, deliveryMode: String, international: String,
         ): AllocationCandidatesResponse {
-            allocationCandidatesCalls++
+            candidatesCalls++
             return AllocationCandidatesResponse(ready = true, candidates = listOf(mapOf("trainer_name" to "Test Trainer")))
         }
+    }
+
+    private class FakeTrainerRepository : TrainerRepository() {
+        var alternativeTrainersCalls = 0
+        var bulkAssignSkillCalls = 0
 
         override suspend fun alternativeTrainers(course: String): Map<String, Any> {
             alternativeTrainersCalls++
@@ -78,21 +83,21 @@ class AllocationViewModelTest {
     }
 
     @Test
-    fun loadGatedCandidates_goesThroughTheTrainerRepository() = runVmTest {
-        val trainerRepo = FakeTrainerRepository()
-        val vm = AllocationViewModel(ManagerRepository(), trainerRepo, FakeBatchRepository())
+    fun loadGatedCandidates_goesThroughTheAllocationRepository() = runVmTest {
+        val allocationRepo = FakeAllocationRepository()
+        val vm = AllocationViewModel(ManagerRepository(), TrainerRepository(), FakeBatchRepository(), allocationRepo)
 
         vm.loadGatedCandidates("manager@koenig-solutions.com", "AZ-104", "2026-09-01", "2026-09-05")
         advanceUntilIdle()
 
-        assertEquals(1, trainerRepo.allocationCandidatesCalls)
+        assertEquals(1, allocationRepo.candidatesCalls)
         assertTrue(vm.gatedCandidates.value?.ready == true)
     }
 
     @Test
     fun loadDemandContext_goesThroughTheBatchRepository() = runVmTest {
         val batchRepo = FakeBatchRepository()
-        val vm = AllocationViewModel(ManagerRepository(), TrainerRepository(), batchRepo)
+        val vm = AllocationViewModel(ManagerRepository(), TrainerRepository(), batchRepo, AllocationRepository())
 
         vm.loadDemandContext("manager@koenig-solutions.com", "demand-1", "AZ-104")
         advanceUntilIdle()
@@ -104,7 +109,7 @@ class AllocationViewModelTest {
     @Test
     fun globalSearch_goesThroughTheTrainerRepository() = runVmTest {
         val trainerRepo = FakeTrainerRepository()
-        val vm = AllocationViewModel(ManagerRepository(), trainerRepo, FakeBatchRepository())
+        val vm = AllocationViewModel(ManagerRepository(), trainerRepo, FakeBatchRepository(), AllocationRepository())
 
         vm.globalSearch("AZ-104")
         advanceUntilIdle()
@@ -116,7 +121,7 @@ class AllocationViewModelTest {
     @Test
     fun bulkAssignSkill_goesThroughTheTrainerRepositoryAndReportsPerRowResults() = runVmTest {
         val trainerRepo = FakeTrainerRepository()
-        val vm = AllocationViewModel(ManagerRepository(), trainerRepo, FakeBatchRepository())
+        val vm = AllocationViewModel(ManagerRepository(), trainerRepo, FakeBatchRepository(), AllocationRepository())
 
         vm.bulkAssignSkill("AZ-104", listOf("trainer1@koenig-solutions.com" to 8, "trainer2@koenig-solutions.com" to 6))
         advanceUntilIdle()

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.skillsync.core.network.MarkSkillRequest
 import com.example.skillsync.core.network.MarkSkillResponse
 import com.example.skillsync.core.network.RetrofitClient
+import com.example.skillsync.core.data.AllocationRepository
 import com.example.skillsync.core.data.BatchRepository
 import com.example.skillsync.core.data.ManagerRepository
 import com.example.skillsync.core.data.TrainerRepository
@@ -43,6 +44,7 @@ class AllocationViewModel(
     private val repository: ManagerRepository = ManagerRepository(),
     private val trainerRepository: TrainerRepository = TrainerRepository(),
     private val batchRepository: BatchRepository = BatchRepository(),
+    private val allocationRepository: AllocationRepository = AllocationRepository(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<AllocationState>(AllocationState.Loading)
@@ -115,7 +117,7 @@ class AllocationViewModel(
         viewModelScope.launch {
             gatedCandidatesLoading.value = true
             try {
-                gatedCandidates.value = trainerRepository.allocationCandidates(
+                gatedCandidates.value = allocationRepository.candidates(
                     manager = manager, course = course, start = start, end = end,
                     country = country, customer = customer,
                     deliveryMode = deliveryMode,

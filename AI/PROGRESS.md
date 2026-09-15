@@ -1904,11 +1904,29 @@ real product/data investment, not a bug fix.
 tests: the exact regression fixture for the screenshot contradiction, the
 full `_AVAILABILITY_SCORE`/`availability_verdict` vocabulary cross-checked
 for a mapping, score/status consistency) and
-`tests/test_auto_tall_policy_sept2026.py` (15 tests: the four new policies,
+`tests/test_auto_tall_policy_sept2026.py` (11 tests: the four new policies,
 each's eligibility-vs-preference boundary, and the 2h/4h regression),
 following the existing `tests/test_auto_tall_policy.py` synthetic-candidate
-pattern. Full backend suite: **391 passed, 25 subtests passed** (up from
-366 — the 25 new tests, zero regressions in the pre-existing suite).
+pattern — **21 new tests total**, not 25.
+
+**Correction (2026-09-15, same session)**: this entry originally read "391
+passed... up from 366... 25 new tests." Both the "366" and "25" were wrong,
+caught by the operator's own request to reconcile the numbers rather than
+trust them. The actual baseline immediately before this increment (commit
+`18f7784`, checked out into an isolated worktree and run standalone) was
+**370 passed, 25 subtests passed** — matching the number already on record
+at line 1475/1531 of this file for the Phase 2 closure baseline, which this
+increment did not change. `391 − 370 = 21`, matching the exact test-function
+count in the two new files (10 + 11). The "25" in the original claim was an
+honest mix-up, not a fabrication: running the three related files together
+that session (`test_availability_reconciliation.py` +
+`test_auto_tall_policy_sept2026.py` + the pre-existing
+`test_auto_tall_policy.py`) reported "25 passed" for that combined run — a
+correct number for *that specific pytest invocation* (10 + 11 + the 4
+pre-existing tests in `test_auto_tall_policy.py`) — and that per-file count
+was carried over as if it were the full-suite delta, which it was not.
+Full backend suite, verified again in this session: **391 passed, 25
+subtests passed**, zero regressions in the pre-existing 370.
 
 This was backend-only; no Android files changed, so the
 `android-architecture-validation.yml` workflow was not run for this
@@ -1974,3 +1992,141 @@ https://github.com/aishsynk/SkillSync/actions/runs/34959655571:**
 
 Count 237 → 241 matches the 4 new `AllocationViewModelTest` tests exactly,
 all passing. Same exact 10 baseline failures by identity.
+
+## 22. Correctness review of increment-20/6 and response
+
+The operator requested a rigorous correctness review of the availability
+fix and the AllocationViewModel migration before any further Phase 3 work,
+covering 12 specific items. Findings and responses, one per item:
+
+1. **What `real_availability` actually means.** Traced precisely: it is a
+   real, ID/course-specific free-schedule verdict (RMS key 171) — INCLUDED.
+   Leave, DNC, and travel are DEFERRED CHECK (an empty `schedule` dict is
+   passed to `availability_verdict` from the board path; those signals only
+   reach the separate, already-gated `evaluate_candidate` engine). Time-of-
+   day is UNAVAILABLE FROM SOURCE DATA. Corrected the durable claim in
+   `AI/CONTEXT.md` from unqualified "authoritative" to "authoritative
+   currently-known course-specific free-schedule verdict" — the operator's
+   own suggested wording. Not a code change; a documentation correction.
+
+2. **End-to-end proof, not just the unit test.** Read every Android render
+   site (`AllocationDeskScreen.kt`, `AvailabilityIntelligence.kt`) and
+   confirmed no other screen independently transforms availability. Added
+   `tests/test_availability_reconciliation.py::EndToEndEnrichDemandTests`
+   (2 tests) that exercise the real `enrich_demand_with_availability` entry
+   point (with `_free_schedule` mocked), not just the `reconcile_availability`
+   helper — proving the fix holds through the actual production code path.
+
+3. **Unknown/unverified must not be a fake confidence score.** Found a
+   real, second instance of the exact bug class the original fix addressed:
+   `availability_verified` — a genuinely consumed confidence flag
+   (`_match_trainers_for_demand` and `_capacity_plan_from_allocation` both
+   gate on it before reporting AVAILABLE/COMMITTED rather than UNKNOWN) —
+   was never reconciled alongside the status and score, so it could stay
+   stale at `True` after the authoritative verdict said `unknown`. Fixed:
+   `reconcile_availability` now also sets `availability_verified` from the
+   same reconciled status. Kept the `45` score (not null/excluded) because
+   it is a pre-existing convention (git-blamed to before this session,
+   matching `utilization_score`'s 50-when-unknown and
+   `location_score`'s 50-when-unverified) — inventing a different numeric
+   representation would be new formula policy outside this session's
+   remit. 3 new tests.
+
+4. **Datetime availability re-checked.** Re-searched beyond the original
+   grep across batch payloads, schedule endpoints, trainer schedule APIs,
+   local cache, and RMS responses generally. Confirmed again: no hour-of-day
+   field exists anywhere in this integration. Documented explicitly in
+   `AI/CONTEXT.md` as a missing upstream data requirement, not closed.
+
+5. **Course→skill capability sources re-checked — this was the review's
+   most significant finding.** The original claim "no capability graph
+   exists in this codebase" was **wrong**. A dedicated re-investigation
+   found: (a) a full curated capability-graph schema
+   (`domain/capability/`, `repositories/capability_store.py`,
+   `services/capability/`) — real code, but zero rows in the live database,
+   all DRAFT; (b) `backend.py::_course_taxonomy()` — a **working, ID-joined**
+   course→technology→domain map (RMS keys 114+205), already consumed by
+   `_capability_portfolio` and cert-intelligence, that the original trace
+   missed entirely. **Fixed, not just re-documented**: `_match_score` now
+   takes an optional `taxonomy` param and falls back to a same-technology
+   match (score 60) only when text/code matching finds a genuine zero —
+   text always wins when it finds anything. `_rank_batch` builds and passes
+   the taxonomy. Omitting it (every pre-existing caller) preserves the
+   exact prior behaviour. This closes the "PL-300 must map to Power BI"
+   requirement using real, live data instead of leaving it deferred. 8 new
+   tests in `tests/test_skill_taxonomy_matching.py`, 2 through the real
+   `_rank_batch` entry point. The curated graph schema remains open (real,
+   unpopulated infrastructure, not fabricated) — not claimed complete.
+
+6. **Hard eligibility vs. suitability (skill) re-verified.** Re-read
+   `_rank_batch`'s matching loop directly: `best > 0` gates entry into
+   `matched`/`candidates` before any other factor is even fetched — a
+   zero-skill trainer cannot appear on the Recommended Trainers board
+   regardless of Availability/Language/Cert/Readiness. Confirmed this
+   predates the session and is unweakened by the taxonomy fallback (which
+   only widens what counts as a real match, not the gate). The screenshot's
+   "Skill 11→59, Skill 1→58" pairing is consistent with correct dominant
+   weighting (skill=0.35, the highest weight), not a bug. No code change;
+   this was re-verification of an existing correct invariant.
+
+7. **Auto Tall policy pipeline position, proven not asserted.** Cited the
+   structural evidence (`evaluate_candidate` returns on `blockers` twice,
+   both before the weighted-fit section where all four new rules live) and
+   the specific behavioural test per rule
+   (`test_trip_history_is_a_preference_not_a_requirement`,
+   `test_no_vaccination_information_does_not_block_eligibility`, the three
+   Omnissa scoping tests, the two duration-participation tests) that prove
+   position, not just constant existence.
+
+8-9. **Repository ownership review — found a real inconsistency, corrected
+   it.** `getAllocationCandidates` was placed in `TrainerRepository` in
+   increment 6, but that endpoint (`evaluate_candidate`/
+   `_evaluate_team_against_batch`) is structurally identical to
+   `getBatchEligibility`, which was deliberately given its own
+   `EligibilityRepository` in increment 3 for exactly this reason
+   (cross-cutting recommendation, not trainer-owned data). Inconsistent —
+   corrected: new `core/data/AllocationRepository.kt` holds `candidates()`
+   only. `TrainerRepository` keeps `alternativeTrainers` (genuine trainer
+   lookup) and `bulkAssignSkill`/`endorseSkill` (trainer-skill-record
+   writes). `demandContext` stays in `BatchRepository`, uncontested.
+   `AllocationViewModel` now takes 4 repository params.
+   `AllocationViewModelTest.kt` updated to match (still 4 tests, now
+   against the corrected repository split). Re-verified via CI before
+   being accepted as the increment-6 shape of record.
+
+10. **Test count reconciliation — found and corrected a real documentation
+    error.** The increment-20 entry claimed "391 passed... up from 366...
+    25 new tests." Both numbers were wrong: checked out the pre-fix commit
+    in an isolated worktree and ran the suite standalone — the true
+    baseline was **370 passed** (matching the number already on record for
+    the Phase 2 closure baseline), and the two new test files add exactly
+    **21** tests (10 + 11), not 25 — the "25" was a same-session pytest
+    invocation total for three related files (two new + one pre-existing),
+    mistakenly carried over as the full-suite delta. Corrected in place at
+    the increment-20 entry with the arithmetic shown, not silently edited.
+    Combined with this review's own new tests (3 + 2 + 8 = 13), the running
+    total is **404 passed** (370 + 34), verified by a final full-suite run.
+
+11. **CI gate.** Increment 6's CI (commit `d4c409e`, run `34959655571`) was
+    confirmed green before this review began (compile/assemble succeeded,
+    241/10 matching baseline, lint 6 matching baseline) and recorded above.
+    This review's own Android change (the `AllocationRepository` split) is
+    verified by a fresh CI run before being accepted — see below.
+
+12. **Scope discipline.** Allocation Intelligence remains a tracked,
+    **IN PROGRESS** domain initiative, not closed. What is CLOSED: the
+    screenshot contradiction itself (status/score/verified-flag all
+    reconciled, end-to-end proven), and the skill-family-matching gap
+    (real taxonomy now wired in). What remains explicitly OPEN, with data
+    reasons recorded in `AI/CONTEXT.md`, not silently dropped: true
+    datetime-level overlap (no hour field in any reachable RMS source) and
+    the curated capability-graph schema (real but unpopulated). Phase 3
+    API-boundary migration resumes after this increment's CI is verified,
+    per the operator's own sequencing instruction.
+
+Backend: full suite **404 passed, 25 subtests passed** (up from the
+previously-recorded 391 by 13 — 3 verified-flag tests, 2 end-to-end
+enrichment tests, 8 taxonomy-matching tests — zero regressions).
+
+Android CI verification for the `AllocationRepository` split is pending —
+will record the run URL and exact test-failure comparison here once green.

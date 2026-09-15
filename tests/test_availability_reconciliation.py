@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 import backend
 
 
@@ -111,6 +112,38 @@ class ReconcileAvailabilityTests(unittest.TestCase):
 
         self.assertEqual("unknown", cand["availability_status"])
 
+    def test_regression_availability_verified_flag_is_also_reconciled(self):
+        """Second instance of the same bug class as the score contradiction:
+        availability_verified is a real, consumed confidence flag
+        (_match_trainers_for_demand and _capacity_plan_from_allocation both
+        gate on it before calling a candidate AVAILABLE/COMMITTED rather than
+        UNKNOWN). It must not stay stale at True from the earlier
+        _availability_evidence pass once the authoritative real_availability
+        verdict says "unknown" -- that would let an unresolved trainer be
+        reported as a verified, countable AVAILABLE candidate in capacity
+        planning."""
+        cand = base_candidate(availability_status="available")
+        cand["availability_verified"] = True  # stale from the earlier evidence pass
+        verdict = {"status": "unknown", "reason": "no availability record for this course"}
+
+        backend.reconcile_availability(cand, verdict)
+
+        self.assertEqual("unknown", cand["availability_status"])
+        self.assertFalse(cand["availability_verified"])
+
+    def test_availability_verified_true_for_every_conclusive_status(self):
+        for status in ("available", "available_with_conflicts", "partially_available",
+                       "conflict", "unavailable"):
+            cand = base_candidate()
+            backend.reconcile_availability(cand, {"status": status})
+            self.assertTrue(cand["availability_verified"], f"status={status!r} should be verified")
+
+    def test_availability_verified_false_for_inconclusive_status(self):
+        for status in ("unknown", "unverified"):
+            cand = base_candidate()
+            backend.reconcile_availability(cand, {"status": status})
+            self.assertFalse(cand["availability_verified"], f"status={status!r} should not be verified")
+
 
 class AvailabilityVerdictVocabularyTests(unittest.TestCase):
     """availability_verdict's full output vocabulary must be represented in
@@ -138,6 +171,82 @@ class AvailabilityVerdictVocabularyTests(unittest.TestCase):
                 verdict["status"], backend._AVAILABILITY_SCORE,
                 f"status {verdict['status']!r} from availability_verdict has no score mapping",
             )
+
+
+class EndToEndEnrichDemandTests(unittest.TestCase):
+    """Exercises the real production entry point,
+    enrich_demand_with_availability, not just the reconcile_availability
+    helper in isolation -- proving the fix holds through the actual code
+    path the demand board (and therefore Android's Recommended Trainers
+    screen) consumes, per the instruction not to stop at a unit test on the
+    helper alone."""
+
+    def test_candidate_with_no_free_schedule_row_is_never_available_100(self):
+        """Reproduces the exact screenshot scenario end-to-end: a candidate
+        whose early-pass evidence found "available" (scored 100, as
+        _availability_evidence's "no recorded conflict" branch would) but
+        for whom RMS key 171 (course-specific free schedule) returns no row
+        at all -- the "Availability unknown" case."""
+        demand = [{
+            "course_name": "AZ-104T00",
+            "start_date": "2026-09-01",
+            "end_date": "2026-09-05",
+            "candidates": [{
+                "trainer_name": "Bharatkumar Ramesh Bhojwani",
+                "availability_status": "available",
+                "availability_verified": True,
+                "suitability_score": 80,
+                "suitability_components": {
+                    "skill": 90, "readiness": 70, "availability": 100,
+                    "utilization": 60, "feedback": 100, "language": 100,
+                    "location": 100, "certification": 100,
+                },
+            }],
+        }]
+
+        with mock.patch.object(backend, "_free_schedule", return_value=({}, "")), \
+             mock.patch.object(backend, "_course_catalogue_index", return_value={}):
+            backend.enrich_demand_with_availability(demand)
+
+        cand = demand[0]["candidates"][0]
+        self.assertEqual("unknown", cand["real_availability"]["status"])
+        # The two fields Android actually renders must agree: the status the
+        # chip reads, and the score the "Avail N" line reads.
+        self.assertEqual("unknown", cand["availability_status"])
+        self.assertNotEqual(100, cand["suitability_components"]["availability"])
+        self.assertFalse(cand["availability_verified"])
+
+    def test_candidate_with_a_free_schedule_row_reconciles_to_available(self):
+        demand = [{
+            "course_name": "AZ-104T00",
+            "start_date": "2026-09-01",
+            "end_date": "2026-09-05",
+            "candidates": [{
+                "trainer_name": "Available Trainer",
+                "availability_status": "unverified",
+                "suitability_score": 60,
+                "suitability_components": {
+                    "skill": 90, "readiness": 70, "availability": 45,
+                    "utilization": 60, "feedback": 100, "language": 100,
+                    "location": 100, "certification": 100,
+                },
+            }],
+        }]
+        pool = {"available trainer": {"free_dates": {backend._parse_date("2026-09-01"),
+                                                       backend._parse_date("2026-09-02"),
+                                                       backend._parse_date("2026-09-03"),
+                                                       backend._parse_date("2026-09-04"),
+                                                       backend._parse_date("2026-09-05")}}}
+
+        with mock.patch.object(backend, "_free_schedule", return_value=(pool, "")), \
+             mock.patch.object(backend, "_course_catalogue_index", return_value={}):
+            backend.enrich_demand_with_availability(demand)
+
+        cand = demand[0]["candidates"][0]
+        self.assertEqual("available", cand["real_availability"]["status"])
+        self.assertEqual("available", cand["availability_status"])
+        self.assertEqual(100, cand["suitability_components"]["availability"])
+        self.assertTrue(cand["availability_verified"])
 
 
 if __name__ == "__main__":

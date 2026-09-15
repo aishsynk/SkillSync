@@ -1473,8 +1473,25 @@ def _tokens(name):
     return {t for t in _norm(name).split() if len(t) > 2 and t not in _STOP}
 
 
-def _match_score(batch_course, batch_vendor, cap_course, cap_vendor):
-    """0-100 for how well one capability row covers a demanded course."""
+def _match_score(batch_course, batch_vendor, cap_course, cap_vendor,
+                 taxonomy=None, batch_course_id=""):
+    """0-100 for how well one capability row covers a demanded course.
+
+    Text/code similarity (exact title, shared vendor course code, token
+    overlap) is tried first and always wins when it finds anything — it is
+    the stronger, more specific signal. Only when text finds *nothing at
+    all* (score 0: different title, different code, zero shared tokens) is
+    the RMS course->technology taxonomy (_course_taxonomy) consulted as a
+    fallback: if both courses resolve to the same technology (e.g. "PL-300"
+    and a differently-titled Power BI course both resolving to technology
+    "Power BI"), that is real evidence of the same skill family, scored
+    lower than any textual match (60, landing in the "Available with
+    Upskilling" bucket rather than "Best Match") but higher than the 0 a
+    pure title comparison would give a same-family, differently-named pair.
+    `taxonomy` is the caller's _course_taxonomy() result, expensive to
+    build so never constructed here; omitting it (the default) preserves
+    the exact old text-only behaviour for every existing caller.
+    """
     a, b = _norm(batch_course), _norm(cap_course)
     if not a or not b:
         return 0
@@ -1486,13 +1503,22 @@ def _match_score(batch_course, batch_vendor, cap_course, cap_vendor):
         return 92                       # same vendor course code, different title text
 
     ta, tb = _tokens(batch_course), _tokens(cap_course)
-    if not ta or not tb:
-        return 0
-    jaccard = len(ta & tb) / len(ta | tb)
-    score = jaccard * 78
-    if batch_vendor and cap_vendor and _norm(batch_vendor) == _norm(cap_vendor):
-        score += 10                     # same vendor family is a real, weaker signal
-    return int(min(100, round(score)))
+    score = 0
+    if ta and tb:
+        jaccard = len(ta & tb) / len(ta | tb)
+        score = jaccard * 78
+        if score and batch_vendor and cap_vendor and _norm(batch_vendor) == _norm(cap_vendor):
+            score += 10                 # same vendor family is a real, weaker signal
+    score = int(min(100, round(score)))
+    if score > 0 or not taxonomy:
+        return score
+
+    batch_tech = _taxonomy_for_course(taxonomy, {"course_id": batch_course_id, "course_name": batch_course})
+    cap_tech = _taxonomy_for_course(taxonomy, {"course_name": cap_course})
+    if (batch_tech and cap_tech and batch_tech.get("technology")
+            and batch_tech["technology"] == cap_tech.get("technology")):
+        return 60
+    return 0
 
 
 # ─── AutoTall parity: negative-feedback allocation block + clean-record tie-break
@@ -1677,6 +1703,21 @@ _AVAILABILITY_SCORE = {
     "conflict": 0,
     "unavailable": 0,
 }
+# A status counts as "verified" -- a real, established signal -- for every
+# outcome except the two that mean "we could not determine this": unknown
+# and unverified. This must derive from the exact same status the score
+# table above keys off, for the same reason both live in one place: a status
+# that scores a modest, non-perfect 45 could still be silently read
+# downstream as a confident "this trainer is available" if its
+# availability_verified flag were left stale at True. `_team_capability`
+# (unallocated-trainer matching) and the capacity-plan board reporter both
+# already gate on this flag before ever showing a status as AVAILABLE/
+# COMMITTED rather than UNKNOWN -- so getting it wrong here does not just
+# mis-score a candidate, it can mis-report a whole capacity-plan bucket.
+_AVAILABILITY_VERIFIED_STATUSES = {
+    "available", "available_with_conflicts", "partially_available",
+    "conflict", "unavailable",
+}
 _SUITABILITY_WEIGHTS = {
     "skill": 0.35, "readiness": 0.15, "availability": 0.15,
     "utilization": 0.10, "feedback": 0.05, "language": 0.05,
@@ -1698,10 +1739,19 @@ def reconcile_availability(candidate, verdict):
     real_availability, but suitability_score never learned about it.
     "unknown" must never resolve to a full-marks score -- see
     _AVAILABILITY_SCORE.
+
+    Also reconciles `availability_verified` for the same reason: it is a
+    real, consumed confidence flag (_team_capability's unallocated-trainer
+    matching and the capacity-plan board reporter both gate on it before
+    ever calling a candidate AVAILABLE/COMMITTED rather than UNKNOWN), and
+    without this it could be left stale at True from the earlier evidence
+    pass even after the authoritative verdict says the opposite -- the exact
+    same class of bug as the score contradiction, one field over.
     """
     status = verdict.get("status") or "unknown"
     new_score = _AVAILABILITY_SCORE.get(status, 45)
     candidate["availability_status"] = status
+    candidate["availability_verified"] = status in _AVAILABILITY_VERIFIED_STATUSES
     components = candidate.get("suitability_components")
     if not isinstance(components, dict) or "availability" not in components:
         return
@@ -1804,7 +1854,7 @@ def _team_course_skill(team, course, vendor, required_level=""):
     return rows
 
 
-def _rank_batch(batch, team, availability_sources=None, candidate_context=None):
+def _rank_batch(batch, team, availability_sources=None, candidate_context=None, taxonomy=None):
     """
     Best team match for one unallocated batch, plus the ranked candidate list.
 
@@ -1815,14 +1865,21 @@ def _rank_batch(batch, team, availability_sources=None, candidate_context=None):
     to take this on, (4) English-speaking trainers are preferred as a class;
     non-English speakers are only surfaced ahead of them when no English
     speaker matches the course at all.
+
+    `taxonomy` (a _course_taxonomy() map, optional) lets _match_score fall
+    back to a same-technology match when no title/code/token match exists at
+    all — see _match_score's own docstring. Omitting it preserves the exact
+    prior text-only matching behaviour.
     """
     course, vendor = batch.get("course_name", ""), batch.get("customer", "")
+    course_id = str(batch.get("course_id") or "")
     matched = []
     level_by_email = {}   # matched trainer -> RMS SkillLevel held on the matched course
     for name, email, caps, feedback, is_self in team:
         best, best_course, best_q, best_level = 0, "", 0, ""
         for c in caps:
-            s = _match_score(course, vendor, c["course"], c["vendor"])
+            s = _match_score(course, vendor, c["course"], c["vendor"],
+                             taxonomy=taxonomy, batch_course_id=course_id)
             if s > best:
                 best, best_course, best_q = s, c["course"], c["qubits_score"]
                 best_level = str(c.get("skill_level", "") or "").strip()
@@ -5044,11 +5101,19 @@ def allocation_desk():
                 "certification_codes": [c.get("code") for c in resume.get("certifications", []) if isinstance(c, dict)],
             }
 
+    # Same-technology fallback when no title/code/token match exists at all
+    # (e.g. "PL-300" against a differently-titled Power BI course) — see
+    # _match_score. Cached 6h; never fatal if RMS is unreachable.
+    try:
+        taxonomy = _course_taxonomy()
+    except Exception:
+        taxonomy = {}
+
     priority_count = 0
     for b in demand:
         b["relevance"], b["candidates"], coverage = _rank_batch(
             b, team, availability_sources=availability_sources,
-            candidate_context=candidate_context,
+            candidate_context=candidate_context, taxonomy=taxonomy,
         )
         b["team_skill"] = _team_course_skill(
             team, b.get("course_name", ""), b.get("customer", ""),

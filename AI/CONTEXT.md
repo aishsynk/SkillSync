@@ -905,17 +905,42 @@ availability can never legitimately be worth full marks.
 path): the board computes `suitability_score` from `_availability_evidence`
 (an early pass over the RMS assignment feed and off-dates — "no recorded
 conflict" is promoted straight to `"available"` → 100) *before*
-`enrich_demand_with_availability` computes the later, course-specific and
-authoritative `real_availability` verdict (from RMS key 171's free-schedule
-data) that the UI's status chip actually reads. The two never reconciled, so
-the chip and the number could disagree.
+`enrich_demand_with_availability` computes the later, course-specific
+`real_availability` verdict (from RMS key 171's free-schedule data) that the
+UI's status chip actually reads. The two never reconciled, so the chip and
+the number could disagree.
+
+**What `real_availability` actually means — corrected, precise claim.** A
+follow-up review challenged the word "authoritative" as originally used
+here, and correctly so: `real_availability` is course-specific free-schedule
+availability, not full operational availability. Traced what feeds it,
+classified per item:
+
+| Input | Status | Evidence |
+|---|---|---|
+| Course-specific free dates (RMS key 171) | **INCLUDED** | `availability_verdict`'s `free_dates` param, `backend.py:_free_schedule` |
+| Assignment dates (RMS `prevUpcoming`) | **NOT INCLUDED** | `enrich_demand_with_availability` never reads `_availability_evidence`'s assignment feed when building `real_availability` — only key 171 |
+| Time-of-day | **UNAVAILABLE FROM SOURCE DATA** | no hour field anywhere in `prevUpcoming`, `trainerDetails`, or key 171 |
+| Leave / blocked dates | **DEFERRED CHECK** | `enrich_demand_with_availability` passes an *empty* `schedule` dict to `availability_verdict` (`backend.py`, the `{}` argument) — leave only enters the richer `_rc_schedule` signal used by the separate gated-candidates engine (`evaluate_candidate`), never the board. Recorded explicitly on the payload as `"leave_checked": False`. |
+| Client exclusions (DNC) | **DEFERRED CHECK** | same reason; recorded as `"dnc_checked": False`. DNC is applied to the board separately, as a post-hoc `suitability = 0` override in `_rank_batch`, not through `real_availability`. |
+| Travel constraints / existing trips | **NOT INCLUDED** | computed independently as `international_verdict`, not folded into `real_availability` at all |
+
+**Corrected statement**: `real_availability` is the **authoritative
+currently-known course-specific free-schedule verdict** — authoritative for
+that one dimension, not a full operational-availability answer. Leave,
+DNC and travel remain genuinely deferred to the per-batch gated-candidates
+evaluation, which the board's own `"Client exclusions and leave are checked
+when you open this batch"` notice (`AvailabilityIntelligence.kt::UncheckedNotice`)
+already says honestly — that notice was correct before this fix and remains
+correct after it; this section just makes explicit what "authoritative"
+was and was not claiming.
 
 **The fix.** `backend.py::reconcile_availability(candidate, verdict)` makes
-`real_availability` the single source of truth for both fields once it is
-known: it overwrites `candidate["availability_status"]` and recomputes
-`suitability_components["availability"]` (and the weighted
-`suitability_score` total) from the same status, through one shared table,
-`_AVAILABILITY_SCORE`:
+`real_availability` the single source of truth, for the dimension it does
+cover, for two fields: `candidate["availability_status"]` (what the chip
+reads) and `suitability_components["availability"]` (what the "Avail N"
+number reads), plus the weighted `suitability_score` total, all recomputed
+from the same status through one shared table, `_AVAILABILITY_SCORE`:
 
 | status | score | meaning |
 |---|---|---|
@@ -925,40 +950,122 @@ known: it overwrites `candidate["availability_status"]` and recomputes
 | `unverified` / `unknown` | 45 | **genuine insufficient data — never 100** |
 | `conflict` / `unavailable` | 0 | not free |
 
+**Why 45, not null/excluded/some other representation.** A follow-up review
+asked whether 45 is an arbitrary number invented to keep the formula
+numeric. It is not invented by this fix: `"unverified": 45` already existed
+in `_suitability_components` before this session touched the file (git
+history: commit `701c299`), and every sibling factor in that same formula
+already uses the identical convention — a modest, non-perfect default when
+evidence is missing, never a confident number (`utilization_score = 50` when
+utilization is `None`; `location_score = 50` for an unverified location;
+`certification_score = 70` when no certification requirement is mapped).
+Introducing a different representation for availability alone (null,
+excluded-from-formula, a separate confidence field with its own weight)
+would be new formula policy this session has no business inventing.
+Instead, `reconcile_availability` now also sets
+`candidate["availability_verified"]` (`True` only for the five conclusive
+statuses; `False` for `unknown`/`unverified`) — the exact same "score
+carries a default, verified flag carries the truth" pattern
+`location_verified`/`utilization_verified` already use two lines away in
+the same function. This is the honest answer to "unknown must not falsely
+increase recommendation confidence": confidence is not encoded in the
+number at all, it is encoded in the flag, and two real, already-existing
+consumers already gate on it —
+`_match_trainers_for_demand` (`backend.py`, never reports AVAILABLE/COMMITTED
+unless `verified`) and `_capacity_plan_from_allocation`'s
+`verified_available_candidates`/`availability_unknown_candidates` buckets.
+**Both were found, during this review, to have the same stale-flag bug as
+the score**: `reconcile_availability` originally updated `availability_status`
+but not `availability_verified`, so a candidate could still read
+`verified: True` (stale from the early evidence pass) after the
+authoritative verdict said `unknown`. Fixed in the same function, same
+commit. Regression coverage: `tests/test_availability_reconciliation.py`
+(15 tests, including two that exercise the real
+`enrich_demand_with_availability` entry point end to end, not just the
+`reconcile_availability` helper).
+
 This is the durable invariant: **`unknown`/`unverified` availability status
-can never resolve to a perfect availability score**, by construction — both
-call sites that produce a score (`_suitability_components` and
-`reconcile_availability`) read the same table, so a new status can't be added
-to one without a score in the other. Regression coverage:
-`tests/test_availability_reconciliation.py`.
+can never resolve to a perfect availability score, and can never be
+reported as a verified-available candidate**, by construction — every call
+site that produces a score or a verified flag reads the same two tables, so
+a new status can't be added to one without both being defined.
 
 **What this fix does not change**: Android renders these two fields as-is
 (`AvailabilityIntelligence.kt::AvailabilityChip` for the status text,
 `AllocationDeskScreen.kt`'s `suitability_components` line for the number) —
-it was never computing either value itself, so no Android change was needed;
-they simply agree now because the backend does.
+it was never computing either value itself, so no Android change was
+needed; they simply agree now because the backend does. Verified by reading
+every render site (`AllocationDeskScreen.kt`, `AvailabilityIntelligence.kt`)
+and confirming no other screen (`GatedCandidates.kt`, `EligibilitySheet.kt`,
+`Trainer360*.kt`) references `real_availability`/`availability_status`/
+`suitability_components` at all — they consume the structurally different,
+already-gated `evaluate_candidate` engine's `fit`/`eligible` fields, which
+never had this contradiction to begin with.
 
-**Known, explicitly deferred, gaps** (found during this trace, not fixed
+**Known, explicitly deferred, gap** (found during this trace, not fixed
 here — do not assume otherwise):
 - **Date-level, not datetime-level, overlap.** Both `_availability_evidence`
   and `availability_verdict` compare whole calendar days
   (`backend.py:1410`'s `st <= end and en >= start`, and a `set[date]`
-  intersection). No hour-of-day field exists anywhere in the RMS integration
-  this repo calls (`prevUpcoming`, `trainerDetails`, key 171) — grepped for
-  one and found none. A same-day, non-overlapping-hours batch (e.g. 09:30 on
-  a day where the trainer's only other commitment ends at 08:00) is
-  therefore still treated as a full-day conflict. Implementing true
-  datetime overlap would require fabricating a time field RMS does not
-  appear to expose; per the "do not invent missing data" rule, this is
-  recorded as a gap rather than worked around with invented data.
-- **Skill matching is lexical, not taxonomy-based.** `_match_score`
-  (`backend.py:_match_score`) is course-title/vendor-code text similarity
-  (exact match, shared vendor course code, or Jaccard token overlap) — there
-  is no course→skill/capability taxonomy in this codebase to match "PL-300"
-  to a "Power BI" skill family independent of course title. Building one is
-  a real product/data investment (a capability graph and course-to-skill
-  mapping), not a bug fix; out of scope here, recorded as a known
-  limitation rather than attempted with a guessed schema.
+  intersection). Re-searched on review, beyond the original grep, across
+  batch detail payloads, schedule endpoints, trainer schedule APIs, local
+  cached schedule data, and RMS responses generally: no hour-of-day field
+  exists anywhere in the RMS integration this repo calls (`prevUpcoming`,
+  `trainerDetails`, key 171, key 111/`trainerRCSchedule`). A same-day,
+  non-overlapping-hours batch (e.g. 09:30 on a day where the trainer's only
+  other commitment ends at 08:00) is therefore still treated as a full-day
+  conflict. Implementing true datetime overlap would require fabricating a
+  time field RMS does not expose; per the "do not invent missing data"
+  rule, this is recorded as a **missing upstream data requirement**, not
+  closed, and not silently dropped.
+
+**Corrected: skill-family matching — a real taxonomy exists and is now
+used.** The original claim in this section, "there is no course→skill
+taxonomy in this codebase," was **wrong**, caught by a follow-up review
+that specifically asked not to accept that conclusion without re-checking
+this codebase's own capability/skill-profile functionality. What actually
+exists:
+- `domain/capability/models.py` + `repositories/capability_store.py` +
+  `services/capability/capability_service.py`: a full curated capability
+  graph schema (courses, capabilities, families, aliases, relationships),
+  seeded by `scripts/seed_capability_foundation.py` — but every row lands
+  `DRAFT`/pending human review, and the live SQLite database
+  (`skilledge_capability.sqlite3`) has zero rows in this checkout. Real
+  schema, not yet populated data — **not usable today**.
+- `backend.py::_course_taxonomy()` (RMS key 114 `courseTechnology` + key
+  205 `courseDomain`, 6h cache): a working, **ID-joined**
+  course→technology→domain map — `{"id:<course_id>" | normalised name ->
+  {"technology", "domain"}}` — already consumed by `_capability_portfolio`,
+  `_skill_profile_from_capability`, and cert-intelligence. This is real,
+  live, and usable **today**.
+- `_match_score` (allocation-time skill matching) consumed neither of the
+  above — confirmed still true. That specific gap is now closed: `_match_score`
+  takes an optional `taxonomy` param (a `_course_taxonomy()` map) and
+  `_rank_batch` now builds and passes one. Text/code matching (exact title
+  100, shared vendor course code 92, Jaccard token overlap) is tried first
+  and always wins when it finds anything; only when text finds a genuine
+  zero (different title, different code, zero shared tokens) does the
+  taxonomy fallback apply — if both courses resolve to the same RMS
+  `technology`, that scores 60 (landing in "Available with Upskilling", not
+  "Best Match" — a real but weaker signal than a textual match), rescuing
+  the "PL-300 must map to its Power BI capability, not literal course-title
+  equality" case using real, already-live RMS data rather than a guessed
+  taxonomy. Trainer capability rows (`_skills`, from RMS `trainerDetails`)
+  never carry a `course_id`, only `CourseName` — confirmed by reading the
+  parser — so the trainer side of this join can only use the existing
+  normalised-name lookup (`_norm_course`, the same join every other
+  taxonomy consumer in this file already uses), not an ID join; the batch
+  side does carry a real `course_id` (RMS `CourseId`, confirmed at the
+  unallocated-batch builder) and uses it. Omitting `taxonomy` (the default
+  for every pre-existing caller) preserves the exact prior text-only
+  behaviour — this is additive, not a rewrite. Regression coverage:
+  `tests/test_skill_taxonomy_matching.py` (8 tests, including two through
+  the real `_rank_batch` entry point).
+- The curated capability-graph schema (courses/capabilities/families with
+  human-reviewed relationships) remains a genuinely open, larger
+  initiative — it is real, unfinished infrastructure (empty database,
+  DRAFT rows), not a fabricated one, and populating it is a data/product
+  investment distinct from this bug fix. Not claimed complete.
 
 ### Auto Tall policy updates — Aug/Sep 2026 (implemented 2026-09-15)
 
@@ -998,6 +1105,97 @@ All four are read from plain fields on the candidate/batch dicts
 are wired: this file does not fabricate the RMS plumbing that populates
 them, only the policy logic that consumes them once populated. Tests:
 `tests/test_auto_tall_policy_sept2026.py`.
+
+**Pipeline position, proven not assumed.** A follow-up review asked for
+proof that each policy sits where it claims — preference vs. gate, not just
+"the constant exists." `evaluate_candidate` (`backend.py`) computes and
+returns every hard-gate `blockers` list *before* the `# ── Weighted fit`
+section that computes `factors` even begins (structural evidence: the
+function returns `eligible: False, fit: 0, factors: []` immediately if
+`blockers` is non-empty, at two separate points — after the first gate
+batch and after the mock gate — both strictly before any of the four new
+rules' code, which lives entirely inside the weighted-fit section).
+Behavioural proof, per rule:
+- `test_trip_history_is_a_preference_not_a_requirement`: a candidate with
+  no trip history is still `eligible: True`; history only ever raises
+  `fit`, never appears in `blockers`.
+- `test_no_vaccination_information_does_not_block_eligibility`: no
+  `vaccinations` key at all still returns `eligible: True`.
+- `test_omnissa_...` (3 tests): the certification credit only ever appears
+  in `factors` (post-eligibility), is Omnissa-vendor-scoped (a non-Omnissa
+  batch with the same `approved=True` candidate gets no credit), and
+  requires both the vendor match and the flag.
+- `test_two_hour_batch_participates_in_allocation` /
+  `test_alternate_four_hour_batch_participates_in_allocation`: `eligible:
+  True` for both durations — proving no gate rejects on duration, not just
+  that no code mentions duration.
+
+### Hard eligibility vs. suitability — skill (item re-verified 2026-09-15)
+
+A follow-up review raised the screenshot pairing "Skill 11 → suitability 59"
+vs. "Skill 1 → suitability 58" and asked whether a missing mandatory skill
+could be masked by unrelated factors (Avail/Ready/Lang/Cert) into an
+apparently-recommendable trainer, on the Recommended Trainers board
+(`_rank_batch`, not the already-gated `evaluate_candidate`).
+
+**Re-read `_rank_batch`'s matching loop directly**: a trainer only enters
+`matched`/`candidates` at all `if best > 0` (`backend.py`, inside the
+per-team-member loop, before any of readiness/availability/language/
+certification is even fetched) — `best` is `_match_score`'s output. A
+trainer with **zero** capability-course overlap with the batch's course
+(now including the taxonomy fallback above) never appears in the
+Recommended Trainers list, regardless of how strong their Availability,
+Language, Certification or Readiness would otherwise be. This is a real,
+structural gate, not a compensable weight — confirmed unchanged by this
+session's edits (the gate predates this session; the taxonomy fallback
+only widens what counts as `best > 0`, it does not weaken the gate itself).
+
+Once past that gate, `match`/`skill` legitimately participates in the
+weighted `suitability_score` at 0.35 — the single highest weight in
+`_SUITABILITY_WEIGHTS`, already dominant over every other factor by
+design, and the screenshot pairing (11→59, 1→58) is consistent with that:
+the higher-skill candidate outranks the lower-skill one, as intended. Low
+but nonzero skill matches are not hidden either: the board's own coverage
+bucketing (`"No Coverage"` below 50, `"Available with Upskilling"` 50-89)
+and the Android UI's `"Upskilling required"` label (shown whenever
+`match < 75`) already surface a weak match honestly rather than
+disguising it as a strong recommendation. No code change was needed here —
+this was re-verification of an existing, correct invariant, not a fix.
+
+### Repository ownership review (Android, item re-verified 2026-09-15)
+
+A follow-up review challenged Phase 3 increment 6's placement of
+`getAllocationCandidates` inside `TrainerRepository`, and asked whether
+that repository was starting to absorb every endpoint whose payload merely
+*contains* trainer data (the god-repository risk `ManagerRepository` was
+being broken up to avoid).
+
+**Re-examined against the precedent this migration already set**:
+`EligibilitySheet`'s `getBatchEligibility` (`api/v2/eligibility/batch`) was
+deliberately given its own `EligibilityRepository` in increment 3, reasoned
+as "a cross-cutting, backend-authoritative evaluation... kept as its own
+domain rather than folded into Batch or Trainer." `getAllocationCandidates`
+(`api/v2/allocation/candidates`, backend `evaluate_candidate`/
+`_evaluate_team_against_batch`) is structurally the same kind of endpoint —
+a gated recommendation combining trainer capability, availability,
+certification and travel for one specific batch, not a fact the trainer
+owns. Placing it in `TrainerRepository` was inconsistent with the
+repository's own precedent, caught by this review.
+
+**Corrected**: moved to a new `core/data/AllocationRepository.kt`, holding
+only `candidates(...)`. `TrainerRepository` keeps `alternativeTrainers`
+(a genuine trainer lookup) and `bulkAssignSkill`/`endorseSkill` (both
+trainer-skill-record writes — the trainer's own data, mutated), reviewed
+against the same test: does the *operation* belong to the trainer, not
+whether the *response* mentions one. `demandContext` stays in
+`BatchRepository` — Batch/demand-owned, uncontested by this review.
+`AllocationRepository` deliberately holds nothing else: not a general
+dumping ground, just the one cross-cutting recommendation read, matching
+`EligibilityRepository`'s scope. `AllocationViewModel` now takes four
+repository params (`ManagerRepository`, `TrainerRepository`,
+`BatchRepository`, `AllocationRepository`); `AllocationViewModelTest.kt`
+updated to match. Verified by CI (compile/assemble green, no new test/lint
+regressions) before being accepted.
 
 ## Koenig HR Trainer Index Policy (TI – 13/08/26)
 
