@@ -871,9 +871,21 @@ internal fun BatchCard(
                                         }
                                     }
                                     c.obj("suitability_components")?.let { parts ->
+                                        // A candidate whose availability was never
+                                        // verified must not carry a confident-looking
+                                        // number here — that is what let "Availability
+                                        // unknown" read next to "Avail 100" before the
+                                        // backend reconciliation fix. Even the corrected,
+                                        // honest 45 still looks like a real score, so an
+                                        // unverified candidate shows "Avail —" instead of
+                                        // any number at all.
+                                        val availVerified = c.bool("availability_verified") ||
+                                            (c.obj("real_availability")?.str("status")
+                                                ?.let { it != "unknown" && it.isNotBlank() } == true)
+                                        val availText = if (availVerified) "${parts.int("availability")}" else "—"
                                         Text(
                                             "Skill ${parts.int("skill")} · Ready ${parts.int("readiness")} · " +
-                                                "Avail ${parts.int("availability")} · Cert ${parts.int("certification")} · Lang ${parts.int("language")}",
+                                                "Avail $availText · Cert ${parts.int("certification")} · Lang ${parts.int("language")}",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = sk.subText, maxLines = 1,
                                         )

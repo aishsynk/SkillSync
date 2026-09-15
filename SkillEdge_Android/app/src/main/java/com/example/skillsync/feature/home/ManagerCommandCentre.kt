@@ -1,5 +1,7 @@
 package com.example.skillsync.feature.home
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -23,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.graphicsLayer
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -32,6 +36,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.skillsync.R
@@ -628,10 +633,14 @@ private fun PulseTile(
 }
 
 /**
- * A compact executive priority row for "Needs you today": a severity rail,
- * the course/meta, and an icon-only action row directly below — not a large
- * blue "Ask availability" text button or a large red "Critical" pill.
- * Recipient resolution/behavior is untouched; this only changes presentation.
+ * A compact executive priority row for "Needs you today": a solid card with a
+ * left severity rail (the same treatment People's roster card uses — a
+ * gradient bar, not a diffuse background tint, is what actually reads as
+ * "this card has weight" rather than a faint outline), a bordered icon
+ * anchor in place of a bare dot, the course/meta, and an icon-only action
+ * row directly below. Recipient resolution/behavior is untouched; this only
+ * changes presentation and adds a press/entry motion to match People's
+ * interaction quality.
  */
 @Composable
 private fun AttentionCard(
@@ -641,47 +650,86 @@ private fun AttentionCard(
 ) {
     val sk = MaterialTheme.skill
     val tint = item.severity.tint()
+    var entered by remember(item.title) { mutableStateOf(false) }
+    LaunchedEffect(item.title) { entered = true }
+    val entryAlpha by animateFloatAsState(
+        targetValue = if (entered) 1f else 0f,
+        animationSpec = SkillMotion.gentle(), label = "attentionCardEnter",
+    )
+    val entryOffset by animateDpAsState(
+        targetValue = if (entered) 0.dp else 10.dp,
+        animationSpec = SkillMotion.gentle(), label = "attentionCardEnterOffset",
+    )
+
     Row(
         Modifier
             .fillMaxWidth()
-            .accentGlass(tint, strong = item.severity == Severity.Critical)
-            .pressable(onOpenDemand)
-            .padding(horizontal = Space.md, vertical = Space.sm),
+            .graphicsLayer { alpha = entryAlpha; translationY = entryOffset.toPx() }
+            .clip(RoundedCornerShape(Radii.card))
+            .background(sk.cardBg)
+            .border(1.dp, sk.cardBorder, RoundedCornerShape(Radii.card))
+            .pressable(onOpenDemand),
     ) {
-        Box(Modifier.padding(top = 5.dp).size(8.dp).clip(CircleShape).background(tint))
-        Spacer(Modifier.width(Space.sm))
-        Column(Modifier.weight(1f)) {
-            Text(item.title, style = MaterialTheme.typography.titleSmall, color = sk.frost, maxLines = 2)
-            Text(item.subtitle, style = MaterialTheme.typography.bodySmall, color = sk.subText, maxLines = 1)
-            Spacer(Modifier.height(Space.xs))
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .width(4.dp)
+                .fillMaxHeight()
+                .background(
+                    Brush.verticalGradient(listOf(tint, tint.copy(alpha = 0.40f)))
+                )
+        )
+        Row(
+            Modifier
+                .weight(1f)
+                .padding(horizontal = Space.md, vertical = Space.sm),
+        ) {
+            IconSlot(tint = tint, size = 30.dp) {
+                Icon(
+                    painterResource(
+                        if (item.severity == Severity.Critical) R.drawable.ic_alert else R.drawable.ic_calendar
+                    ),
+                    contentDescription = null, tint = tint, modifier = Modifier.size(15.dp),
+                )
+            }
+            Spacer(Modifier.width(Space.sm))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        item.title,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = sk.bodyText, maxLines = 2, modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Spacer(Modifier.width(Space.xs))
+                    ToneChip(text = item.severity.label, tint = tint)
+                }
+                Text(item.subtitle, style = MaterialTheme.typography.bodySmall, color = sk.subText, maxLines = 1)
                 if (onAskAvailability != null) {
+                    Spacer(Modifier.height(Space.xs))
                     val askLabel = if (item.recipientType == "INDIVIDUAL" && item.recipientName.isNotBlank()) {
                         "Ask ${item.recipientName.substringBefore(" ")} availability"
                     } else {
                         "Ask trainer availability"
                     }
-                    IconButton(
-                        onClick = onAskAvailability,
-                        modifier = Modifier.size(40.dp).semantics { contentDescription = askLabel },
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(sk.sky.copy(alpha = 0.14f))
+                            .pressable(onAskAvailability)
+                            .semantics { contentDescription = askLabel }
+                            .padding(horizontal = Space.sm, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        IconSlot(tint = sk.sky, size = 28.dp) {
-                            Icon(painterResource(R.drawable.ic_calendar), contentDescription = null, tint = sk.sky, modifier = Modifier.size(14.dp))
-                        }
-                    }
-                    Spacer(Modifier.width(Space.xs))
-                }
-                if (item.severity == Severity.Critical) {
-                    IconSlot(tint = sk.crit, size = 28.dp) {
                         Icon(
-                            painterResource(R.drawable.ic_alert),
-                            contentDescription = "Critical",
-                            tint = sk.crit,
-                            modifier = Modifier.size(14.dp),
+                            painterResource(R.drawable.ic_calendar), contentDescription = null,
+                            tint = sk.sky, modifier = Modifier.size(12.dp),
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            askLabel,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = sk.sky, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
-                } else {
-                    ToneChip(text = item.severity.label, tint = tint)
                 }
             }
         }
