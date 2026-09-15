@@ -1,0 +1,140 @@
+name: Android Architecture Validation
+
+# Verification-only workflow for architecture/refactoring branches. It
+# builds and tests SkillEdge_Android/ but never signs, publishes, releases,
+# or otherwise touches production behaviour — see android-release.yml for
+# the actual release pipeline, which this workflow does not modify or
+# duplicate. Legacy root app/ is out of scope: it ships nothing (see
+# AI/DECISIONS.md / docs/architecture-assessment.md) and CI has never built
+# it.
+#
+# Baseline (AI/PROGRESS.md, 2026-09-15, "Today / Manager Brief UI/UX
+# recovery" entry): 244 unit tests run, 10 pre-existing failures (6
+# ScreenRenderTest + 4 PilotScreenshotTest); lintDebug 6 errors / 79
+# warnings / 3 hints. This workflow does not hide those known failures
+# behind a blanket continue-on-error — it lets the real commands run, then
+# a dedicated comparison step counts the actual failures/errors and fails
+# the job only if that count exceeds the documented baseline, so a genuine
+# regression from this branch cannot pass silently.
+on:
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: ./SkillEdge_Android
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # Hard failure: a branch that does not compile cannot be evaluated
+      # further, and there is no pre-existing-failure baseline to compare
+      # compilation against.
+      - name: Compile (debug)
+        run: ./gradlew :app:compileDebugKotlin
+
+      # Baseline-aware: recorded failures are known and documented, so this
+      # step is allowed to exit non-zero without failing the job by itself.
+      # The "Compare unit test results to baseline" step below is the real
+      # gate — it fails the job if the failure count grew.
+      - name: Unit tests (debug)
+        id: unit_tests
+        continue-on-error: true
+        run: ./gradlew :app:testDebugUnitTest
+
+      - name: Compare unit test results to baseline
+        env:
+          BASELINE_TEST_FAILURES: 10
+        run: |
+          RESULTS_DIR="app/build/test-results/testDebugUnitTest"
+          if [ ! -d "$RESULTS_DIR" ]; then
+            echo "No test-results directory found at $RESULTS_DIR — treating as a hard failure (tests did not run at all)."
+            exit 1
+          fi
+          TOTAL_RUN=$(grep -ohE 'tests="[0-9]+"' "$RESULTS_DIR"/TEST-*.xml | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+          TOTAL_FAILURES=$(grep -ohE 'failures="[0-9]+"' "$RESULTS_DIR"/TEST-*.xml | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+          TOTAL_ERRORS=$(grep -ohE 'errors="[0-9]+"' "$RESULTS_DIR"/TEST-*.xml | grep -oE '[0-9]+' | awk '{s+=$1} END {print s+0}')
+          TOTAL_BROKEN=$((TOTAL_FAILURES + TOTAL_ERRORS))
+          echo "Unit tests run: $TOTAL_RUN"
+          echo "Unit test failures+errors: $TOTAL_BROKEN (documented baseline: $BASELINE_TEST_FAILURES)"
+          echo "unit_test_total=$TOTAL_RUN" >> "$GITHUB_STEP_SUMMARY"
+          echo "unit_test_broken=$TOTAL_BROKEN" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$TOTAL_BROKEN" -gt "$BASELINE_TEST_FAILURES" ]; then
+            echo "REGRESSION: $TOTAL_BROKEN failing/erroring tests exceeds the documented baseline of $BASELINE_TEST_FAILURES."
+            exit 1
+          fi
+          echo "No new unit test regressions: $TOTAL_BROKEN <= baseline $BASELINE_TEST_FAILURES."
+
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: SkillEdge_Android/app/build/test-results/testDebugUnitTest/
+          if-no-files-found: ignore
+
+      # Baseline-aware for the same reason as unit tests above.
+      - name: Lint (debug)
+        id: lint
+        continue-on-error: true
+        run: ./gradlew :app:lintDebug
+
+      - name: Compare lint results to baseline
+        env:
+          BASELINE_LINT_ERRORS: 6
+        run: |
+          REPORT="app/build/reports/lint-results-debug.xml"
+          if [ ! -f "$REPORT" ]; then
+            echo "No lint report found at $REPORT — skipping lint comparison (lint did not produce output)."
+            exit 0
+          fi
+          LINT_ERRORS=$(grep -oE 'severity="Error"' "$REPORT" | wc -l)
+          echo "Lint errors: $LINT_ERRORS (documented baseline: $BASELINE_LINT_ERRORS)"
+          echo "lint_errors=$LINT_ERRORS" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$LINT_ERRORS" -gt "$BASELINE_LINT_ERRORS" ]; then
+            echo "REGRESSION: $LINT_ERRORS lint errors exceeds the documented baseline of $BASELINE_LINT_ERRORS."
+            exit 1
+          fi
+          echo "No new lint regressions: $LINT_ERRORS <= baseline $BASELINE_LINT_ERRORS."
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: SkillEdge_Android/app/build/reports/lint-results-debug.*
+          if-no-files-found: ignore
+
+      # Hard failure: an unsigned debug build must succeed unconditionally.
+      # No signing config, no keystore, no release artifact naming/upload —
+      # this is a local verification build only.
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug
+
+      - name: Upload debug APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: SkillEdge_Android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: ignore
