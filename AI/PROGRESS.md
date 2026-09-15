@@ -2128,5 +2128,21 @@ Backend: full suite **404 passed, 25 subtests passed** (up from the
 previously-recorded 391 by 13 — 3 verified-flag tests, 2 end-to-end
 enrichment tests, 8 taxonomy-matching tests — zero regressions).
 
-Android CI verification for the `AllocationRepository` split is pending —
-will record the run URL and exact test-failure comparison here once green.
+**Verified, commit `fd5684f`, run
+https://github.com/aishsynk/SkillSync/actions/runs/34961764571:**
+
+| Step | Result |
+|---|---|
+| `compileDebugKotlin` | **BUILD SUCCESSFUL** |
+| `testDebugUnitTest` | 241 run, 10 failed |
+| Compare unit test results to baseline | **PASS** — 10 <= baseline 10 |
+| `lintDebug` | 6 errors (baseline) |
+| Compare lint results to baseline | **PASS** |
+| `assembleDebug` | **BUILD SUCCESSFUL** |
+
+Count unchanged at 241 (`AllocationViewModelTest.kt` was edited, not
+resized — still 4 tests, now against the corrected `AllocationRepository`/
+`TrainerRepository` split). Same exact 10 baseline failures by identity.
+This review-response increment is now fully verified: backend 404/25
+subtests passed, Android 241/10 matching baseline. Phase 3 API-boundary
+migration resumes next.
