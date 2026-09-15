@@ -1141,3 +1141,14 @@ production-contamination recovery's validation gate.
 **Not done, per explicit instruction:** no version bump, no merge to `main`,
 no push, no tag/release. Awaiting operator visual review of the branch
 `today-manager-brief-uiux-recovery`.
+
+## 9b. Today / Manager Brief UI/UX recovery — approved and published (2026-09-15)
+
+Operator reviewed the real-emulator screenshots for the redesigned Today
+screen (header, Needs You Today, Pulse, Demand/Communicate, Delivery/
+Certification, Top Performers, Operations) and approved publishing. Version
+bumped to `versionCode 187` / `versionName 3.80.12` (continuing the same
+`3.80.x` patch train), merged `today-manager-brief-uiux-recovery` into
+`main`, tagged `v3.80.12.187`, and pushed. Signing certificate reconfirmed
+identical to the known-good chain (SHA-256 `c6868b14...a1808`); package
+`com.example.skillsync` unchanged.
