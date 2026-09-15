@@ -1,6 +1,7 @@
 package com.example.skillsync.theme
 
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -28,8 +29,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -44,6 +48,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 
 /**
  * The V2 component vocabulary.
@@ -431,6 +436,32 @@ fun Modifier.pressable(onClick: () -> Unit): Modifier {
     return this
         .graphicsLayer { scaleX = scale; scaleY = scale }
         .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+}
+
+/**
+ * A one-shot fade + slight rise on first composition, keyed on [key] so a
+ * recomposition from unrelated state (a click, a data refresh) never replays
+ * it. [delayMs] staggers a group of cards (Pulse tiles, a ranked list) so
+ * they arrive in sequence rather than all at once — the "content entrance"
+ * motion called for across Today's cards, in one place instead of
+ * duplicated per composable.
+ */
+@Composable
+fun Modifier.entrance(key: Any, delayMs: Int = 0): Modifier {
+    var visible by remember(key) { mutableStateOf(false) }
+    LaunchedEffect(key) {
+        if (delayMs > 0) delay(delayMs.toLong())
+        visible = true
+    }
+    val alpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = SkillMotion.gentle(), label = "entranceAlpha",
+    )
+    val riseDp by animateDpAsState(
+        targetValue = if (visible) 0.dp else 8.dp,
+        animationSpec = SkillMotion.gentle(), label = "entranceRise",
+    )
+    return this.graphicsLayer { this.alpha = alpha; translationY = riseDp.toPx() }
 }
 
 /**

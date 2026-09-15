@@ -802,12 +802,28 @@ internal fun BatchCard(
                         // match" would be misleading — this dot/text stays
                         // neutral-red regardless of match score when blocked.
                         val blocked = c.bool("blocked")
-                        val dotTint = if (blocked) sk.red else relevanceColor(c.int("match"))
+                        // A skill-match "Best Match" badge is computed purely from
+                        // skill/qubits and knows nothing about availability — so a
+                        // candidate with a real schedule conflict could still show
+                        // a confident green badge while the line right below it
+                        // says "Schedule conflict". Hard-eligibility failures must
+                        // visually dominate over a high match score, not sit next
+                        // to it as equally-weighted information.
+                        val realAvailStatus = c.obj("real_availability")?.str("status")
+                        val legacyAvailStatus = c.str("availability_status")
+                        val availabilityConflict = realAvailStatus == "unavailable" ||
+                            legacyAvailStatus == "conflict"
+                        val hardIneligible = blocked || availabilityConflict
+                        val dotTint = when {
+                            blocked -> sk.red
+                            availabilityConflict -> sk.red
+                            else -> relevanceColor(c.int("match"))
+                        }
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
-                                .then(if (blocked) Modifier.background(sk.red.copy(alpha = 0.05f), RoundedCornerShape(6.dp)).padding(4.dp) else Modifier),
+                                .then(if (hardIneligible) Modifier.background(sk.red.copy(alpha = 0.05f), RoundedCornerShape(6.dp)).padding(4.dp) else Modifier),
                         ) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(dotTint))
@@ -816,7 +832,7 @@ internal fun BatchCard(
                                     Text(
                                         c.str("trainer_name"),
                                         style = MaterialTheme.typography.labelMedium,
-                                        color = if (blocked) sk.subText else sk.bodyText,
+                                        color = if (hardIneligible) sk.subText else sk.bodyText,
                                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     )
                                     // Previously only visible after opening the batch
@@ -824,7 +840,7 @@ internal fun BatchCard(
                                     // couldn't tell which candidate was the actual
                                     // Primary pick vs. an Alternate at a glance.
                                     val backupRole = c.str("backup_role")
-                                    if (!blocked && backupRole.isNotBlank()) {
+                                    if (!hardIneligible && backupRole.isNotBlank()) {
                                         Text(
                                             // Utilisation deliberately dropped from
                                             // this line. It described how busy someone
@@ -892,7 +908,11 @@ internal fun BatchCard(
                                     }
                                 }
                                 Text(
-                                    if (blocked) "Blocked" else c.str("coverage"),
+                                    when {
+                                        blocked -> "Blocked"
+                                        availabilityConflict -> "Conflict"
+                                        else -> c.str("coverage")
+                                    },
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                     color = dotTint,
                                 )
@@ -902,6 +922,12 @@ internal fun BatchCard(
                             when {
                                 blocked -> Text(
                                     "Negative feedback — not auto-allocated until ${c.str("blocked_until").shortDate()}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = sk.red,
+                                    modifier = Modifier.padding(start = 13.dp, top = 2.dp)
+                                )
+                                availabilityConflict -> Text(
+                                    "Not available on these dates — a strong skill match does not override a real conflict",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = sk.red,
                                     modifier = Modifier.padding(start = 13.dp, top = 2.dp)

@@ -529,7 +529,7 @@ private fun PreparationRequestDialog(
                 OutlinedTextField(
                     value = managerIntent,
                     onValueChange = { managerIntent = it },
-                    label = { Text("My Message (Manager Intent)") },
+                    label = { Text("Manager instruction (optional)") },
                     placeholder = { Text("e.g. please review labs before next week's enterprise delivery") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,

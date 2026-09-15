@@ -1,7 +1,5 @@
 package com.example.skillsync.feature.home
 
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,7 +16,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -26,7 +23,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -262,9 +258,10 @@ fun ManagerCommandCentre(
                     StateNote("Nothing needs you right now — the queue is clear.")
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-                        attentionItems.forEach { item ->
+                        attentionItems.forEachIndexed { index, item ->
                             AttentionCard(
                                 item = item,
+                                index = index,
                                 onOpenDemand = onOpenDemand,
                                 onAskAvailability = if (item.demandId.isNotBlank()) {
                                     {
@@ -492,18 +489,42 @@ fun ManagerCommandCentre(
                 SectionHeading("Top performers", conclusion = "Carrying delivery, ranked by measured utilisation.")
                 SkillCard(modifier = Modifier.fillMaxWidth(), padding = Space.sm) {
                     topPerformers.forEachIndexed { i, p ->
+                        val rankTint = when (i) { 0 -> sk.amber; 1 -> sk.subText; else -> sk.royal }
                         Row(
                             Modifier.fillMaxWidth()
+                                .entrance(key = p.name, delayMs = i * 60)
                                 // Real trainer email when the payload carries one; falling back to
                                 // the manager's own email (rather than crashing/no-op) only if a
                                 // capability row is somehow missing it — Trainer360 still opens,
                                 // just for the manager's own profile as the least-wrong fallback.
-                                .clickable { onTrainerClick(p.trainerEmail.ifBlank { email }, p.name) }
+                                .pressable { onTrainerClick(p.trainerEmail.ifBlank { email }, p.name) }
                                 .padding(Space.sm),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text("${i + 1}", style = MaterialTheme.typography.labelMedium, color = sk.subText, modifier = Modifier.width(16.dp))
-                            Avatar(name = p.name, photoUrl = p.photoUrl, size = 36.dp)
+                            Box(
+                                Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(rankTint.copy(alpha = 0.18f))
+                                    .border(1.dp, rankTint.copy(alpha = 0.45f), CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    "${i + 1}",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = rankTint,
+                                )
+                            }
+                            Spacer(Modifier.width(Space.sm))
+                            Box(
+                                Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .border(1.dp, sk.cardBorder, RoundedCornerShape(10.dp)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Avatar(name = p.name, photoUrl = p.photoUrl, size = 36.dp)
+                            }
                             Spacer(Modifier.width(Space.sm))
                             Column(Modifier.weight(1f)) {
                                 Text(p.name, style = MaterialTheme.typography.titleSmall, color = sk.frost)
@@ -613,6 +634,7 @@ private fun PulseTile(
     // what cuts a Pulse tile's height without dropping any of its content.
     Row(
         modifier
+            .entrance(key = label)
             .pressable(onClick)
             .glassSurface()
             .padding(horizontal = Space.md, vertical = Space.sm),
@@ -645,26 +667,17 @@ private fun PulseTile(
 @Composable
 private fun AttentionCard(
     item: AttentionItem,
+    index: Int,
     onOpenDemand: () -> Unit,
     onAskAvailability: (() -> Unit)?,
 ) {
     val sk = MaterialTheme.skill
     val tint = item.severity.tint()
-    var entered by remember(item.title) { mutableStateOf(false) }
-    LaunchedEffect(item.title) { entered = true }
-    val entryAlpha by animateFloatAsState(
-        targetValue = if (entered) 1f else 0f,
-        animationSpec = SkillMotion.gentle(), label = "attentionCardEnter",
-    )
-    val entryOffset by animateDpAsState(
-        targetValue = if (entered) 0.dp else 10.dp,
-        animationSpec = SkillMotion.gentle(), label = "attentionCardEnterOffset",
-    )
 
     Row(
         Modifier
             .fillMaxWidth()
-            .graphicsLayer { alpha = entryAlpha; translationY = entryOffset.toPx() }
+            .entrance(key = item.title, delayMs = index * 40)
             .clip(RoundedCornerShape(Radii.card))
             .background(sk.cardBg)
             .border(1.dp, sk.cardBorder, RoundedCornerShape(Radii.card))

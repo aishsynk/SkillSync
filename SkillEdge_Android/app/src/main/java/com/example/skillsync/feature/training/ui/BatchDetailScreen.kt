@@ -817,7 +817,7 @@ private fun MessagePreviewDialog(
                             myMessage = intent,
                         )
                     },
-                    label = { Text("My Message (Manager Intent)") },
+                    label = { Text("Manager instruction (optional)") },
                     placeholder = { Text("e.g. Urgent requirement, please confirm if available") },
                     textStyle = MaterialTheme.typography.bodySmall,
                     shape = RoundedCornerShape(10.dp),
