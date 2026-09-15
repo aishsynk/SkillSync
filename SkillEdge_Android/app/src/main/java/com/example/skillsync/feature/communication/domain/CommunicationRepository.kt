@@ -1,5 +1,6 @@
 package com.example.skillsync.feature.communication.domain
 
+import com.example.skillsync.core.network.CommunicationApi
 import com.example.skillsync.core.network.RetrofitClient
 
 /**
@@ -11,12 +12,16 @@ import com.example.skillsync.core.network.RetrofitClient
  * [CommunicationRequest]/evidence contract — the fallback is a business-
  * logic-equivalent local mirror, not a different, older engine. Callers go
  * through [ComposeManagerMessageUseCase], not this repository directly.
+ *
+ * Consumes [CommunicationApi] (Phase 4, `docs/phase4-api-ownership-matrix.md`).
  */
 object CommunicationRepository {
 
+    private val api: CommunicationApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { RetrofitClient.create() }
+
     suspend fun compose(managerEmail: String, request: CommunicationRequest): ComposeResult {
         return try {
-            val text = RetrofitClient.instance.composeMessage(
+            val text = api.composeMessage(
                 manager = managerEmail,
                 cadence = request.cadence,
                 target = if (request.audience.type == CommunicationAudienceType.TEAM) "" else request.audience.email,

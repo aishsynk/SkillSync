@@ -1,5 +1,6 @@
 package com.example.skillsync.core.data
 
+import com.example.skillsync.core.network.CommunicationApi
 import com.example.skillsync.core.network.CourseApi
 import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.core.network.SkillEdgeApi
@@ -49,9 +50,11 @@ data class SyncResult(
 class ManagerRepository(
     private val apiProvider: () -> SkillEdgeApi = { RetrofitClient.instance },
     private val courseApiProvider: () -> CourseApi = { RetrofitClient.create() },
+    private val communicationApiProvider: () -> CommunicationApi = { RetrofitClient.create() },
 ) {
     private val api: SkillEdgeApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { apiProvider() }
     private val courseApi: CourseApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { courseApiProvider() }
+    private val communicationApi: CommunicationApi by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { communicationApiProvider() }
 
     suspend fun dashboard(email: String, fresh: Boolean): RepositoryResult<Map<String, Any>> =
         cachedMap("dashboard_$email", fresh) { api.getTrainerIntelligence(email, fresh.flag()) }
@@ -346,11 +349,11 @@ class ManagerRepository(
     // ── Communication Intelligence ────────────────────────────────
 
     suspend fun generateCommunication(body: Map<String, Any>): Map<String, Any> =
-        api.generateCommunication(body)
+        communicationApi.generateCommunication(body)
 
     suspend fun saveCommunication(body: Map<String, Any>): Map<String, Any> =
-        api.saveCommunication(body)
+        communicationApi.saveCommunication(body)
 
     suspend fun communicationHistory(manager: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
-        cachedMap("communication_history_$manager", fresh) { api.communicationHistory(manager) }
+        cachedMap("communication_history_$manager", fresh) { communicationApi.communicationHistory(manager) }
 }

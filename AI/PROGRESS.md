@@ -2775,3 +2775,30 @@ https://github.com/aishsynk/SkillSync/actions/runs/34991984060:**
 
 Count unchanged at 243 (no new tests this increment). Same exact 10
 baseline failures by identity, same 6 lint errors. Green on the first push.
+
+## 35. Phase 4 increment G — CommunicationApi extraction
+
+Communication Intelligence's 4 transport methods have two different
+existing owners, not one: `CommunicationRepository` (`feature/communication/
+domain/`, an `object`) owns `composeMessage` only; `ManagerRepository` owns
+`generateCommunication`/`saveCommunication`/`communicationHistory` alongside
+its ~30 other unrelated reads. Created one `CommunicationApi.kt` for all
+four (plus `ComposeMessageResponse`), moved verbatim out of
+`SkillEdgeApi.kt`. `CommunicationRepository` gained its own lazy
+`CommunicationApi` instance (replacing its direct
+`RetrofitClient.instance.composeMessage` call); `ManagerRepository` gained a
+third composed API field (`communicationApiProvider`, following the
+`CourseApi` pattern from increment E) for the other three. Call sites and
+method signatures unchanged on both sides.
+
+Verified before pushing: brace/paren balance on all four touched/created
+files; grepped for stray `RetrofitClient.instance.composeMessage` or
+`api.generateCommunication`/`.saveCommunication`/`.communicationHistory` —
+none found; confirmed no test constructs `ManagerRepository` with a custom
+`courseApiProvider`/`communicationApiProvider`, so the new default-arg
+providers don't need test updates.
+
+`docs/phase4-api-ownership-matrix.md`'s migration-status table updated.
+
+CI verification for this increment is pending — will record the run URL and
+exact test-failure comparison here once green.
