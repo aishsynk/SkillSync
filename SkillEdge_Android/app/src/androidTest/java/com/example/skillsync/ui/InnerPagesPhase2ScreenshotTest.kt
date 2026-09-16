@@ -8,9 +8,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
 import androidx.test.platform.app.InstrumentationRegistry
@@ -159,14 +159,15 @@ class InnerPagesPhase2ScreenshotTest {
         start {
             HrMonthlyReportScreen(managerEmail = "", onBack = {}, vm = vm)
         }
-        // Expand the first reportee so the evidence rails and composer are in
-        // frame. The card sits below the fold in a virtualized LazyColumn (and
-        // the filter-chip LazyRow above it is a second scrollable, so a plain
-        // swipe on the root is used rather than picking one scroll container).
+        // Scroll the reportee list to the first card by index, not by a touch
+        // gesture: a real swipe hung instrumentation on this device (touch
+        // injection deadlocking against the manually-paused Compose clock).
+        // performScrollToIndex is a semantics action, not a gesture, and is
+        // the deterministic way Compose tests scroll a LazyColumn.
+        // Item order: 0=team summary, 1=team message, 2=filter chips,
+        // 3="Reportees" header, 4=first reportee card (Niharika Rao).
         settle()
-        repeat(3) { compose.onRoot().performTouchInput { swipeUp() } }
-        settle()
-        compose.onAllNodes(hasText("Niharika Rao", substring = true))[0].performClick()
+        compose.onNodeWithTag("hrMonthlyReporteeList").performScrollToIndex(4)
         settle()
         save("08_hr_monthly_reportee")
     }

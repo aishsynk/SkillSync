@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -185,6 +186,10 @@ fun HrMonthlyReportScreen(
                     }
 
                     LazyColumn(
+                        // Test seam only: lets a screenshot test scroll this list
+                        // deterministically via performScrollToIndex() instead of
+                        // a touch-gesture swipe, which does not affect layout.
+                        modifier = Modifier.testTag("hrMonthlyReporteeList"),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
