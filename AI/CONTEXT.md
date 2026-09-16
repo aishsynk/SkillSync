@@ -28,13 +28,20 @@
   instruction.
 - **Versioning: one continuous `3.80.x` patch train, never bump MINOR without
   explicit operator instruction** (established 2026-09-15 — see
-  `AI/DECISIONS.md`). `versionCode` is always `previous + 1`; `versionName`
-  increments only the patch digit. `build.gradle.kts` currently carries `185`
-  / `3.80.10` (matching the last published `v3.80.10.185` on `main`); the
-  recovery itself does not bump this — the next release after operator
-  review is expected to be `186` / `3.80.11`. Before planning a version
-  number, check the latest tag/`build.gradle.kts` on `main` directly — do not
-  trust a docs snapshot. Never change `applicationId`
+  `AI/DECISIONS.md`).
+  **The ONLY authoritative source for the current release/version baseline
+  is `https://github.com/aishsynk/SkillSync/releases` — never
+  `build.gradle.kts`, local git history/tags, `AI/PROGRESS.md`,
+  `AI/CONTEXT.md`, `AI/DECISIONS.md`, memory, or prior chat text.** Before
+  proposing, calculating, committing, tagging, or publishing any version:
+  (1) read the highest published release at that URL, (2)
+  `versionCode = highest published versionCode + 1`, (3) for a normal new
+  feature release, also increment the `3.80.x` patch digit — reuse the same
+  `versionName` with only a higher `versionCode` solely when explicitly
+  told this is a rebuild/hotfix of the same released version. Any version
+  number written into this file or any other doc is a historical snapshot
+  at time of writing and decays immediately — re-check GitHub Releases
+  every time, don't trust what's written here. Never change `applicationId`
   (`com.example.skillsync`) or the signing key (in-place-upgrade rule).
 - **Android iconography:** launcher/adaptive/round assets are the original
   SkillSync set restored from `v3.80.7.182` (the last known-clean tag). The
