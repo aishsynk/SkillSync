@@ -108,7 +108,9 @@ fun MainScreen(
         com.example.skillsync.core.notification.BatteryOptimization.requestOnce(context)
         viewModel.loadData(email, context)
         if (tab == HomeTab.DEMAND || tab == HomeTab.SEARCH) allocationViewModel.load(email, context)
-        if (tab == HomeTab.DEMAND || tab == HomeTab.DASHBOARD) viewModel.ensureUpskilling(email, context)
+        // Plan no longer shows Grow-the-Team (person-level matching belongs in
+        // Demand Details), so this fetch is no longer paid for on that tab.
+        if (tab == HomeTab.DASHBOARD) viewModel.ensureUpskilling(email, context)
         // Dashboard needs it too: the "who is actually free" block reads it.
         if (tab == HomeTab.TEAM || tab == HomeTab.DASHBOARD) viewModel.loadTeamReadiness(email)
         if (tab == HomeTab.COURSES || tab == HomeTab.TEAM || tab == HomeTab.SEARCH) viewModel.ensureCapability(email, context)
@@ -389,14 +391,12 @@ fun MainScreen(
                     ) {
                         val capacityPlan by allocationViewModel.capacityPlan.collectAsState()
                         val capacityPlanLoading by allocationViewModel.capacityPlanLoading.collectAsState()
-                        val upskilling by viewModel.upskilling.collectAsState()
                         AllocationDeskContent(
                             data = a.data,
                             newIds = newIds,
                             onBatchClick = { b -> onBatchClick(b.str("demand_id")) },
                             capacityPlan = capacityPlan,
                             capacityPlanLoading = capacityPlanLoading,
-                            upskilling = upskilling,
                         )
                     }
                 }
