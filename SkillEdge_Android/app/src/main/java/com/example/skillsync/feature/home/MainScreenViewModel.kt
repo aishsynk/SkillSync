@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.skillsync.core.data.DataSource
 import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.core.data.RepositoryResult
 import com.example.skillsync.core.network.RetrofitClient
 import com.example.skillsync.core.storage.LocalCache
 import com.example.skillsync.feature.home.data.ActionRow
@@ -11,6 +12,7 @@ import com.example.skillsync.feature.home.data.parseActions
 import com.example.skillsync.core.common.userMessage
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -50,6 +52,17 @@ sealed class DashboardState {
  */
 class MainScreenViewModel(
     private val repository: ManagerRepository = ManagerRepository(),
+    /**
+     * Test seam, same pattern used across the report view models: production
+     * keeps the repository call byte-for-byte, a test injects a deterministic
+     * lambda (including a `loading: true` placeholder or a thrown exception)
+     * so the real network is never attempted.
+     */
+    private val fetchDashboardData: suspend (String, Boolean) -> RepositoryResult<Map<String, Any>> =
+        { email, fresh -> repository.dashboard(email, fresh) },
+    /** Same test-seam pattern — avoids depending on Robolectric's ConnectivityManager shadow in tests. */
+    private val isNetworkAvailable: (android.content.Context) -> Boolean =
+        { ctx -> RetrofitClient.isNetworkAvailable(ctx) },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow<DashboardState>(DashboardState.Loading)
     val uiState: StateFlow<DashboardState> = _uiState
@@ -273,7 +286,7 @@ class MainScreenViewModel(
         }
 
         // 2. Network Check
-        if (!RetrofitClient.isNetworkAvailable(context)) {
+        if (!isNetworkAvailable(context)) {
             if (_uiState.value !is DashboardState.Success) {
                 _uiState.value = DashboardState.Error("No internet connection")
             }
@@ -282,8 +295,35 @@ class MainScreenViewModel(
 
         // 3. Fetch from API in background
         try {
-            val result = repository.dashboard(email, fresh)
-            val data = result.data ?: throw IllegalStateException(result.error ?: "Failed to load dashboard")
+            var result = fetchDashboardData(email, fresh)
+            var data = result.data ?: throw IllegalStateException(result.error ?: "Failed to load dashboard")
+            // The backend can return HTTP 200 with `loading: true` and an empty
+            // trainer_operations_df placeholder while the real payload is still
+            // building (cold cache — e.g. right after the free-tier backend
+            // wakes from a spin-down). That is not an authoritative "zero
+            // reportees" answer, so it must never be committed as Success on
+            // its own — this is exactly what made People show "No reportees
+            // returned" for a manager who genuinely has a roster. Poll like
+            // every other warm-cache consumer in this app (CapacityRunway,
+            // Accounts, DeliveryCompliance) instead of trusting the first
+            // response.
+            repeat(10) {
+                if (data["loading"] != true) return@repeat
+                delay(3_000)
+                result = fetchDashboardData(email, false)
+                data = result.data ?: data
+            }
+            if (data["loading"] == true) {
+                // Still warming after a bounded wait. Keep whatever is already
+                // on screen (a cached Success survives this) instead of ever
+                // showing the empty placeholder as the final roster.
+                if (_uiState.value !is DashboardState.Success) {
+                    _uiState.value = DashboardState.Error(
+                        "Your data is still loading from the server. Pull to refresh shortly."
+                    )
+                }
+                return
+            }
             // Swap only on a real change. Re-emitting an identical payload
             // recomposes every card and chart for nothing, which is what the
             // visible flicker on each poll actually was.

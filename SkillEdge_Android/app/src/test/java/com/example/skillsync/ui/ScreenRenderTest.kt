@@ -16,7 +16,6 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.performScrollToNode
 import com.example.skillsync.navigation.HomeTab
 import com.example.skillsync.theme.SkillSyncTheme
-import com.example.skillsync.feature.training.ui.BatchCard
 import com.example.skillsync.feature.training.ui.AllocationDeskContent
 import com.example.skillsync.feature.home.CoursesTab
 import com.example.skillsync.feature.home.DashboardTab
@@ -1261,17 +1260,19 @@ class ScreenRenderTest {
                 )
             }
         }
-        // International is a card class now, not a badge: a full-bleed ribbon
-        // owns the top edge and a globe medallion anchors the destination line.
-        compose.onNodeWithText("INTERNATIONAL FMAT").assertExists()
-        compose.onNodeWithText("London, United Kingdom").assertExists()
-        compose.onNodeWithText("Travel readiness not checked").assertExists()
+        // Plan V2: the location is real planning metadata on the card; no
+        // candidate/network-search content belongs here any more (that is
+        // Demand Details' job now).
+        compose.onNodeWithText("AZ-104 Microsoft Azure Administrator").assertExists()
+        compose.onNodeWithText("London, United Kingdom", substring = true).assertExists()
         compose.onNodeWithText("Global Network Search").assertDoesNotExist()
+        compose.onAllNodesWithText("candidate", substring = true, ignoreCase = true).assertCountEquals(0)
     }
 
     @Test
     fun leastMatchDemand_isExplicitlyRedAndRequiresReview() {
         val batch = mapOf<String, Any>(
+            "demand_id" to "D-34",
             "course_name" to "DP-700 Fabric Data Engineer",
             "delivery_mode" to "ILO",
             "delivery_mode_kind" to "ILO",
@@ -1282,11 +1283,23 @@ class ScreenRenderTest {
         )
         compose.setContent {
             SkillSyncTheme {
-                BatchCard(batch, isNew = false, isPriority = false) {}
+                AllocationDeskContent(
+                    data = mapOf(
+                        "batches" to listOf(batch),
+                        "summary" to mapOf("total" to 1, "priority" to 0, "at_risk" to 0),
+                    ),
+                    newIds = emptySet(),
+                    onBatchClick = {},
+                )
             }
         }
-        compose.onNodeWithText("LOW MATCH · MANAGER REVIEW REQUIRED").assertExists()
-        compose.onNodeWithText("34%").assertExists()
+        // Plan V2: coverability is stated as BLOCKED, not a per-candidate
+        // match percentage — no matching UI reaches this screen. The card's
+        // own clickable root merges its children's text into a second
+        // "BLOCKED"-containing node, so existence (not a single match) is
+        // what's being proven.
+        assertTrue(compose.onAllNodesWithText("BLOCKED").fetchSemanticsNodes().isNotEmpty())
+        compose.onAllNodesWithText("34%").assertCountEquals(0)
     }
 
     @Test

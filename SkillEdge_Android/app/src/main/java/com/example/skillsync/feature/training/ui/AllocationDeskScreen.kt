@@ -1,18 +1,14 @@
 package com.example.skillsync.feature.training.ui
-import com.example.skillsync.feature.home.GrowTeamCard
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
@@ -22,8 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,23 +30,43 @@ import com.example.skillsync.R
 import com.example.skillsync.theme.Figure
 import com.example.skillsync.theme.FigureSize
 import com.example.skillsync.theme.SectionHeading
-import com.example.skillsync.core.ui.DistributionBar
-import com.example.skillsync.core.ui.Slice
+import com.example.skillsync.theme.ToneChip
+import com.example.skillsync.core.ui.ShimmerBox
 import com.example.skillsync.feature.home.SearchField
-import com.example.skillsync.feature.home.SelectChip
-import com.example.skillsync.feature.home.TeamTab
 import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
-import com.example.skillsync.theme.heroSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.core.ui.*
 import androidx.compose.material3.Text
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 
-/** Relevance -> colour. 75%+ is green, matching the agreed banding. */
+/**
+ * Plan / Demand & Planning — the unallocated-demand command centre.
+ *
+ * This page answers "what demand needs planning?" — how many batches are
+ * open, which start first, which are blocked and why, which the team can
+ * cover in aggregate. It deliberately does NOT answer "who can teach this?":
+ * candidate matching, ranking, availability and Grow-the-Team all live in
+ * Demand Details (BatchDetailScreen.kt), reached via Open Details. Doing
+ * person-level matching here does not scale — a manager with dozens of open
+ * batches would be scrolling through candidate cards for each one — and it
+ * mixes two different jobs into one screen.
+ */
+
+// ── Coverability (aggregate — never a named person) ────────────────────────
+//
+// relevanceColor/coverageStyle below are also used by BatchDetailScreen.kt
+// (Demand Details) for its own candidate-match display — unchanged, kept
+// `internal` on purpose. Plan uses its own planCoverageStyle so its labels
+// ("Coverable"/"Blocked") can read correctly at the batch level without
+// touching what Demand Details already shows.
+
 @Composable
 internal fun relevanceColor(relevance: Int): Color {
     val sk = MaterialTheme.skill
@@ -62,7 +78,6 @@ internal fun relevanceColor(relevance: Int): Color {
     }
 }
 
-/** Coverage tri-state -> (label, colour, glyph). Backend already returns the label. */
 @Composable
 internal fun coverageStyle(coverage: String): Triple<String, Color, Int> {
     val sk = MaterialTheme.skill
@@ -73,15 +88,23 @@ internal fun coverageStyle(coverage: String): Triple<String, Color, Int> {
     }
 }
 
-private enum class MatchBand(val label: String) {
-    ALL("All"), HIGH("75%+ Ready"), MEDIUM("50-74% Partial"), LOW("Under 50%"),
+private fun planCoverageStyle(coverage: String, sk: com.example.skillsync.theme.SkillColors): Triple<String, Color, Int> =
+    when (coverage) {
+        "Best Match" -> Triple("Coverable", sk.good, R.drawable.ic_check)
+        "Available with Upskilling" -> Triple("Coverable with upskilling", sk.warn, R.drawable.ic_flag)
+        else -> Triple("Blocked", sk.crit, R.drawable.ic_alert)
+    }
+
+private enum class PlanFilter(val label: String) {
+    ALL("All"), URGENT("Urgent"), COVERABLE("Coverable"), BLOCKED("Blocked"),
+    THIS_WEEK("This Week"), INTERNATIONAL("International"),
 }
 
-private fun matchBandOf(relevance: Int) = when {
-    relevance >= 75 -> MatchBand.HIGH
-    relevance >= 50 -> MatchBand.MEDIUM
-    else -> MatchBand.LOW
-}
+private enum class PlanSort(val label: String) { START_DATE("Start date"), URGENCY("Urgency"), ACCOUNT("Account"), COURSE("Course") }
+
+private fun daysUntil(iso: String): Int? = try {
+    ChronoUnit.DAYS.between(LocalDate.now(), LocalDate.parse(iso)).toInt()
+} catch (_: Exception) { null }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,777 +114,453 @@ internal fun AllocationDeskContent(
     onBatchClick: (Map<*, *>) -> Unit,
     capacityPlan: com.example.skillsync.core.network.CapacityPlanResponse? = null,
     capacityPlanLoading: Boolean = false,
-    upskilling: Map<String, Any>? = null,
 ) {
     val sk = MaterialTheme.skill
     val batches = data.rows("batches")
     val summary = data.obj("summary")
 
     var query by remember { mutableStateOf("") }
-    var matchBand by remember { mutableStateOf(MatchBand.ALL) }
-    var selectedModes by remember { mutableStateOf(setOf<String>()) }
-    var selectedLanguages by remember { mutableStateOf(setOf<String>()) }
-    var selectedSkillLevels by remember { mutableStateOf(setOf<String>()) }
-    var showFilters by remember { mutableStateOf(false) }
-    var selectedLens by remember { mutableStateOf("All demand") }
-    var networkCourse by remember { mutableStateOf<String?>(null) }
+    var activeFilter by remember { mutableStateOf(PlanFilter.ALL) }
+    var sort by remember { mutableStateOf(PlanSort.START_DATE) }
+    var expandedId by remember { mutableStateOf<String?>(null) }
 
-    // Built from what's actually in the data, not a guessed enum — RMS's real
-    // delivery-mode strings have proven inconsistent before (see AI/CONTEXT.md).
-    val availableModes = remember(batches) {
-        batches.map { it.str("delivery_mode") }.filter { it.isNotBlank() }.distinct().sorted()
-    }
-    val availableLanguages = remember(batches) {
-        batches.map { it.str("language") }.filter { it.isNotBlank() }.distinct().sorted()
-    }
-    val availableSkillLevels = remember(batches) {
-        batches.map { it.str("assignment_level") }.filter { it.isNotBlank() }.distinct().sorted()
+    // Real, computed facts only — the risk window and coverability read
+    // straight off backend fields already on every batch row.
+    val enriched = remember(batches) {
+        batches.map { b ->
+            val days = daysUntil(b.str("start_date"))
+            val blocked = b.str("coverage_status") == "No Coverage"
+            val urgent = b.bool("at_risk") || (days != null && days in 0..3)
+            val thisWeek = days != null && days in 0..6
+            Triple(b, days, Triple(blocked, urgent, thisWeek))
+        }
     }
 
-    // Filtering narrows the set; it never reorders it. The list a manager sees
-    // is either the untouched RMS order or a subset of it — arrival order is
-    // how demand is actually worked, and re-sorting by match% (the previous
-    // behaviour) buried high-priority batches the team can't yet cover.
-    val filtered = remember(batches, query, matchBand, selectedModes, selectedLanguages, selectedSkillLevels, selectedLens) {
-        batches.filter { b ->
+    val filtered = remember(enriched, query, activeFilter) {
+        enriched.filter { (b, days, flags) ->
+            val (blocked, urgent, thisWeek) = flags
             val q = query.trim().lowercase()
             val matchesQuery = q.isBlank() ||
                 b.str("course_name").lowercase().contains(q) ||
                 b.str("customer").lowercase().contains(q) ||
-                b.str("delivery_mode").lowercase().contains(q) ||
                 b.str("demand_id").contains(q)
-            val matchesBand = matchBand == MatchBand.ALL || matchBandOf(b.int("relevance")) == matchBand
-            val matchesMode = selectedModes.isEmpty() || b.str("delivery_mode") in selectedModes
-            val matchesLang = selectedLanguages.isEmpty() || b.str("language") in selectedLanguages
-            val matchesSkill = selectedSkillLevels.isEmpty() || b.str("assignment_level") in selectedSkillLevels
-            val matchesLens = when (selectedLens) {
-                "Priority" -> b.bool("is_priority")
-                "At risk" -> b.bool("at_risk")
-                "Fast-track" -> b.bool("is_fast_track")
-                "Client requested" -> b.str("allocation_for").isNotBlank() || b.bool("client_trainer_requested")
-                else -> true // "All demand", "Need trainers"
+            val matchesFilter = when (activeFilter) {
+                PlanFilter.ALL -> true
+                PlanFilter.URGENT -> urgent
+                PlanFilter.COVERABLE -> b.str("coverage_status") != "No Coverage"
+                PlanFilter.BLOCKED -> blocked
+                PlanFilter.THIS_WEEK -> thisWeek
+                PlanFilter.INTERNATIONAL -> b.bool("is_international")
             }
-            matchesQuery && matchesBand && matchesMode && matchesLang && matchesSkill && matchesLens
+            matchesQuery && matchesFilter
         }
     }
 
-    // Grouped by delivery mode, because FMAT, ILT and ILO are three different
-    // products and a manager staffs them differently:
-    //
-    //   FMAT — the trainer travels to the customer. Highest delivery cost,
-    //          the only mode carrying travel and visa exposure, and the one
-    //          needing the earliest decision and the most experienced person.
-    //   ILT  — classroom delivery at a Koenig site. Instructor-present and
-    //          high value, without the travel commitment.
-    //   ILO  — online delivery. The volume tier.
-    //
-    // FMAT and ILT both lead ILO whatever their location; an international
-    // engagement is flagged on the card rather than given its own section, so
-    // the mode grouping stays legible. Within each group RMS arrival order is
-    // preserved — the grouping carries business priority, the order inside it
-    // is how demand actually arrives.
-    // Overseas instructor-present work is its own manager queue. A badge inside
-    // a long mode list is not discoverable enough when the board has 100 items.
-    val globalBatches = remember(filtered) {
-        filtered.filter {
-            it.bool("is_international") && it.str("delivery_mode_kind") in listOf("FMAT", "ILT")
+    val sorted = remember(filtered, sort) {
+        when (sort) {
+            PlanSort.START_DATE -> filtered.sortedBy { it.second ?: Int.MAX_VALUE }
+            PlanSort.URGENCY -> filtered.sortedWith(
+                compareByDescending<Triple<Map<*, *>, Int?, Triple<Boolean, Boolean, Boolean>>> { it.third.second }
+                    .thenBy { it.second ?: Int.MAX_VALUE }
+            )
+            PlanSort.ACCOUNT -> filtered.sortedBy { it.first.str("customer") }
+            PlanSort.COURSE -> filtered.sortedBy { it.first.str("course_name") }
         }
     }
-    val orderedBatches = remember(filtered) {
-        filtered.withIndex().sortedWith(
-            compareBy<IndexedValue<Map<*, *>>> {
-                when (it.value.str("delivery_mode_kind")) {
-                    "FMAT" -> 0
-                    "ILT" -> 1
-                    "ILO" -> 2
-                    else -> 3
-                }
-            }.thenBy { it.index }
-        ).map { it.value }
-    }
 
-    val activeFilterCount = selectedModes.size + selectedLanguages.size + selectedSkillLevels.size + (if (matchBand != MatchBand.ALL) 1 else 0)
-
-    if (showFilters) {
-        FilterBottomSheet(
-            availableModes = availableModes,
-            availableLanguages = availableLanguages,
-            availableSkillLevels = availableSkillLevels,
-            selectedModes = selectedModes,
-            selectedLanguages = selectedLanguages,
-            selectedSkillLevels = selectedSkillLevels,
-            matchBand = matchBand,
-            onModesChange = { selectedModes = it },
-            onLanguagesChange = { selectedLanguages = it },
-            onSkillLevelsChange = { selectedSkillLevels = it },
-            onBandChange = { matchBand = it },
-            onReset = { 
-                selectedModes = emptySet()
-                selectedLanguages = emptySet()
-                selectedSkillLevels = emptySet()
-                matchBand = MatchBand.ALL 
-            },
-            onDismiss = { showFilters = false },
-        )
-    }
+    // ── KPI strip facts — every one a count over a real, already-present field.
+    val total = summary?.int("total") ?: batches.size
+    val urgentCount = enriched.count { it.third.second }
+    val coverableCount = batches.count { it.str("coverage_status") != "No Coverage" }
+    val blockedCount = batches.count { it.str("coverage_status") == "No Coverage" }
+    val thisWeekCount = enriched.count { it.third.third }
+    val internationalCount = batches.count { it.bool("is_international") }
 
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        item { PlanHeader(total = total, newCount = newIds.size) }
+
+        item {
+            if (batches.isEmpty() && total == 0) {
+                PlanKpiSkeleton()
+            } else {
+                PlanKpiStrip(
+                    unallocated = total, urgent = urgentCount, coverable = coverableCount,
+                    blocked = blockedCount, thisWeek = thisWeekCount, international = internationalCount,
+                )
+            }
+        }
+
+        if (batches.isNotEmpty()) {
+            item { PlanningFocus(blockedCount, total, batches) }
+        }
+
         item { CapacityPlanningCard(capacityPlan, capacityPlanLoading) }
-        item { GrowTeamCard(upskilling) }
 
         item {
             Column {
-                // Coverage first: the manager's real question is not "how many
-                // batches are open" but "how much of this can my team actually
-                // cover" — which the relevance bands already answer.
-                val high = summary?.int("high") ?: 0
-                val medium = summary?.int("medium") ?: 0
-                val unmatched = summary?.int("unmatched") ?: 0
-                val total = summary?.int("total") ?: batches.size
-                val partial = (total - high - medium - unmatched).coerceAtLeast(0)
-                val priorityCount = summary?.int("priority") ?: 0
-                val atRisk = summary?.int("at_risk") ?: 0
-
-                Box(Modifier.fillMaxWidth().glassSurface()) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(
-                            "Demand Intelligence",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = sk.frost,
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.weight(1f)) {
-                                SearchField(query, { query = it }, "Search demand...")
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            FilledTonalButton(
-                                onClick = { showFilters = true },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.filledTonalButtonColors(
-                                    containerColor = if (activeFilterCount > 0) sk.teal.copy(alpha = 0.16f) else sk.cardBg,
-                                ),
-                            ) {
-                                Text(
-                                    if (activeFilterCount > 0) "Filters ($activeFilterCount)" else "Filters",
-                                    color = if (activeFilterCount > 0) sk.teal else sk.subText,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                            }
+                Box(Modifier.fillMaxWidth()) {
+                    SearchField(query, { query = it }, "Search demand…")
+                }
+                Spacer(Modifier.height(Space.sm))
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    PlanFilter.entries.forEach { f ->
+                        val count = when (f) {
+                            PlanFilter.ALL -> total
+                            PlanFilter.URGENT -> urgentCount
+                            PlanFilter.COVERABLE -> coverableCount
+                            PlanFilter.BLOCKED -> blockedCount
+                            PlanFilter.THIS_WEEK -> thisWeekCount
+                            PlanFilter.INTERNATIONAL -> internationalCount
                         }
-                        Spacer(Modifier.height(14.dp))
-                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SelectChip("All demand", selectedLens == "All demand") { selectedLens = "All demand" }
-                            SelectChip("Need trainers", selectedLens == "Need trainers") { selectedLens = "Need trainers" }
-                            SelectChip("Priority", selectedLens == "Priority") { selectedLens = "Priority" }
-                            SelectChip("At risk", selectedLens == "At risk") { selectedLens = "At risk" }
-                            SelectChip("Fast-track", selectedLens == "Fast-track") { selectedLens = "Fast-track" }
-                            SelectChip("Client requested", selectedLens == "Client requested") { selectedLens = "Client requested" }
-                        }
-                        Spacer(Modifier.height(24.dp))
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                "$total unallocated · ranked against your team's capability",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = sk.labelText,
-                            )
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(sk.teal.copy(alpha = 0.14f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Box(
-                                    Modifier.size(6.dp)
-                                        .clip(androidx.compose.foundation.shape.CircleShape)
-                                        .background(sk.aqua)
-                                )
-                                Text(
-                                    "LIVE RADAR (20s)",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = sk.aqua,
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(14.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            StatFigure("${globalBatches.size}", "GLOBAL", if (globalBatches.isNotEmpty()) sk.aqua else sk.subText, Modifier.weight(1f))
-                            StatFigure("$priorityCount", "PRIORITY", sk.teal, Modifier.weight(1f))
-                            StatFigure("$atRisk", "AT RISK", if (atRisk > 0) sk.crit else sk.aqua, Modifier.weight(1f))
-                            StatFigure("$high", "BEST MATCH", sk.aqua, Modifier.weight(1f))
-                        }
-                        Spacer(Modifier.height(14.dp))
-                        DistributionBar(
-                            slices = listOf(
-                                Slice("Strong fit", high, sk.aqua),
-                                Slice("Partial", medium + partial, sk.sky),
-                                Slice("No cover", unmatched, sk.crit),
-                            )
-                        )
+                        FilterPill(f.label, count, activeFilter == f) { activeFilter = f }
                     }
                 }
-                Spacer(Modifier.height(14.dp))
-
-                if (newIds.isNotEmpty()) {
-                    NewBatchBanner(newIds.size)
-                    Spacer(Modifier.height(10.dp))
-                }
-
-
-                if (activeFilterCount > 0) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        if (matchBand != MatchBand.ALL) {
-                            ActiveFilterChip(matchBand.label) { matchBand = MatchBand.ALL }
-                        }
-                        selectedModes.forEach { mode ->
-                            ActiveFilterChip(mode) { selectedModes = selectedModes - mode }
-                        }
-                        selectedLanguages.forEach { lang ->
-                            ActiveFilterChip(lang) { selectedLanguages = selectedLanguages - lang }
-                        }
-                        selectedSkillLevels.forEach { skill ->
-                            ActiveFilterChip(skill) { selectedSkillLevels = selectedSkillLevels - skill }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (filtered.isEmpty()) {
-            item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                    color = sk.cardBg,
-                    shape = RoundedCornerShape(Radii.card),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
+                Spacer(Modifier.height(Space.sm))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column(
-                        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.ic_check), null,
-                            tint = sk.sky, modifier = Modifier.size(28.dp),
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            if (batches.isEmpty()) "No unallocated batches right now."
-                            else "No batches match this filter.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = sk.subText,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        )
+                    Text("Sort", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+                    PlanSort.entries.forEach { s ->
+                        SortPill(s.label, sort == s) { sort = s }
                     }
                 }
             }
         }
 
-        itemsIndexed(orderedBatches, key = { i, b -> b.str("demand_id").ifBlank { "demand_$i" } }) { _, batch ->
-            val mode = batch.str("delivery_mode_kind")
-            BatchCard(
+        if (sorted.isEmpty()) {
+            item {
+                SkillSyncEmptyStatePlan(
+                    title = if (batches.isEmpty()) "No unallocated demand" else "No batches match this filter",
+                    description = if (batches.isEmpty())
+                        "All current batches have an allocation, or there is no open demand in this planning horizon."
+                    else "Nothing in the current filter. Try All or clear the search.",
+                )
+            }
+        }
+
+        itemsIndexed(sorted, key = { _, t -> t.first.str("demand_id").ifBlank { t.first.str("course_name") } }) { _, (batch, days, flags) ->
+            val id = batch.str("demand_id")
+            PlanBatchCard(
                 b = batch,
-                isNew = batch.str("demand_id") in newIds,
-                isPriority = mode == "FMAT" || mode == "ILT",
-                globalFeatured = batch.bool("is_international") && mode in listOf("FMAT", "ILT"),
-                modeTint = when (mode) {
-                    "FMAT" -> sk.warn
-                    "ILT" -> sk.sky
-                    "ILO" -> sk.indigo
-                    else -> sk.crit
-                },
-                onFindInNetwork = { networkCourse = it },
-                onClick = { onBatchClick(batch) },
+                days = days,
+                blocked = flags.first,
+                urgent = flags.second,
+                isNew = id in newIds,
+                expanded = expandedId == id,
+                onToggleExpand = { expandedId = if (expandedId == id) null else id },
+                onOpenDetails = { onBatchClick(batch) },
             )
         }
 
         item { Spacer(Modifier.height(20.dp)) }
     }
-
-    networkCourse?.let { cName ->
-        NetworkStaffingSheet(
-            courseName = cName,
-            onDismiss = { networkCourse = null },
-        )
-    }
 }
 
-// ── Filters ──────────────────────────────────────────────────────────────────
+// ── Header ───────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FilterBottomSheet(
-    availableModes: List<String>,
-    availableLanguages: List<String>,
-    availableSkillLevels: List<String>,
-    selectedModes: Set<String>,
-    selectedLanguages: Set<String>,
-    selectedSkillLevels: Set<String>,
-    matchBand: MatchBand,
-    onModesChange: (Set<String>) -> Unit,
-    onLanguagesChange: (Set<String>) -> Unit,
-    onSkillLevelsChange: (Set<String>) -> Unit,
-    onBandChange: (MatchBand) -> Unit,
-    onReset: () -> Unit,
-    onDismiss: () -> Unit,
-) {
+private fun PlanHeader(total: Int, newCount: Int) {
     val sk = MaterialTheme.skill
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = sk.cardBg) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Filter batches", style = MaterialTheme.typography.headlineSmall, color = sk.bodyText, modifier = Modifier.weight(1f))
-                TextButton(onClick = onReset) { Text("Reset", color = sk.red, fontWeight = FontWeight.Bold) }
-            }
-            Spacer(Modifier.height(16.dp))
-
-            Text("Skill match".uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.subText, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                MatchBand.entries.forEach { band ->
-                    FilterChip(
-                        selected = matchBand == band,
-                        onClick = { onBandChange(band) },
-                        label = { Text(band.label) },
-                    )
-                }
-            }
-
-            if (availableModes.isNotEmpty()) {
-                Spacer(Modifier.height(20.dp))
-                Text("Delivery mode".uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.subText, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    availableModes.forEach { mode ->
-                        val checked = mode in selectedModes
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    onModesChange(if (checked) selectedModes - mode else selectedModes + mode)
-                                }
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(checked = checked, onCheckedChange = {
-                                onModesChange(if (checked) selectedModes - mode else selectedModes + mode)
-                            })
-                            Spacer(Modifier.width(4.dp))
-                            Text(mode, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
-                        }
-                    }
-                }
-            }
-            if (availableLanguages.isNotEmpty()) {
-                Spacer(Modifier.height(20.dp))
-                Text("Language".uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.subText, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    availableLanguages.forEach { lang ->
-                        val checked = lang in selectedLanguages
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    onLanguagesChange(if (checked) selectedLanguages - lang else selectedLanguages + lang)
-                                }
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(checked = checked, onCheckedChange = {
-                                onLanguagesChange(if (checked) selectedLanguages - lang else selectedLanguages + lang)
-                            })
-                            Spacer(Modifier.width(4.dp))
-                            Text(lang, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
-                        }
-                    }
-                }
-            }
-            if (availableSkillLevels.isNotEmpty()) {
-                Spacer(Modifier.height(20.dp))
-                Text("Skill Level".uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.subText, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    availableSkillLevels.forEach { skill ->
-                        val checked = skill in selectedSkillLevels
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    onSkillLevelsChange(if (checked) selectedSkillLevels - skill else selectedSkillLevels + skill)
-                                }
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Checkbox(checked = checked, onCheckedChange = {
-                                onSkillLevelsChange(if (checked) selectedSkillLevels - skill else selectedSkillLevels + skill)
-                            })
-                            Spacer(Modifier.width(4.dp))
-                            Text(skill, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(20.dp))
-            Button(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-            ) { Text("Show results") }
-        }
-    }
-}
-
-@Composable
-private fun ActiveFilterChip(label: String, onRemove: () -> Unit) {
-    val sk = MaterialTheme.skill
-    Surface(
-        color = sk.teal.copy(alpha = 0.14f),
-        shape = RoundedCornerShape(20.dp),
-        modifier = Modifier.pressable(onClick = onRemove),
-    ) {
-        Row(
-            Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = sk.teal, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(4.dp))
-            Text("×", style = MaterialTheme.typography.labelSmall, color = sk.teal, fontWeight = FontWeight.ExtraBold)
-        }
-    }
-}
-
-@Composable
-private fun NewBatchBanner(count: Int) {
-    val sk = MaterialTheme.skill
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-            .background(sk.blue.copy(alpha = 0.13f)).padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(painterResource(R.drawable.ic_inbox), null, tint = sk.blue, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(10.dp))
-        Text(
-            if (count == 1) "1 new batch since you last checked"
-            else "$count new batches since you last checked",
-            style = MaterialTheme.typography.titleSmall, color = sk.bodyText,
-        )
-    }
-}
-
-@Composable
-private fun StatFigure(value: String, label: String, tint: Color, modifier: Modifier = Modifier) {
-    Column(modifier) {
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = tint)
-        Text(
-            label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.labelText, fontWeight = FontWeight.Bold,
-        )
-    }
-}
-
-@Composable
-private fun MiniStat(label: String, value: String, tint: Color) {
     Column {
         Text(
-            value, style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold, color = tint,
+            "Demand & Planning",
+            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = sk.frost,
         )
         Text(
-            label.uppercase(), style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.skill.labelText,
-            fontWeight = FontWeight.Bold,
+            "Unallocated delivery demand requiring action" +
+                if (newCount > 0) " · $newCount new" else "",
+            style = MaterialTheme.typography.labelSmall, color = sk.sky,
         )
     }
 }
 
-// ── Batch card ───────────────────────────────────────────────────────────────
+// ── KPI strip ────────────────────────────────────────────────────────────────
 
 @Composable
-internal fun BatchCard(
+private fun PlanKpiStrip(unallocated: Int, urgent: Int, coverable: Int, blocked: Int, thisWeek: Int, international: Int) {
+    val sk = MaterialTheme.skill
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        PlanKpi("UNALLOCATED", unallocated.toString(), sk.frost)
+        PlanKpi("URGENT", urgent.toString(), if (urgent > 0) sk.crit else sk.good)
+        PlanKpi("COVERABLE", coverable.toString(), sk.sky)
+        PlanKpi("BLOCKED", blocked.toString(), if (blocked > 0) sk.warn else sk.good)
+        PlanKpi("THIS WEEK", thisWeek.toString(), sk.indigo)
+        if (international > 0) PlanKpi("INTERNATIONAL", international.toString(), sk.teal)
+    }
+}
+
+@Composable
+private fun PlanKpi(label: String, value: String, tint: Color) {
+    val sk = MaterialTheme.skill
+    Column(
+        Modifier
+            .width(92.dp)
+            .clip(RoundedCornerShape(Radii.card))
+            .background(sk.surface1.copy(alpha = 0.65f))
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+    ) {
+        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = tint)
+        // Two lines at a smaller size rather than clipping — "UNALLOCATED" and
+        // "COVERABLE" both overflowed a single line at this width.
+        Text(
+            label, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+            color = sk.labelText, maxLines = 2,
+        )
+    }
+}
+
+@Composable
+private fun PlanKpiSkeleton() {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        repeat(4) { ShimmerBox(width = 84.dp, height = 62.dp, shape = RoundedCornerShape(Radii.card)) }
+    }
+}
+
+// ── Planning intelligence — one real, derived insight, never generative filler.
+@Composable
+private fun PlanningFocus(blocked: Int, total: Int, batches: List<Map<*, *>>) {
+    val sk = MaterialTheme.skill
+    if (total == 0) return
+    // The course with the most blocked (uncoverable) batches drives the
+    // clearest, single most useful sentence — real counts, no invention.
+    val pressureCourse = batches
+        .filter { it.str("coverage_status") == "No Coverage" }
+        .groupBy { it.str("course_name").ifBlank { "Unspecified course" } }
+        .maxByOrNull { it.value.size }
+
+    val headline = when {
+        blocked == 0 -> "All $total unallocated batches have at least partial team coverage."
+        pressureCourse != null && pressureCourse.value.size > 1 ->
+            "${pressureCourse.value.size} of $total batches are blocked, concentrated on ${pressureCourse.key.take(40)}."
+        else -> "$blocked of $total batches are blocked by missing capability coverage."
+    }
+    Row(
+        Modifier.fillMaxWidth().accentGlass(if (blocked > 0) sk.warn else sk.good).padding(Space.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painterResource(if (blocked > 0) R.drawable.ic_flag else R.drawable.ic_check),
+            null, tint = if (blocked > 0) sk.warn else sk.good, modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(Space.sm))
+        Column {
+            Text(
+                "PLANNING FOCUS", style = MaterialTheme.typography.labelSmall,
+                color = sk.labelText, fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
+            )
+            Text(headline, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
+        }
+    }
+}
+
+// ── Filter / sort pills ──────────────────────────────────────────────────────
+
+@Composable
+private fun FilterPill(label: String, count: Int, selected: Boolean, onClick: () -> Unit) {
+    val sk = MaterialTheme.skill
+    Row(
+        Modifier
+            .testTag("planFilter_$label")
+            .clip(RoundedCornerShape(Radii.chip))
+            .background(if (selected) sk.brand.copy(alpha = 0.85f) else sk.surface1)
+            .pressable(onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label, style = MaterialTheme.typography.labelMedium,
+            color = if (selected) sk.frost else sk.subText, fontWeight = FontWeight.SemiBold,
+        )
+        if (count > 0) {
+            Spacer(Modifier.width(5.dp))
+            Text(
+                "$count", style = MaterialTheme.typography.labelSmall,
+                color = if (selected) sk.frost.copy(alpha = 0.8f) else sk.labelText,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SortPill(label: String, selected: Boolean, onClick: () -> Unit) {
+    val sk = MaterialTheme.skill
+    Text(
+        label, style = MaterialTheme.typography.labelMedium,
+        color = if (selected) sk.sky else sk.subText, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        modifier = Modifier
+            .clip(RoundedCornerShape(Radii.chip))
+            .pressable(onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    )
+}
+
+// ── Empty state ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun SkillSyncEmptyStatePlan(title: String, description: String) {
+    val sk = MaterialTheme.skill
+    Column(
+        Modifier.fillMaxWidth().glassSurface().padding(Space.xl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(painterResource(R.drawable.ic_check), null, tint = sk.sky, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.height(Space.sm))
+        Text(title, style = MaterialTheme.typography.titleSmall, color = sk.bodyText, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            description, style = MaterialTheme.typography.bodySmall, color = sk.subText,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+    }
+}
+
+// ── Batch card — a planning object, not a person list ───────────────────────
+
+@Composable
+private fun PlanBatchCard(
     b: Map<*, *>,
+    days: Int?,
+    blocked: Boolean,
+    urgent: Boolean,
     isNew: Boolean,
-    isPriority: Boolean = true,
-    globalFeatured: Boolean = false,
-    modeTint: Color? = null,
-    onFindInNetwork: (courseName: String) -> Unit = {},
-    onClick: () -> Unit,
+    expanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onOpenDetails: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
-    val candidates = b.list("candidates")
-    val mode = b.str("delivery_mode")
-    val (coverageLabel, coverageTint, coverageIcon) = coverageStyle(b.str("coverage_status"))
-    val risk = b.str("assignment_risk")
-    val riskTint = when (risk) { "High" -> sk.crit; "Medium" -> sk.warn; else -> sk.aqua }
-    val international = b.bool("is_international") && b.str("delivery_mode_kind") in listOf("FMAT", "ILT")
-    val leastMatch = b.int("relevance") < 50
-    val cardAccent = when {
-        international -> sk.sky
-        leastMatch -> sk.crit
-        modeTint != null -> modeTint
-        isPriority -> sk.warn
-        else -> sk.indigo
+    val (coverLabel, coverTint, coverIcon) = planCoverageStyle(b.str("coverage_status"), sk)
+    val accent = when {
+        urgent -> sk.crit
+        blocked -> sk.warn
+        else -> sk.sky
     }
-    val managerRecommendation = b.obj("manager_recommendation")
+    val mode = b.str("delivery_mode")
+    val international = b.bool("is_international")
 
-    Box(
+    Column(
         Modifier
             .fillMaxWidth()
             .animateContentSize()
-            .accentGlass(
-                cardAccent,
-                RoundedCornerShape(Radii.card), strong = isPriority || international || leastMatch,
-            )
-            .then(
-                if (globalFeatured) Modifier.border(
-                    2.dp,
-                    androidx.compose.ui.graphics.Brush.linearGradient(listOf(sk.sky, sk.indigo, sk.aqua)),
-                    RoundedCornerShape(Radii.card),
-                ) else if (leastMatch) Modifier.border(
-                    1.5.dp, sk.crit.copy(alpha = 0.72f), RoundedCornerShape(Radii.card)
-                ) else Modifier
-            )
-            .pressable(onClick = onClick),
+            .accentGlass(accent, strong = urgent || blocked)
+            .clickable(onClick = onToggleExpand)
+            .padding(Space.md),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-      Column {
-        // Full-bleed ribbon: an international batch is a different class of
-        // card, and the top edge is what makes that legible before any text.
-        if (globalFeatured) InternationalRibbon(b)
-        Row {
-            // Coverage is the primary scan signal — can my team even do this —
-            // so it owns the leading edge, same convention as the roster card.
-            Box(
-                Modifier.width(4.dp).fillMaxHeight()
-                    .background(
-                        androidx.compose.ui.graphics.Brush.verticalGradient(
-                            listOf(coverageTint, coverageTint.copy(alpha = 0.3f))
-                        )
-                    )
+        // Status band
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (isNew) ToneChip("NEW", sk.blue, solid = true)
+            if (urgent) ToneChip("URGENT", sk.crit)
+            if (blocked) ToneChip("BLOCKED", sk.warn) else ToneChip("COVERABLE", sk.good)
+            if (days != null) ToneChip(if (days <= 0) "Starts today" else "Starts in ${days}d", sk.labelText)
+        }
+
+        Text(
+            b.str("course_name").ifBlank { "Course not specified" },
+            style = MaterialTheme.typography.titleSmall, color = sk.bodyText,
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            b.str("customer").ifBlank { "Account not specified" },
+            style = MaterialTheme.typography.labelSmall, color = sk.labelText, maxLines = 1,
+        )
+
+        Text(
+            listOfNotNull(
+                listOfNotNull(
+                    b.str("start_date").takeIf { it.isNotBlank() }?.shortDate(),
+                    b.str("end_date").takeIf { it.isNotBlank() }?.shortDate(),
+                ).joinToString(" – ").takeIf { it.isNotBlank() },
+                mode.takeIf { it.isNotBlank() },
+                b.str("location").takeIf { it.isNotBlank() && international },
+                b.intOrNull("participants")?.takeIf { it > 0 }?.let { "$it learners" },
+            ).joinToString(" · "),
+            style = MaterialTheme.typography.labelSmall, color = sk.subText,
+        )
+
+        // Coverability language, precise: never "people are free".
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(painterResource(coverIcon), null, tint = coverTint, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(5.dp))
+            Text(
+                if (blocked) "$coverLabel · required capability not currently covered"
+                else "$coverLabel · allocation pending",
+                style = MaterialTheme.typography.labelSmall, color = coverTint,
             )
-            Column(Modifier.padding(start = 14.dp, top = 13.dp, end = 13.dp, bottom = 13.dp).fillMaxWidth()) {
-                if (globalFeatured) {
-                    // The card class, not a badge: ribbon owns the top edge and
-                    // the destination block carries a real travel verdict.
-                    InternationalDestination(b)
-                    Spacer(Modifier.height(Space.sm))
+        }
+
+        AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(2.dp))
+                HorizontalDivider(color = sk.cardBorder)
+                ExpandedSection("DELIVERY") {
+                    ExpandedLine("Window", listOfNotNull(
+                        b.str("start_date").takeIf { it.isNotBlank() }?.shortDate(),
+                        b.str("end_date").takeIf { it.isNotBlank() }?.shortDate(),
+                    ).joinToString(" – ").ifBlank { "—" })
+                    if (mode.isNotBlank()) ExpandedLine("Mode", mode)
+                    if (b.str("location").isNotBlank()) ExpandedLine("Location", b.str("location"))
+                    b.intOrNull("participants")?.takeIf { it > 0 }?.let { ExpandedLine("Participants", "$it") }
                 }
-                if (leastMatch) {
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
-                            .background(sk.crit.copy(alpha = 0.14f))
-                            .border(1.dp, sk.crit.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 9.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(painterResource(R.drawable.ic_alert), null, tint = sk.crit, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(7.dp))
-                        Text(
-                            "LOW MATCH · MANAGER REVIEW REQUIRED",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = sk.crit, fontWeight = FontWeight.ExtraBold,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Text("${b.int("relevance")}%", color = sk.crit, fontWeight = FontWeight.ExtraBold)
-                    }
-                    Spacer(Modifier.height(9.dp))
+                ExpandedSection("DEMAND") {
+                    if (b.str("demand_id").isNotBlank()) ExpandedLine("Reference", b.str("demand_id"))
+                    if (b.str("customer").isNotBlank()) ExpandedLine("Account", b.str("customer"))
+                    b.intOrNull("priority_score")?.let { ExpandedLine("Priority score", "$it") }
+                    if (b.str("assignment_risk").isNotBlank()) ExpandedLine("Risk", b.str("assignment_risk"))
                 }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (isNew) {
-                                Surface(color = sk.blue, shape = RoundedCornerShape(4.dp)) {
-                                    Text(
-                                        "NEW", style = MaterialTheme.typography.labelSmall,
-                                        color = sk.frost,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
-                                    )
-                                }
-                                Spacer(Modifier.width(6.dp))
-                            }
-                            if (isPriority) {
-                                Surface(color = sk.teal, shape = RoundedCornerShape(4.dp)) {
-                                    Text(
-                                        "★ PRIORITY", style = MaterialTheme.typography.labelSmall,
-                                        color = sk.frost, fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
-                                    )
-                                }
-                                Spacer(Modifier.width(6.dp))
-                            }
-                            if (mode.isNotBlank()) {
-                                Surface(
-                                    color = (if (isPriority) sk.teal else sk.subText).copy(alpha = 0.14f),
-                                    shape = RoundedCornerShape(4.dp),
-                                ) {
-                                    Text(
-                                        mode.uppercase(), style = MaterialTheme.typography.labelSmall,
-                                        color = if (isPriority) sk.teal else sk.subText,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
-                                    )
-                                }
-                            }
-                            if (international) {
-                                Spacer(Modifier.width(6.dp))
-                                InternationalBadge()
-                            }
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            b.str("course_name").ifBlank { "Course not specified" },
-                            style = MaterialTheme.typography.titleSmall, color = sk.bodyText,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        // Vendor first — the customer relationship, not a demand-id.
-                        Text(
-                            b.str("customer").ifBlank { "Vendor not specified" },
-                            style = MaterialTheme.typography.labelSmall, color = sk.labelText,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                        Spacer(Modifier.height(3.dp))
-                        // Start -> End on one row, plus pax — the two facts a
-                        // manager needs before anything else about timing.
-                        Text(
-                            listOfNotNull(
-                                listOfNotNull(
-                                    b.str("start_date").takeIf { it.isNotBlank() }?.shortDate(),
-                                    b.str("end_date").takeIf { it.isNotBlank() }?.shortDate(),
-                                ).joinToString(" → ").takeIf { it.isNotBlank() },
-                                b.intOrNull("participants")?.takeIf { it > 0 }?.let { "$it pax" },
-                                b.str("assignment_level").takeIf { it.isNotBlank() }?.let { "Level $it" },
-                            ).joinToString(" · "),
-                            style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                        )
+                if (b.str("assignment_level").isNotBlank()) {
+                    ExpandedSection("REQUIREMENTS") {
+                        ExpandedLine("Skill level", b.str("assignment_level"))
                     }
-                    Spacer(Modifier.width(8.dp))
-                    Column(horizontalAlignment = Alignment.End) {
-                        Icon(painterResource(coverageIcon), null, tint = coverageTint, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            coverageLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = coverageTint, fontWeight = FontWeight.Bold,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                            modifier = Modifier.widthIn(max = 88.dp),
-                        )
+                }
+                if (blocked) {
+                    ExpandedSection("BLOCKER") {
+                        ExpandedLine("Reason", "Capability not currently covered")
                     }
                 }
 
-                if (international) {
-                    Spacer(Modifier.height(10.dp))
-                    InternationalOpportunityBanner(b)
-                }
-
-                Spacer(Modifier.height(9.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    // Not currency. The backend derives this band from delivery mode,
-                    // international reach and headcount, so labelling it "Revenue"
-                    // read as money on a product that deliberately excludes finance.
-                    MiniStat("Opportunity", b.str("revenue_potential").ifBlank { "—" }, sk.indigo)
-                    MiniStat("Priority", "${b.intOrNull("priority_score") ?: 0}", sk.teal)
-                    MiniStat("Risk", risk.ifBlank { "—" }, riskTint)
-                }
-
-                CoverageVerdictStrip(b)
-
-                if (candidates.isNotEmpty()) {
-                    Spacer(Modifier.height(9.dp))
-                    HorizontalDivider(color = sk.cardBorder)
-                    Spacer(Modifier.height(7.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(width = 3.dp, height = 16.dp).background(sk.brand, RoundedCornerShape(2.dp)))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "RECOMMENDED TRAINERS",
-                            style = MaterialTheme.typography.titleSmall, color = sk.frost,
-                            fontWeight = FontWeight.Black, letterSpacing = 0.06.em,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Text(
-                            "Eligibility first, then score",
-                            style = MaterialTheme.typography.labelSmall, color = sk.labelText,
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    UncheckedNotice(b)
-                    Spacer(Modifier.height(4.dp))
-                    val shownCandidates = candidates.take(3)
-                    shownCandidates.forEachIndexed { i, c ->
-                        RecommendedCandidateCard(c, rank = i + 1, international = international)
-                        if (i < shownCandidates.lastIndex) Spacer(Modifier.height(8.dp))
-                    }
-                } else {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "No suitable team match yet. Review the demand details and capability gaps.",
-                        style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                    )
-                }
-
-                if (managerRecommendation != null) {
-                    Spacer(Modifier.height(9.dp))
-                    Row(
-                        Modifier.fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(sk.aqua.copy(alpha = 0.10f))
-                            .padding(horizontal = 9.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("★", color = sk.aqua, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.width(7.dp))
-                        Column {
-                            Text(
-                                "Recommend Aishwar · ${managerRecommendation.int("skill_match")}% match · Level ${managerRecommendation.int("suggested_skill_level")}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = sk.aqua, fontWeight = FontWeight.SemiBold,
-                                maxLines = 2,
-                            )
-                            Text(
-                                "Suggested ${managerRecommendation.str("suggested_availability").shortDate()} · " +
-                                    if (managerRecommendation.bool("availability_verified")) "availability verified" else "availability unverified",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (managerRecommendation.bool("availability_verified")) sk.green else sk.warn,
-                            )
-                        }
-                    }
-                }
-
-                val courseName = b.str("course_name")
-                if (courseName.isNotBlank()) {
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = { onFindInNetwork(courseName) },
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    ) {
-                        Text("Search Wider Trainer Network", style = MaterialTheme.typography.labelSmall, color = sk.cyan)
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    FilledTonalButton(
+                        onClick = onOpenDetails,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(Radii.chip),
+                    ) { Text("Open Details") }
                 }
             }
         }
-      }
     }
 }
+
+@Composable
+private fun ExpandedSection(title: String, content: @Composable () -> Unit) {
+    val sk = MaterialTheme.skill
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(
+            title, style = MaterialTheme.typography.labelSmall,
+            color = sk.labelText, fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
+        )
+        content()
+    }
+}
+
+@Composable
+private fun ExpandedLine(label: String, value: String) {
+    val sk = MaterialTheme.skill
+    Row(Modifier.fillMaxWidth()) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = sk.subText, modifier = Modifier.weight(1f))
+        Text(value, style = MaterialTheme.typography.labelSmall, color = sk.bodyText)
+    }
+}
+
+// ── Aggregate capacity outlook (unchanged in spirit — no person-level content).
 
 @Composable
 private fun CapacityPlanningCard(
@@ -870,9 +569,6 @@ private fun CapacityPlanningCard(
 ) {
     val sk = MaterialTheme.skill
 
-    // Conclusion first. The previous version opened with four raw counters and
-    // an unlabelled bar chart, which told a manager what the numbers were but
-    // not what to do about them. The pressure weeks are the decision.
     val pressured = plan?.weeks?.filter { it.pressure == "high" }.orEmpty()
     val watch = plan?.weeks?.filter { it.pressure == "watch" }.orEmpty()
     val headline = when {
@@ -930,10 +626,7 @@ private fun CapacityPlanningCard(
                             verticalArrangement = Arrangement.Bottom,
                         ) {
                             if (week.demand > 0) {
-                                Text(
-                                    "${week.demand}",
-                                    style = MaterialTheme.typography.labelSmall, color = tint,
-                                )
+                                Text("${week.demand}", style = MaterialTheme.typography.labelSmall, color = tint)
                             }
                             Box(
                                 Modifier
@@ -943,8 +636,6 @@ private fun CapacityPlanningCard(
                                     .background(tint.copy(alpha = 0.75f))
                             )
                             Text(
-                                // "2026-09-07" -> "07 Sep" is unreadable at this
-                                // width; the day-month pair is enough to place it.
                                 week.weekStart.takeLast(5),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = sk.labelText, maxLines = 1,
@@ -953,29 +644,19 @@ private fun CapacityPlanningCard(
                     }
                 }
 
-                // The bar colours mean nothing without this.
                 Row(horizontalArrangement = Arrangement.spacedBy(Space.md)) {
                     listOf("Over capacity" to sk.crit, "Watch" to sk.warn, "Inside capacity" to sk.good)
                         .forEach { (label, tint) ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(tint))
                                 Spacer(Modifier.width(Space.xs))
-                                Text(
-                                    label,
-                                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                                )
+                                Text(label, style = MaterialTheme.typography.labelSmall, color = sk.subText)
                             }
                         }
                 }
 
-                // The backend's own caveat about how unknown evidence is
-                // treated. Dropping it in the rewrite would have removed the
-                // one line explaining why the coverage figure is conservative.
                 if (plan.confidence.note.isNotBlank()) {
-                    Text(
-                        plan.confidence.note,
-                        style = MaterialTheme.typography.bodySmall, color = sk.subText,
-                    )
+                    Text(plan.confidence.note, style = MaterialTheme.typography.bodySmall, color = sk.subText)
                 }
 
                 plan.confidence.availabilityPct?.let { pct ->
@@ -990,96 +671,3 @@ private fun CapacityPlanningCard(
         }
     }
 }
-
-
-
-@Composable
-private fun InternationalBadge() {
-    val sk = MaterialTheme.skill
-    val transition = rememberInfiniteTransition(label = "internationalGlobe")
-    val rotation by transition.animateFloat(
-        initialValue = -8f,
-        targetValue = 8f,
-        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing)),
-        label = "globeRotation",
-    )
-    Surface(color = sk.sky.copy(alpha = 0.14f), shape = RoundedCornerShape(4.dp)) {
-        Row(
-            Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                painterResource(R.drawable.ic_globe), contentDescription = null,
-                tint = sk.sky, modifier = Modifier.size(11.dp).rotate(rotation),
-            )
-            Spacer(Modifier.width(3.dp))
-            Text(
-                "GLOBAL OPPORTUNITY", color = sk.sky,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-    }
-}
-
-@Composable
-private fun InternationalOpportunityBanner(batch: Map<*, *>) {
-    val sk = MaterialTheme.skill
-    val transition = rememberInfiniteTransition(label = "internationalOpportunity")
-    val globeRotation by transition.animateFloat(
-        initialValue = -5f, targetValue = 5f,
-        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing)),
-        label = "internationalOpportunityGlobe",
-    )
-    Box(
-        Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(
-                androidx.compose.ui.graphics.Brush.horizontalGradient(
-                    listOf(sk.sky.copy(alpha = 0.18f), sk.indigo.copy(alpha = 0.10f))
-                )
-            )
-            .border(1.dp, sk.sky.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-            .padding(horizontal = 11.dp, vertical = 9.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = sk.sky.copy(alpha = 0.20f), shape = RoundedCornerShape(9.dp)) {
-                Icon(
-                    painterResource(R.drawable.ic_globe), contentDescription = "International opportunity",
-                    tint = sk.sky, modifier = Modifier.padding(7.dp).size(19.dp).rotate(globeRotation),
-                )
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    "INTERNATIONAL ${batch.str("delivery_mode_kind")} OPPORTUNITY",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.sky, fontWeight = FontWeight.ExtraBold,
-                )
-                Text(
-                    batch.str("location").ifBlank { "Foreign location" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = sk.bodyText, fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    if (batch.str("delivery_mode_kind") == "FMAT")
-                        "TRAVEL REQUIRED · Visa and schedule readiness require manager review"
-                    else
-                        "INTERNATIONAL CLASSROOM · Confirm travel, location and trainer readiness",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.subText, maxLines = 2,
-                )
-            }
-            Surface(color = sk.indigo.copy(alpha = 0.16f), shape = RoundedCornerShape(7.dp)) {
-                Text(
-                    batch.str("revenue_potential").ifBlank { "Priority" },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.indigo, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
-                )
-            }
-        }
-    }
-}
-
-

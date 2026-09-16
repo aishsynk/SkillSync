@@ -6,7 +6,9 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithText
 import com.example.skillsync.theme.SkillSyncTheme
-import com.example.skillsync.feature.training.ui.BatchCard
+import com.example.skillsync.feature.training.ui.CoverageVerdictStrip
+import com.example.skillsync.feature.training.ui.RecommendedCandidateCard
+import com.example.skillsync.feature.training.ui.UncheckedNotice
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -68,9 +70,23 @@ class DemandIntelligenceTest {
         }
     }
 
+    // Candidate matching now lives only in Demand Details (BatchDetailScreen),
+    // not on Plan — this composes exactly what that screen renders for the
+    // candidate section (UncheckedNotice + RecommendedCandidateCard), the
+    // same internal functions BatchDetailScreen.kt calls, so this pins the
+    // real behaviour rather than a duplicate of it.
     private fun render(b: Map<String, Any>) {
+        val international = b["is_international"] == true
         compose.setContent {
-            SkillSyncTheme { BatchCard(b, isNew = false, onClick = {}) }
+            SkillSyncTheme {
+                androidx.compose.foundation.layout.Column {
+                    CoverageVerdictStrip(b)
+                    UncheckedNotice(b)
+                    @Suppress("UNCHECKED_CAST")
+                    (b["candidates"] as? List<Map<String, Any>> ?: emptyList()).take(3)
+                        .forEachIndexed { i, c -> RecommendedCandidateCard(c, rank = i + 1, international = international) }
+                }
+            }
         }
     }
 
