@@ -3117,3 +3117,77 @@ UI:
 **Version:** `versionCode` 191 → 192, `versionName` "3.80.14" → "3.80.15",
 tag `v3.80.15.192`. `applicationId`, signing configuration, and the
 SkillSync/SkillEdge product identity are unchanged.
+
+## 42. v3.80.16.193 released — People recovery and Plan V2
+
+Branch `inner-pages-v2` (commit `29d9393`) merged to `main` and released as
+v3.80.16.193, bumping from the published v3.80.15.192 baseline.
+
+**People — "No reportees returned" (functional blocker).** Root cause: the
+`unified-manager-intelligence` backend endpoint can return HTTP 200 with
+`loading: true` and an empty `trainer_operations_df` placeholder while a
+cold cache rebuilds in the background (`services`/`_serve_or_warm` in
+`backend.py`, unchanged by this fix). `MainScreenViewModel.fetchDashboard()`
+never checked that flag, so it committed the empty placeholder as final
+`DashboardState.Success` — a manager with a genuine roster could see "No
+reportees returned" whenever the app hit a cold backend. Not a backend bug
+and not a People-screen (`TeamTab.kt`) bug — a client-side state-handling
+gap. Fix: `fetchDashboard` now polls (bounded, same pattern already used by
+`CapacityRunwayViewModel`/`AccountsViewModel`/`DeliveryComplianceViewModel`)
+while `loading == true` before committing Success. A genuinely empty roster
+still renders as a legitimate empty state; a request failure still surfaces
+`DashboardState.Error`; neither is ever converted into a false empty
+roster. Six regression tests pin all four cases.
+
+**Plan / Demand & Planning V2.** Rebuilt as an unallocated-demand command
+centre. Removed entirely from this screen: candidate/trainer matching,
+ranked candidate cards, "Grow the Team", manager-recommendation banners,
+and the wider-network search sheet — all of it remains exactly where it
+already lived, in Demand Details (`BatchDetailScreen.kt`), reached via Open
+Details. Plan no longer fetches upskilling/Grow-the-Team data either.
+
+New information architecture: executive header, a compact KPI strip
+(Unallocated/Urgent/Coverable/Blocked/This Week/International — real
+counts over existing fields, no invented metrics), one derived "Planning
+Focus" insight line, the existing 8-week capacity outlook, filter chips
+and a sort control, and compact expandable batch cards (status band,
+course/account/window, precise coverability language, Open Details).
+Coverability language never claims availability from utilisation.
+
+**Permanent product decision:** Plan answers "what demand needs
+planning?" — Demand Details answers "who can handle this demand?". This
+boundary is intentional; person-level matching does not scale onto a
+board a manager can have dozens of open batches on, and mixing the two
+workflows destroys the information hierarchy. Do not merge them back.
+
+**Validation established before this release (source unchanged since):**
+- Android: 274 tests, same 10 documented baseline failures, 0 new.
+- Lint: same 6 documented baseline errors, 0 new.
+- `compileDebugKotlin`, `compileReleaseKotlin`, `assembleDebug`: all
+  BUILD SUCCESSFUL.
+- Backend unchanged by this fix; full suite not re-run.
+
+**Version:** `versionCode` 192 → 193, `versionName` "3.80.15" → "3.80.16",
+tag `v3.80.16.193`. `applicationId`, signing configuration, and the
+SkillSync/SkillEdge product identity are unchanged.
+
+---
+
+### Session handover
+
+- **Last model/tool used:** Claude (Opus/Sonnet 5, this session).
+- **Current project state:** v3.80.16.193 is the release in progress from
+  this entry; v3.80.15.192 remains the last confirmed-published release at
+  the start of this task and must not be modified, retagged or removed.
+- **Files recently modified:** `MainScreenViewModel.kt`, `MainScreen.kt`,
+  `AllocationDeskScreen.kt`, `build.gradle.kts` (version bump), plus the
+  test files listed in §42.
+- **Known issues/blockers:** none open. The Render backend's ephemeral
+  state (documented in `AI/INFRA_EPHEMERAL_STATE_AUDIT_2026_09_16.md`) is a
+  standing characteristic, not a regression — a cold-cache request can
+  still take a few seconds to resolve on a fresh backend spin-up; Plan and
+  People both now handle that honestly (loading/polling, never a false
+  empty state).
+- **Next recommended actions:** none pending unless the operator requests
+  further work. If continuing, re-read this entry and `AGENTS.md` first,
+  and confirm the latest GitHub Release before doing anything else.
