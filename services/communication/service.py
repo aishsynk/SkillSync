@@ -43,7 +43,7 @@ from domain.communication.models import (
 from repositories.communication_store import CommunicationStore
 
 from . import policy
-from .composer import compose_from_plan
+from .composer import MORNING_TEAM_GREETING, compose_from_plan_detailed, compose_morning_greeting, morning_greeting_issues
 from .context_selector import ContextSelector, NO_MEANINGFUL_MESSAGE
 from .intent import analyze
 from .validator import truncate, validate
@@ -64,6 +64,8 @@ class CommunicationService:
     ) -> GeneratedMessage:
         """Central communication intelligence entry point."""
         req = request or {}
+        if str(req.get("purpose", "")).upper() == MORNING_TEAM_GREETING:
+            return self._morning_greeting(req)
         recipient_map = req.get("recipient") or {}
         recipient = CommunicationRecipient(
             name=str(recipient_map.get("name") or "").strip(),
@@ -120,7 +122,8 @@ class CommunicationService:
             )
 
         # Step 5: Natural Message Generation
-        text, gen_mode = compose_from_plan(plan, context)
+        text, provenance = compose_from_plan_detailed(plan, context)
+        gen_mode = provenance.generation_mode
 
         # Step 6: Validation
         validation = validate(text, plan=plan)
@@ -143,6 +146,40 @@ class CommunicationService:
             requires_communication=True,
             no_message_reason=None,
             sensitive_facts_removed=plan.sensitive_facts_removed,
+            provenance=provenance.as_dict(),
+        )
+
+    def _morning_greeting(self, req: dict) -> GeneratedMessage:
+        """Weekday team greeting. The weekday is the manager's local one, sent by
+        the client; Saturday and Sunday produce no message at all."""
+        weekday = str(req.get("localWeekday") or req.get("local_weekday") or "").upper()
+        recent = req.get("recentGreetings") or req.get("recent_greetings") or []
+        if not isinstance(recent, list):
+            recent = []
+        try:
+            variation = int(req.get("variation") or 0)
+        except (TypeError, ValueError):
+            variation = 0
+        text, provenance = compose_morning_greeting(weekday, recent, variation)
+        mode = provenance.generation_mode
+        if not text:
+            return GeneratedMessage(
+                text="", validation=ValidationResult(passed=True, issues=[]), facts_used=[],
+                purpose=MORNING_TEAM_GREETING, tone="warm", selected_facts=[], rejected_facts=[],
+                generation_mode="SUPPRESSED_WEEKEND", requires_communication=False,
+                no_message_reason="No morning greeting at the weekend.", sensitive_facts_removed=[],
+                provenance=provenance.as_dict(),
+            )
+        # The deterministic bank may legitimately reuse an opening once every
+        # option is exhausted, so the recent-repeat rule is not re-applied to it.
+        check_recent = [] if provenance.fallback_used else [str(r) for r in recent][:10]
+        issues = morning_greeting_issues(text, check_recent, weekday)
+        facts = [f"local_weekday={weekday}"]
+        return GeneratedMessage(
+            text=text, validation=ValidationResult(passed=not issues, issues=issues), facts_used=facts,
+            purpose=MORNING_TEAM_GREETING, tone="warm", selected_facts=facts, rejected_facts=[],
+            generation_mode=mode, requires_communication=True, no_message_reason=None,
+            sensitive_facts_removed=[], provenance=provenance.as_dict(),
         )
 
     # ── history ─────────────────────────────────────────────────────────────

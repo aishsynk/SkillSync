@@ -15,6 +15,12 @@ data class CommunicationEvidence(
     val certGapCourses: List<String> = emptyList(),
     val learnerRating: Double? = null,
     val learnerRatingCount: Int = 0,
+    /** MORNING_TEAM_GREETING only: the manager's local weekday, read from the device clock. */
+    val localWeekday: java.time.DayOfWeek? = null,
+    /** MORNING_TEAM_GREETING only: recently generated greetings, so none repeats. */
+    val recentGreetings: List<String> = emptyList(),
+    /** MORNING_TEAM_GREETING only: bumps on Regenerate so a fresh variant is chosen. */
+    val variation: Int = 0,
 )
 
 enum class CommunicationAudienceType { TEAM, INDIVIDUAL }

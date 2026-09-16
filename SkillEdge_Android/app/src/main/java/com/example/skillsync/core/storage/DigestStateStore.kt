@@ -26,6 +26,33 @@ object DigestStateStore {
         prefs.edit().putString(key(email, "morning_date"), date).apply()
     }
 
+    /** Most recent first. Only kept so the morning greeting never repeats itself. */
+    fun recentGreetings(email: String): List<String> =
+        (prefs.getString(key(email, "morning_greetings"), "") ?: "")
+            .split(GREETING_SEPARATOR).filter { it.isNotBlank() }
+
+    fun recordGreeting(email: String, greeting: String, keep: Int) {
+        if (greeting.isBlank()) return
+        val next = (listOf(greeting) + recentGreetings(email).filter { it != greeting }).take(keep)
+        prefs.edit().putString(key(email, "morning_greetings"), next.joinToString(GREETING_SEPARATOR)).apply()
+    }
+
+    /** The day's morning note draft: (local ISO date, text), or null. */
+    fun morningDraft(email: String): Pair<String, String>? {
+        val date = prefs.getString(key(email, "morning_draft_date"), "") ?: ""
+        val text = prefs.getString(key(email, "morning_draft_text"), "") ?: ""
+        return if (date.isNotBlank() && text.isNotBlank()) date to text else null
+    }
+
+    fun setMorningDraft(email: String, date: String, text: String) {
+        prefs.edit()
+            .putString(key(email, "morning_draft_date"), date)
+            .putString(key(email, "morning_draft_text"), text)
+            .apply()
+    }
+
+    private const val GREETING_SEPARATOR = ""
+
     fun lastWeeklyWeek(email: String): String =
         prefs.getString(key(email, "weekly_week"), "") ?: ""
 

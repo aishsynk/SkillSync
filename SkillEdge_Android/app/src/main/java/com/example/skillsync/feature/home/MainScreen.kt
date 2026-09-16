@@ -319,13 +319,17 @@ fun MainScreen(
             containerColor = Color.Transparent,
             contentColor = MaterialTheme.skill.frost,
             topBar = {
-                TopAppBar(
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Logo sits directly on the page background — no
-                            // gradient/bordered "island" behind it.
-                            SkillSyncLogo(size = 40.dp)
-                            Spacer(Modifier.width(12.dp))
+                ExecutiveHeader(
+                    notificationCount = notificationEvents.size,
+                    profileName = profile?.str("name").orEmpty().ifBlank { email },
+                    photoUrl = profile?.str("photo_url")?.takeIf { it.isNotBlank() },
+                    onAnalytics = {
+                        viewModel.refresh(email, context)
+                        if (tab == HomeTab.DEMAND) allocationViewModel.refresh(email, context)
+                    },
+                    onNotifications = { showNotificationsSheet = true },
+                    onProfile = { showLogoutConfirm = true },
+                ) {
                             val showBrief = tab == HomeTab.DASHBOARD && briefCollapsed
                             val briefLine = remember(state) {
                                 (state as? DashboardState.Success)?.let {
@@ -340,91 +344,13 @@ fun MainScreen(
                                 },
                                 label = "brief",
                             ) { collapsed ->
-                                Column {
-                                    Text(
-                                        if (collapsed) "TODAY · THE BRIEF" else "SKILLEDGE · EXECUTIVE CONSOLE",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.tertiary,
-                                    )
-                                    Text(
-                                        if (collapsed) briefLine else tabTitle(tab),
-                                        style = MaterialTheme.typography.headlineSmall.copy(
-                                            fontSize = if (collapsed) 15.sp else
-                                                MaterialTheme.typography.headlineMedium.fontSize,
-                                        ),
-                                        color = MaterialTheme.skill.frost,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    actions = {
-                        // Analytics / refresh — plain icon, no boxed background.
-                        IconButton(
-                            onClick = {
-                                viewModel.refresh(email, context)
-                                if (tab == HomeTab.DEMAND) allocationViewModel.refresh(email, context)
-                            },
-                            modifier = Modifier.size(44.dp),
-                        ) {
-                            Icon(
-                                painterResource(R.drawable.ic_trend),
-                                contentDescription = "Analytics refresh",
-                                tint = MaterialTheme.skill.sky,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                        // Notifications — plain icon with a real unread-count badge.
-                        IconButton(
-                            onClick = { showNotificationsSheet = true },
-                            modifier = Modifier.size(44.dp),
-                        ) {
-                            Box {
-                                Icon(
-                                    painterResource(R.drawable.ic_alert),
-                                    contentDescription = "Notifications, ${notificationEvents.size} unread",
-                                    tint = if (notificationEvents.isNotEmpty()) MaterialTheme.skill.sky else MaterialTheme.skill.subText,
-                                    modifier = Modifier.size(20.dp),
+                                ExecutiveHeaderTitle(
+                                    eyebrow = if (collapsed) "TODAY · THE BRIEF" else "SKILLEDGE · EXECUTIVE CONSOLE",
+                                    title = if (collapsed) briefLine else tabTitle(tab),
+                                    titleSize = if (collapsed) 15.sp else MaterialTheme.typography.headlineMedium.fontSize,
                                 )
-                                if (notificationEvents.isNotEmpty()) {
-                                    Box(
-                                        Modifier
-                                            .align(Alignment.TopEnd)
-                                            .offset(x = 5.dp, y = (-3).dp)
-                                            .size(15.dp)
-                                            .clip(androidx.compose.foundation.shape.CircleShape)
-                                            .background(MaterialTheme.skill.crit),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text(
-                                            if (notificationEvents.size > 9) "9+" else notificationEvents.size.toString(),
-                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                            color = Color.White,
-                                        )
-                                    }
-                                }
                             }
-                        }
-                        // Circular profile avatar — real photo when the profile
-                        // model provides one, circular initials otherwise.
-                        IconButton(
-                            onClick = { showLogoutConfirm = true },
-                            modifier = Modifier.size(44.dp),
-                        ) {
-                            Avatar(
-                                name = profile?.str("name").orEmpty().ifBlank { email },
-                                photoUrl = profile?.str("photo_url")?.takeIf { it.isNotBlank() },
-                                size = 34.dp,
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        scrolledContainerColor = MaterialTheme.skill.pageBg.copy(alpha = 0.94f),
-                    ),
-                )
+                }
         },
         bottomBar = { SkillSyncNavBar(tab, onTabChange) },
     ) { pv ->
@@ -854,13 +780,14 @@ fun AppNavBar(
                             )
                         }
                         Spacer(Modifier.height(3.dp))
-                        Text(
+                        // Steps down rather than clipping ("Opportunities" on a 360dp phone).
+                        FitText(
                             label,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = tint,
-                            maxLines = 1,
-                            letterSpacing = 0.02.em,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.sp, letterSpacing = 0.em,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            ),
+                            tint, minSize = 8f,
                         )
                     }
                 }
@@ -995,7 +922,9 @@ internal fun DashboardTab(
             start = com.example.skillsync.theme.Layout.gutter,
             end = com.example.skillsync.theme.Layout.gutter,
             top = com.example.skillsync.theme.Space.xs,
-            bottom = com.example.skillsync.theme.Space.xxl,
+            // The Scaffold already ends this list above the bottom bar, so the
+            // list only needs breathing room, not a second nav-sized gap.
+            bottom = com.example.skillsync.theme.Space.md,
         ),
         verticalArrangement = Arrangement.spacedBy(com.example.skillsync.theme.Layout.section)
     ) {
@@ -1042,7 +971,6 @@ internal fun DashboardTab(
             }
         }
 
-        item { Spacer(Modifier.height(16.dp)) }
     }
 }
 
@@ -1741,4 +1669,104 @@ internal fun Chip(text: String, tint: Color) {
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
         )
     }
+}
+
+/**
+ * The flat Today header: brain mark and title sit directly on the page
+ * background (no pill, glass or rounded container), then three plain 44dp
+ * icon actions — analytics refresh, notifications with a real unread badge,
+ * and the manager's circular photo.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun ExecutiveHeader(
+    notificationCount: Int,
+    profileName: String,
+    photoUrl: String?,
+    onAnalytics: () -> Unit,
+    onNotifications: () -> Unit,
+    onProfile: () -> Unit,
+    titleContent: @Composable () -> Unit,
+) {
+    val sk = MaterialTheme.skill
+    TopAppBar(
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SkillSyncLogo(size = 40.dp)
+                Spacer(Modifier.width(12.dp))
+                titleContent()
+            }
+        },
+        actions = {
+            IconButton(onClick = onAnalytics, modifier = Modifier.size(44.dp)) {
+                Icon(painterResource(R.drawable.ic_trend), contentDescription = "Refresh analytics", tint = sk.sky, modifier = Modifier.size(20.dp))
+            }
+            IconButton(onClick = onNotifications, modifier = Modifier.size(44.dp)) {
+                Box {
+                    Icon(
+                        painterResource(R.drawable.ic_notification),
+                        contentDescription = "Notifications, $notificationCount unread",
+                        tint = if (notificationCount > 0) sk.sky else sk.subText,
+                        modifier = Modifier.size(22.dp),
+                    )
+                    if (notificationCount > 0) {
+                        Box(
+                            Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-3).dp).size(15.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape).background(sk.crit),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                if (notificationCount > 9) "9+" else notificationCount.toString(),
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                color = Color.White,
+                            )
+                        }
+                    }
+                }
+            }
+            IconButton(onClick = onProfile, modifier = Modifier.size(44.dp)) {
+                Avatar(name = profileName, photoUrl = photoUrl, size = 34.dp)
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = Color.Transparent,
+            scrolledContainerColor = sk.pageBg.copy(alpha = 0.94f),
+        ),
+    )
+}
+
+/** Title block used inside [ExecutiveHeader] when the brief is not collapsed. */
+@Composable
+internal fun ExecutiveHeaderTitle(eyebrow: String, title: String, titleSize: androidx.compose.ui.unit.TextUnit = MaterialTheme.typography.headlineMedium.fontSize) {
+    Column {
+        FitText(
+            eyebrow,
+            MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.06.em),
+            MaterialTheme.colorScheme.tertiary, minSize = 8f,
+        )
+        FitText(
+            title,
+            MaterialTheme.typography.headlineSmall.copy(fontSize = minOf(titleSize.value, 22f).sp),
+            MaterialTheme.skill.frost, minSize = 14f,
+        )
+    }
+}
+
+/**
+ * One-line text that steps its font size down until it fits rather than
+ * ellipsizing — the header must read in full on a 360dp phone next to three
+ * 44dp actions. Stops at [minSize]; only below that does it ellipsize.
+ */
+@Composable
+private fun FitText(text: String, style: androidx.compose.ui.text.TextStyle, color: Color, minSize: Float) {
+    var size by remember(text, style) { mutableStateOf(style.fontSize.value) }
+    Text(
+        text,
+        style = style.copy(fontSize = size.sp),
+        color = color,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+        onTextLayout = { if (it.hasVisualOverflow && size > minSize) size = maxOf(minSize, size * 0.92f) },
+    )
 }

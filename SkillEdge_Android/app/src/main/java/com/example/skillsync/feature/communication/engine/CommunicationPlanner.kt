@@ -192,4 +192,47 @@ object CommunicationPlanner {
             provenance = facts.associate { it.key to it.provenance },
         )
     }
+
+    /**
+     * Plans the manager's weekday morning team greeting. Returns null on
+     * Saturday and Sunday — no greeting is planned for a weekend, so nothing
+     * downstream can compose one. The only facts are the device's local
+     * weekday and the recent greetings the composer must not repeat; the
+     * greeting never states business figures.
+     */
+    fun planMorningGreeting(
+        weekday: java.time.DayOfWeek,
+        recentGreetings: List<String> = emptyList(),
+        variation: Int = 0,
+    ): ContextSelectionPlan? {
+        if (weekday == java.time.DayOfWeek.SATURDAY || weekday == java.time.DayOfWeek.SUNDAY) return null
+        val dayName = weekday.name.lowercase().replaceFirstChar { it.uppercase() }
+        val facts = listOf(
+            FactItem("local_weekday", dayName, "DEVICE_LOCAL_CLOCK"),
+            FactItem("variation", variation, "MANAGER_REGENERATE"),
+        ) + recentGreetings.take(MORNING_HISTORY_SIZE).mapIndexed { i, g ->
+            FactItem("recent_greeting_$i", g, "COMMUNICATION_HISTORY")
+        }
+        return ContextSelectionPlan(
+            intent = CommunicationPurpose.MORNING_TEAM_GREETING.id,
+            recipientType = "TEAM",
+            purpose = CommunicationPurpose.MORNING_TEAM_GREETING.id,
+            situationSummary = "Weekday morning greeting for the team ($dayName).",
+            urgency = "NORMAL",
+            tone = "warm",
+            selectedFacts = facts,
+            // Today plus the next working day (Friday -> Monday): the only
+            // other day a greeting may naturally mention.
+            timeReferences = listOf(
+                dayName,
+                (if (weekday == java.time.DayOfWeek.FRIDAY) java.time.DayOfWeek.MONDAY else weekday.plus(1))
+                    .name.lowercase().replaceFirstChar { it.uppercase() },
+            ),
+            requiresCommunication = true,
+            provenance = facts.associate { it.key to it.provenance },
+        )
+    }
+
+    /** How many past greetings the anti-repeat policy compares against. */
+    const val MORNING_HISTORY_SIZE = 10
 }

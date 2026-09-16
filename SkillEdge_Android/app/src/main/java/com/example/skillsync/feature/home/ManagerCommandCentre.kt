@@ -216,11 +216,13 @@ fun ManagerCommandCentre(
                 Spacer(Modifier.width(Space.md))
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "MANAGER BRIEF · ${todayLabel.uppercase()}",
+                        "MANAGER BRIEF",
                         style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.08.em),
-                        color = sk.cyan, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        color = sk.cyan, fontWeight = FontWeight.Bold,
                     )
                     Text(name, style = MaterialTheme.typography.titleLarge, color = sk.frost, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // The date gets its own line so it is never truncated.
+                    Text(todayLabel, style = MaterialTheme.typography.bodySmall, color = sk.ice)
                 }
                 StatusPill(if (fromCache) "CACHED" else "LIVE", if (fromCache) sk.warn else sk.good)
             }
@@ -243,7 +245,7 @@ fun ManagerCommandCentre(
                 HeroRing(value = readiness, modifier = Modifier.size(96.dp))
             }
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = Space.lg),
+                Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = Space.lg),
                 horizontalArrangement = Arrangement.spacedBy(Space.sm),
             ) {
                 HeroStat(
@@ -253,7 +255,7 @@ fun ManagerCommandCentre(
                     sk.sky, Modifier.weight(1f),
                 )
                 HeroStat("Utilised", utilisation?.let { "$it%" } ?: "—", utilisation?.let { it / 100f }, sk.cyan, Modifier.weight(1f))
-                HeroStat("Open demand", openDemand.toString(), null, if (openDemand > 0) sk.warn else sk.good, Modifier.weight(1f))
+                HeroStat("To staff", openDemand.toString(), null, if (openDemand > 0) sk.warn else sk.good, Modifier.weight(1f))
             }
             Row(
                 Modifier
@@ -277,7 +279,12 @@ fun ManagerCommandCentre(
         }
 
         // ════════════════════════════════════════════════════════════════════
-        // 2. NEEDS YOU TODAY — People-grade action cards.
+        // 2. MORNING NOTE — weekday team greeting via Communication Intelligence.
+        // ════════════════════════════════════════════════════════════════════
+        MorningNoteCard(email = email)
+
+        // ════════════════════════════════════════════════════════════════════
+        // 3. NEEDS YOU TODAY — level-1 container, compact priority rows.
         // ════════════════════════════════════════════════════════════════════
         TodayPanel(
             title = "Needs you today",
@@ -285,6 +292,7 @@ fun ManagerCommandCentre(
             tint = if (attentionItems.any { it.severity == Severity.Critical }) sk.crit else sk.good,
             badge = attentionItems.size.takeIf { it > 0 }?.toString(),
             contentSpacing = Space.sm,
+            emphasis = true,
         ) {
             if (attentionItems.isEmpty()) {
                 EmptyNote(R.drawable.ic_check, sk.good, "All clear", "Nothing needs you right now — the queue is clear.")
@@ -321,7 +329,7 @@ fun ManagerCommandCentre(
                     R.drawable.ic_people, "Strength", teamStrength.toString(), Modifier.weight(1f),
                     iconTint = sk.royal,
                     fraction = activeTrainers?.let { it.toFloat() / teamStrength.coerceAtLeast(1) },
-                    caption = activeTrainers?.let { "$it active" },
+                    caption = activeTrainers?.let { "$it active / $teamStrength trainers" },
                     onClick = {
                         onDrill(
                             Drill(
@@ -351,10 +359,10 @@ fun ManagerCommandCentre(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 PulseTile(
                     R.drawable.ic_certificate, "Cert coverage", certCoverage?.let { "$it%" } ?: "—", Modifier.weight(1f),
-                    tint = if ((certCoverage ?: 100) < 60) sk.warn else null,
                     iconTint = sk.violet,
                     fraction = certCoverage?.let { it / 100f },
-                    caption = certCoverage?.let { if (it < 60) "Below 60% target" else "On target" },
+                    // No certification target is defined in the backend, so none is claimed here.
+                    caption = certCoverage?.let { "courses covered" },
                     onClick = onOpenPriorities,
                 )
                 PulseTile(
@@ -366,52 +374,41 @@ fun ManagerCommandCentre(
                     onClick = onOpenPriorities,
                 )
             }
-        }
 
-        // ════════════════════════════════════════════════════════════════════
-        // 4. CAPACITY & AVAILABILITY
-        // ════════════════════════════════════════════════════════════════════
-        if (capacityTotal > 1 || bench + optimal + stretched > 0) {
-            TodayPanel(
-                title = "Capacity balance",
-                icon = R.drawable.ic_people,
-                tint = sk.sky,
-                conclusion = capacityConclusion(bench, optimal, stretched),
-                onClick = onOpenCapacityRunway,
-            ) {
-                val total = (bench + optimal + stretched).coerceAtLeast(1)
-                CapacityBar(bench, optimal, stretched)
-                Row(Modifier.fillMaxWidth()) {
-                    BandStat("Bench", bench, total, sk.warn, Modifier.weight(1f))
-                    BandStat("Optimal", optimal, total, sk.sky, Modifier.weight(1f))
-                    BandStat("Stretched", stretched, total, sk.crit, Modifier.weight(1f))
+            // Capacity bands and verified availability sit inside Pulse as
+            // analytical sub-rows rather than as two more stand-alone cards.
+            if (capacityTotal > 1 || bench + optimal + stretched > 0) {
+                HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f))
+                Column(Modifier.fillMaxWidth().pressable(onOpenCapacityRunway), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SubHeading("Capacity balance", capacityConclusion(bench, optimal, stretched))
+                    val total = (bench + optimal + stretched).coerceAtLeast(1)
+                    CapacityBar(bench, optimal, stretched)
+                    Row(Modifier.fillMaxWidth()) {
+                        BandStat("Bench", bench, total, sk.warn, Modifier.weight(1f))
+                        BandStat("Optimal", optimal, total, sk.sky, Modifier.weight(1f))
+                        BandStat("Stretched", stretched, total, sk.crit, Modifier.weight(1f))
+                    }
+                }
+            }
+            // Who is actually free — honest, from verified leave/commitment days.
+            if (checkedCount > 0) {
+                HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f))
+                Column(Modifier.fillMaxWidth().pressable(onOpenDelivery), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SubHeading(
+                        "Who is actually free",
+                        "$onLeaveCount on leave in the next 90 days, $clearCount with nothing booked. From RMS leave and bookings, not utilisation.",
+                    )
+                    Row(Modifier.fillMaxWidth()) {
+                        BandStat("Clear", clearCount, checkedCount, sk.good, Modifier.weight(1f))
+                        BandStat("Committed", committedCount, checkedCount, sk.sky, Modifier.weight(1f))
+                        BandStat("On leave", onLeaveCount, checkedCount, sk.warn, Modifier.weight(1f))
+                    }
                 }
             }
         }
 
-        // Who is actually free — honest, from verified leave/commitment days.
-        if (checkedCount > 0) {
-            TodayPanel(
-                title = "Who is actually free",
-                icon = R.drawable.ic_check,
-                tint = sk.good,
-                conclusion = "$onLeaveCount on leave in the next 90 days, $clearCount with nothing booked.",
-                onClick = onOpenDelivery,
-            ) {
-                Row(Modifier.fillMaxWidth()) {
-                    BandStat("Clear", clearCount, checkedCount, sk.good, Modifier.weight(1f))
-                    BandStat("Committed", committedCount, checkedCount, sk.sky, Modifier.weight(1f))
-                    BandStat("On leave", onLeaveCount, checkedCount, sk.warn, Modifier.weight(1f))
-                }
-                Text(
-                    "From approved leave and confirmed bookings in RMS, not from utilisation.",
-                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                )
-            }
-        }
-
         // ════════════════════════════════════════════════════════════════════
-        // 5. STAFFING & DEMAND
+        // 5. DEMAND — the intelligence leads; Allocate is a restrained action.
         // ════════════════════════════════════════════════════════════════════
         TodayPanel(
             title = "Demand",
@@ -419,37 +416,42 @@ fun ManagerCommandCentre(
             tint = if (unallocatedDemand.isNotEmpty()) sk.crit else sk.brand,
             conclusion = "${unallocatedDemand.size} unallocated batch${if (unallocatedDemand.size == 1) "" else "es"}" +
                 (if (internationalBatches > 0) ", $internationalBatches international." else ", none international."),
+            contentSpacing = 10.dp,
         ) {
+            Row(Modifier.fillMaxWidth()) {
+                DemandStat("Unallocated", unallocatedDemand.size, sk.crit, Modifier.weight(1f))
+                DemandStat("International", internationalBatches, sk.violet, Modifier.weight(1f))
+                DemandStat("Active", activeBatches.size, sk.good, Modifier.weight(1f))
+                DemandStat("Upcoming", upcomingBatches.size, sk.sky, Modifier.weight(1f))
+            }
             val demandTotal = unallocatedDemand.size + activeBatches.size + upcomingBatches.size
             if (demandTotal > 0) {
-                Row(Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(6.dp))) {
+                // Proportional to the three real counts above; international is a
+                // subset of demand, so it is not a separate segment.
+                Row(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     if (unallocatedDemand.isNotEmpty()) Box(Modifier.weight(unallocatedDemand.size.toFloat()).fillMaxHeight().background(sk.crit))
                     if (activeBatches.isNotEmpty()) Box(Modifier.weight(activeBatches.size.toFloat()).fillMaxHeight().background(sk.good))
                     if (upcomingBatches.isNotEmpty()) Box(Modifier.weight(upcomingBatches.size.toFloat()).fillMaxHeight().background(sk.sky))
                 }
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                MiniStat("Unallocated", unallocatedDemand.size.toString(), sk.crit)
-                MiniStat("International", internationalBatches.toString(), sk.violet)
-                MiniStat("Active", activeBatches.size.toString(), sk.good)
-                MiniStat("Upcoming", upcomingBatches.size.toString(), sk.sky)
-            }
             if (unallocatedDemand.isNotEmpty()) {
                 Row(
                     Modifier
                         .fillMaxWidth()
+                        .height(46.dp)
                         .clip(RoundedCornerShape(Radii.chip))
-                        .background(Brush.horizontalGradient(listOf(sk.brand, sk.royal)))
+                        .background(sk.royal.copy(alpha = 0.16f))
                         .pressable(onOpenDemand)
-                        .padding(horizontal = Space.md, vertical = 11.dp),
+                        .semantics { contentDescription = "Allocate ${unallocatedDemand.size} open batches" }
+                        .padding(horizontal = Space.md),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(painterResource(R.drawable.ic_flag), contentDescription = null, tint = sk.frost, modifier = Modifier.size(16.dp))
+                    Icon(painterResource(R.drawable.ic_flag), contentDescription = null, tint = sk.sky, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(Space.sm))
-                    Text("Allocate", style = MaterialTheme.typography.labelLarge, color = sk.frost, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text("Allocate", style = MaterialTheme.typography.labelLarge, color = sk.frost, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     Text("${unallocatedDemand.size} open", style = MaterialTheme.typography.labelMedium, color = sk.ice)
                     Spacer(Modifier.width(Space.xs))
-                    Icon(painterResource(R.drawable.ic_chevron), contentDescription = null, tint = sk.frost, modifier = Modifier.size(16.dp))
+                    Icon(painterResource(R.drawable.ic_chevron), contentDescription = null, tint = sk.ice, modifier = Modifier.size(16.dp))
                 }
             }
         }
@@ -510,7 +512,11 @@ fun ManagerCommandCentre(
             if (feed.isEmpty()) {
                 EmptyNote(R.drawable.ic_calendar, sk.subText, "No deliveries scheduled", "No active or upcoming deliveries right now.")
             } else {
-                HorizontalDivider(color = sk.cardBorder)
+                // Real photo URLs come from capability rows; batches only carry the name.
+                val photoByName = remember(capTrainers) {
+                    capTrainers.associate { it.str("trainer_name").lowercase() to it.str("photo_url") }
+                }
+                HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f))
                 Column {
                     feed.forEachIndexed { i, (b, stateLabel) ->
                         val cName = b.str("course_name").ifBlank { "Unnamed course" }
@@ -519,12 +525,19 @@ fun ManagerCommandCentre(
                         TimelineItem(
                             title = cName,
                             modifier = Modifier.pressable { onBatchClick(b.str("demand_id")) },
-                            supportingText = "$trainer · $mode",
                             timestamp = stateLabel,
                             tint = if (stateLabel == "Active now") sk.good else sk.sky,
                             isFirst = i == 0,
                             isLast = i == feed.lastIndex,
-                        )
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (b.str("trainer_name").isNotBlank()) {
+                                    Avatar(name = trainer, photoUrl = photoByName[trainer.lowercase()]?.takeIf { it.isNotBlank() }, size = 22.dp)
+                                    Spacer(Modifier.width(6.dp))
+                                }
+                                Text("$trainer · $mode", style = MaterialTheme.typography.bodySmall, color = sk.subText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
                     }
                 }
             }
@@ -534,8 +547,8 @@ fun ManagerCommandCentre(
         // 8. CERTIFICATION COVERAGE
         // ════════════════════════════════════════════════════════════════════
         if (certCoverage != null) {
-            val certTint = if (certCoverage < 60) sk.warn else sk.violet
-            TodayPanel(title = "Certification coverage", icon = R.drawable.ic_certificate, tint = certTint, onClick = onOpenPriorities) {
+            val certTint = sk.violet
+            TodayPanel(title = "Certification coverage", icon = R.drawable.ic_certificate, tint = certTint, onClick = onOpenPriorities, contentSpacing = Space.sm, bodyPadding = Space.md) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("$certCoverage%", style = MaterialTheme.typography.headlineLarge, color = certTint, fontWeight = FontWeight.Black)
                     Spacer(Modifier.width(Space.md))
@@ -574,9 +587,9 @@ fun ManagerCommandCentre(
         // ════════════════════════════════════════════════════════════════════
         data class OpTile(val title: String, val subtitle: String, val icon: Int, val onClick: () -> Unit)
         val groups = listOf(
-            Triple("Planning", sk.royal, listOf(
+            Triple("Planning", sk.azure, listOf(
                 OpTile("This week", "Priorities, ranked", R.drawable.ic_calendar, onOpenPriorities),
-                OpTile("Pipeline radar", "Signed demand incoming", R.drawable.ic_search, onOpenPipelineRadar),
+                OpTile("Pipeline radar", "Signed demand", R.drawable.ic_search, onOpenPipelineRadar),
                 OpTile("Capacity runway", "8-week demand gap", R.drawable.ic_trend, onOpenCapacityRunway),
             )),
             Triple("Delivery", sk.cyan, listOf(
@@ -584,8 +597,8 @@ fun ManagerCommandCentre(
                 OpTile("Accounts book", "Client concentration", R.drawable.ic_book, onOpenAccounts),
             )),
             Triple("People", sk.sky, listOf(
-                OpTile("HR monthly review", "Trainer index breakdown", R.drawable.ic_people, onOpenHrReport),
-                OpTile("Skill requests", "Reportee-level requests", R.drawable.ic_gap, onOpenSkillRequests),
+                OpTile("HR monthly review", "Trainer index", R.drawable.ic_people, onOpenHrReport),
+                OpTile("Skill requests", "From reportees", R.drawable.ic_gap, onOpenSkillRequests),
             )),
             Triple("Automation", sk.violet, listOf(
                 OpTile("Team copilot", "Ask about your team", R.drawable.ic_inbox, onOpenCopilot),
@@ -594,21 +607,21 @@ fun ManagerCommandCentre(
         )
         TodayPanel(title = "Operations", icon = R.drawable.ic_home, tint = sk.brand, contentSpacing = Space.md) {
             groups.forEach { (domain, domainTint, tiles) ->
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(Radii.chip))
-                        .background(domainTint.copy(alpha = 0.06f))
-                        .border(1.dp, domainTint.copy(alpha = 0.22f), RoundedCornerShape(Radii.chip)),
-                ) {
-                    Row(Modifier.padding(horizontal = Space.md, vertical = Space.sm), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(domainTint))
+                Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(6.dp).clip(CircleShape).background(domainTint))
                         Spacer(Modifier.width(Space.sm))
                         Text(domain.uppercase(), style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.1.em), color = domainTint, fontWeight = FontWeight.Bold)
                     }
-                    tiles.forEach { t ->
-                        HorizontalDivider(color = domainTint.copy(alpha = 0.14f))
-                        OperationRow(t.title, t.subtitle, t.icon, domainTint, t.onClick)
+                    // A 2-column matrix of equal tiles. An odd tile keeps its
+                    // half width; no placeholder tile is invented to fill it.
+                    tiles.chunked(2).forEach { pair ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                            pair.forEach { t ->
+                                OperationTile(t.title, t.subtitle, t.icon, domainTint, Modifier.weight(1f), t.onClick)
+                            }
+                            if (pair.size == 1) Spacer(Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -636,6 +649,9 @@ private fun TodayPanel(
     badge: String? = null,
     onClick: (() -> Unit)? = null,
     contentSpacing: Dp = Space.md,
+    /** Level 1 (Needs you today): accent rail + tinted stroke. Level 2 (default): hairline only. */
+    emphasis: Boolean = false,
+    bodyPadding: Dp = Space.md,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val sk = MaterialTheme.skill
@@ -645,22 +661,25 @@ private fun TodayPanel(
             .fillMaxWidth()
             .clip(shape)
             .background(Brush.verticalGradient(listOf(Color(0xFF172236), Color(0xFF0F1726))))
-            .border(1.dp, Brush.verticalGradient(listOf(tint.copy(alpha = 0.45f), sk.cardBorder.copy(alpha = 0.6f))), shape)
+            .then(
+                if (emphasis) Modifier.border(1.dp, Brush.verticalGradient(listOf(tint.copy(alpha = 0.55f), sk.cardBorder.copy(alpha = 0.6f))), shape)
+                else Modifier.border(1.dp, Color.White.copy(alpha = 0.06f), shape)
+            )
             .then(if (onClick != null) Modifier.pressable(onClick) else Modifier),
     ) {
-        Box(Modifier.fillMaxWidth().height(3.dp).background(Brush.horizontalGradient(listOf(tint, tint.copy(alpha = 0f)))))
+        if (emphasis) Box(Modifier.fillMaxWidth().height(3.dp).background(Brush.horizontalGradient(listOf(tint, tint.copy(alpha = 0f)))))
         Row(
-            Modifier.fillMaxWidth().padding(start = Space.lg, end = Space.lg, top = Space.md, bottom = Space.sm),
+            Modifier.fillMaxWidth().padding(start = Space.md, end = Space.md, top = Space.md, bottom = Space.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconSlot(tint = tint, size = 30.dp) {
-                Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+            IconSlot(tint = tint, size = 28.dp) {
+                Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
             }
             Spacer(Modifier.width(Space.sm))
             Text(
                 title.uppercase(),
-                style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 0.08.em),
-                color = sk.frost, fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp, letterSpacing = 0.08.em),
+                color = sk.frost, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
             if (badge != null) {
@@ -683,12 +702,12 @@ private fun TodayPanel(
             Text(
                 conclusion,
                 style = MaterialTheme.typography.bodyMedium, color = sk.bodyText,
-                modifier = Modifier.padding(start = Space.lg, end = Space.lg, bottom = Space.sm),
+                modifier = Modifier.padding(start = Space.md, end = Space.md, bottom = Space.sm),
             )
         }
-        HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.7f))
+        HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
         Column(
-            Modifier.fillMaxWidth().padding(Space.lg),
+            Modifier.fillMaxWidth().padding(bodyPadding),
             verticalArrangement = Arrangement.spacedBy(contentSpacing),
             content = content,
         )
@@ -713,6 +732,7 @@ private fun HeroStat(label: String, value: String, fraction: Float?, tint: Color
     val sk = MaterialTheme.skill
     Column(
         modifier
+            .fillMaxHeight()
             .clip(RoundedCornerShape(Radii.chip))
             .background(Color.Black.copy(alpha = 0.22f))
             .border(1.dp, tint.copy(alpha = 0.30f), RoundedCornerShape(Radii.chip))
@@ -747,10 +767,9 @@ private fun PulseTile(
     Column(
         modifier
             .clip(RoundedCornerShape(Radii.kpi))
-            .background(Brush.verticalGradient(listOf(icTint.copy(alpha = 0.16f), sk.surface1)))
-            .border(1.dp, icTint.copy(alpha = 0.35f), RoundedCornerShape(Radii.kpi))
+            .background(Brush.verticalGradient(listOf(icTint.copy(alpha = 0.14f), icTint.copy(alpha = 0.03f))))
             .pressable(onClick)
-            .padding(Space.md),
+            .padding(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconSlot(tint = icTint, size = 26.dp) {
@@ -788,61 +807,74 @@ private fun AttentionCard(
         Modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
-            .accentGlass(tint, RoundedCornerShape(Radii.chip), strong = item.severity == Severity.Critical)
+            // Level 3: tonal row inside the level-1 panel — no second border.
+            .clip(RoundedCornerShape(Radii.chip))
+            .background(tint.copy(alpha = if (item.severity == Severity.Critical) 0.10f else 0.06f))
             .pressable(onOpenDemand),
     ) {
-        Box(Modifier.width(5.dp).fillMaxHeight().background(Brush.verticalGradient(listOf(tint, tint.copy(alpha = 0.25f)))))
-        Column(Modifier.weight(1f).padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconSlot(tint = tint, size = 34.dp) {
+        Box(Modifier.width(3.dp).fillMaxHeight().background(tint))
+        Column(Modifier.weight(1f).padding(start = 10.dp, top = 10.dp, end = 8.dp, bottom = if (onAskAvailability != null) 2.dp else 10.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                IconSlot(tint = tint, size = 30.dp) {
                     Icon(
                         painterResource(if (item.severity == Severity.Critical) R.drawable.ic_alert else R.drawable.ic_inbox),
-                        contentDescription = null, tint = tint, modifier = Modifier.size(17.dp),
+                        contentDescription = item.severity.label, tint = tint, modifier = Modifier.size(15.dp),
                     )
                 }
                 Spacer(Modifier.width(Space.sm))
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        item.title,
-                        style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.Bold,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    )
+                    // Long course titles wrap; the action below keeps its own row.
+                    Text(item.title, style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp), color = sk.frost, fontWeight = FontWeight.SemiBold)
                     Text(
                         "${item.severity.label.uppercase()} · ${item.subtitle}",
-                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.06.em),
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.04.em),
                         color = tint, fontWeight = FontWeight.Bold, maxLines = 1,
                     )
-                }
-            }
-            if (onAskAvailability != null) {
-                Spacer(Modifier.height(10.dp))
-                val askLabel = if (item.recipientType == "INDIVIDUAL" && item.recipientName.isNotBlank()) {
-                    "Ask ${item.recipientName.substringBefore(" ")} availability"
-                } else {
-                    "Ask trainer availability"
-                }
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(sk.sky.copy(alpha = 0.14f))
-                        .border(1.dp, sk.sky.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
-                        .pressable(onAskAvailability)
-                        .semantics { contentDescription = askLabel }
-                        .padding(horizontal = 10.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(painterResource(R.drawable.ic_calendar), contentDescription = null, tint = sk.sky, modifier = Modifier.size(15.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        askLabel,
-                        style = MaterialTheme.typography.labelLarge, color = sk.sky, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                    Icon(painterResource(R.drawable.ic_chevron), contentDescription = null, tint = sk.sky, modifier = Modifier.size(15.dp))
+                    if (onAskAvailability != null) {
+                        // A named ask only when the planner resolved a real
+                        // individual; otherwise a neutral "Ask availability".
+                        // Neither claims anyone is free.
+                        val first = item.recipientName.substringBefore(" ")
+                        val named = item.recipientType == "INDIVIDUAL" && first.isNotBlank()
+                        val askLabel = if (named) "Ask $first" else "Ask availability"
+                        // Screen readers get the full intent, not the short visible label.
+                        val askDescription = if (named) "Ask $first availability" else "Ask trainer availability"
+                        Row(
+                            Modifier
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .pressable(onAskAvailability)
+                                .semantics { contentDescription = askDescription },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(painterResource(R.drawable.ic_calendar), contentDescription = null, tint = sk.sky, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(askLabel, style = MaterialTheme.typography.labelLarge, color = sk.sky, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Spacer(Modifier.width(2.dp))
+                            Icon(painterResource(R.drawable.ic_chevron), contentDescription = null, tint = sk.sky, modifier = Modifier.size(14.dp))
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SubHeading(title: String, conclusion: String) {
+    val sk = MaterialTheme.skill
+    Column {
+        Text(title.uppercase(), style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.06.em), color = sk.frost, fontWeight = FontWeight.SemiBold)
+        Text(conclusion, style = MaterialTheme.typography.bodySmall, color = sk.subText)
+    }
+}
+
+@Composable
+private fun DemandStat(label: String, value: Int, tint: Color, modifier: Modifier = Modifier) {
+    val sk = MaterialTheme.skill
+    Column(modifier) {
+        Text(value.toString(), style = MaterialTheme.typography.headlineMedium.copy(fontSize = 28.sp), color = if (value > 0) tint else sk.frost, fontWeight = FontWeight.Bold)
+        Text(label.uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, letterSpacing = 0.sp), color = sk.labelText, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
@@ -928,22 +960,31 @@ private fun PerformerRow(rank: Int, performer: TopPerformer, onClick: () -> Unit
     }
 }
 
+/** Operations matrix tile: tonal icon box, title, one supporting line, corner chevron. */
 @Composable
-private fun OperationRow(title: String, subtitle: String, icon: Int, tint: Color, onClick: () -> Unit) {
+private fun OperationTile(title: String, subtitle: String, icon: Int, tint: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val sk = MaterialTheme.skill
-    Row(
-        Modifier.fillMaxWidth().pressable(onClick).padding(horizontal = Space.md, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Box(
+        modifier
+            .height(108.dp)
+            .clip(RoundedCornerShape(Radii.chip))
+            .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.16f), tint.copy(alpha = 0.03f))))
+            .pressable(onClick)
+            .semantics { contentDescription = "$title, $subtitle" }
+            .padding(12.dp),
     ) {
-        IconSlot(tint = tint, size = 34.dp) {
-            Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(17.dp))
-        }
-        Spacer(Modifier.width(Space.md))
-        Column(Modifier.weight(1f)) {
+        Column {
+            IconSlot(tint = tint, size = 30.dp) {
+                Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+            }
+            Spacer(Modifier.height(8.dp))
             Text(title, style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = sk.subText, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Icon(painterResource(R.drawable.ic_chevron), contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+        Icon(
+            painterResource(R.drawable.ic_chevron), contentDescription = null, tint = tint,
+            modifier = Modifier.align(Alignment.BottomEnd).size(14.dp),
+        )
     }
 }
 
@@ -1015,17 +1056,17 @@ private fun CommunicateAction(icon: Int, label: String, tint: Color, modifier: M
     Column(
         modifier
             .clip(RoundedCornerShape(Radii.chip))
-            .background(Brush.verticalGradient(listOf(tint.copy(alpha = 0.24f), tint.copy(alpha = 0.06f))))
-            .border(1.dp, tint.copy(alpha = 0.45f), RoundedCornerShape(Radii.chip))
+            .background(Brush.verticalGradient(listOf(tint.copy(alpha = 0.18f), tint.copy(alpha = 0.04f))))
             .pressable(onClick)
-            .padding(vertical = Space.md),
+            .semantics { contentDescription = "Communicate: $label" }
+            .padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        IconSlot(tint = tint, size = 32.dp) {
-            Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+        IconSlot(tint = tint, size = 30.dp) {
+            Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
         }
-        Spacer(Modifier.height(6.dp))
-        Text(label, style = MaterialTheme.typography.labelLarge, color = sk.frost, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(5.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = sk.frost, fontWeight = FontWeight.Bold)
     }
 }
 

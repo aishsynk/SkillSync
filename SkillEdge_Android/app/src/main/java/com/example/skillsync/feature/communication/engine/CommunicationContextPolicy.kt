@@ -24,7 +24,8 @@ enum class CommunicationPurpose(val id: String, val displayName: String) {
     CURRICULUM_SHARE("CURRICULUM_SHARE", "Course Curriculum & Reference Share"),
     GENERAL_PROFESSIONAL("GENERAL_PROFESSIONAL", "General Operational Communication"),
     TEAM_PERIODIC_UPDATE("TEAM_PERIODIC_UPDATE", "Team Weekly/Monthly Update"),
-    INDIVIDUAL_PERIODIC_UPDATE("INDIVIDUAL_PERIODIC_UPDATE", "Individual Weekly/Monthly Update");
+    INDIVIDUAL_PERIODIC_UPDATE("INDIVIDUAL_PERIODIC_UPDATE", "Individual Weekly/Monthly Update"),
+    MORNING_TEAM_GREETING("MORNING_TEAM_GREETING", "Weekday Morning Team Greeting");
 
     companion object {
         fun fromId(id: String): CommunicationPurpose =

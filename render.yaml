@@ -10,13 +10,18 @@ services:
     # (gunicorn default is 30s) lets a cold trainer-360 / capability build finish
     # instead of the worker being killed mid-request and returning 502.
     startCommand: gunicorn backend:app --workers 1 --threads 8 --worker-class gthread --timeout 120
-    # Persistent disk so the action inbox, session-revocation denylist and
-    # notification seen-state survive redeploys (Render's default filesystem is
-    # ephemeral and was wiping all three on every deploy).
-    disk:
-      name: skilledge-state
-      mountPath: /var/data
-      sizeGB: 1
+    # HOSTING REALITY (plan: free): 512 MB RAM, 0.1 CPU; the service spins down
+    # after 15 minutes idle; the filesystem is EPHEMERAL; free web services
+    # CANNOT attach persistent disks. The disk below is therefore NOT active on
+    # this plan and is kept commented out — anything written under
+    # SKILLEDGE_STATE_DIR (action inbox, session denylist, notification
+    # seen-state, communication history, SQLite stores) is lost on every
+    # restart, redeploy or spin-down. Re-enable only after moving to a paid
+    # instance type that supports disks:
+    # disk:
+    #   name: skilledge-state
+    #   mountPath: /var/data
+    #   sizeGB: 1
     envVars:
       - key: SKILLEDGE_ENV
         value: production
@@ -24,6 +29,30 @@ services:
         value: /var/data
       - key: PYTHONUNBUFFERED
         value: "true"
+    # ── Communication Intelligence model providers (optional) ─────────────
+    #
+    # COMMUNICATION_PROVIDER_ORDER  comma list of ollama|azure|openai|deterministic
+    #   default (local/dev): ollama,azure,openai,deterministic
+    #   production on this plan: azure,openai,deterministic  (or: deterministic)
+    # Ollama CANNOT run on this service: 512 MB RAM / 0.1 CPU cannot load a
+    # multi-GB model, and the ephemeral filesystem would lose it on every
+    # restart. Use OLLAMA_* only to reach a PRIVATE Ollama host (never public):
+    #   OLLAMA_BASE_URL          e.g. http://10.0.0.5:11434  (scheme://host:port only)
+    #   OLLAMA_MODEL             installed general chat model (honoured if installed)
+    #   OLLAMA_TIMEOUT_SECONDS   default 10, hard cap 20 (interactive requests)
+    #   OLLAMA_KEEP_ALIVE        default 15m (keeps the model loaded between calls)
+    # OLLAMA_MODEL is intentionally unset: no local model has been approved for
+    # SkillSync copy yet. qwen-coder-fast was measured and rejected (2/20 inside
+    # the 10s budget, poor writing). Recommended evaluation order when a local
+    # model is wanted, smallest first:
+    #   1. gemma3:1b   (~815 MB)
+    #   2. llama3.2:3b (~2.0 GB)
+    # The question is not benchmark score: can it write natural SkillSync
+    # manager copy consistently inside the 10s interactive timeout on this CPU?
+    # See AI/INFRA_EPHEMERAL_STATE_AUDIT_2026_09_16.md for the storage follow-up.
+    # Unset OLLAMA_BASE_URL => Ollama skipped with no network call. OpenAI/Azure
+    # use OPENAI_API_KEY / AZURE_OPENAI_* as before.
+    #
     # ── RMS credential env vars (configure as Render secrets via dashboard) ─
     #
     # Every API in _APIS (backend.py) reads its credentials from

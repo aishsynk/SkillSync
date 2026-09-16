@@ -15123,6 +15123,8 @@ def communication_generate():
         "requires_communication": result.requires_communication,
         "no_message_reason": result.no_message_reason,
         "sensitive_facts_removed": result.sensitive_facts_removed,
+        # Diagnostic provenance (provider/model/fallback_used); clients do not display it.
+        "provenance": result.provenance,
         "validation": {
             "passed": result.validation.passed,
             "issues": result.validation.issues,

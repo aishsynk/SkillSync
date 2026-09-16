@@ -1,6 +1,9 @@
 package com.example.skillsync.feature.communication.domain
 
 import com.example.skillsync.feature.communication.engine.CommunicationComposer
+import com.example.skillsync.feature.communication.engine.CommunicationPlanner
+import com.example.skillsync.feature.communication.engine.CommunicationPurpose
+import com.example.skillsync.feature.communication.engine.validateFactualIntegrity
 import com.example.skillsync.feature.communication.engine.ContextSelectionPlan
 import com.example.skillsync.feature.communication.engine.FactItem
 import com.example.skillsync.feature.communication.engine.validate
@@ -26,6 +29,7 @@ import com.example.skillsync.feature.communication.engine.validate
 object ManagerCommunicationComposer {
 
     fun compose(request: CommunicationRequest): String {
+        if (request.purpose == CommunicationPurpose.MORNING_TEAM_GREETING) return composeMorningGreeting(request)
         val facts = mutableListOf<FactItem>()
         request.evidence.currentUtilisation?.let {
             facts += FactItem("current_utilization", it, "VERIFIED_SKILLSYNC_CONTEXT")
@@ -63,6 +67,22 @@ object ManagerCommunicationComposer {
             return factsOnlyFallback(request)
         }
         return text
+    }
+
+    /**
+     * Weekday greeting: planned by [CommunicationPlanner.planMorningGreeting]
+     * (null, and so an empty result, on a weekend) and composed by the same
+     * [CommunicationComposer]. Only the factual-integrity check applies — the
+     * letter-shape rules (greeting line, closing block) do not fit a one-line
+     * note. Output is the greeting alone: no labels and no code fences.
+     */
+    private fun composeMorningGreeting(request: CommunicationRequest): String {
+        val weekday = request.evidence.localWeekday ?: return ""
+        val plan = CommunicationPlanner.planMorningGreeting(
+            weekday, request.evidence.recentGreetings, request.evidence.variation,
+        ) ?: return ""
+        val text = CommunicationComposer.composeFromPlan(plan)
+        return if (validateFactualIntegrity(text, plan).isEmpty()) text.replace("```", "") else ""
     }
 
     private fun factsOnlyFallback(request: CommunicationRequest): String {

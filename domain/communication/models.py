@@ -110,3 +110,5 @@ class GeneratedMessage:
     requires_communication: bool = True
     no_message_reason: Optional[str] = None
     sensitive_facts_removed: List[str] = field(default_factory=list)
+    # Diagnostic only (provider/model/fallback_used/attempts) — never shown to managers.
+    provenance: Dict[str, Any] = field(default_factory=dict)
