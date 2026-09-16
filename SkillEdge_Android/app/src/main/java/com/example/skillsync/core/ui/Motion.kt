@@ -104,8 +104,14 @@ fun Modifier.pressable(
         )
 }
 
+/**
+ * Resolves once from the system "Remove animations" / animator-duration-scale
+ * setting. Every animated primitive in this file consults this instead of
+ * each screen re-implementing its own accessibility check — see
+ * `AI/DECISIONS.md`, "Reduced motion — centralized, not scattered."
+ */
 @Composable
-private fun animatorScaleIsZero(): Boolean {
+fun rememberReducedMotion(): Boolean {
     val context = androidx.compose.ui.platform.LocalContext.current
     return remember {
         try {
@@ -120,6 +126,9 @@ private fun animatorScaleIsZero(): Boolean {
     }
 }
 
+@Composable
+private fun animatorScaleIsZero(): Boolean = rememberReducedMotion()
+
 /**
  * Fades and lifts its content into place once, [index]-staggered. Safe inside
  * LazyColumn items — each item runs its own one-shot animation on first compose.
@@ -130,14 +139,16 @@ fun Appear(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    var shown by remember { mutableStateOf(false) }
+    val reduceMotion = rememberReducedMotion()
+    var shown by remember { mutableStateOf(reduceMotion) }
     LaunchedEffect(Unit) {
+        if (reduceMotion) return@LaunchedEffect
         delay(Motion.stagger(index).toLong())
         shown = true
     }
     val p by animateFloatAsState(
         targetValue = if (shown) 1f else 0f,
-        animationSpec = tween(Motion.SLOW, easing = Motion.Emphasized),
+        animationSpec = tween(if (reduceMotion) 0 else Motion.SLOW, easing = Motion.Emphasized),
         label = "appear",
     )
     Box(
@@ -152,19 +163,24 @@ fun Appear(
  * Progress that grows from zero the first time it is drawn. A plain
  * `animateFloatAsState` seeds its animator with the initial target, so it would
  * snap straight to the final value and never animate on first composition.
+ * Resolves immediately to [target] when the system has reduced motion on.
  */
 @Composable
 fun animateProgressFromZero(target: Float, durationMillis: Int = 850): State<Float> {
-    var start by remember { mutableStateOf(false) }
+    val reduceMotion = rememberReducedMotion()
+    var start by remember { mutableStateOf(reduceMotion) }
     LaunchedEffect(Unit) { start = true }
     return animateFloatAsState(
         targetValue = if (start) target.coerceIn(0f, 1f) else 0f,
-        animationSpec = tween(durationMillis, easing = Motion.Emphasized),
+        animationSpec = tween(if (reduceMotion) 0 else durationMillis, easing = Motion.Emphasized),
         label = "progress",
     )
 }
 
-/** Counts from zero to [target] so KPI numbers land with weight instead of blinking in. */
+/**
+ * Counts from zero to [target] so KPI numbers land with weight instead of
+ * blinking in. Resolves immediately when the system has reduced motion on.
+ */
 @Composable
 fun AnimatedCount(
     target: Int,
@@ -173,11 +189,12 @@ fun AnimatedCount(
     modifier: Modifier = Modifier,
     suffix: String = "",
 ) {
-    var start by remember { mutableStateOf(false) }
+    val reduceMotion = rememberReducedMotion()
+    var start by remember { mutableStateOf(reduceMotion) }
     LaunchedEffect(target) { start = true }
     val v by animateFloatAsState(
         targetValue = if (start) target.toFloat() else 0f,
-        animationSpec = tween(900, easing = Motion.Emphasized),
+        animationSpec = tween(if (reduceMotion) 0 else 900, easing = Motion.Emphasized),
         label = "count",
     )
     Text("${v.toInt()}$suffix", style = style, color = color, modifier = modifier)

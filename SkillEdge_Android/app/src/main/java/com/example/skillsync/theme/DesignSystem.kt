@@ -13,6 +13,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import com.example.skillsync.core.ui.pressable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -338,21 +339,33 @@ fun SkillCard(
     modifier: Modifier = Modifier,
     severity: Severity? = null,
     strong: Boolean = false,
+    onClick: (() -> Unit)? = null,
     padding: Dp = Space.lg,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val base = if (severity == null) {
-        Modifier.glassSurface()
-    } else {
-        Modifier.accentGlass(severity.tint(), strong = strong)
-    }
     Column(
         modifier
-            .then(base)
+            .cardSurface(severity, strong, onClick)
             .padding(padding),
         verticalArrangement = Arrangement.spacedBy(Space.md),
         content = content,
     )
+}
+
+/**
+ * The severity-aware glass surface + optional press affordance shared by
+ * [SkillCard] and `SkillSyncCard` (`theme/SkillSyncComponents.kt`) — pulled
+ * out so the two card entry points can't drift into two different-looking
+ * surfaces. See `AI/DECISIONS.md`, Design V3 Phase 1 card consolidation.
+ */
+@Composable
+internal fun Modifier.cardSurface(severity: Severity?, strong: Boolean, onClick: (() -> Unit)?): Modifier {
+    val base = if (severity == null) {
+        this.glassSurface()
+    } else {
+        this.accentGlass(severity.tint(), strong = strong)
+    }
+    return if (onClick != null) base.pressable(onClick = onClick) else base
 }
 
 // ── States ──────────────────────────────────────────────────────────────────

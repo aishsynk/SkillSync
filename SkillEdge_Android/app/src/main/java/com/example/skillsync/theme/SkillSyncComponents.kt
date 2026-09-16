@@ -1,6 +1,7 @@
 package com.example.skillsync.theme
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -238,6 +239,12 @@ fun SkillSyncSection(
 
 // ── Cards ───────────────────────────────────────────────────────────────────
 
+/**
+ * Thin wrapper over [SkillCard]'s surface (same `glassSurface`/`accentGlass`
+ * primitives via the shared `Modifier.cardSurface()`) — kept as its own entry
+ * point because call sites expect `Space.sm` internal spacing rather than
+ * `SkillCard`'s `Space.md`. See `AI/DECISIONS.md`, Design V3 Phase 1.
+ */
 @Composable
 fun SkillSyncCard(
     modifier: Modifier = Modifier,
@@ -247,22 +254,9 @@ fun SkillSyncCard(
     padding: Dp = Space.lg,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val baseModifier = if (severity == null) {
-        Modifier.glassSurface()
-    } else {
-        Modifier.accentGlass(severity.tint(), strong = strong)
-    }
-
-    val clickModifier = if (onClick != null) {
-        Modifier.pressable(onClick = onClick)
-    } else {
-        Modifier
-    }
-
     Column(
         modifier = modifier
-            .then(baseModifier)
-            .then(clickModifier)
+            .cardSurface(severity, strong, onClick)
             .padding(padding),
         verticalArrangement = Arrangement.spacedBy(Space.sm),
         content = content,
@@ -647,11 +641,17 @@ fun SegmentedSelector(
     ) {
         options.forEach { (key, label) ->
             val isSelected = key == selected
+            // snappy — small discrete-state selection change, see SkillMotion.
+            val bg by animateColorAsState(
+                if (isSelected) sk.brand.copy(alpha = 0.22f) else Color.Transparent,
+                animationSpec = com.example.skillsync.theme.SkillMotion.snappy(),
+                label = "segment-bg",
+            )
             Box(
                 Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(Radii.chip - 2.dp))
-                    .background(if (isSelected) sk.brand.copy(alpha = 0.22f) else Color.Transparent)
+                    .background(bg)
                     .pressable { onSelect(key) }
                     .padding(vertical = Space.sm),
                 contentAlignment = Alignment.Center,

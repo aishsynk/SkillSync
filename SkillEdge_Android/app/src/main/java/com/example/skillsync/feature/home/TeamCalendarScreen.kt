@@ -1,5 +1,11 @@
 package com.example.skillsync.feature.home
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -319,7 +325,18 @@ fun TeamCalendarScreen(
         )
 
         // ── Active View Rendering ────────────────────────────────────────────
-        when (viewMode) {
+        // Month/Week/Day switch is a discrete-state change — crossfade rather
+        // than snap, so the segmented selection above reads as driving this
+        // content instead of two unrelated UI updates.
+        AnimatedContent(
+            targetState = viewMode,
+            transitionSpec = {
+                fadeIn(tween(180)).togetherWith(fadeOut(tween(120)))
+            },
+            label = "calendar-view-mode",
+        ) { mode ->
+        Column(verticalArrangement = Arrangement.spacedBy(Space.md)) {
+        when (mode) {
             CalendarViewMode.MONTH -> {
                 SpanningMonthCalendarGrid(
                     yearMonth = currentYearMonth,
@@ -369,6 +386,8 @@ fun TeamCalendarScreen(
                     onEventClick = { inspectedEvent = it },
                 )
             }
+        }
+        }
         }
 
         // Event Inspection Bottom Sheet / Dialog
@@ -423,33 +442,15 @@ private fun CalendarTopHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Segmented View Mode Tabs (Month | Week | Day)
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = sk.cardBg,
-                border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-            ) {
-                Row(modifier = Modifier.padding(3.dp)) {
-                    CalendarViewMode.values().take(3).forEach { mode ->
-                        val isSelected = viewMode == mode
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(if (isSelected) sk.brand else Color.Transparent)
-                                .clickable { onViewModeChange(mode) }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                mode.label,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (isSelected) sk.frost else sk.subText,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            )
-                        }
-                    }
-                }
-            }
+            // Segmented View Mode Tabs (Month | Week | Day) — canonical
+            // SegmentedSelector, not a screen-local reimplementation. See
+            // AI/DECISIONS.md, Design V3 Phase 1 component consolidation.
+            com.example.skillsync.theme.SegmentedSelector(
+                options = CalendarViewMode.values().take(3).map { it.name to it.label },
+                selected = viewMode.name,
+                onSelect = { key -> onViewModeChange(CalendarViewMode.valueOf(key)) },
+                modifier = Modifier.width(200.dp),
+            )
 
             // Month / Range Title
             Text(
@@ -682,18 +683,23 @@ private fun MonthWeekRow(
                 val isToday = dayDate == LocalDate.now()
                 val isSelected = dayDate == selectedDate
                 val isWeekend = dayOffset == 0 || dayOffset == 6
+                // snappy — the selected-day highlight is a small discrete
+                // state change, not content entrance.
+                val dayBg by animateColorAsState(
+                    when {
+                        isSelected -> sk.brand.copy(alpha = 0.35f)
+                        isToday -> sk.cyan.copy(alpha = 0.15f)
+                        else -> Color.Transparent
+                    },
+                    animationSpec = com.example.skillsync.theme.SkillMotion.snappy(),
+                    label = "day-select-bg",
+                )
 
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(
-                            when {
-                                isSelected -> sk.brand.copy(alpha = 0.35f)
-                                isToday -> sk.cyan.copy(alpha = 0.15f)
-                                else -> Color.Transparent
-                            }
-                        )
+                        .background(dayBg)
                         .clickable { onDateSelected(dayDate) }
                         .padding(vertical = 2.dp, horizontal = 2.dp),
                     contentAlignment = Alignment.Center,

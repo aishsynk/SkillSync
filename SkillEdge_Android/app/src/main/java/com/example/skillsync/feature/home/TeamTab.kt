@@ -280,11 +280,14 @@ internal fun TeamTab(
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    ExecutiveMiniMetric(label = "STRENGTH", value = "$totalTrainers", tint = sk.cyan)
-                    ExecutiveMiniMetric(label = "DELIVERING", value = "$deliveringTrainers", tint = sk.good)
-                    ExecutiveMiniMetric(label = "ON BENCH", value = "$benchTrainers", tint = sk.warn)
-                    ExecutiveMiniMetric(label = "AVG UTIL", value = avgUtil?.let { "$it%" } ?: "—", tint = sk.sky)
-                    ExecutiveMiniMetric(label = "CERT GAPS", value = "$totalGaps", tint = if (totalGaps > 0) sk.crit else sk.good)
+                    ExecutiveMiniMetric(label = "STRENGTH", value = "$totalTrainers", tint = sk.cyan, animatedValue = totalTrainers)
+                    ExecutiveMiniMetric(label = "DELIVERING", value = "$deliveringTrainers", tint = sk.good, animatedValue = deliveringTrainers)
+                    ExecutiveMiniMetric(label = "ON BENCH", value = "$benchTrainers", tint = sk.warn, animatedValue = benchTrainers)
+                    ExecutiveMiniMetric(
+                        label = "AVG UTIL", value = avgUtil?.let { "$it%" } ?: "—", tint = sk.sky,
+                        animatedValue = avgUtil, animatedSuffix = "%",
+                    )
+                    ExecutiveMiniMetric(label = "CERT GAPS", value = "$totalGaps", tint = if (totalGaps > 0) sk.crit else sk.good, animatedValue = totalGaps)
                 }
 
                 Spacer(Modifier.height(10.dp))
@@ -390,29 +393,47 @@ internal fun TeamTab(
             }
         }
         val rows = shown.chunked(columns)
-        itemsIndexed(rows) { rowIndex, pair ->
-            Appear(rowIndex) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    pair.forEach { t ->
-                        Box(Modifier.weight(1f)) {
-                            TeamMemberCard(
-                                trainer = t,
-                                state = stateMap[t.str("official_email").lowercase()],
-                                capability = capMap[t.str("official_email").lowercase()],
-                                delivery = deliveryMap[t.str("official_email").lowercase()],
-                                openActionCount = actionsByTrainer[t.str("official_email").lowercase()]?.size ?: 0,
-                                calendarAvailability = readiness[t.str("official_email").lowercase()],
-                            ) {
-                                onTrainerClick(t.str("official_email"), t.str("trainer_name"))
+        itemsIndexed(
+            rows,
+            // Stable identity per row (email, not position) so a filter/sort
+            // change reorders the same composable instances instead of
+            // recomposing different trainers into the same slot — that
+            // stability is what makes animateItem() below animate a real
+            // reorder rather than a content swap.
+            key = { _, pair -> pair.joinToString("|") { it.str("official_email") } },
+        ) { rowIndex, pair ->
+            // animateItem() on the outer Row animates a reorder (this row
+            // moving to a new position when sort/filter changes); Appear
+            // inside it is the one-shot fade/lift a genuinely new row plays
+            // on its first composition — the two answer different questions
+            // and don't fight each other.
+            Row(
+                Modifier.fillMaxWidth().animateItem(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Appear(rowIndex) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        pair.forEach { t ->
+                            Box(Modifier.weight(1f)) {
+                                TeamMemberCard(
+                                    trainer = t,
+                                    state = stateMap[t.str("official_email").lowercase()],
+                                    capability = capMap[t.str("official_email").lowercase()],
+                                    delivery = deliveryMap[t.str("official_email").lowercase()],
+                                    openActionCount = actionsByTrainer[t.str("official_email").lowercase()]?.size ?: 0,
+                                    calendarAvailability = readiness[t.str("official_email").lowercase()],
+                                ) {
+                                    onTrainerClick(t.str("official_email"), t.str("trainer_name"))
+                                }
                             }
                         }
+                        // Keeps a lone trailing card at half width instead of
+                        // letting it stretch across the row.
+                        if (columns > 1 && pair.size == 1) Spacer(Modifier.weight(1f))
                     }
-                    // Keeps a lone trailing card at half width instead of
-                    // letting it stretch across the row.
-                    if (columns > 1 && pair.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
@@ -871,6 +892,13 @@ internal fun ExecutiveMiniMetric(
     value: String,
     tint: Color,
     modifier: Modifier = Modifier,
+    /** When set, the value counts up from zero instead of rendering the
+     * plain string — only for prominent metrics where the transition adds
+     * clarity (team size, delivering count, avg utilisation), never for
+     * IDs/dates/course codes. Leave null and use [value] for a "—" or any
+     * other non-numeric display. */
+    animatedValue: Int? = null,
+    animatedSuffix: String = "",
 ) {
     val sk = MaterialTheme.skill
     Surface(
@@ -883,12 +911,21 @@ internal fun ExecutiveMiniMetric(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                value,
-                style = MaterialTheme.typography.titleMedium,
-                color = tint,
-                fontWeight = FontWeight.Bold,
-            )
+            if (animatedValue != null) {
+                com.example.skillsync.core.ui.AnimatedCount(
+                    target = animatedValue,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = tint,
+                    suffix = animatedSuffix,
+                )
+            } else {
+                Text(
+                    value,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = tint,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall,
