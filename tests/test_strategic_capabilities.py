@@ -116,6 +116,25 @@ class StrategicCapabilitiesTests(unittest.TestCase):
             self.assertIn("Hello Trainer", delivery["nudge_message"])
             self.assertIn("AZ-305", delivery["nudge_message"])
 
+    def test_compliance_rate_is_not_reported_when_there_is_nothing_to_audit(self):
+        """No active delivery means no denominator: the rate must be null, never 100%.
+
+        Presenting absence of data as perfect compliance is the defect this pins.
+        """
+        def mock_rms(api, body, *a, **k):
+            if api == "reportees":
+                return [{"OffEmail": T1, "TrainerName": "Trainer One"}]
+            return []          # no current batches, no recordings
+
+        with patch.object(backend, "_rms", side_effect=mock_rms):
+            resp = self.client.get("/api/v2/delivery/compliance", headers=self.headers)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(data["total_active"], 0)
+        self.assertEqual(data["active_deliveries"], [])
+        self.assertIsNone(data["compliance_rate_percent"])
+        self.assertNotEqual(data["compliance_rate_percent"], 100.0)
+
     def test_skill_endorsement_enforces_manager_scope_and_updates_devplan(self):
         """Test 1-Tap IDP Skill Endorsement enforces reportee scope and updates DevPlan."""
         # Create a pending dev plan item for T1

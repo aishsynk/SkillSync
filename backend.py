@@ -14478,7 +14478,10 @@ def _delivery_compliance_build(manager_email: str) -> dict:
     compliant_count = sum(1 for d in active_deliveries if d["compliance_status"] == "COMPLIANT")
     violations_count = sum(1 for d in active_deliveries if d["compliance_status"] == "RECORDING_MISSING_URGENT")
     at_risk_count = sum(1 for d in active_deliveries if d["compliance_status"] == "PENDING_TODAY")
-    compliance_rate = round((compliant_count / total_active * 100), 1) if total_active > 0 else 100.0
+    # No active delivery means there is nothing to audit, which is not 100%
+    # compliance. The rate stays null so the client shows N/A rather than
+    # presenting absence of data as perfect performance.
+    compliance_rate = round((compliant_count / total_active * 100), 1) if total_active > 0 else None
 
     return {
         "active_deliveries": active_deliveries,
