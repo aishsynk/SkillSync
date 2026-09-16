@@ -922,7 +922,9 @@ internal fun DashboardTab(
             start = com.example.skillsync.theme.Layout.gutter,
             end = com.example.skillsync.theme.Layout.gutter,
             top = com.example.skillsync.theme.Space.xs,
-            bottom = com.example.skillsync.theme.Space.xxl,
+            // The Scaffold already ends this list above the bottom bar, so the
+            // list only needs breathing room, not a second nav-sized gap.
+            bottom = com.example.skillsync.theme.Space.md,
         ),
         verticalArrangement = Arrangement.spacedBy(com.example.skillsync.theme.Layout.section)
     ) {
@@ -969,7 +971,6 @@ internal fun DashboardTab(
             }
         }
 
-        item { Spacer(Modifier.height(16.dp)) }
     }
 }
 

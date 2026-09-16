@@ -1059,14 +1059,14 @@ private fun CommunicateAction(icon: Int, label: String, tint: Color, modifier: M
             .background(Brush.verticalGradient(listOf(tint.copy(alpha = 0.18f), tint.copy(alpha = 0.04f))))
             .pressable(onClick)
             .semantics { contentDescription = "Communicate: $label" }
-            .padding(vertical = Space.sm),
+            .padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        IconSlot(tint = tint, size = 32.dp) {
-            Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+        IconSlot(tint = tint, size = 30.dp) {
+            Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
         }
-        Spacer(Modifier.height(6.dp))
-        Text(label, style = MaterialTheme.typography.labelLarge, color = sk.frost, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(5.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = sk.frost, fontWeight = FontWeight.Bold)
     }
 }
 
