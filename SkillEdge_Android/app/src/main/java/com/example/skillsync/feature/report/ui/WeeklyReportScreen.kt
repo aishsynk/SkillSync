@@ -284,82 +284,47 @@ fun WeeklyReportScreen(
                                             onValueChange = { teamMyMessage = it; teamRewritten = "" },
                                             placeholder = "A point to emphasise — verified team facts are always included",
                                         )
-                                        // Inline rewrite preview
-                                        if (teamRewritten.isNotBlank()) {
-                                            com.example.skillsync.feature.communication.ui.ComposerStageLabel(
-                                                3, "Generated message", com.example.skillsync.feature.communication.ui.ComposerTints.generated,
-                                            )
-                                            SelectionContainer {
-                                                Text(
-                                                    teamRewritten,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = sk.bodyText,
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .background(sk.surface1, RoundedCornerShape(Radii.chip))
-                                                        .padding(10.dp),
+                                        com.example.skillsync.feature.communication.ui.ComposerStageLabel(
+                                            3, "Generated message", com.example.skillsync.feature.communication.ui.ComposerTints.generated,
+                                        )
+                                        // Server-composed brief when generated; the report's
+                                        // deterministic digest until then. The preview renders
+                                        // the Viber markers, Copy/Share send the raw payload.
+                                        val teamMessage = teamRewritten.ifBlank {
+                                            if (weekendSelected) repData.teamDigestWeekend else repData.teamDigest
+                                        }
+                                        val generateTeamBrief: () -> Unit = {
+                                            teamRewriting = true
+                                            teamScope.launch {
+                                                val request = com.example.skillsync.feature.communication.domain.CommunicationRequest(
+                                                    audience = com.example.skillsync.feature.communication.domain.CommunicationAudience(
+                                                        type = com.example.skillsync.feature.communication.domain.CommunicationAudienceType.TEAM,
+                                                    ),
+                                                    purpose = com.example.skillsync.feature.communication.engine.CommunicationPurpose.WEEKLY_TEAM_BRIEF,
+                                                    cadence = if (weekendSelected) "weekend" else "weekly",
+                                                    managerInstruction = teamMyMessage,
                                                 )
+                                                val result = vm.composeMessage(request)
+                                                teamRewritten = result.text
+                                                notify.success(if (result.fromServer) "Message composed" else "Composed locally (offline)")
+                                                teamRewriting = false
                                             }
                                         }
-                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            FilledTonalButton(
-    onClick = {
-                                                    teamRewriting = true
-                                                    teamScope.launch {
-                                                        val request = com.example.skillsync.feature.communication.domain.CommunicationRequest(
-                                                            audience = com.example.skillsync.feature.communication.domain.CommunicationAudience(
-                                                                type = com.example.skillsync.feature.communication.domain.CommunicationAudienceType.TEAM,
-                                                            ),
-                                                            purpose = com.example.skillsync.feature.communication.engine.CommunicationPurpose.TEAM_PERIODIC_UPDATE,
-                                                            cadence = if (weekendSelected) "weekend" else "weekly",
-                                                            managerInstruction = teamMyMessage,
-                                                        )
-                                                        val result = vm.composeMessage(request)
-                                                        teamRewritten = result.text
-                                                        notify.success(if (result.fromServer) "Message composed" else "Composed locally (offline)")
-                                                        teamRewriting = false
-                                                    }
-                                                },
-                                                modifier = Modifier.weight(1f),
-                                                enabled = !teamRewriting,
-                                                shape = RoundedCornerShape(Radii.chip),
-                                                colors = ButtonDefaults.filledTonalButtonColors(
-                                                    containerColor = sk.brand.copy(alpha = 0.85f),
-                                                    contentColor = Color.White,
-                                                ),
-                                            ) {
-                                                if (teamRewriting) CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = Color.White)
-                                                else Text(if (teamRewritten.isBlank()) "Rewrite for Teams" else "Rewrite Again", style = MaterialTheme.typography.labelMedium)
-                                            }
-                                            FilledTonalButton(
-                                                onClick = {
-                                                    val source = teamRewritten.ifBlank {
-                                                        if (teamMyMessage.isBlank())
-                                                            (if (weekendSelected) repData.teamDigestWeekend else repData.teamDigest)
-                                                        else vm.composeMessageOffline(
-                                                            com.example.skillsync.feature.communication.domain.CommunicationRequest(
-                                                                audience = com.example.skillsync.feature.communication.domain.CommunicationAudience(
-                                                                    type = com.example.skillsync.feature.communication.domain.CommunicationAudienceType.TEAM,
-                                                                ),
-                                                                purpose = com.example.skillsync.feature.communication.engine.CommunicationPurpose.TEAM_PERIODIC_UPDATE,
-                                                                cadence = if (weekendSelected) "weekend" else "weekly",
-                                                                managerInstruction = teamMyMessage,
-                                                            ),
-                                                        )
-                                                    }
-                                                    copyToClipboard(context, "Team Digest", source)
-                                                    notify.success("Copied broadcast message")
-                                                },
-                                                modifier = Modifier.weight(1f),
-                                                shape = RoundedCornerShape(Radii.chip),
-                                                colors = ButtonDefaults.filledTonalButtonColors(
-                                                    containerColor = sk.brand.copy(alpha = 0.25f),
-                                                    contentColor = sk.ice,
-                                                ),
-                                            ) {
-                                                Text("Copy Broadcast", style = MaterialTheme.typography.labelMedium)
-                                            }
-                                        }
+                                        com.example.skillsync.feature.communication.ui.MessageReviewCard(
+                                            text = teamMessage,
+                                            busy = teamRewriting,
+                                            onTextChange = { teamRewritten = it },
+                                            onRegenerate = generateTeamBrief,
+                                            onCopy = {
+                                                copyToClipboard(context, "Team Digest", teamMessage)
+                                                notify.success("Copied for Teams or Viber")
+                                            },
+                                            onShare = {
+                                                // Share sheet only hands the text to another app.
+                                                com.example.skillsync.feature.training.ui.BatchShare.shareAnywhere(context, teamMessage)
+                                                notify.success("Shared externally")
+                                            },
+                                        )
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             OutlinedButton(
                                                 onClick = {
@@ -720,31 +685,21 @@ private fun WeeklyReporteeLiveCard(
                         sk = sk,
                     )
                 }
-                SelectionContainer {
-                    Text(
-                        activeText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = sk.bodyText,
-                    )
-                }
+                com.example.skillsync.feature.communication.ui.MessageReviewCard(
+                    text = activeText,
+                    busy = rewriting,
+                    onTextChange = { rewritten = it },
+                    onRegenerate = null,   // generated from the expanded composer below
+                    onCopy = {
+                        copyToClipboard(context, rep.name, activeText)
+                        notify.success("Copied " + rep.name.substringBefore(" ") + "'s message")
+                    },
+                    onShare = {
+                        com.example.skillsync.feature.training.ui.BatchShare.shareAnywhere(context, activeText)
+                        notify.success("Shared externally")
+                    },
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(
-                        onClick = {
-                            copyToClipboard(context, rep.name, activeText)
-                            notify.success("Copied ${rep.name.substringBefore(" ")}'s message")
-                        },
-                        shape = RoundedCornerShape(Radii.chip),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = sk.brand.copy(alpha = 0.85f),
-                            contentColor = Color.White,
-                        ),
-                    ) {
-                        Text(
-                            if (style == MessageStyle.TEAMS) "Copy for Teams" else "Copy for Viber",
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
-
                     OutlinedButton(
                         onClick = {
                             val outboxItem = com.example.skillsync.core.storage.ViberOutboxItem(
@@ -759,12 +714,14 @@ private fun WeeklyReporteeLiveCard(
                             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                                 com.example.skillsync.feature.viber.ViberDispatcher.dispatchBatch(context, managerEmail, listOf(outboxItem))
                             }
-                            notify.success("Auto-sending ${rep.name.substringBefore(" ")}'s message to Viber...")
+                            // Queued, not sent: delivery is only claimed when a
+                            // transport confirms it (see the Viber outbox).
+                            notify.success("Queued for Viber dispatch")
                         },
                         shape = RoundedCornerShape(Radii.chip),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66818CF8)),
                     ) {
-                        Text("Auto-Send", style = MaterialTheme.typography.labelMedium, color = Color(0xFF818CF8))
+                        Text("Queue for Viber", style = MaterialTheme.typography.labelMedium, color = Color(0xFF818CF8))
                     }
                 }
             }
@@ -797,7 +754,7 @@ private fun WeeklyReporteeLiveCard(
                                             name = rep.name,
                                             email = rep.email,
                                         ),
-                                        purpose = com.example.skillsync.feature.communication.engine.CommunicationPurpose.INDIVIDUAL_PERIODIC_UPDATE,
+                                        purpose = com.example.skillsync.feature.communication.engine.CommunicationPurpose.WEEKLY_REPORTEE_BRIEF,
                                         cadence = if (weekendSelected) "weekend" else "weekly",
                                         evidence = com.example.skillsync.feature.communication.domain.CommunicationEvidence(
                                             currentUtilisation = rep.currentUtilization,

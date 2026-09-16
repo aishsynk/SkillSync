@@ -24,12 +24,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -41,6 +36,7 @@ import com.example.skillsync.R
 import com.example.skillsync.feature.communication.ui.MorningNoteAction
 import com.example.skillsync.feature.communication.ui.MorningNoteState
 import com.example.skillsync.feature.communication.ui.MorningNoteViewModel
+import com.example.skillsync.feature.communication.ui.viberAnnotated
 import com.example.skillsync.feature.training.ui.BatchShare
 import com.example.skillsync.theme.IconSlot
 import com.example.skillsync.theme.Radii
@@ -121,7 +117,7 @@ internal fun MorningNoteContent(
                 }
                 state.text.isBlank() -> Text("Couldn't compose a note right now.", style = MaterialTheme.typography.bodyMedium, color = sk.subText)
                 // Preview only: paragraph break tightened to one line to keep the card compact.
-                else -> Text(viberPreview(state.text.replace("\n\n", "\n")), style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
+                else -> Text(viberAnnotated(state.text.replace("\n\n", "\n")), style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
             }
         }
 
@@ -151,21 +147,4 @@ private fun NoteAction(icon: Int, label: String, tint: Color, enabled: Boolean, 
         Spacer(Modifier.width(5.dp))
         Text(label, style = MaterialTheme.typography.labelMedium, color = tint.copy(alpha = alpha), fontWeight = FontWeight.SemiBold)
     }
-}
-
-/** Renders Viber/WhatsApp markers (*bold*, _italic_, ~strike~) for the preview only. */
-internal fun viberPreview(raw: String): AnnotatedString = buildAnnotatedString {
-    val marker = Regex("""([*_~])([^*_~\n]+)\1""")
-    var last = 0
-    marker.findAll(raw).forEach { m ->
-        append(raw.substring(last, m.range.first))
-        val style = when (m.groupValues[1]) {
-            "*" -> SpanStyle(fontWeight = FontWeight.Bold)
-            "_" -> SpanStyle(fontStyle = FontStyle.Italic)
-            else -> SpanStyle(textDecoration = TextDecoration.LineThrough)
-        }
-        pushStyle(style); append(m.groupValues[2]); pop()
-        last = m.range.last + 1
-    }
-    append(raw.substring(last))
 }

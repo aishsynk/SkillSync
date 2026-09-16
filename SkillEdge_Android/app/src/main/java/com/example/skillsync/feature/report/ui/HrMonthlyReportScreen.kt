@@ -68,6 +68,10 @@ fun HrMonthlyReportScreen(
     var inspectingReportee by remember { mutableStateOf<ReporteeSnapshot?>(null) }
     // Screen-level message cadence: false = "This month", true = "Month end".
     var monthendSelected by rememberSaveable { mutableStateOf(false) }
+    // Server-composed MONTHLY_TEAM_REVIEW; blank until the manager regenerates.
+    var teamReview by rememberSaveable { mutableStateOf("") }
+    var teamReviewBusy by remember { mutableStateOf(false) }
+    val teamScope = rememberCoroutineScope()
 
     Box(Modifier.fillMaxSize()) {
         AuroraBackground()
@@ -186,12 +190,33 @@ fun HrMonthlyReportScreen(
 
                         item {
                             HrTeamMessageCard(
-                                message = if (monthendSelected) data.teamDigestMonthend else data.teamDigestMonthly,
+                                message = teamReview.ifBlank {
+                                    if (monthendSelected) data.teamDigestMonthend else data.teamDigestMonthly
+                                },
                                 monthendSelected = monthendSelected,
-                                onCadenceChange = { monthendSelected = it },
+                                onCadenceChange = { monthendSelected = it; teamReview = "" },
                                 onCopy = { text ->
                                     copyToClipboard(context, text)
                                     notify.success("Copied team message")
+                                },
+                                busy = teamReviewBusy,
+                                onTextChange = { teamReview = it },
+                                onRegenerate = {
+                                    teamReviewBusy = true
+                                    teamScope.launch {
+                                        val result = vm.composeMessage(
+                                            com.example.skillsync.feature.communication.domain.CommunicationRequest(
+                                                audience = com.example.skillsync.feature.communication.domain.CommunicationAudience(
+                                                    type = com.example.skillsync.feature.communication.domain.CommunicationAudienceType.TEAM,
+                                                ),
+                                                purpose = com.example.skillsync.feature.communication.engine.CommunicationPurpose.MONTHLY_TEAM_REVIEW,
+                                                cadence = if (monthendSelected) "monthend" else "monthly",
+                                            ),
+                                        )
+                                        teamReview = result.text
+                                        notify.success(if (result.fromServer) "Review composed" else "Composed locally (offline)")
+                                        teamReviewBusy = false
+                                    }
                                 },
                                 sk = sk,
                             )
@@ -366,6 +391,9 @@ private fun HrTeamMessageCard(
     onCadenceChange: (Boolean) -> Unit,
     onCopy: (String) -> Unit,
     sk: SkillColors,
+    busy: Boolean = false,
+    onTextChange: ((String) -> Unit)? = null,
+    onRegenerate: (() -> Unit)? = null,
 ) {
     SkillCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -383,23 +411,21 @@ private fun HrTeamMessageCard(
                     sk = sk,
                 )
             }
-            androidx.compose.foundation.text.selection.SelectionContainer {
-                Text(
-                    message.ifBlank { "No message from RMS for this period yet." },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = sk.bodyText,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(sk.surface1, RoundedCornerShape(8.dp))
-                        .padding(10.dp),
+            if (message.isBlank()) {
+                Text("No message for this period yet.", style = MaterialTheme.typography.bodyMedium, color = sk.subText)
+            } else {
+                val shareContext = androidx.compose.ui.platform.LocalContext.current
+                com.example.skillsync.feature.communication.ui.MessageReviewCard(
+                    text = message,
+                    busy = busy,
+                    onTextChange = onTextChange,
+                    onRegenerate = onRegenerate,
+                    onCopy = { onCopy(message) },
+                    onShare = {
+                        // Share sheet hands the text to another app — external, not sent.
+                        com.example.skillsync.feature.training.ui.BatchShare.shareAnywhere(shareContext, message)
+                    },
                 )
-            }
-            FilledTonalButton(
-                onClick = { onCopy(message) },
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.filledTonalButtonColors(containerColor = sk.brand.copy(alpha = 0.85f), contentColor = Color.White),
-            ) {
-                Text("Copy for Teams", style = MaterialTheme.typography.labelMedium)
             }
         }
     }
@@ -576,19 +602,19 @@ private fun ReporteeSnapshotCard(
                             sk = sk,
                         )
                     }
-                    androidx.compose.foundation.text.selection.SelectionContainer {
-                        Text(shown, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText)
-                    }
-                    FilledTonalButton(
-                        onClick = {
+                    com.example.skillsync.feature.communication.ui.MessageReviewCard(
+                        text = shown,
+                        busy = rewriting,
+                        onTextChange = { rewritten = it },
+                        onCopy = {
                             copyToClipboard(context, shown)
                             notify.success("Copied ${rep.name.substringBefore(" ")}'s message")
                         },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = sk.brand.copy(alpha = 0.85f), contentColor = Color.White),
-                    ) {
-                        Text("Copy for Viber", style = MaterialTheme.typography.labelMedium)
-                    }
+                        onShare = {
+                            com.example.skillsync.feature.training.ui.BatchShare.shareAnywhere(context, shown)
+                            notify.success("Shared externally")
+                        },
+                    )
                 }
             }
 
@@ -696,18 +722,6 @@ private fun ReporteeSnapshotCard(
                                 3, "Generated message", com.example.skillsync.feature.communication.ui.ComposerTints.generated,
                             )
                         }
-                        androidx.compose.foundation.text.selection.SelectionContainer {
-                            val previewBase = if (rewritten.isNotBlank()) rewritten else rep.structuredFeedback.formattedText.ifBlank { buildReporteeText(rep, "") }
-                            Text(
-                                previewBase.take(900),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = sk.bodyText,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(sk.surface1, RoundedCornerShape(8.dp))
-                                    .padding(10.dp),
-                            )
-                        }
                         com.example.skillsync.feature.communication.ui.ComposerStageLabel(
                             2, "Manager instruction", com.example.skillsync.feature.communication.ui.ComposerTints.instruction,
                         )
@@ -727,7 +741,7 @@ private fun ReporteeSnapshotCard(
                                                 name = rep.name,
                                                 email = rep.email,
                                             ),
-                                            purpose = com.example.skillsync.feature.communication.engine.CommunicationPurpose.INDIVIDUAL_PERIODIC_UPDATE,
+                                            purpose = com.example.skillsync.feature.communication.engine.CommunicationPurpose.MONTHLY_REPORTEE_REVIEW,
                                             cadence = if (monthendSelected) "monthend" else "monthly",
                                             evidence = com.example.skillsync.feature.communication.domain.CommunicationEvidence(
                                                 currentUtilisation = rep.utilisationPct.toInt(),

@@ -9061,53 +9061,81 @@ def message_compose():
     _rkey = {"weekly": "message_weekly", "weekend": "message_weekend",
              "monthly": "message_monthly", "monthend": "message_monthend"}[cadence]
 
+    # Cadence maps to a real purpose + timeframe, not a template switch.
+    _purpose = {
+        ("weekly", "team"): "WEEKLY_TEAM_BRIEF", ("weekend", "team"): "WEEKLY_TEAM_BRIEF",
+        ("monthly", "team"): "MONTHLY_TEAM_REVIEW", ("monthend", "team"): "MONTHLY_TEAM_REVIEW",
+        ("weekly", "reportee"): "WEEKLY_REPORTEE_BRIEF", ("weekend", "reportee"): "WEEKLY_REPORTEE_BRIEF",
+        ("monthly", "reportee"): "MONTHLY_REPORTEE_REVIEW", ("monthend", "reportee"): "MONTHLY_REPORTEE_REVIEW",
+    }
+    _timeframe = "period_end" if cadence in ("weekend", "monthend") else "current"
+
     if not target:
+        # The report's prebuilt digest is the deterministic prose for this
+        # purpose, so it doubles as the fallback when no model is available.
+        # The report's prebuilt digest comes from the legacy template composer;
+        # it is offered only as a candidate and is used only if it passes the
+        # same brief policy check the model output must pass.
         digest = report.get(_dkey) or report.get("team_digest") or ""
-        if my_message.strip():
-            gen_res = _communication_service.generate(
-                manager,
-                {
-                    "recipient": {"type": "TEAM"},
-                    "myMessage": my_message,
-                    "channel": "MS_TEAMS_OR_VIBER",
-                },
-                verified_context=report.get("team_summary", {}),
-            )
-            digest = gen_res.text if gen_res.requires_communication else _compose_manager_message("team", cadence, {"period_key": key, "manager_first": manager.split("@")[0].split(".")[0].title(), "month_label": report.get("month", "")}, my_message=my_message)
-        return jsonify({"message": digest, "scope": "team", "cadence": cadence,
-                        "length": len(digest)}), 200
+        facts = report.get("team_message_facts") or {}
+        if not isinstance(facts, dict) or not facts:
+            facts = dict(report.get("team_summary") or {})
+        facts.setdefault("month_label", report.get("month", ""))
+        facts.setdefault("period_ref", report.get("week_label") or report.get("month", ""))
+        gen_res = _communication_service.generate(
+            manager,
+            {
+                "purpose": _purpose[(cadence, "team")],
+                "timeframe": _timeframe,
+                "recipient": {"type": "TEAM"},
+                "myMessage": my_message,
+                "channel": "MS_TEAMS_OR_VIBER",
+                "verifiedFacts": facts,
+                "fallbackText": digest,
+            },
+        )
+        message = gen_res.text or digest
+        return jsonify({"message": message, "scope": "team", "cadence": cadence,
+                        "purpose": gen_res.purpose, "timeframe": _timeframe,
+                        "facts_used": gen_res.facts_used, "provenance": gen_res.provenance,
+                        "validation": {"passed": gen_res.validation.passed, "issues": gen_res.validation.issues},
+                        "length": len(message)}), 200
 
     row = next((r for r in (report.get("reportees") or [])
                 if str(r.get("email", "")).strip().lower() == target), None)
     if row is None:
         return error_response("TARGET_NOT_IN_TEAM", "That reportee is not on this manager's roster.", 404)
     sf = row.get("structured_feedback") or {}
-    prebuilt = row.get(_rkey) or sf.get(_rkey)
-    if prebuilt and not my_message.strip():
-        return jsonify({"message": prebuilt, "scope": "reportee", "cadence": cadence,
-                        "target": target, "length": len(prebuilt)}), 200
     facts = _reportee_message_facts(
         row if not sf else {**row, "learner_feedback": sf.get("learner_feedback", row.get("learner_feedback"))},
         cadence, demand_rows=[], skills_courses=[],
         month_label=report.get("month", ""),
     )
     facts["opp_courses"] = row.get("opportunity_courses") or facts.get("opp_courses") or []
-    if my_message.strip():
-        r_name = (row.get("name") or "").split()[0] if row.get("name") else "there"
-        gen_res = _communication_service.generate(
-            manager,
-            {
-                "recipient": {"name": r_name, "type": "REPORTEE"},
-                "myMessage": my_message,
-                "channel": "MS_TEAMS_OR_VIBER",
-            },
-            verified_context=facts,
-        )
-        msg = gen_res.text if gen_res.requires_communication else _compose_manager_message("reportee", cadence, facts, my_message=my_message)
-    else:
-        msg = _compose_manager_message("reportee", cadence, facts, my_message=my_message)
+    facts.setdefault("name", row.get("name") or "")
+    facts.setdefault("period_ref", report.get("week_label") or report.get("month", ""))
+    r_name = (row.get("name") or "").split()[0] if row.get("name") else ""
+    # Deterministic prose for this person/purpose — the prebuilt report line if
+    # present, otherwise the existing composer; used as the model's fallback.
+    fallback = row.get(_rkey) or sf.get(_rkey) or ""
+    gen_res = _communication_service.generate(
+        manager,
+        {
+            "purpose": _purpose[(cadence, "reportee")],
+            "timeframe": _timeframe,
+            "recipient": {"name": row.get("name") or r_name, "type": "REPORTEE"},
+            "myMessage": my_message,
+            "channel": "MS_TEAMS_OR_VIBER",
+            "verifiedFacts": facts,
+            "fallbackText": fallback,
+        },
+    )
+    msg = gen_res.text or fallback
     return jsonify({"message": msg, "scope": "reportee", "cadence": cadence,
-                    "target": target, "length": len(msg)}), 200
+                    "target": target, "purpose": gen_res.purpose, "timeframe": _timeframe,
+                    "facts_used": gen_res.facts_used, "provenance": gen_res.provenance,
+                    "validation": {"passed": gen_res.validation.passed, "issues": gen_res.validation.issues},
+                    "length": len(msg)}), 200
 
 
 @app.errorhandler(404)
@@ -11202,6 +11230,9 @@ def hr_monthly_report():
         "team_message": team_digest,
         "team_digest_monthly": team_digest,
         "team_digest_monthend": team_digest_monthend,
+        # Verified team facts, exposed so /api/v2/message/compose can run the
+        # Communication Intelligence brief path without recomputing anything.
+        "team_message_facts": _hr_team_facts,
         "team_summary": {
             "headcount":                 len(out),
             "reportee_count":            len(out),
@@ -13250,6 +13281,7 @@ def weekly_report_v2():
         "team_digest":   team_digest_text,
         "team_digest_weekly":  team_digest_text,
         "team_digest_weekend": team_digest_weekend,
+        "team_message_facts": _team_facts,
         "reportees":     out,
     }
     _warm_store(f"weekly::{manager_email}::{week_start_iso}", _resp)

@@ -25,7 +25,13 @@ enum class CommunicationPurpose(val id: String, val displayName: String) {
     GENERAL_PROFESSIONAL("GENERAL_PROFESSIONAL", "General Operational Communication"),
     TEAM_PERIODIC_UPDATE("TEAM_PERIODIC_UPDATE", "Team Weekly/Monthly Update"),
     INDIVIDUAL_PERIODIC_UPDATE("INDIVIDUAL_PERIODIC_UPDATE", "Individual Weekly/Monthly Update"),
-    MORNING_TEAM_GREETING("MORNING_TEAM_GREETING", "Weekday Morning Team Greeting");
+    MORNING_TEAM_GREETING("MORNING_TEAM_GREETING", "Weekday Morning Team Greeting"),
+    // Weekly/monthly manager briefs. The timeframe (period in progress vs the
+    // closing period) travels on CommunicationRequest, not in the purpose.
+    WEEKLY_TEAM_BRIEF("WEEKLY_TEAM_BRIEF", "Weekly Team Brief"),
+    WEEKLY_REPORTEE_BRIEF("WEEKLY_REPORTEE_BRIEF", "Weekly Reportee Brief"),
+    MONTHLY_TEAM_REVIEW("MONTHLY_TEAM_REVIEW", "Monthly Team Review"),
+    MONTHLY_REPORTEE_REVIEW("MONTHLY_REPORTEE_REVIEW", "Monthly Reportee Review");
 
     companion object {
         fun fromId(id: String): CommunicationPurpose =
