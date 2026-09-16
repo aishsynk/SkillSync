@@ -961,9 +961,19 @@ class ScreenRenderTest {
         compose.setContent {
             SkillSyncTheme { DeliveryOperationsWorkspace(dashboardPayload()) { _, _ -> } }
         }
-        compose.onNodeWithText("Delivery Operations").assertExists()
-        compose.onNodeWithText("CURRENT").assertExists()
-        compose.onNodeWithText("AI-102T00: Develop AI Solutions in Azure").assertExists()
+        // The summary strip is the single source of "what's going on this
+        // month" — it must never repeat the same delivery cards the calendar
+        // and agenda already render in detail.
+        compose.onNodeWithText("DELIVERIES").assertExists()
+        compose.onNodeWithText("LEAVES").assertExists()
+        compose.onNodeWithText("MOCKS").assertExists()
+        compose.onNodeWithText("WEBINARS").assertExists()
+        compose.onNodeWithText("TRAINERS ACTIVE").assertExists()
+        // Month/Week/Day segmented control is the real calendar surface.
+        compose.onNodeWithText("Month").assertExists()
+        compose.onNodeWithText("Week").assertExists()
+        compose.onNodeWithText("Day").assertExists()
+        compose.onNodeWithText("All Events (1)").assertExists()
     }
 
     @Test

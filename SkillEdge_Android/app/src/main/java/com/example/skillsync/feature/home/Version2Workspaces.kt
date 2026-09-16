@@ -1,5 +1,9 @@
 package com.example.skillsync.feature.home
 
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import com.example.skillsync.core.data.CopilotRepository
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,6 +31,8 @@ import kotlinx.coroutines.launch
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
+import com.example.skillsync.theme.Radii
+import com.example.skillsync.theme.Space
 import com.example.skillsync.core.ui.intOrNull
 import com.example.skillsync.core.ui.rows
 import com.example.skillsync.core.ui.str
@@ -414,10 +420,18 @@ internal fun DeliveryOperationsWorkspace(
     val sk = MaterialTheme.skill
     val assignments = dashboard.rows("batch_engagement_df")
 
-    val currentBatches = assignments.filter { it.str("engagement_state") == "current" }
-    val liveCount = assignments.count { it.str("engagement_state") == "current" }
-    val upcomingCount = assignments.count { it.str("engagement_state") == "upcoming" }
-    val totalPax = assignments.sumOf { it.intOrNull("participants") ?: 0 }
+    // Hoisted so the summary strip below can report counts for the exact
+    // month/day the calendar is currently showing, instead of a second,
+    // independently-scoped tally.
+    var currentYearMonth by remember { mutableStateOf(YearMonth.now()) }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+
+    val allEvents = remember(assignments, readiness) { buildCalendarEvents(assignments, readiness) }
+    val monthEvents = remember(allEvents, currentYearMonth) {
+        allEvents.filter { ev ->
+            !ev.endDate.isBefore(currentYearMonth.atDay(1)) && !ev.startDate.isAfter(currentYearMonth.atEndOfMonth())
+        }
+    }
 
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -426,15 +440,8 @@ internal fun DeliveryOperationsWorkspace(
         item {
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End,
             ) {
-                Text(
-                    "Delivery Operations",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = sk.bodyText,
-                    fontWeight = FontWeight.Bold,
-                )
                 Surface(
                     onClick = onOpenWeeklyReport,
                     shape = RoundedCornerShape(10.dp),
@@ -453,103 +460,74 @@ internal fun DeliveryOperationsWorkspace(
             }
         }
 
-        // Top KPI Banner
+        // Compact operational summary — real counts for the month the calendar
+        // is showing, never a repeat of the delivery cards themselves.
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Surface(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    color = sk.cardBg,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-                ) {
-                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Box(Modifier.size(8.dp).clip(CircleShape).background(sk.good))
-                            Text("DELIVERING", style = MaterialTheme.typography.labelSmall, color = sk.good, fontWeight = FontWeight.Bold)
-                        }
-                        Text("$liveCount live", style = MaterialTheme.typography.titleMedium, color = sk.bodyText, fontWeight = FontWeight.Black)
-                    }
-                }
-
-                Surface(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    color = sk.cardBg,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-                ) {
-                    Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("UPCOMING", style = MaterialTheme.typography.labelSmall, color = sk.sky, fontWeight = FontWeight.Bold)
-                        Text("$upcomingCount batches", style = MaterialTheme.typography.titleMedium, color = sk.bodyText, fontWeight = FontWeight.Black)
-                    }
-                }
-
-                if (totalPax > 0) {
-                    Surface(
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        color = sk.cardBg,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-                    ) {
-                        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("TOTAL PAX", style = MaterialTheme.typography.labelSmall, color = sk.cyan, fontWeight = FontWeight.Bold)
-                            Text("$totalPax learners", style = MaterialTheme.typography.titleMedium, color = sk.bodyText, fontWeight = FontWeight.Black)
-                        }
-                    }
-                }
-            }
+            OperationsSummaryStrip(
+                monthLabel = currentYearMonth.format(DateTimeFormatter.ofPattern("MMMM", Locale.ENGLISH)),
+                events = monthEvents,
+            )
         }
 
-        // Active Deliveries (if any currently running)
-        if (currentBatches.isNotEmpty()) {
-            item {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("ACTIVE DELIVERIES", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)
-                    Surface(color = sk.good.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
-                        Text("CURRENT", style = MaterialTheme.typography.labelSmall, color = sk.good, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                    }
-                }
-            }
-            items(currentBatches) { batch ->
-                val course = batch.str("course_name")
-                val trainer = batch.str("trainer_name")
-                val trainerEmail = batch.str("trainer_email")
-                val loc = batch.str("location")
-                Surface(
-                    modifier = Modifier.fillMaxWidth().clickable {
-                        if (trainerEmail.isNotBlank()) onTrainer(trainerEmail, trainer)
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    color = sk.cardBg,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
-                ) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(course, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                            Surface(color = sk.good.copy(alpha = 0.18f), shape = RoundedCornerShape(4.dp)) {
-                                Text("LIVE", style = MaterialTheme.typography.labelSmall, color = sk.good, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
-                            }
-                        }
-                        Text(listOf(trainer, loc).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = sk.subText)
-                    }
-                }
-            }
-        }
-
-        // Complete Outlook Month Calendar & Timeline view
+        // Complete premium Month/Week/Day calendar + category filters + agenda.
         item {
             TeamCalendarScreen(
                 batches = assignments,
                 readiness = readiness,
                 modifier = Modifier.fillMaxWidth(),
+                yearMonth = currentYearMonth,
+                onYearMonthChange = { currentYearMonth = it },
+                selectedDate = selectedDate,
+                onSelectedDateChange = { selectedDate = it },
                 onTrainerClick = onTrainer,
             )
         }
+    }
+}
+
+/**
+ * Compact stat row — the single source of "how much is going on this month,"
+ * so the top of the page never has to repeat the same delivery cards the
+ * calendar and agenda already show in detail.
+ */
+@Composable
+private fun OperationsSummaryStrip(monthLabel: String, events: List<CalendarEventItem>) {
+    val sk = MaterialTheme.skill
+    val deliveries = events.count { it.category == EventCategory.DELIVERY }
+    val leaves = events.count { it.category == EventCategory.LEAVE }
+    val mocks = events.count { it.category == EventCategory.MOCK }
+    val webinars = events.count { it.category == EventCategory.WEBINAR }
+    val trainersActive = events.mapNotNull { it.trainerEmail.takeIf(String::isNotBlank) }.distinct().size
+
+    Column(
+        Modifier.fillMaxWidth().glassSurface(RoundedCornerShape(Radii.card)).padding(horizontal = Space.md, vertical = Space.sm),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            "$monthLabel at a glance",
+            style = MaterialTheme.typography.labelSmall,
+            color = sk.labelText,
+            fontWeight = FontWeight.Bold,
+        )
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            SummaryStat("Events", events.size.toString(), sk.frost)
+            SummaryStat("Deliveries", deliveries.toString(), EventCategory.DELIVERY.color)
+            SummaryStat("Leaves", leaves.toString(), EventCategory.LEAVE.color)
+            SummaryStat("Mocks", mocks.toString(), EventCategory.MOCK.color)
+            SummaryStat("Webinars", webinars.toString(), EventCategory.WEBINAR.color)
+            SummaryStat("Trainers Active", trainersActive.toString(), sk.cyan)
+        }
+    }
+}
+
+@Composable
+private fun SummaryStat(label: String, value: String, tint: Color) {
+    val sk = MaterialTheme.skill
+    Column(horizontalAlignment = Alignment.Start) {
+        Text(value, style = MaterialTheme.typography.titleMedium, color = tint, fontWeight = FontWeight.Black)
+        Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = sk.subText, fontWeight = FontWeight.SemiBold)
     }
 }

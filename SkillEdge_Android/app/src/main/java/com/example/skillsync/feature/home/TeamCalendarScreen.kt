@@ -109,104 +109,128 @@ private fun parseFlexibleDate(raw: String): LocalDate? {
     return null
 }
 
+/**
+ * Parses allocated batches and trainer leaves into structured [CalendarEventItem]s.
+ * Pulled out to file scope so the summary strip in [DeliveryOperationsWorkspace]
+ * can compute the same real counts the calendar renders, instead of a second,
+ * possibly-diverging tally.
+ */
+fun buildCalendarEvents(
+    batches: List<Map<*, *>>,
+    readiness: Map<String, Map<String, Any>>,
+): List<CalendarEventItem> {
+    val list = mutableListOf<CalendarEventItem>()
+
+    // 1. Ingest confirmed team delivery batches
+    batches.forEach { b ->
+        val course = b.str("course_name").ifBlank { b.str("Course").ifBlank { b.str("demand_id").ifBlank { "Delivery" } } }
+        val startRaw = b.str("start_at").ifBlank { b.str("start_date").ifBlank { b.str("StartDate").ifBlank { b.str("StarDate") } } }
+        val endRaw = b.str("end_at").ifBlank { b.str("end_date").ifBlank { b.str("EndDate") } }
+
+        val start = parseFlexibleDate(startRaw)
+        if (start != null) {
+            val endParsed = parseFlexibleDate(endRaw) ?: start
+            val actualEnd = if (endParsed.isBefore(start)) start else endParsed
+            val mode = b.str("delivery_mode").ifBlank { b.str("Mode") }
+            val remarks = b.str("remarks").lowercase()
+            val courseLower = course.lowercase()
+
+            val cat = when {
+                courseLower.contains("mock") || remarks.contains("mock") || mode.equals("Mock", ignoreCase = true) -> EventCategory.MOCK
+                courseLower.contains("webinar") || remarks.contains("webinar") || mode.equals("Webinar", ignoreCase = true) -> EventCategory.WEBINAR
+                courseLower.contains("leave") || remarks.contains("leave") || mode.equals("Leave", ignoreCase = true) -> EventCategory.LEAVE
+                courseLower.contains("idp") || courseLower.contains("upskill") || remarks.contains("upskill") -> EventCategory.UPSKILLING
+                courseLower.contains("meet") || remarks.contains("meeting") -> EventCategory.MEETING
+                else -> EventCategory.DELIVERY
+            }
+
+            list.add(
+                CalendarEventItem(
+                    id = b.str("assignment_id").ifBlank { b.str("demand_id").ifBlank { "${course}_${start}" } },
+                    title = course,
+                    category = cat,
+                    startDate = start,
+                    endDate = actualEnd,
+                    timeSlot = b.str("session_time").ifBlank {
+                        val st = b.str("start_time")
+                        val et = b.str("end_time")
+                        if (st.isNotBlank() && et.isNotBlank()) "$st - $et" else "09:00 - 17:00"
+                    },
+                    trainerName = b.str("trainer_name").ifBlank { b.str("TrainerName") },
+                    trainerEmail = b.str("trainer_email").ifBlank { b.str("official_email") },
+                    customer = b.str("vendor").ifBlank { b.str("customer") },
+                    location = b.str("location"),
+                    deliveryMode = mode,
+                    pax = b.intOrNull("participants"),
+                    rawBatch = b,
+                )
+            )
+        }
+    }
+
+    // 2. Ingest trainer leaves from readiness
+    readiness.forEach { (_, r) ->
+        val trainerName = r.str("trainer_name").ifBlank { "Trainer" }
+        val trainerEmail = r.str("trainer_email")
+        val leaves = (r["next_leave"] as? List<*>)?.mapNotNull { it?.toString() }.orEmpty()
+        leaves.forEach { leaveStr ->
+            parseFlexibleDate(leaveStr)?.let { leaveDate ->
+                list.add(
+                    CalendarEventItem(
+                        id = "leave_${trainerEmail}_$leaveDate",
+                        title = "Leave: $trainerName",
+                        category = EventCategory.LEAVE,
+                        startDate = leaveDate,
+                        endDate = leaveDate,
+                        timeSlot = "Full Day (Approved Leave)",
+                        trainerName = trainerName,
+                        trainerEmail = trainerEmail,
+                        customer = "Approved Absence",
+                        location = "Out of Office",
+                        deliveryMode = "Leave",
+                        pax = null,
+                        rawBatch = r,
+                    )
+                )
+            }
+        }
+    }
+
+    // No synthetic fallback: an empty calendar means nothing is scheduled,
+    // and the day panel already says so. Never show sample events.
+
+    return list.sortedBy { it.startDate }
+}
+
+/** First name plus last initial ("Abhinav Kumar" -> "Abhinav K.") so a month
+ * cell can name the deliverer without the full string blowing out the cell. */
+fun shortTrainerName(fullName: String): String {
+    val parts = fullName.trim().split(" ").filter { it.isNotBlank() }
+    return when (parts.size) {
+        0 -> ""
+        1 -> parts[0]
+        else -> "${parts.first()} ${parts.last().first()}."
+    }
+}
+
 @Composable
 fun TeamCalendarScreen(
     batches: List<Map<*, *>> = emptyList(),
     readiness: Map<String, Map<String, Any>> = emptyMap(),
     modifier: Modifier = Modifier,
+    yearMonth: YearMonth,
+    onYearMonthChange: (YearMonth) -> Unit,
+    selectedDate: LocalDate,
+    onSelectedDateChange: (LocalDate) -> Unit,
     onTrainerClick: (String, String) -> Unit = { _, _ -> },
 ) {
     val sk = MaterialTheme.skill
     var viewMode by remember { mutableStateOf(CalendarViewMode.MONTH) }
-    var currentYearMonth by remember { mutableStateOf(YearMonth.now()) }
-    var selectedDate by remember { mutableStateOf<LocalDate>(LocalDate.now()) }
+    val currentYearMonth = yearMonth
     var selectedCategoryFilter by remember { mutableStateOf<EventCategory?>(null) }
     var inspectedEvent by remember { mutableStateOf<CalendarEventItem?>(null) }
 
-    // Parse all allocated batches and trainer leaves into structured CalendarEventItems
-    val allEvents = remember(batches, readiness) {
-        val list = mutableListOf<CalendarEventItem>()
-
-        // 1. Ingest confirmed team delivery batches
-        batches.forEach { b ->
-            val course = b.str("course_name").ifBlank { b.str("Course").ifBlank { b.str("demand_id").ifBlank { "Delivery" } } }
-            val startRaw = b.str("start_at").ifBlank { b.str("start_date").ifBlank { b.str("StartDate").ifBlank { b.str("StarDate") } } }
-            val endRaw = b.str("end_at").ifBlank { b.str("end_date").ifBlank { b.str("EndDate") } }
-
-            val start = parseFlexibleDate(startRaw)
-            if (start != null) {
-                val endParsed = parseFlexibleDate(endRaw) ?: start
-                val actualEnd = if (endParsed.isBefore(start)) start else endParsed
-                val mode = b.str("delivery_mode").ifBlank { b.str("Mode") }
-                val remarks = b.str("remarks").lowercase()
-                val courseLower = course.lowercase()
-
-                val cat = when {
-                    courseLower.contains("mock") || remarks.contains("mock") || mode.equals("Mock", ignoreCase = true) -> EventCategory.MOCK
-                    courseLower.contains("webinar") || remarks.contains("webinar") || mode.equals("Webinar", ignoreCase = true) -> EventCategory.WEBINAR
-                    courseLower.contains("leave") || remarks.contains("leave") || mode.equals("Leave", ignoreCase = true) -> EventCategory.LEAVE
-                    courseLower.contains("idp") || courseLower.contains("upskill") || remarks.contains("upskill") -> EventCategory.UPSKILLING
-                    courseLower.contains("meet") || remarks.contains("meeting") -> EventCategory.MEETING
-                    else -> EventCategory.DELIVERY
-                }
-
-                list.add(
-                    CalendarEventItem(
-                        id = b.str("assignment_id").ifBlank { b.str("demand_id").ifBlank { "${course}_${start}" } },
-                        title = course,
-                        category = cat,
-                        startDate = start,
-                        endDate = actualEnd,
-                        timeSlot = b.str("session_time").ifBlank {
-                            val st = b.str("start_time")
-                            val et = b.str("end_time")
-                            if (st.isNotBlank() && et.isNotBlank()) "$st - $et" else "09:00 - 17:00"
-                        },
-                        trainerName = b.str("trainer_name").ifBlank { b.str("TrainerName") },
-                        trainerEmail = b.str("trainer_email").ifBlank { b.str("official_email") },
-                        customer = b.str("vendor").ifBlank { b.str("customer") },
-                        location = b.str("location"),
-                        deliveryMode = mode,
-                        pax = b.intOrNull("participants"),
-                        rawBatch = b,
-                    )
-                )
-            }
-        }
-
-        // 2. Ingest trainer leaves from readiness
-        readiness.forEach { (_, r) ->
-            val trainerName = r.str("trainer_name").ifBlank { "Trainer" }
-            val trainerEmail = r.str("trainer_email")
-            val leaves = (r["next_leave"] as? List<*>)?.mapNotNull { it?.toString() }.orEmpty()
-            leaves.forEach { leaveStr ->
-                parseFlexibleDate(leaveStr)?.let { leaveDate ->
-                    list.add(
-                        CalendarEventItem(
-                            id = "leave_${trainerEmail}_$leaveDate",
-                            title = "Leave: $trainerName",
-                            category = EventCategory.LEAVE,
-                            startDate = leaveDate,
-                            endDate = leaveDate,
-                            timeSlot = "Full Day (Approved Leave)",
-                            trainerName = trainerName,
-                            trainerEmail = trainerEmail,
-                            customer = "Approved Absence",
-                            location = "Out of Office",
-                            deliveryMode = "Leave",
-                            pax = null,
-                            rawBatch = r,
-                        )
-                    )
-                }
-            }
-        }
-
-        // No synthetic fallback: an empty calendar means nothing is scheduled,
-        // and the day panel already says so. Never show sample events.
-
-        list.sortedBy { it.startDate }
-    }
+    val allEvents = remember(batches, readiness) { buildCalendarEvents(batches, readiness) }
 
     // Filtered events
     val filteredEvents = remember(allEvents, selectedCategoryFilter) {
@@ -226,34 +250,38 @@ fun TeamCalendarScreen(
             selectedDate = selectedDate,
             onPrev = {
                 when (viewMode) {
-                    CalendarViewMode.MONTH -> currentYearMonth = currentYearMonth.minusMonths(1)
+                    CalendarViewMode.MONTH -> onYearMonthChange(currentYearMonth.minusMonths(1))
                     CalendarViewMode.WEEK -> {
-                        selectedDate = selectedDate.minusWeeks(1)
-                        currentYearMonth = YearMonth.from(selectedDate)
+                        val d = selectedDate.minusWeeks(1)
+                        onSelectedDateChange(d)
+                        onYearMonthChange(YearMonth.from(d))
                     }
                     CalendarViewMode.DAY, CalendarViewMode.TIMELINE -> {
-                        selectedDate = selectedDate.minusDays(1)
-                        currentYearMonth = YearMonth.from(selectedDate)
+                        val d = selectedDate.minusDays(1)
+                        onSelectedDateChange(d)
+                        onYearMonthChange(YearMonth.from(d))
                     }
                 }
             },
             onNext = {
                 when (viewMode) {
-                    CalendarViewMode.MONTH -> currentYearMonth = currentYearMonth.plusMonths(1)
+                    CalendarViewMode.MONTH -> onYearMonthChange(currentYearMonth.plusMonths(1))
                     CalendarViewMode.WEEK -> {
-                        selectedDate = selectedDate.plusWeeks(1)
-                        currentYearMonth = YearMonth.from(selectedDate)
+                        val d = selectedDate.plusWeeks(1)
+                        onSelectedDateChange(d)
+                        onYearMonthChange(YearMonth.from(d))
                     }
                     CalendarViewMode.DAY, CalendarViewMode.TIMELINE -> {
-                        selectedDate = selectedDate.plusDays(1)
-                        currentYearMonth = YearMonth.from(selectedDate)
+                        val d = selectedDate.plusDays(1)
+                        onSelectedDateChange(d)
+                        onYearMonthChange(YearMonth.from(d))
                     }
                 }
             },
             onToday = {
                 val now = LocalDate.now()
-                selectedDate = now
-                currentYearMonth = YearMonth.now()
+                onSelectedDateChange(now)
+                onYearMonthChange(YearMonth.now())
             },
         )
 
@@ -275,7 +303,7 @@ fun TeamCalendarScreen(
                     yearMonth = currentYearMonth,
                     events = filteredEvents,
                     selectedDate = selectedDate,
-                    onDateSelected = { selectedDate = it },
+                    onDateSelected = { onSelectedDateChange(it) },
                     onEventClick = { inspectedEvent = it },
                 )
 
@@ -292,7 +320,7 @@ fun TeamCalendarScreen(
                 WeekScheduleView(
                     selectedDate = selectedDate,
                     events = filteredEvents,
-                    onDateSelected = { selectedDate = it },
+                    onDateSelected = { onSelectedDateChange(it) },
                     onEventClick = { inspectedEvent = it },
                 )
                 SelectedDayInspectionCard(
@@ -697,8 +725,14 @@ private fun MonthWeekRow(
                             .clickable { onEventClick(ev) }
                             .padding(horizontal = 4.dp, vertical = 2.dp),
                     ) {
+                        val who = shortTrainerName(ev.trainerName)
                         Text(
-                            text = if (isMultiDay) "${ev.category.icon} ${ev.title}" else "● ${ev.title}",
+                            text = buildString {
+                                append(if (isMultiDay) ev.category.icon else "●")
+                                append(" ")
+                                append(ev.title)
+                                if (who.isNotBlank()) { append(" — "); append(who) }
+                            },
                             style = MaterialTheme.typography.labelSmall,
                             color = sk.cardBg,
                             fontWeight = FontWeight.Bold,
@@ -861,7 +895,8 @@ private fun WeekScheduleView(
                     )
                     Spacer(Modifier.height(1.dp))
                     dayEvents.take(4).forEach { ev ->
-                        Box(
+                        val who = shortTrainerName(ev.trainerName)
+                        Column(
                             Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(3.dp))
@@ -874,8 +909,17 @@ private fun WeekScheduleView(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = sk.cardBg,
                                 fontWeight = FontWeight.SemiBold,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
                             )
+                            if (who.isNotBlank()) {
+                                Text(
+                                    who,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = sk.cardBg.copy(alpha = 0.85f),
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
                     if (dayEvents.size > 4) {
