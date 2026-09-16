@@ -2,6 +2,9 @@ package com.example.skillsync.core.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,6 +12,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -18,6 +24,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
@@ -37,6 +46,42 @@ import androidx.compose.ui.unit.dp
  * animation, unlike `rememberInfiniteTransition`, which never idles and hangs
  * Compose tests.
  */
+
+/**
+ * One shared tooltip treatment for every interactive chart — never a
+ * screen-specific tooltip design. Dark raised surface, a small semantic
+ * dot, a label, and a value; an optional secondary line carries a
+ * date/category when the label alone isn't enough context (e.g. "12 Sep"
+ * above "Utilisation 64%").
+ */
+@Composable
+fun ChartTooltip(
+    label: String,
+    value: String,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    secondaryLabel: String? = null,
+) {
+    val sk = MaterialTheme.skill
+    Column(
+        modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(sk.surface3)
+            .border(1.dp, sk.cardBorder, RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .semantics { contentDescription = "$label $value" },
+    ) {
+        if (secondaryLabel != null) {
+            Text(secondaryLabel, style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 9.sp)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(6.dp).clip(CircleShape).background(tint))
+            Spacer(Modifier.width(5.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = sk.subText, fontSize = 10.sp)
+        }
+        Text(value, style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.Bold)
+    }
+}
 
 data class Slice(val label: String, val value: Int, val color: Color)
 
@@ -184,6 +229,10 @@ fun TrendChart(
     modifier: Modifier = Modifier,
     height: Dp = 92.dp,
     maxPoints: Int = 12,
+    /** Tap/drag to reveal the nearest reading's tooltip. Off by default so
+     * every existing call site is unaffected until it opts in. */
+    interactive: Boolean = false,
+    valueSuffix: String = "",
 ) {
     val sk = MaterialTheme.skill
     val pts = points.takeLast(maxPoints)
@@ -197,41 +246,76 @@ fun TrendChart(
         return
     }
     val peak = (pts.maxOf { it.value }).coerceAtLeast(1)
+    var selected by remember(pts) { mutableStateOf<Int?>(null) }
 
     Column(modifier) {
-        Canvas(Modifier.fillMaxWidth().height(height)) {
-            val w = size.width
-            val h = size.height
-            val step = if (pts.size > 1) w / (pts.size - 1) else w
-            fun px(i: Int) = if (pts.size > 1) i * step else w / 2f
-            fun py(v: Int) = h - (v.toFloat() / peak) * h * 0.9f * grow - 2f
+        Box {
+            Canvas(
+                Modifier
+                    .fillMaxWidth()
+                    .height(height)
+                    .then(
+                        if (interactive && pts.size > 1) {
+                            Modifier.pointerInput(pts) {
+                                val step = size.width / (pts.size - 1).toFloat()
+                                fun nearest(x: Float) = (x / step).toInt().coerceIn(0, pts.lastIndex)
+                                detectTapGestures(onTap = { selected = nearest(it.x) })
+                            }.pointerInput(pts) {
+                                val step = size.width / (pts.size - 1).toFloat()
+                                fun nearest(x: Float) = (x / step).toInt().coerceIn(0, pts.lastIndex)
+                                detectDragGestures(
+                                    onDrag = { change, _ -> selected = nearest(change.position.x) },
+                                    onDragEnd = { },
+                                )
+                            }
+                        } else Modifier
+                    ),
+            ) {
+                val w = size.width
+                val h = size.height
+                val step = if (pts.size > 1) w / (pts.size - 1) else w
+                fun px(i: Int) = if (pts.size > 1) i * step else w / 2f
+                fun py(v: Int) = h - (v.toFloat() / peak) * h * 0.9f * grow - 2f
 
-            // Reference grid at 25/50/75% of peak.
-            listOf(0.25f, 0.5f, 0.75f).forEach { f ->
-                val y = h - f * h * 0.9f
-                drawLine(sk.track, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
-            }
+                // Reference grid at 25/50/75% of peak.
+                listOf(0.25f, 0.5f, 0.75f).forEach { f ->
+                    val y = h - f * h * 0.9f
+                    drawLine(sk.track, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
+                }
 
-            val line = Path().apply {
-                pts.forEachIndexed { i, p ->
-                    if (i == 0) moveTo(px(i), py(p.value)) else lineTo(px(i), py(p.value))
+                val line = Path().apply {
+                    pts.forEachIndexed { i, p ->
+                        if (i == 0) moveTo(px(i), py(p.value)) else lineTo(px(i), py(p.value))
+                    }
+                }
+                val area = Path().apply {
+                    addPath(line)
+                    lineTo(px(pts.lastIndex), h)
+                    lineTo(px(0), h)
+                    close()
+                }
+                drawPath(
+                    area,
+                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                        listOf(tint.copy(alpha = 0.28f), tint.copy(alpha = 0.02f))
+                    ),
+                )
+                drawPath(line, color = tint, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
+                // Emphasise the latest reading — it is the one being acted on.
+                drawCircle(tint, radius = 3.5.dp.toPx(), center = Offset(px(pts.lastIndex), py(pts.last().value)))
+                // Selected-point highlight ring, drawn on top of the latest-reading dot.
+                selected?.let { i ->
+                    drawCircle(sk.frost, radius = 5.dp.toPx(), center = Offset(px(i), py(pts[i].value)), style = Stroke(width = 1.5.dp.toPx()))
                 }
             }
-            val area = Path().apply {
-                addPath(line)
-                lineTo(px(pts.lastIndex), h)
-                lineTo(px(0), h)
-                close()
+            selected?.let { i ->
+                ChartTooltip(
+                    label = pts[i].label,
+                    value = "${pts[i].value}$valueSuffix",
+                    tint = tint,
+                    modifier = Modifier.align(Alignment.TopStart).padding(top = 2.dp),
+                )
             }
-            drawPath(
-                area,
-                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                    listOf(tint.copy(alpha = 0.28f), tint.copy(alpha = 0.02f))
-                ),
-            )
-            drawPath(line, color = tint, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
-            // Emphasise the latest reading — it is the one being acted on.
-            drawCircle(tint, radius = 3.5.dp.toPx(), center = Offset(px(pts.lastIndex), py(pts.last().value)))
         }
         Spacer(Modifier.height(4.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -250,6 +334,9 @@ fun BarChart(
     modifier: Modifier = Modifier,
     height: Dp = 108.dp,
     valueSuffix: String = "",
+    /** Tap a bar to pin its tooltip. Off by default — no existing call site
+     * changes behaviour until it opts in. */
+    interactive: Boolean = false,
 ) {
     val sk = MaterialTheme.skill
     if (bars.isEmpty()) {
@@ -257,37 +344,59 @@ fun BarChart(
         return
     }
     val peak = bars.maxOf { it.value }.coerceAtLeast(1)
-    Row(
-        modifier.fillMaxWidth().height(height),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.Bottom,
-    ) {
-        bars.forEach { b ->
-            val frac by animateProgressFromZero((b.value.toFloat() / peak).coerceIn(0f, 1f))
-            Column(
-                Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Bottom,
-            ) {
-                Text(
-                    "${b.value}$valueSuffix",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = b.color, fontSize = 8.5.sp, fontWeight = FontWeight.Bold,
-                )
-                Box(
+    var selected by remember(bars) { mutableStateOf<Int?>(null) }
+
+    Column(modifier) {
+        selected?.let { i ->
+            ChartTooltip(
+                label = bars[i].label,
+                value = "${bars[i].value}$valueSuffix",
+                tint = bars[i].color,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth().height(height),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            bars.forEachIndexed { index, b ->
+                val frac by animateProgressFromZero((b.value.toFloat() / peak).coerceIn(0f, 1f))
+                Column(
                     Modifier
-                        .fillMaxWidth()
-                        // Floor at 3% so a zero bar is still a visible category
-                        // rather than a gap that looks like missing data.
-                        .fillMaxHeight((frac * 0.70f).coerceAtLeast(0.03f))
-                        .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                        .background(b.color)
-                )
-                Text(
-                    b.label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.subText, fontSize = 8.sp, maxLines = 1,
-                )
+                        .weight(1f)
+                        .then(
+                            if (interactive) {
+                                Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .pressable { selected = if (selected == index) null else index }
+                                    .semantics { contentDescription = "${b.label} ${b.value}$valueSuffix" }
+                            } else Modifier
+                        ),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Bottom,
+                ) {
+                    Text(
+                        "${b.value}$valueSuffix",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = b.color, fontSize = 8.5.sp, fontWeight = FontWeight.Bold,
+                    )
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            // Floor at 3% so a zero bar is still a visible category
+                            // rather than a gap that looks like missing data.
+                            .fillMaxHeight((frac * 0.70f).coerceAtLeast(0.03f))
+                            .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                            .background(if (selected == index) b.color else b.color.copy(alpha = if (selected == null) 1f else 0.55f))
+                            .then(if (selected == index) Modifier.border(1.dp, sk.frost, RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)) else Modifier)
+                    )
+                    Text(
+                        b.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText, fontSize = 8.sp, maxLines = 1,
+                    )
+                }
             }
         }
     }

@@ -3,6 +3,7 @@ package com.example.skillsync.feature.training.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -574,7 +575,10 @@ fun BatchDetailScreen(
 
                 // Team Match — reportees only, never learners/participants
                 // (those are the separate "Enrolled Participants" section above).
-                Box(Modifier.fillMaxWidth().glassSurface()) {
+                // animateContentSize: the candidate list changes height the
+                // moment a skill mark refreshes it — this is a state/content
+                // change, not decorative motion.
+                Box(Modifier.fillMaxWidth().animateContentSize().glassSurface()) {
                     Column(Modifier.padding(16.dp)) {
                         Text(
                             "Team Match", style = MaterialTheme.typography.titleSmall,
@@ -1002,7 +1006,7 @@ private fun TeamSkillPanel(
     }
     val reqN = requiredLevel.toIntOrNull()
     val eligible = rows.count { it["meets_required"] == true }
-    Box(Modifier.fillMaxWidth().glassSurface()) {
+    Box(Modifier.fillMaxWidth().animateContentSize().glassSurface()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Team skill on this course", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = sk.frost)

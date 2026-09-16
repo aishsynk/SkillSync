@@ -1,5 +1,98 @@
 # SkillEdge / Manager OS — Decisions
 
+## 2026-09-17 — Design V3 Phase 1: canonical component family + foundation motion/chart upgrade
+
+**Decision: `theme/DesignSystem.kt` + `theme/Surfaces.kt` + `core/ui/*` are the
+canonical VISUAL/PRIMITIVE foundation** (glass surfaces, radius/spacing
+ladder, `Severity`/`ToneChip` semantics, chart primitives). This was already
+true in practice — both families already build their surfaces from
+`Modifier.glassSurface()`/`accentGlass()` in `Surfaces.kt`, so this is a
+formalization, not a rewrite.
+
+**Usage/migration matrix** (real grep counts, external call sites only —
+excludes the defining files themselves):
+
+| Concept | Family A | Family B | Call sites A | Call sites B | Capability diff | Verdict |
+|---|---|---|---|---|---|---|
+| Card | `SkillCard` (`DesignSystem.kt`) | `SkillSyncCard` (`SkillSyncComponents.kt`) | 11 files / 28 | 9 files / 33 | B adds `onClick`+`pressable`; both already build on `glassSurface()`/`accentGlass()` — same visual, not two languages | **MIGRATE B → thin wrapper over A** (done this pass — see below) |
+| Section header | `SectionHeading` | `SkillSyncSection` | 8 files / 13 | 1 file / 11 | B bundles a `Column` content slot **and a composable `trailing` slot** (a button/badge, not just text) — `SectionHeading`'s `trailing` is a bare string. Not a like-for-like wrapper | **KEEP BOTH — B is not a duplicate**, it's a higher-capability variant. Forcing it onto `SectionHeading` would silently drop the composable-trailing capability at its 11 call sites; deferred rather than risked this pass |
+| Metric | `Figure`, `MetricSparkline`, `MetricProgress`, `HeroRing` (core/ui `Editorial.kt` + `DesignSystem.kt`) | `SkillSyncMetric` | 8+ files | 4 files / 13 | No capability gap found; different named use-cases (headline figure vs. inline metric row) | **UNIQUE — KEEP both**, no forced merge |
+| Chip/status | `ToneChip`, `Severity` | `SkillSyncStatusChip`, `SkillSyncChip` | 19 files / 91 | 1 file / 7 + 1 file / 4 | `ToneChip` is the dominant, established primitive by a wide margin | **DEPRECATE B on next touch** (not migrated this pass — no call sites outside `SkillSyncComponents.kt` itself blocked anything; left alone per "don't mass-migrate") |
+| Button | *(none in Family A)* | `SkillSyncPrimaryButton`, `SkillSyncSecondaryButton` | 0 | 1 file / 4 + 1 file / 3 | No competing implementation exists | **UNIQUE — KEEP**, adopt as canonical buttons going forward |
+| Search | *(none in Family A)* | `SkillSyncSearchBar` | 0 | 2 files / 3 | No competitor | **UNIQUE — KEEP** |
+| Empty state | `StateNote` (plain message only) | `SkillSyncEmptyState` (icon+title+description+action, built on `glassSurface()`) | small | 7 files / 9 | B is strictly more capable and already uses the canonical surface primitive | **KEEP B AS HIGH-LEVEL WRAPPER — canonical for empty states.** `StateNote` reserved for one-line inline notes only |
+| Error state | *(none dedicated)* | `SkillSyncErrorState` | 0 | 2 files / 3 | No competitor | **UNIQUE — KEEP** |
+| Loading | `ShimmerBox` (`core/ui/Motion.kt`) | `SkillSyncLoadingState` | 26 sites (dominant) | 3 files / 4 | Different roles: `ShimmerBox` is a per-field skeleton primitive, `SkillSyncLoadingState` is a whole-screen wrapper around it | **KEEP BOTH** — `SkillSyncLoadingState` is a high-level wrapper, not a duplicate |
+| Segmented control | *(none)* | `SegmentedSelector` | 0 | 2 files / 3 | `TeamCalendarScreen`'s Month/Week/Day tab row was a **third, hand-rolled implementation** — a real duplicate, not counted in either family | **CONSOLIDATE: `TeamCalendarScreen` migrated onto `SegmentedSelector` this pass** (see §13 motion patch below) |
+| List item | *(none)* | `SkillSyncListItem` | 0 | 2 files / 4 | No competitor | **UNIQUE — KEEP** |
+| Page/screen container | `SkillSyncScreen`, `SkillSyncTopBar`, `SkillSyncPageHeader` (despite the "SkillSync" prefix, these live in `SkillSyncComponents.kt` with no Family A competitor) | — | 0 | `SkillSyncTopBar`: 12 files / 13 (heavily adopted); `SkillSyncScreen`/`SkillSyncPageHeader`: 1–2 sites | No competing implementation; `SkillSyncTopBar` is already the de facto canonical secondary-screen header | **UNIQUE — KEEP**, `SkillSyncTopBar` is canonical for any screen that isn't the root shell (which uses `ExecutiveHeader` instead — that split is intentional: root tab shell vs. pushed detail screen) |
+
+**What actually changed this pass** (trivial, low-risk only — no mass
+migration of the other 40+ screens):
+- `SkillCard` gained an optional `onClick` param (reuses `Modifier.pressable`),
+  and its surface-building logic was extracted into a shared
+  `Modifier.cardSurface()`. `SkillSyncCard` now calls that same helper instead
+  of duplicating the severity/glass/press branching — same signature, same
+  `Space.sm` internal spacing it already had, so none of its 9 call sites
+  needed to change; only the risk of the two surfaces drifting apart is gone.
+- `SkillSyncSection` was inspected and left unchanged — see the matrix row
+  above for why forcing it onto `SectionHeading` would have dropped real
+  capability rather than removed real duplication.
+- `TeamCalendarScreen`'s hand-rolled Month/Week/Day tab `Row` was replaced
+  with the canonical `SegmentedSelector`, with an `AnimatedContent` transition
+  added on top (this also fulfills the Delivery Operations motion patch).
+
+**Permanent rule:** *New UI must not introduce a third component family.*
+Use `theme/DesignSystem.kt`/`Surfaces.kt`/`core/ui/*` primitives directly, or
+a `SkillSync*`-prefixed high-level wrapper from `SkillSyncComponents.kt` if
+one already covers the need (buttons, search bar, empty/error/loading
+wrappers, list item, segmented selector). If neither covers a new need, add
+to the existing family that already owns the closest primitive — do not
+start a new naming convention or a new surface-drawing approach.
+
+### Motion system — springs formalized, not replaced
+
+`theme/SkillMotion.kt`'s three-spring vocabulary (`snappy`/`gentle`/`flow`/
+`press`) is unchanged in value, only more explicitly documented for intended
+use:
+- **snappy** — chips, toggles, segmented-control selection, small
+  discrete-state changes.
+- **gentle** — card/content entrance, section reveals, status-color changes.
+- **flow** — larger layout/container transforms (e.g. the collapsing Today
+  brief) — meant to track a continuous gesture, not perform a fixed beat.
+- **press** — touch-down feedback only (`Modifier.pressable`).
+
+### Reduced motion — centralized, not scattered
+
+Added `core/ui/ReducedMotion.kt`: a `LocalReducedMotion` `CompositionLocal`
+resolved once from `Settings.Global.ANIMATOR_DURATION_SCALE` (system
+"Remove animations" / animation-scale-0 setting) and provided at the theme
+root. `animateProgressFromZero`, `AnimatedCount`, and `Appear` in
+`core/ui/Motion.kt` all consult it and resolve immediately to final state
+when true, instead of each screen re-implementing its own accessibility
+check.
+
+### Chart interaction — one shared tooltip, added to the two suitable charts
+
+Added `ChartTooltip` (one composable, canonical dark-surface + semantic dot +
+label/value styling) plus `pointerInput`-based tap/drag nearest-point
+resolution to `TrendChart` and `BarChart` only (`core/ui/Charts.kt`) — the
+two primitives explicitly identified as chart-scale rather than decorative.
+`Sparkline`, `MeterRow`, and the small progress/radial primitives were left
+non-interactive on purpose (too small on a phone for a precise tap target).
+No chart library was added — this is native `Canvas`/`pointerInput`, per the
+"do not add MPAndroidChart/Vico" rule already documented in `Charts.kt`'s own
+file header.
+
+### Open navigation-architecture question — explicitly deferred, no implementation
+
+Should `Opportunities`/`Search` remain primary bottom-nav destinations, or
+move into a future `More`/global-search surface? **Not decided.** No `More`
+screen exists yet and none was built this pass. Requires a separate
+operator-reviewed IA decision before any bottom-nav change.
+
+---
+
 ## 2026-09-15 — Versioning rule replaced: build number (4th component) increments, not the patch digit
 
 - **Decision (operator instruction, supersedes the `2026-09-15` "Versioning
