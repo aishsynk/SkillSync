@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -86,12 +87,18 @@ internal fun TeamMemberCard(
         .mapNotNull { it.intOrNull("utilization") }
 
     val currentStatus = state?.str("current_status").orEmpty()
+    // "unknown" means RMS's assignment feed did not answer for this trainer —
+    // it must never fall through to a default that reads as a healthy/active
+    // state (backend.py's own state_labels maps it to "Unknown" for the same
+    // reason). Any status this screen doesn't explicitly recognise gets the
+    // same treatment, rather than silently becoming "Active".
     val statusLabel = when (currentStatus) {
         "teaching_now" -> "Delivering"
         "scheduled_today" -> "Scheduled"
         "preparing" -> "Preparing"
         "free" -> if ((calendarAvailability?.get("leave_days") as? Number)?.toInt() ?: 0 > 0) "On Leave" else "Available"
-        else -> "Active"
+        "unknown" -> "Unknown"
+        else -> if (currentStatus.isBlank()) "Unknown" else state?.str("status_label").orEmpty().ifBlank { "Unknown" }
     }
     val statusColor = when (statusLabel) {
         "Delivering" -> sk.good
@@ -99,6 +106,7 @@ internal fun TeamMemberCard(
         "Preparing" -> sk.indigo
         "On Leave" -> sk.amber
         "Available" -> sk.sky
+        "Unknown" -> sk.subText
         else -> sk.subText
     }
 
@@ -238,12 +246,25 @@ internal fun TeamMemberCard(
 
                 Spacer(Modifier.weight(1f))
                 if (series.size >= 2) {
+                    // A real multi-point history exists — show it. Otherwise
+                    // no sparkline is drawn (no fake history, ever).
                     Sparkline(
                         series, tint, endpointTint = sk.cyan,
                         height = 18.dp,
                         modifier = Modifier.width(64.dp),
                     )
                 }
+            }
+
+            // Compact animated utilisation bar — the primary visual, real
+            // history sparkline above is supplementary when it exists.
+            if (util != null) {
+                val utilFraction by com.example.skillsync.core.ui.animateProgressFromZero(util / 100f)
+                com.example.skillsync.theme.MetricProgress(
+                    fraction = utilFraction,
+                    tint = if (util >= 85) sk.warn else sk.cyan,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
             }
 
             // Current course — shown when it is not already the headline.
