@@ -26,6 +26,7 @@ import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
+import com.example.skillsync.core.ui.Avatar
 import com.example.skillsync.core.ui.intOrNull
 import com.example.skillsync.core.ui.str
 import java.time.DayOfWeek
@@ -44,13 +45,25 @@ enum class CalendarViewMode(val label: String) {
     TIMELINE("Timeline")
 }
 
+/**
+ * `batch_engagement_df` (backend.py `_build_trainer`, the `batch_rows` built
+ * from RMS `prevUpcoming`/`assignment`) carries course name, mode, vendor and
+ * dates only — no `activity_type`/category field. Every row IS an RMS batch
+ * by definition, so DELIVERY is labelled "Delivery / Batch" rather than
+ * inventing a second, always-zero "Batches" count that the source data has
+ * no way to distinguish from a delivery. MOCK/WEBINAR/UPSKILLING/MEETING are
+ * reclassified from that same table by keyword match on course name/remarks
+ * (RMS exposes no dedicated field for them either) — LEAVE is the one
+ * exception with a genuinely distinct source: the reportee's `next_leave`
+ * date list, separate from `batch_engagement_df` entirely.
+ */
 enum class EventCategory(
     val label: String,
     val icon: String,
     val color: Color,
     val lightBg: Color,
 ) {
-    DELIVERY("Delivery", "◆", Color(0xFF38BDF8), Color(0x3338BDF8)),
+    DELIVERY("Delivery / Batch", "◆", Color(0xFF38BDF8), Color(0x3338BDF8)),
     MOCK("Mock", "◎", Color(0xFF818CF8), Color(0x33818CF8)),
     WEBINAR("Webinar", "▲", Color(0xFFF472B6), Color(0x33F472B6)),
     LEAVE("Leave", "■", Color(0xFFFBBF24), Color(0x33FBBF24)),
@@ -211,6 +224,15 @@ fun shortTrainerName(fullName: String): String {
         1 -> parts[0]
         else -> "${parts.first()} ${parts.last().first()}."
     }
+}
+
+/** "PL-300T00: Design and Manage Analytics Solutions" -> "PL-300T00" so a
+ * compact calendar cell can show the course code, not a truncated sentence.
+ * The full title stays available on the detail sheet/agenda card. */
+fun shortCourseTitle(title: String): String {
+    val t = title.trim()
+    val code = t.substringBefore(":").trim()
+    return if (code.isNotBlank() && code.length in 1..16) code else t.take(16)
 }
 
 @Composable
@@ -506,7 +528,7 @@ private fun EventCategoryFilterBar(
             onClick = { onSelectCategory(null) },
         )
         FilterPill(
-            label = "Deliveries ($deliveryCount)",
+            label = "${EventCategory.DELIVERY.label} ($deliveryCount)",
             selected = selectedCategory == EventCategory.DELIVERY,
             tint = EventCategory.DELIVERY.color,
             onClick = { onSelectCategory(if (selectedCategory == EventCategory.DELIVERY) null else EventCategory.DELIVERY) },
@@ -709,7 +731,8 @@ private fun MonthWeekRow(
                     val isStart = ev.startDate == weekStartDate.plusDays(startCol.toLong())
                     val isEnd = ev.endDate == weekStartDate.plusDays(endCol.toLong())
 
-                    Box(
+                    val who = shortTrainerName(ev.trainerName)
+                    Column(
                         modifier = Modifier
                             .weight(spanLength.toFloat())
                             .padding(vertical = 1.dp, horizontal = 1.dp)
@@ -725,20 +748,26 @@ private fun MonthWeekRow(
                             .clickable { onEventClick(ev) }
                             .padding(horizontal = 4.dp, vertical = 2.dp),
                     ) {
-                        val who = shortTrainerName(ev.trainerName)
+                        // WHAT then WHO, max two lines — never a truncated
+                        // "Course: Full Sentence Title... — Trainer" run-on.
                         Text(
-                            text = buildString {
-                                append(if (isMultiDay) ev.category.icon else "●")
-                                append(" ")
-                                append(ev.title)
-                                if (who.isNotBlank()) { append(" — "); append(who) }
-                            },
+                            text = "${ev.category.icon} ${shortCourseTitle(ev.title)}",
                             style = MaterialTheme.typography.labelSmall,
                             color = sk.cardBg,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        if (who.isNotBlank()) {
+                            Text(
+                                text = who,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = sk.cardBg.copy(alpha = 0.85f),
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
 
                     val remainingCols = 6 - endCol
@@ -905,7 +934,7 @@ private fun WeekScheduleView(
                                 .padding(horizontal = 3.dp, vertical = 2.dp),
                         ) {
                             Text(
-                                ev.title,
+                                "${ev.category.icon} ${shortCourseTitle(ev.title)}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = sk.cardBg,
                                 fontWeight = FontWeight.SemiBold,
@@ -917,6 +946,15 @@ private fun WeekScheduleView(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = sk.cardBg.copy(alpha = 0.85f),
                                     fontWeight = FontWeight.Medium,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            if (ev.timeSlot.isNotBlank()) {
+                                Text(
+                                    ev.timeSlot,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = sk.cardBg.copy(alpha = 0.7f),
+                                    fontWeight = FontWeight.Normal,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
                             }
@@ -1033,16 +1071,13 @@ private fun EventCardRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // Category Accent Dot / Icon
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(event.category.color.copy(alpha = 0.2f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(event.category.icon, fontSize = 14.sp)
-        }
+        // Trainer avatar — real photo where the model has one, initials
+        // otherwise. This is who is delivering, not just a category glyph.
+        Avatar(
+            name = event.trainerName.ifBlank { event.title },
+            photoUrl = null,
+            size = 32.dp,
+        )
 
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(
@@ -1064,7 +1099,7 @@ private fun EventCardRow(
                     shape = RoundedCornerShape(4.dp),
                 ) {
                     Text(
-                        event.category.label.uppercase(),
+                        "${event.category.icon} ${event.category.label.uppercase()}",
                         style = MaterialTheme.typography.labelSmall,
                         color = event.category.color,
                         fontWeight = FontWeight.Bold,

@@ -514,7 +514,7 @@ private fun OperationsSummaryStrip(monthLabel: String, events: List<CalendarEven
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             SummaryStat("Events", events.size.toString(), sk.frost)
-            SummaryStat("Deliveries", deliveries.toString(), EventCategory.DELIVERY.color)
+            SummaryStat("Delivery/Batch", deliveries.toString(), EventCategory.DELIVERY.color)
             SummaryStat("Leaves", leaves.toString(), EventCategory.LEAVE.color)
             SummaryStat("Mocks", mocks.toString(), EventCategory.MOCK.color)
             SummaryStat("Webinars", webinars.toString(), EventCategory.WEBINAR.color)

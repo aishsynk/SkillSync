@@ -964,7 +964,7 @@ class ScreenRenderTest {
         // The summary strip is the single source of "what's going on this
         // month" — it must never repeat the same delivery cards the calendar
         // and agenda already render in detail.
-        compose.onNodeWithText("DELIVERIES").assertExists()
+        compose.onNodeWithText("DELIVERY/BATCH").assertExists()
         compose.onNodeWithText("LEAVES").assertExists()
         compose.onNodeWithText("MOCKS").assertExists()
         compose.onNodeWithText("WEBINARS").assertExists()
