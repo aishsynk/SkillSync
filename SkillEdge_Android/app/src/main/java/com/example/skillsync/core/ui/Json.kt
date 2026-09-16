@@ -78,3 +78,16 @@ fun String.longDate(): String {
     val m = p[1].toIntOrNull() ?: return this
     return "${p[2]} ${MONTHS.getOrNull(m - 1) ?: p[1]} ${p[0]}"
 }
+
+/** "2026-08-09" -> whole days from today until that date, or null if unparseable. */
+fun String.daysUntil(): Int? {
+    val p = split("-")
+    if (p.size != 3) return null
+    val y = p[0].toIntOrNull() ?: return null
+    val m = p[1].toIntOrNull() ?: return null
+    val d = p[2].toIntOrNull() ?: return null
+    return try {
+        val target = java.time.LocalDate.of(y, m, d)
+        java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), target).toInt()
+    } catch (_: Exception) { null }
+}

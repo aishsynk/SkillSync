@@ -183,17 +183,17 @@ fun EligibilitySheet(
     }
 
     markTarget?.let { target ->
-        MarkSkillDialog(
+        MarkSkillSheet(
             title = "Mark ${target.first}'s skill",
-            subtitle = courseName,
+            courseName = courseName,
+            requiredLevel = "",
             people = listOf(target),
             working = markState is MarkState.Working,
+            initialSelected = target,
             onDismiss = { markTarget = null },
-            onConfirm = { who, level, date ->
-                val email = who?.second.orEmpty()
-                if (email.isNotBlank()) {
-                    onMarkSkill(courseId, email, level, date, who?.first ?: email)
-                }
+            onConfirmMany = { who, level, date ->
+                val (name, email) = who.firstOrNull() ?: return@MarkSkillSheet
+                if (email.isNotBlank()) onMarkSkill(courseId, email, level, date, name)
                 markTarget = null
             },
         )

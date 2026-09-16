@@ -504,11 +504,14 @@ fun MainNavigation() {
                             international = batch.str("is_international").equals("true", true),
                         )
                     }
-                    // Candidates are this manager's reportees, which is exactly the
-                    // set they may mark a skill for.
-                    val reportees = (data?.rows("batches") ?: dashData?.rows("unallocated_demand_df") ?: emptyList())
-                        .flatMap { it.list("candidates") }
-                        .map { it.str("trainer_name") to it.str("trainer_email") }
+                    // The manager's real reportee roster — the same
+                    // trainer_operations_df source People/TeamTab reads, not the
+                    // pre-matched "candidates" for this one course. Marking a
+                    // skill is how someone who ISN'T already a candidate for
+                    // this course becomes one, so the picker must offer the
+                    // whole team, not just whoever the matcher already picked.
+                    val reportees = (dashData?.rows("trainer_operations_df") ?: emptyList())
+                        .map { it.str("trainer_name") to it.str("official_email") }
                         .filter { it.second.isNotBlank() }
                         .distinctBy { it.second }
                         .sortedBy { it.first }
@@ -527,9 +530,41 @@ fun MainNavigation() {
                         onMarkSkill = { courseId, trainerEmail, level, date, who ->
                             allocationViewModel.markSkill(
                                 context, courseId, trainerEmail, level, date, who,
-                                onSaved = { 
+                                onSaved = {
                                     mainViewModel.refreshCapability(screen.email, context)
                                     allocationViewModel.refresh(screen.email, context)
+                                    // Re-evaluate Team Match for this specific demand
+                                    // immediately, so a newly-marked trainer shows up
+                                    // as eligible without leaving and reopening.
+                                    allocationViewModel.loadGatedCandidates(
+                                        manager = screen.email,
+                                        course = batch.str("course_name"),
+                                        start = batch.str("start_date"),
+                                        end = batch.str("end_date").ifBlank { batch.str("start_date") },
+                                        country = batch.str("location"),
+                                        customer = batch.str("customer"),
+                                        deliveryMode = batch.str("delivery_mode"),
+                                        international = batch.str("is_international").equals("true", true),
+                                    )
+                                },
+                            )
+                        },
+                        onMarkSkillMany = { courseId, trainers, level, date ->
+                            allocationViewModel.markSkillBatch(
+                                context, courseId, trainers, level, date,
+                                onSaved = {
+                                    mainViewModel.refreshCapability(screen.email, context)
+                                    allocationViewModel.refresh(screen.email, context)
+                                    allocationViewModel.loadGatedCandidates(
+                                        manager = screen.email,
+                                        course = batch.str("course_name"),
+                                        start = batch.str("start_date"),
+                                        end = batch.str("end_date").ifBlank { batch.str("start_date") },
+                                        country = batch.str("location"),
+                                        customer = batch.str("customer"),
+                                        deliveryMode = batch.str("delivery_mode"),
+                                        international = batch.str("is_international").equals("true", true),
+                                    )
                                 },
                             )
                         },

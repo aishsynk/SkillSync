@@ -88,12 +88,28 @@ internal fun coverageStyle(coverage: String): Triple<String, Color, Int> {
     }
 }
 
-private fun planCoverageStyle(coverage: String, sk: com.example.skillsync.theme.SkillColors): Triple<String, Color, Int> =
-    when (coverage) {
-        "Best Match" -> Triple("Coverable", sk.good, R.drawable.ic_check)
-        "Available with Upskilling" -> Triple("Coverable with upskilling", sk.warn, R.drawable.ic_flag)
-        else -> Triple("Blocked", sk.crit, R.drawable.ic_alert)
-    }
+/**
+ * One state, one source. Previously the status band (BLOCKED/COVERABLE) and
+ * the coverability sentence were computed from two switch statements over
+ * `coverage_status` that disagreed on their fallback — a real value like
+ * "Available" (distinct from "Best Match") read as unblocked for the badge
+ * but fell into the "else -> Blocked" branch for the sentence, producing a
+ * card that showed "COVERABLE" and "Blocked · allocation pending" at once.
+ * This is the single classifier both the chip and the sentence read from.
+ */
+private data class PlanState(val label: String, val reason: String, val tint: Color, val icon: Int)
+
+private fun planState(coverage: String, sk: com.example.skillsync.theme.SkillColors): PlanState = when (coverage) {
+    "No Coverage" -> PlanState(
+        "BLOCKED", "Required capability not currently covered", sk.warn, R.drawable.ic_alert,
+    )
+    "Best Match" -> PlanState(
+        "READY TO ALLOCATE", "Allocation pending", sk.good, R.drawable.ic_check,
+    )
+    else -> PlanState(
+        "NEEDS REVIEW", "Coverage not yet confirmed", sk.sky, R.drawable.ic_flag,
+    )
+}
 
 private enum class PlanFilter(val label: String) {
     ALL("All"), URGENT("Urgent"), COVERABLE("Coverable"), BLOCKED("Blocked"),
@@ -437,11 +453,10 @@ private fun PlanBatchCard(
     onOpenDetails: () -> Unit,
 ) {
     val sk = MaterialTheme.skill
-    val (coverLabel, coverTint, coverIcon) = planCoverageStyle(b.str("coverage_status"), sk)
+    val state = planState(b.str("coverage_status"), sk)
     val accent = when {
         urgent -> sk.crit
-        blocked -> sk.warn
-        else -> sk.sky
+        else -> state.tint
     }
     val mode = b.str("delivery_mode")
     val international = b.bool("is_international")
@@ -451,18 +466,10 @@ private fun PlanBatchCard(
             .fillMaxWidth()
             .animateContentSize()
             .accentGlass(accent, strong = urgent || blocked)
-            .clickable(onClick = onToggleExpand)
             .padding(Space.md),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        // Status band
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (isNew) ToneChip("NEW", sk.blue, solid = true)
-            if (urgent) ToneChip("URGENT", sk.crit)
-            if (blocked) ToneChip("BLOCKED", sk.warn) else ToneChip("COVERABLE", sk.good)
-            if (days != null) ToneChip(if (days <= 0) "Starts today" else "Starts in ${days}d", sk.labelText)
-        }
-
+        // Course + account first — what the manager scans for.
         Text(
             b.str("course_name").ifBlank { "Course not specified" },
             style = MaterialTheme.typography.titleSmall, color = sk.bodyText,
@@ -472,7 +479,6 @@ private fun PlanBatchCard(
             b.str("customer").ifBlank { "Account not specified" },
             style = MaterialTheme.typography.labelSmall, color = sk.labelText, maxLines = 1,
         )
-
         Text(
             listOfNotNull(
                 listOfNotNull(
@@ -486,70 +492,64 @@ private fun PlanBatchCard(
             style = MaterialTheme.typography.labelSmall, color = sk.subText,
         )
 
-        // Coverability language, precise: never "people are free".
+        Spacer(Modifier.height(1.dp))
+
+        // ONE primary state, urgency as a secondary time fact on the same
+        // line — never two badges that can disagree.
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(painterResource(coverIcon), null, tint = coverTint, modifier = Modifier.size(14.dp))
+            ToneChip(state.label, state.tint, solid = true)
+            if (isNew) {
+                Spacer(Modifier.width(6.dp))
+                ToneChip("NEW", sk.blue, solid = true)
+            }
+            Spacer(Modifier.weight(1f))
+            if (days != null) {
+                Text(
+                    if (days <= 0) "Starts today" else "Starts in ${days}d",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (urgent) sk.crit else sk.labelText,
+                    fontWeight = if (urgent) FontWeight.Bold else FontWeight.Normal,
+                )
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(painterResource(state.icon), null, tint = state.tint, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(5.dp))
+            Text(state.reason, style = MaterialTheme.typography.labelSmall, color = sk.subText)
+        }
+
+        Spacer(Modifier.height(2.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.pressable(onOpenDetails)) {
             Text(
-                if (blocked) "$coverLabel · required capability not currently covered"
-                else "$coverLabel · allocation pending",
-                style = MaterialTheme.typography.labelSmall, color = coverTint,
+                "Open Demand", style = MaterialTheme.typography.labelLarge,
+                color = sk.sky, fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.width(4.dp))
+            Icon(painterResource(R.drawable.ic_chevron), null, tint = sk.sky, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (expanded) "Less" else "More",
+                style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                modifier = Modifier.pressable(onToggleExpand).padding(4.dp),
             )
         }
 
+        // Reference/priority/risk only — the rest (requirements, remarks,
+        // courseware, participants) belongs on Demand Detail, not repeated here.
         AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Spacer(Modifier.height(2.dp))
                 HorizontalDivider(color = sk.cardBorder)
-                ExpandedSection("DELIVERY") {
-                    ExpandedLine("Window", listOfNotNull(
-                        b.str("start_date").takeIf { it.isNotBlank() }?.shortDate(),
-                        b.str("end_date").takeIf { it.isNotBlank() }?.shortDate(),
-                    ).joinToString(" – ").ifBlank { "—" })
-                    if (mode.isNotBlank()) ExpandedLine("Mode", mode)
-                    if (b.str("location").isNotBlank()) ExpandedLine("Location", b.str("location"))
-                    b.intOrNull("participants")?.takeIf { it > 0 }?.let { ExpandedLine("Participants", "$it") }
-                }
-                ExpandedSection("DEMAND") {
-                    if (b.str("demand_id").isNotBlank()) ExpandedLine("Reference", b.str("demand_id"))
-                    if (b.str("customer").isNotBlank()) ExpandedLine("Account", b.str("customer"))
-                    b.intOrNull("priority_score")?.let { ExpandedLine("Priority score", "$it") }
-                    if (b.str("assignment_risk").isNotBlank()) ExpandedLine("Risk", b.str("assignment_risk"))
-                }
-                if (b.str("assignment_level").isNotBlank()) {
-                    ExpandedSection("REQUIREMENTS") {
-                        ExpandedLine("Skill level", b.str("assignment_level"))
-                    }
-                }
-                if (blocked) {
-                    ExpandedSection("BLOCKER") {
-                        ExpandedLine("Reason", "Capability not currently covered")
-                    }
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    FilledTonalButton(
-                        onClick = onOpenDetails,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(Radii.chip),
-                    ) { Text("Open Details") }
-                }
+                Spacer(Modifier.height(2.dp))
+                if (b.str("demand_id").isNotBlank()) ExpandedLine("Reference", b.str("demand_id"))
+                b.intOrNull("priority_score")?.let { ExpandedLine("Priority score", "$it") }
+                if (b.str("assignment_risk").isNotBlank()) ExpandedLine("Risk", b.str("assignment_risk"))
+                if (b.str("assignment_level").isNotBlank()) ExpandedLine("Required level", b.str("assignment_level"))
             }
         }
     }
 }
 
-@Composable
-private fun ExpandedSection(title: String, content: @Composable () -> Unit) {
-    val sk = MaterialTheme.skill
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(
-            title, style = MaterialTheme.typography.labelSmall,
-            color = sk.labelText, fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
-        )
-        content()
-    }
-}
 
 @Composable
 private fun ExpandedLine(label: String, value: String) {
@@ -659,13 +659,23 @@ private fun CapacityPlanningCard(
                     Text(plan.confidence.note, style = MaterialTheme.typography.bodySmall, color = sk.subText)
                 }
 
+                // Compact status line, not a full sentence dominating the card:
+                // the fact is useful but must not out-weigh the outlook itself.
                 plan.confidence.availabilityPct?.let { pct ->
-                    Text(
-                        if (pct == 100) "Availability verified for every candidate in this outlook."
-                        else "Availability verified for $pct percent of candidates; the rest are unconfirmed.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (pct == 100) sk.subText else sk.warn,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Availability evidence",
+                            style = MaterialTheme.typography.labelSmall, color = sk.labelText,
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (pct == 100) "$pct% verified"
+                            else "$pct% verified · rest unconfirmed",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (pct == 100) sk.subText else sk.warn,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
                 }
             }
         }

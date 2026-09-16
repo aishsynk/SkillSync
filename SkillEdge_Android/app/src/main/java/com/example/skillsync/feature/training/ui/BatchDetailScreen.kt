@@ -54,6 +54,8 @@ fun BatchDetailScreen(
     gatedCandidatesLoading: Boolean = false,
     gatedCandidatesUnverified: String? = null,
     onMarkSkill: (courseId: String, trainerEmail: String, level: Int, date: String, who: String) -> Unit,
+    /** One course, one or more trainers, reported honestly on partial failure. */
+    onMarkSkillMany: (courseId: String, trainers: List<Pair<String, String>>, level: Int, date: String) -> Unit = { _, _, _, _ -> },
     onClearMark: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -194,6 +196,28 @@ fun BatchDetailScreen(
                             coverageLabel, style = MaterialTheme.typography.labelSmall,
                             color = coverageTint, fontWeight = FontWeight.Bold,
                         )
+                        if (batch.str("customer").isNotBlank()) {
+                            Text(
+                                batch.str("customer"),
+                                style = MaterialTheme.typography.bodyMedium, color = sk.subText,
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            batch.str("start_date").takeIf { it.isNotBlank() }?.daysUntil()?.let { d ->
+                                Chip(
+                                    when {
+                                        d < 0 -> "In progress"
+                                        d == 0 -> "Starts today"
+                                        d == 1 -> "Starts in 1d"
+                                        else -> "Starts in ${d}d"
+                                    },
+                                    if (d in 0..3) sk.warn else sk.sky,
+                                )
+                                Spacer(Modifier.width(6.dp))
+                            }
+                            if (batch.str("demand_id").isNotBlank()) { Chip("Ref ${batch.str("demand_id")}", sk.subText); Spacer(Modifier.width(6.dp)) }
+                        }
                         Spacer(Modifier.height(6.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (batch.bool("is_fast_track") || operationalContext?.course?.isFastTrack == true) { Chip("Fast-Track (No Exam)", sk.aqua); Spacer(Modifier.width(6.dp)) }
@@ -219,11 +243,14 @@ fun BatchDetailScreen(
                 TeamSkillPanel(
                     rows = teamSkill,
                     requiredLevel = requiredLevel,
+                    canManageTeam = com.example.skillsync.core.data.SessionManager.canManageTeam(),
                     onMark = { name, email ->
                         markFor = name to email
                         markForLevel = requiredLevel.toIntOrNull()
                         showReportee = true
                     },
+                    onMarkMine = { showMine = true },
+                    onMarkTeam = { showReportee = true },
                 )
 
                 // The full eligibility check — leave, client exclusions,
@@ -284,8 +311,8 @@ fun BatchDetailScreen(
                     }
                 }
 
-                // Start -> End on a single row, then everything else the
-                // manager needs before deciding, all in one dense block.
+                // Start -> End on its own row, kept apart from the requirement
+                // and context facts below so the schedule reads at a glance.
                 Box(Modifier.fillMaxWidth().glassSurface()) {
                     Column(Modifier.padding(16.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -303,28 +330,6 @@ fun BatchDetailScreen(
                                 Chip("${it}d", sk.sky)
                             }
                         }
-                        Spacer(Modifier.height(12.dp))
-                        HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f), thickness = 0.5.dp)
-                        Spacer(Modifier.height(10.dp))
-                        // Mode through Remarks, two per row. Short facts pair
-                        // up; anything long (remarks, a wordy location) takes a
-                        // full row so it is not truncated to fit a column.
-                        FactGrid(
-                            listOf(
-                                "Mode" to batch.str("delivery_mode"),
-                                "Vendor" to batch.str("customer"),
-                                "Assignment level" to batch.str("assignment_level"),
-                                "Participants" to (batch.intOrNull("participants")?.toString() ?: ""),
-                                "Daily time" to batch.str("session_time"),
-                                "Language" to batch.str("language"),
-                                "Location" to batch.str("location"),
-                                "Courseware" to batch.str("courseware"),
-                                "Allocation for" to batch.str("allocation_for"),
-                                "Course id" to courseId,
-                                "Student card" to batch.str("scid"),
-                                "Remarks" to batch.str("remarks"),
-                            )
-                        )
                         // The raw `schedule` blob is deliberately not rendered.
                         // RMS repeats the same window once per delivery day
                         // ("24 Aug / 09:00-17:00 / 25 Aug / 09:00-17:00 / ..."),
@@ -332,6 +337,41 @@ fun BatchDetailScreen(
                         // and the daily time already shown in the grid. The
                         // window is extracted once, server-side, as
                         // `session_time`.
+                    }
+                }
+
+                // Demand requirements — what the delivery itself needs.
+                SectionCard("Demand requirements") {
+                    FactGrid(
+                        listOf(
+                            "Mode" to batch.str("delivery_mode"),
+                            "Assignment level" to batch.str("assignment_level"),
+                            "Participants" to (batch.intOrNull("participants")?.toString() ?: ""),
+                            "Daily time" to batch.str("session_time"),
+                            "Language" to batch.str("language"),
+                            "Courseware" to batch.str("courseware"),
+                        )
+                    )
+                }
+
+                // Customer / learner context — who this delivery is for.
+                SectionCard("Customer & learner context") {
+                    FactGrid(
+                        listOf(
+                            "Vendor" to batch.str("customer"),
+                            "Location" to batch.str("location"),
+                            "Allocation for" to batch.str("allocation_for"),
+                            "Course id" to courseId,
+                            "Student card" to batch.str("scid"),
+                        )
+                    )
+                }
+
+                // Remarks — freeform text, kept in its own card so it never
+                // gets truncated to fit a two-column grid cell.
+                batch.str("remarks").takeIf { it.isNotBlank() }?.let { remarks ->
+                    SectionCard("Remarks") {
+                        Text(remarks, style = MaterialTheme.typography.bodySmall, color = sk.frost)
                     }
                 }
 
@@ -421,6 +461,16 @@ fun BatchDetailScreen(
                                         )
                                     }
                                 }
+                            }
+                        }
+
+                        if (courseName.isNotBlank()) {
+                            OutlinedButton(
+                                onClick = { showCurriculumSheet = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                            ) {
+                                Text("View curriculum", style = MaterialTheme.typography.labelMedium, color = sk.blue, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -522,11 +572,12 @@ fun BatchDetailScreen(
                     }
                 }
 
-                // Recommended allocation
+                // Team Match — reportees only, never learners/participants
+                // (those are the separate "Enrolled Participants" section above).
                 Box(Modifier.fillMaxWidth().glassSurface()) {
                     Column(Modifier.padding(16.dp)) {
                         Text(
-                            "Recommended allocation", style = MaterialTheme.typography.titleSmall,
+                            "Team Match", style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold, color = sk.frost,
                         )
                         Spacer(Modifier.height(2.dp))
@@ -536,118 +587,63 @@ fun BatchDetailScreen(
                         )
                         Spacer(Modifier.height(10.dp))
                         if (candidates.isEmpty()) {
+                            // Never a dead end: no mapped trainer is exactly the
+                            // moment marking a skill becomes the next action.
                             Text(
-                                "No one on your team maps to this course.",
-                                style = MaterialTheme.typography.bodySmall, color = sk.subText,
+                                "No mapped trainer found",
+                                style = MaterialTheme.typography.bodyMedium, color = sk.bodyText,
+                                fontWeight = FontWeight.SemiBold,
                             )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                "No one on your team currently holds this skill at the level the assignment needs.",
+                                style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                            )
+                            Spacer(Modifier.height(10.dp))
                         } else {
                             candidates.forEachIndexed { i, c ->
-                                if (i > 0) {
-                                    Spacer(Modifier.height(2.dp))
-                                    HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.4f), thickness = 0.5.dp)
-                                    Spacer(Modifier.height(2.dp))
-                                }
-                                Row(
-                                    Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    val isDnc = c.bool("dnc_flag")
-                                    val isClientReq = c.bool("client_requested")
-                                    Column(Modifier.weight(1f)) {
-                                        Text(
-                                            c.str("trainer_name"),
-                                            style = MaterialTheme.typography.titleSmall, color = sk.frost,
-                                        )
-                                        Text(
-                                            "via ${c.str("via_course")}",
-                                            style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                        )
-                                        val coverage = c.str("coverage")
-                                        val heldLvl = c.str("held_skill_level")
-                                        val reqLvl = c.str("required_skill_level")
-                                        if (heldLvl.isNotBlank() || reqLvl.isNotBlank()) {
-                                            val meets = c["meets_required_level"]
-                                            Text(
-                                                buildString {
-                                                    if (heldLvl.isNotBlank()) append("Holds level $heldLvl")
-                                                    if (reqLvl.isNotBlank()) append(" · needs $reqLvl")
-                                                    when (meets) {
-                                                        true -> append(" ✓")
-                                                        false -> append(" — below level")
-                                                        else -> {}
-                                                    }
-                                                },
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = when (c["meets_required_level"]) {
-                                                    true -> sk.aqua; false -> sk.warn; else -> sk.subText
-                                                },
-                                            )
-                                        }
-
-                                        Spacer(Modifier.height(2.dp))
-                                        if (isDnc) {
-                                            Text(
-                                                "🚫 Client DNC Blocked",
-                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                                color = sk.crit,
-                                            )
-                                        } else if (isClientReq) {
-                                            Text(
-                                                "Client Requested Trainer",
-                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                                color = sk.amber,
-                                            )
-                                        } else if (coverage.isNotBlank()) {
-                                            Text(
-                                                listOfNotNull(
-                                                    coverage,
-                                                    c.str("backup_role").takeIf { it.isNotBlank() },
-                                                    c.intOrNull("utilization")?.let { "${it}% utilised" },
-                                                    if (!c.bool("speaks_english")) "non-English" else null,
-                                                ).joinToString(" · "),
-                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                                color = relevanceColor(c.int("match")),
-                                            )
-                                        }
-                                    }
-                                    Chip("${c.int("match")}%", if (isDnc) sk.crit else relevanceColor(c.int("match")))
-                                    // Addresses the message to this trainer by name rather
-                                    // than sending an unaddressed team broadcast.
-                                    TextButton(onClick = {
+                                if (i > 0) Spacer(Modifier.height(8.dp))
+                                TeamMatchRow(
+                                    candidate = c,
+                                    onMessage = {
                                         shareTarget = c.str("trainer_name") to c.str("trainer_email")
                                         showMessagePreview = true
-                                    }) { Text("Message", color = sk.sky) }
-                                }
+                                    },
+                                )
+                            }
+                            Spacer(Modifier.height(10.dp))
+                        }
+                        // Same two actions regardless of state — Team Match is
+                        // one component family whether it has zero or many
+                        // ranked trainers.
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            if (com.example.skillsync.core.data.SessionManager.canManageTeam()) {
+                                FilledTonalButton(
+                                    onClick = { showReportee = true },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(Radii.chip),
+                                ) { Text("Mark team skills") }
+                            }
+                            if (courseName.isNotBlank()) {
+                                OutlinedButton(
+                                    onClick = { showNetworkSheet = true },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(Radii.chip),
+                                ) { Text("Search wider network", color = sk.cyan) }
                             }
                         }
                     }
                 }
 
-                // Actions — compact row with primary tools
-                ActionBar(
-                    actions = listOfNotNull(
-                        ActionItem("Curriculum", R.drawable.ic_book, sk.blue) { showCurriculumSheet = true },
-                        ActionItem("My skill", R.drawable.ic_check, sk.teal) { showMine = true },
-                        if (com.example.skillsync.core.data.SessionManager.canManageTeam())
-                            ActionItem("Reportee", R.drawable.ic_people, sk.indigo) { showReportee = true }
-                        else null,
-                        ActionItem("Message", R.drawable.ic_mail, sk.green) {
-                            shareTarget = null
-                            showMessagePreview = true
-                        },
-                    ),
-                )
-
-                if (courseName.isNotBlank()) {
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedButton(
-                        onClick = { showNetworkSheet = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                    ) {
-                        Text("Search Wider Trainer Network", style = MaterialTheme.typography.labelMedium, color = sk.cyan, fontWeight = FontWeight.SemiBold)
-                    }
+                // Communication — message the team about this demand, not tied
+                // to any specific trainer (per-trainer messaging lives inline
+                // on that trainer's Team Match row above).
+                OutlinedButton(
+                    onClick = { shareTarget = null; showMessagePreview = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Text("Message the team", style = MaterialTheme.typography.labelMedium, color = sk.green, fontWeight = FontWeight.SemiBold)
                 }
 
                 Spacer(Modifier.height(24.dp))
@@ -708,13 +704,14 @@ fun BatchDetailScreen(
     }
 
     if (showMine) {
-        MarkSkillDialog(
+        MarkSkillSheet(
             title = "Mark my skill",
-            subtitle = courseName,
+            courseName = courseName,
+            requiredLevel = "",
             people = null,
             working = markState is MarkState.Working,
             onDismiss = { showMine = false },
-            onConfirm = { _, level, date ->
+            onConfirmMine = { level, date ->
                 onMarkSkill(courseId, managerEmail, level, date, "you")
                 showMine = false
             },
@@ -722,20 +719,21 @@ fun BatchDetailScreen(
     }
 
     if (showReportee) {
-        MarkSkillDialog(
-            title = "Mark reportee's skill",
-            subtitle = listOfNotNull(
-                courseName.takeIf { it.isNotBlank() },
-                requiredLevel.takeIf { it.isNotBlank() }?.let { "Assignment needs level $it or above" },
-            ).joinToString(" · "),
-            people = markFor?.let { listOf(it) } ?: reportees,
+        MarkSkillSheet(
+            title = "Mark team skill",
+            courseName = courseName,
+            requiredLevel = requiredLevel,
+            people = reportees,
             working = markState is MarkState.Working,
+            initialSelected = markFor,
             initialLevel = markForLevel,
             onDismiss = { showReportee = false; markFor = null; markForLevel = null },
-            onConfirm = { who, level, date ->
-                val email = who?.second.orEmpty()
-                if (email.isNotBlank()) {
-                    onMarkSkill(courseId, email, level, date, who?.first ?: email)
+            onConfirmMany = { who, level, date ->
+                if (who.size == 1) {
+                    val (name, email) = who.first()
+                    if (email.isNotBlank()) onMarkSkill(courseId, email, level, date, name)
+                } else if (who.isNotEmpty()) {
+                    onMarkSkillMany(courseId, who, level, date)
                 }
                 showReportee = false; markFor = null; markForLevel = null
             },
@@ -844,6 +842,132 @@ private fun MessagePreviewDialog(
 }
 
 /**
+ * One deterministic label per candidate, derived only from the same fields the
+ * backend already computed (backend.py `build_candidates`: `dnc_flag`,
+ * `blocked`, `meets_required_level`, `availability_status`,
+ * `certification_covered`). Compose never re-derives eligibility or
+ * suitability itself — a hard block always outranks a high match score so a
+ * DNC or below-level trainer can never read as recommended.
+ */
+private data class CandidateState(val label: String, val tint: Color, val reason: String)
+
+private fun candidateState(c: Map<*, *>, sk: com.example.skillsync.theme.SkillColors): CandidateState {
+    val isDnc = c.bool("dnc_flag")
+    val isBlocked = c.bool("blocked")
+    val meetsLevel = c["meets_required_level"]
+    val availability = c.str("availability_status")
+    val certCovered = c.bool("certification_covered")
+    val heldLvl = c.str("held_skill_level")
+    val reqLvl = c.str("required_skill_level")
+
+    return when {
+        isDnc -> CandidateState("BLOCKED", sk.crit, "Client exclusion (DNC) — cannot be allocated to this account")
+        isBlocked -> CandidateState("BLOCKED", sk.crit, "Blocked on recent feedback or a confirmed conflict")
+        meetsLevel == false -> CandidateState(
+            "NOT ELIGIBLE", sk.crit,
+            "Below required level" + if (heldLvl.isNotBlank() || reqLvl.isNotBlank()) " — holds L${heldLvl.ifBlank { "0" }}, needs L${reqLvl.ifBlank { "?" }}" else "",
+        )
+        availability == "conflict" -> CandidateState("CONFLICT", sk.warn, "Known schedule conflict in this window")
+        availability == "unverified" || availability.isBlank() -> CandidateState("NEEDS REVIEW", sk.amber, "Availability not yet confirmed")
+        !certCovered && reqLvl.isNotBlank() -> CandidateState("NEEDS REVIEW", sk.amber, "Certification for this course is not on file")
+        else -> CandidateState("RECOMMENDED", sk.aqua, "Meets level, available, and covers the required certification")
+    }
+}
+
+/**
+ * One trainer's fit for this demand: identity, recommendation state, skill
+ * fit, recorded level, availability, certification and the one reason behind
+ * the state — so a hard-ineligible trainer never reads as recommended just
+ * because their suitability score is high.
+ */
+@Composable
+private fun TeamMatchRow(candidate: Map<*, *>, onMessage: () -> Unit) {
+    val sk = MaterialTheme.skill
+    val state = candidateState(candidate, sk)
+    val isDnc = candidate.bool("dnc_flag")
+    val isClientReq = candidate.bool("client_requested")
+    val match = candidate.int("match")
+    val heldLvl = candidate.str("held_skill_level")
+    val reqLvl = candidate.str("required_skill_level")
+    val availability = candidate.str("availability_status")
+    val certCovered = candidate.bool("certification_covered")
+    val hardBlocked = state.label == "BLOCKED" || state.label == "NOT ELIGIBLE"
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(sk.cardBg.copy(alpha = 0.6f))
+            .border(1.dp, state.tint.copy(alpha = if (hardBlocked) 0.35f else 0.2f), RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    candidate.str("trainer_name"),
+                    style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "via ${candidate.str("via_course")}",
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Chip(state.label, state.tint)
+        }
+
+        Text(state.reason, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
+
+        // Skill fit / suitability is shown, but a hard eligibility failure
+        // keeps its own tint rather than borrowing the (possibly high) match
+        // colour — a 92% match must not look positive when it is DNC-blocked.
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            MatchTag(
+                if (heldLvl.isNotBlank() || reqLvl.isNotBlank()) "L${heldLvl.ifBlank { "0" }}/${reqLvl.ifBlank { "—" }}" else "Level —",
+                if (hardBlocked) sk.subText else if (candidate["meets_required_level"] == true) sk.aqua else sk.warn,
+            )
+            MatchTag(
+                when (availability) {
+                    "available" -> "Available"
+                    "conflict" -> "Conflict"
+                    "unverified", "" -> "Unconfirmed"
+                    else -> availability.replaceFirstChar { it.uppercase() }
+                },
+                if (hardBlocked) sk.subText else when (availability) { "available" -> sk.aqua; "conflict" -> sk.crit; else -> sk.amber },
+            )
+            MatchTag(
+                if (certCovered) "Certified" else "Not certified",
+                if (hardBlocked) sk.subText else if (certCovered) sk.aqua else sk.amber,
+            )
+            if (!hardBlocked) MatchTag("$match% fit", relevanceColor(match))
+        }
+
+        if (isClientReq && !isDnc) {
+            Text("Client-requested trainer", style = MaterialTheme.typography.labelSmall, color = sk.amber, fontWeight = FontWeight.Bold)
+        }
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onMessage) { Text("Message", color = sk.sky) }
+        }
+    }
+}
+
+@Composable
+private fun MatchTag(text: String, tint: Color) {
+    Surface(color = tint.copy(alpha = 0.14f), shape = RoundedCornerShape(6.dp)) {
+        Text(
+            text, style = MaterialTheme.typography.labelSmall, color = tint, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+        )
+    }
+}
+
+/**
  * "Who on my team holds this skill" — the panel a delivery manager opens Demand
  * for. Every reportee, sorted eligible → holds-but-below-level → no skill, each
  * with a one-tap Mark that pre-fills the assignment's required level.
@@ -852,10 +976,30 @@ private fun MessagePreviewDialog(
 private fun TeamSkillPanel(
     rows: List<Map<*, *>>,
     requiredLevel: String,
+    canManageTeam: Boolean,
     onMark: (name: String, email: String) -> Unit,
+    onMarkMine: () -> Unit,
+    onMarkTeam: () -> Unit,
 ) {
-    if (rows.isEmpty()) return
     val sk = MaterialTheme.skill
+    if (rows.isEmpty()) {
+        Box(Modifier.fillMaxWidth().glassSurface()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Team skill on this course", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = sk.frost)
+                Text(
+                    "No skill records found for your team on this course yet.",
+                    style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = onMarkMine, modifier = Modifier.weight(1f), shape = RoundedCornerShape(Radii.chip)) { Text("Mark my skill") }
+                    if (canManageTeam) {
+                        OutlinedButton(onClick = onMarkTeam, modifier = Modifier.weight(1f), shape = RoundedCornerShape(Radii.chip)) { Text("Mark team skills") }
+                    }
+                }
+            }
+        }
+        return
+    }
     val reqN = requiredLevel.toIntOrNull()
     val eligible = rows.count { it["meets_required"] == true }
     Box(Modifier.fillMaxWidth().glassSurface()) {
@@ -900,6 +1044,25 @@ private fun TeamSkillPanel(
                 "Marking writes a verified skill to RMS at the level you set. Preference still goes to certified trainers, then a quality mock.",
                 style = MaterialTheme.typography.labelSmall, color = sk.subText,
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = onMarkMine, modifier = Modifier.weight(1f), shape = RoundedCornerShape(Radii.chip)) { Text("Mark my skill") }
+                if (canManageTeam) {
+                    OutlinedButton(onClick = onMarkTeam, modifier = Modifier.weight(1f), shape = RoundedCornerShape(Radii.chip)) { Text("Mark team skills") }
+                }
+            }
+        }
+    }
+}
+
+/** One titled glass card, used to separate distinct fact groups (requirements,
+ * customer context, remarks) instead of stacking them into one dense block. */
+@Composable
+private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    val sk = MaterialTheme.skill
+    Box(Modifier.fillMaxWidth().glassSurface()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = sk.frost)
+            content()
         }
     }
 }
@@ -993,57 +1156,5 @@ private fun Chip(text: String, tint: Color) {
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
         )
-    }
-}
-
-internal data class ActionItem(
-    val label: String,
-    val icon: Int,
-    val tint: Color,
-    val onClick: () -> Unit,
-)
-
-/**
- * Four actions on one row, each a tinted glyph over a short label.
- *
- * Replaces four stacked full-width buttons that ran to roughly 220dp — a third
- * of a phone screen spent on four words, which pushed the batch facts the
- * manager came to read below the fold. Each cell still fills the row height, so
- * the touch targets stay comfortably above the 48dp minimum.
- */
-@Composable
-private fun ActionBar(actions: List<ActionItem>) {
-    val sk = MaterialTheme.skill
-    Box(Modifier.fillMaxWidth().glassSurface(RoundedCornerShape(14.dp))) {
-        Row(Modifier.fillMaxWidth().height(74.dp), verticalAlignment = Alignment.CenterVertically) {
-            actions.forEach { a ->
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(onClick = a.onClick),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Box(
-                        Modifier.size(34.dp).clip(RoundedCornerShape(11.dp))
-                            .background(a.tint.copy(alpha = 0.13f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            painterResource(a.icon), null,
-                            tint = a.tint, modifier = Modifier.size(17.dp),
-                        )
-                    }
-                    Spacer(Modifier.height(5.dp))
-                    Text(
-                        a.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = sk.labelText, maxLines = 1,
-                    )
-                }
-            }
-        }
     }
 }

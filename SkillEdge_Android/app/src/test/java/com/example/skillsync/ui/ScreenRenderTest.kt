@@ -1333,11 +1333,11 @@ class ScreenRenderTest {
         compose.onNodeWithText("EIGHT WEEK OUTLOOK").assertExists()
         compose.onNodeWithText("1 week is over capacity.").assertExists()
         compose.onNodeWithText("67%").assertExists()
-        // Availability confidence is now a sentence rather than a bare stat:
-        // "75%" under a label read as a score, not as a caveat about evidence.
-        compose.onNodeWithText(
-            "Availability verified for 75 percent of candidates; the rest are unconfirmed."
-        ).assertExists()
+        // Availability confidence is a compact status line — "75%" under a
+        // label read as a score before, not as a caveat about evidence — but
+        // must not dominate the card as a full sentence either.
+        compose.onNodeWithText("Availability evidence").assertExists()
+        compose.onNodeWithText("75% verified · rest unconfirmed").assertExists()
         compose.onNodeWithText("Unknown evidence is never treated as free capacity.").assertExists()
     }
 }

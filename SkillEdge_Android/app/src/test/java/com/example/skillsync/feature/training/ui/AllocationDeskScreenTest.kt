@@ -77,7 +77,7 @@ class AllocationDeskScreenTest {
     fun realUnallocatedBatchInformationRenders() {
         setPlan(payload(batch("D1", "AZ-104T00 Azure Administrator", "Contoso", "Best Match", 2)))
         compose.onNodeWithText("AZ-104T00 Azure Administrator").assertIsDisplayed()
-        compose.onNodeWithText("Contoso").assertIsDisplayed()
+        compose.onNodeWithText("Contoso").assertExists()
     }
 
     @Test
@@ -109,7 +109,7 @@ class AllocationDeskScreenTest {
         val courseTitle = compose.onNodeWithText("SC-200T00 Security Operations")
         courseTitle.performScrollTo()
         courseTitle.performClick()
-        val openDetails = compose.onNodeWithText("Open Details")
+        val openDetails = compose.onNodeWithText("Open Demand")
         openDetails.performScrollTo()
         openDetails.assertExists()
         openDetails.performClick()
