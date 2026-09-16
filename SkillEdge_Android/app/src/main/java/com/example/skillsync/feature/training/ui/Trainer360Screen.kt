@@ -389,12 +389,17 @@ private fun ProfileOverview(
     // could never match anything the backend sends; removed as dead code.
     val current = assignments.firstOrNull { it.str("state").lowercase() == "current" }
     val upcoming = assignments.filter { it.str("state").lowercase() == "upcoming" }
+    // A readiness score that was never measured must read differently from a
+    // real, mediocre "Watch" verdict — collapsing them together told a
+    // manager "this trainer's readiness is fine to keep an eye on" when the
+    // truth was "this trainer has no readiness score at all."
     val health = when {
         risk.lowercase() in setOf("high", "critical") || actions.any { it.str("priority").lowercase() in setOf("high", "critical") } -> "Attention"
         readiness != null && readiness >= 80 && gaps == 0 -> "Healthy"
+        readiness == null -> "Unmeasured"
         else -> "Watch"
     }
-    val healthTint = when (health) { "Healthy" -> sk.green; "Attention" -> sk.red; else -> sk.amber }
+    val healthTint = when (health) { "Healthy" -> sk.green; "Attention" -> sk.red; "Unmeasured" -> sk.subText; else -> sk.amber }
     val availabilityText = when {
         availability?.bool("verified") != true -> "Unverified"
         availability.str("status").isNotBlank() -> availability.str("status").replaceFirstChar { it.uppercase() }
@@ -630,10 +635,15 @@ private fun UtilisationSection(
         }
         if (plotSeries.isNotEmpty()) {
             Spacer(Modifier.height(14.dp))
+            // First production use of the Phase 1 shared chart-interaction
+            // system (see AI/DECISIONS.md) — tap/drag to reveal a real
+            // month + utilisation tooltip via the canonical ChartTooltip.
             TrendChart(
                 points = plotSeries,
                 tint = sk.teal,
                 height = 100.dp,
+                interactive = true,
+                valueSuffix = "%",
             )
             val projection = remember(plotSeries) {
                 projectNextUtilization(plotSeries.map { it.value })
@@ -2413,8 +2423,17 @@ private fun EmptyNote(text: String) {
     Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.skill.subText)
 }
 
-private fun String.containsAny(vararg needles: String) = needles.any { this.contains(it) }
-
+/**
+ * This section used to present "peer domain benchmark" utilisation numbers,
+ * a "high-demand certifications" list, and a "cross-domain growth path" —
+ * all synthesized client-side from a keyword guess over the trainer's own
+ * course names, with zero backing data (see AI/DECISIONS.md, Design V3
+ * Phase 3). None of RMS/the backend exposes peer or market benchmark data,
+ * so displaying it — even as a "recommendation" — read as if it were real
+ * intelligence. Replaced with only what is actually known: this trainer's
+ * own held certifications and taught courses, honestly labelled as their
+ * own record rather than a comparison to anyone else.
+ */
 @Composable
 private fun GrowthBenchmarkSection(
     identity: Map<*, *>?,
@@ -2423,148 +2442,55 @@ private fun GrowthBenchmarkSection(
     certs: Map<*, *>?,
 ) {
     val sk = MaterialTheme.skill
-    val currentUtil = util?.intOrNull("current_utilization") ?: util?.intOrNull("utilization") ?: 0
-    val courses = cap?.list("courses")?.map { it.str("course") } ?: emptyList()
-    val heldCerts = certs?.list("held") ?: emptyList()
-
-    val coursesText = courses.joinToString(" ").lowercase()
-    val domain = when {
-        coursesText.containsAny("azure", "aws", "gcp", "cloud", "kubernetes", "docker", "cka") -> "Cloud & DevOps"
-        coursesText.containsAny("power bi", "fabric", "data", "sql", "ai-", "dp-", "python", "databricks") -> "Data & AI"
-        coursesText.containsAny("security", "sc-", "az-500", "cisco", "ccna", "comptia") -> "Security & Networking"
-        else -> "Application Development"
-    }
-
-    val peerAvgUtil = when (domain) {
-        "Cloud & DevOps" -> 84
-        "Data & AI" -> 82
-        "Security & Networking" -> 86
-        else -> 78
-    }
-
-    val highDemandCerts = when (domain) {
-        "Cloud & DevOps" -> listOf("AZ-104: Azure Administrator", "AZ-305: Solutions Architect", "CKA: Kubernetes Administrator")
-        "Data & AI" -> listOf("DP-600: Fabric Analytics Engineer", "PL-300: Power BI Analyst", "AI-102: Azure AI Engineer")
-        "Security & Networking" -> listOf("SC-200: Security Operations", "SC-100: Cybersecurity Architect", "AZ-500: Security Technologies")
-        else -> listOf("AZ-204: Azure Developer", "AWS Certified Developer", "GitHub Copilot Specialist")
-    }
-
-    val crossDomainBridge = when (domain) {
-        "Cloud & DevOps" -> "Data & AI (Fabric & Azure OpenAI corporate integrations)"
-        "Data & AI" -> "Cloud & DevOps (Containerized ML pipelines)"
-        "Security & Networking" -> "Cloud Governance & Zero Trust Architecture"
-        else -> "AI-assisted Software Engineering"
-    }
+    val courses = cap?.list("courses")?.map { it.str("course") }?.filter { it.isNotBlank() } ?: emptyList()
+    val heldCerts = certs?.list("held")?.mapNotNull { it.str("name").takeIf(String::isNotBlank) } ?: emptyList()
 
     Column(verticalArrangement = Arrangement.spacedBy(Space.md)) {
-        // Peer Benchmark Card
         SkillCard {
             Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "GROWTH & PEER",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = sk.cyan,
+                    fontWeight = FontWeight.Bold,
+                )
+                EmptyNote(
+                    "RMS does not expose peer or market benchmark data — no comparison " +
+                        "is shown here. What follows is this trainer's own record only.",
+                )
+            }
+        }
+
+        if (courses.isNotEmpty()) {
+            SkillCard {
+                Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     Text(
-                        "PEER DOMAIN BENCHMARK",
+                        "COURSES TAUGHT",
                         style = MaterialTheme.typography.labelSmall,
-                        color = sk.cyan,
+                        color = sk.bodyText,
                         fontWeight = FontWeight.Bold,
                     )
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = sk.cyan.copy(alpha = 0.14f),
-                    ) {
-                        Text(
-                            domain,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = sk.cyan,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        )
-                    }
-                }
-
-                Text(
-                    "Top-performing trainers in $domain average $peerAvgUtil% utilization by pairing primary delivery with adjacent cloud/platform certifications.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = sk.bodyText,
-                )
-
-                // Comparison bar
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Current Util: $currentUtil%", style = MaterialTheme.typography.labelSmall, color = if (currentUtil < 50) sk.warn else sk.good)
-                        LinearProgressIndicator(
-                            progress = { (currentUtil / 100f).coerceIn(0f, 1f) },
-                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                            color = if (currentUtil < 50) sk.warn else sk.good,
-                            trackColor = sk.cardBorder,
-                        )
-                    }
-                    Spacer(Modifier.width(Space.md))
-                    Column(Modifier.weight(1f)) {
-                        Text("Domain Target: $peerAvgUtil%", style = MaterialTheme.typography.labelSmall, color = sk.cyan)
-                        LinearProgressIndicator(
-                            progress = { (peerAvgUtil / 100f).coerceIn(0f, 1f) },
-                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                            color = sk.cyan,
-                            trackColor = sk.cardBorder,
-                        )
-                    }
+                    FlowChips(courses, sk.bodyText)
                 }
             }
         }
 
-        // High-Demand Upskilling Tracks
-        SkillCard {
-            Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                Text(
-                    "TARGET CERTIFICATIONS FOR PIPELINE DEMAND",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.good,
-                    fontWeight = FontWeight.Bold,
-                )
-                highDemandCerts.forEach { certName ->
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(sk.cardBg).padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(sk.good))
-                        Text(
-                            certName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = sk.bodyText,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
+        if (heldCerts.isNotEmpty()) {
+            SkillCard {
+                Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                    Text(
+                        "CERTIFICATIONS HELD",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.good,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    FlowChips(heldCerts, sk.good)
                 }
             }
         }
 
-        // Cross-Domain & Monetization Advice
-        SkillCard {
-            Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                Text(
-                    "CROSS-DOMAIN GROWTH PATH",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.sky,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    "Recommended Adjacent Domain: $crossDomainBridge",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = sk.frost,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    "Trainers who cross-skill into $crossDomainBridge eliminate idle bench periods and qualify for premium corporate batches.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = sk.subText,
-                )
-            }
+        if (courses.isEmpty() && heldCerts.isEmpty()) {
+            EmptyNote("No course or certification record available for this trainer.")
         }
     }
 }
