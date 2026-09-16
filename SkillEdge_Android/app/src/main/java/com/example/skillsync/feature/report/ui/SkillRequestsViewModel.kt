@@ -14,6 +14,12 @@ import kotlinx.coroutines.launch
  */
 class SkillRequestsViewModel(
     private val repository: SkillRequestsRepository = SkillRequestsRepository(),
+    /**
+     * Test seam, same pattern as the other report view models: production keeps
+     * the repository call byte-for-byte, a screenshot test injects deterministic
+     * rows so the real network is never attempted.
+     */
+    private val fetchPending: suspend () -> Map<String, Any> = { repository.pending() },
 ) : ViewModel() {
 
     private val _requests = MutableStateFlow<List<Map<*, *>>>(emptyList())
@@ -30,7 +36,7 @@ class SkillRequestsViewModel(
             _loading.value = true
             _error.value = null
             try {
-                _requests.value = repository.pending().rows("requests")
+                _requests.value = fetchPending().rows("requests")
             } catch (e: Exception) {
                 _error.value = e.localizedMessage ?: "Could not load skill requests"
             } finally {

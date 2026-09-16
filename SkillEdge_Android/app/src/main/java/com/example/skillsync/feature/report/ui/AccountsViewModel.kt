@@ -30,6 +30,15 @@ data class AccountsSummary(
     val topAccount: String,
     val topAccountShare: Double,
     val unspecifiedBatches: Int,
+    /**
+     * The numerator/denominator behind [topAccountShare] and the window they
+     * were counted over. Without these the UI can only print a bare percentage,
+     * which is exactly the ambiguous "100% of batches" claim we must not make.
+     */
+    val topAccountBatches: Int = 0,
+    val teamBatchesDelivered: Int = 0,
+    val pastDays: Int = 0,
+    val forwardDays: Int = 0,
 )
 
 sealed class AccountsState {
@@ -116,6 +125,15 @@ class AccountsViewModel(
         }
     }
 
+    /**
+     * Test seam: render a known backend snapshot without touching the local
+     * cache or the network, so a screenshot test exercises the real parse and
+     * the real composables rather than a hand-built state object.
+     */
+    internal fun renderSnapshot(raw: Map<String, Any>) {
+        _state.value = parse(raw)
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun parse(raw: Map<String, Any>): AccountsState.Success {
         fun num(v: Any?): Int = (v as? Number)?.toInt() ?: 0
@@ -137,11 +155,17 @@ class AccountsViewModel(
             )
         }
         val s = raw["summary"] as? Map<String, Any> ?: emptyMap()
+        val conc = raw["concentration"] as? Map<String, Any> ?: emptyMap()
+        val window = raw["window"] as? Map<String, Any> ?: emptyMap()
         val summary = AccountsSummary(
             accountCount = num(s["account_count"]),
             topAccount = s["top_account"]?.toString() ?: "",
             topAccountShare = (s["top_account_share"] as? Number)?.toDouble() ?: 0.0,
             unspecifiedBatches = num(s["unspecified_batches"]),
+            topAccountBatches = num(conc["batches_delivered"]),
+            teamBatchesDelivered = num(conc["team_batches_delivered"]),
+            pastDays = num(window["past_days"]),
+            forwardDays = num(window["forward_days"]),
         )
         return AccountsState.Success(accounts, summary, raw["generated_at"]?.toString() ?: "")
     }

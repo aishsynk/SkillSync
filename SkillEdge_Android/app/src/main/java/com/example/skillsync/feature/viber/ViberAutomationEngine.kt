@@ -3,6 +3,7 @@ package com.example.skillsync.feature.viber
 import android.content.Context
 import android.util.Log
 import com.example.skillsync.core.data.ManagerRepository
+import com.example.skillsync.core.storage.ViberConfig
 import com.example.skillsync.core.storage.ViberConfigStore
 import com.example.skillsync.core.storage.ViberOutboxItem
 import com.example.skillsync.core.storage.ViberOutboxStore
@@ -20,7 +21,9 @@ object ViberAutomationEngine {
      * Executes one automation pass:
      * 1. Fetches candidate-matched unallocated demand and weekly reportee standpoint messages.
      * 2. Enqueues new items in [ViberOutboxStore].
-     * 3. Dispatches queued items if auto-send switches are enabled.
+     * 3. Transmits them only when a confirmed transport (the Viber Bot API with
+     *    a token) is configured. Otherwise it prepares drafts and stops — the
+     *    category switches decide what gets *prepared*, never what gets sent.
      */
     suspend fun processPass(
         context: Context,
@@ -73,12 +76,23 @@ object ViberAutomationEngine {
 
             if (candidatesToEnqueue.isNotEmpty()) {
                 val addedCount = ViberOutboxStore.enqueue(managerEmail, candidatesToEnqueue)
-                Log.i(TAG, "Enqueued $addedCount new Viber automation items")
+                Log.i(TAG, "Prepared $addedCount new Viber drafts")
 
+                // A background pass may only transmit when a real transport
+                // exists. The Intent paths need a foreground activity start —
+                // from here they are silently dropped by the platform, so
+                // dispatching them would mark items shared when nothing left the
+                // device. Those stay ready for the manager to share by hand.
+                val hasRealTransport = config.dispatchMode == ViberConfig.MODE_BOT_API &&
+                    config.viberBotToken.isNotBlank()
+                if (!hasRealTransport) {
+                    Log.i(TAG, "No confirmed transport configured; drafts left ready to share")
+                    return
+                }
                 val pending = ViberOutboxStore.getPending(managerEmail)
                 if (pending.isNotEmpty()) {
                     val dispatched = ViberDispatcher.dispatchBatch(context, managerEmail, pending)
-                    Log.i(TAG, "Auto-dispatched $dispatched Viber messages in background")
+                    Log.i(TAG, "Transmitted $dispatched Viber messages via the bot API")
                 }
             }
         } catch (e: Exception) {

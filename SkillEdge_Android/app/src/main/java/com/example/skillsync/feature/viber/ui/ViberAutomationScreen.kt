@@ -70,6 +70,7 @@ import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.LocalSkillColors
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.SkillColors
+import com.example.skillsync.theme.SkillSyncEmptyState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,7 +99,7 @@ fun ViberAutomationScreen(
                     title = {
                         Column {
                             Text(
-                                "VIBER AUTOMATION",
+                                "VIBER DISPATCH CENTRE",
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Black,
                                     letterSpacing = 1.sp,
@@ -107,7 +108,7 @@ fun ViberAutomationScreen(
                                 color = Color.White,
                             )
                             Text(
-                                "Background Queue & Auto-Dispatch",
+                                "Prepared drafts, rules and hand-off history",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = sk.sky,
                             )
@@ -167,19 +168,30 @@ fun ViberAutomationScreen(
                     }
                 }
 
-                // Overview Cockpit Card
+                // AUTOMATION STATUS
+                item {
+                    DispatchSectionLabel("AUTOMATION STATUS", sk)
+                }
                 item {
                     ViberOverviewCockpit(
-                        pendingCount = uiState.items.count { it.status == ViberOutboxItem.STATUS_QUEUED || it.status == ViberOutboxItem.STATUS_FAILED },
+                        waitingCount = uiState.items.count { it.status in ViberOutboxItem.AWAITING_HANDOFF },
+                        failedCount = uiState.items.count { it.status == ViberOutboxItem.STATUS_FAILED },
+                        sharedCount = uiState.items.count { it.status == ViberOutboxItem.STATUS_SHARED_EXTERNALLY },
                         sentCount = uiState.items.count { it.status == ViberOutboxItem.STATUS_SENT },
+                        hasConfirmedTransport = uiState.config.dispatchMode == ViberConfig.MODE_BOT_API &&
+                            uiState.config.viberBotToken.isNotBlank(),
                         isSendingAll = uiState.isSendingAll,
-                        onSendAll = { viewModel.sendAllNow(context) },
-                        onClearSent = { viewModel.clearSent() },
+                        onTransmitAll = { viewModel.transmitAllViaBot(context) },
+                        onShareNext = { viewModel.shareNextDraft(context) },
+                        onClearHandedOff = { viewModel.clearHandedOff() },
                         sk = sk,
                     )
                 }
 
-                // Automation Rules Control Card
+                // RULES
+                item {
+                    DispatchSectionLabel("RULES", sk)
+                }
                 item {
                     AutomationRulesCard(
                         config = uiState.config,
@@ -196,70 +208,57 @@ fun ViberAutomationScreen(
                     )
                 }
 
-                // Outbox Section Header
+                // OUTBOX — only what still needs the manager's hand.
+                val waiting = uiState.items.filter {
+                    it.status in ViberOutboxItem.AWAITING_HANDOFF || it.status == ViberOutboxItem.STATUS_FAILED
+                }
+                val history = uiState.items.filterNot { it in waiting }
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            "DISPATCH OUTBOX (${uiState.items.size})",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp,
-                                fontFamily = FontFamily.Monospace,
-                            ),
-                            color = sk.labelText,
-                        )
+                        DispatchSectionLabel("OUTBOX (${waiting.size})", sk)
                         if (uiState.isLoading) {
                             CircularProgressIndicator(modifier = Modifier.size(16.dp), color = sk.sky, strokeWidth = 2.dp)
                         }
                     }
                 }
 
-                if (uiState.items.isEmpty()) {
+                if (waiting.isEmpty()) {
                     item {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = sk.surface2),
-                            border = BorderStroke(1.dp, sk.glassBorder),
-                            shape = RoundedCornerShape(Radii.card),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(32.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                Icon(
-                                    painterResource(R.drawable.ic_check),
-                                    null,
-                                    tint = sk.sky,
-                                    modifier = Modifier.size(40.dp),
-                                )
-                                Spacer(Modifier.height(12.dp))
-                                Text(
-                                    "Outbox is Empty",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    "New unallocated demand & weekly standpoints will appear here automatically.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = sk.subText,
-                                )
-                            }
-                        }
+                        SkillSyncEmptyState(
+                            title = "No drafts waiting",
+                            description = "Unallocated demand, weekly standpoints and compliance nudges are " +
+                                "prepared here by the rules above. Nothing is waiting for you right now.",
+                            iconRes = R.drawable.ic_inbox,
+                        )
                     }
                 } else {
-                    items(uiState.items, key = { it.id }) { item ->
+                    items(waiting, key = { it.id }) { item ->
                         ViberOutboxItemCard(
                             item = item,
                             onPreview = { previewItem = item },
-                            onRetry = { viewModel.retryItem(context, item) },
+                            onShare = { viewModel.shareItem(context, item) },
+                            onCopy = {
+                                val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                cb?.setPrimaryClip(ClipData.newPlainText("Viber Message", item.messageText))
+                            },
+                            sk = sk,
+                        )
+                    }
+                }
+
+                // HISTORY — handed off already, with the honest distinction kept.
+                if (history.isNotEmpty()) {
+                    item { DispatchSectionLabel("HISTORY (${history.size})", sk) }
+                    items(history, key = { "h_" + it.id }) { item ->
+                        ViberOutboxItemCard(
+                            item = item,
+                            onPreview = { previewItem = item },
+                            onShare = { viewModel.shareItem(context, item) },
                             onCopy = {
                                 val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                                 cb?.setPrimaryClip(ClipData.newPlainText("Viber Message", item.messageText))
@@ -277,7 +276,7 @@ fun ViberAutomationScreen(
                 onDismissRequest = { previewItem = null },
                 containerColor = sk.surface2,
                 title = {
-                    Text("Viber Message Preview", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Draft preview", color = Color.White, fontWeight = FontWeight.Bold)
                 },
                 text = {
                     Column {
@@ -293,12 +292,12 @@ fun ViberAutomationScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.retryItem(context, item)
+                            viewModel.shareItem(context, item)
                             previewItem = null
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
                     ) {
-                        Text("Send to Viber Now")
+                        Text("Share to Viber")
                     }
                 },
                 dismissButton = {
@@ -324,15 +323,40 @@ fun ViberAutomationScreen(
     }
 }
 
+/** Uppercase section label; the dispatch centre's only structural furniture. */
+@Composable
+private fun DispatchSectionLabel(text: String, sk: SkillColors) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium.copy(
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
+            fontFamily = FontFamily.Monospace,
+        ),
+        color = sk.labelText,
+    )
+}
+
+/**
+ * What the automation can and did do. The primary action is derived from the
+ * configured transport rather than assumed: with a bot token the app can
+ * transmit and Viber confirms it; without one the only truthful action is to
+ * hand one draft at a time to the Viber share sheet.
+ */
 @Composable
 private fun ViberOverviewCockpit(
-    pendingCount: Int,
+    waitingCount: Int,
+    failedCount: Int,
+    sharedCount: Int,
     sentCount: Int,
+    hasConfirmedTransport: Boolean,
     isSendingAll: Boolean,
-    onSendAll: () -> Unit,
-    onClearSent: () -> Unit,
+    onTransmitAll: () -> Unit,
+    onShareNext: () -> Unit,
+    onClearHandedOff: () -> Unit,
     sk: SkillColors,
 ) {
+    val pendingCount = waitingCount
     Card(
         colors = CardDefaults.cardColors(containerColor = sk.surface2),
         border = BorderStroke(1.dp, sk.glassBorder),
@@ -345,9 +369,20 @@ private fun ViberOverviewCockpit(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column {
-                    Text("AUTOMATION ENGINE", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
-                    Text("Live Viber Sentinel", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
+                Column(Modifier.weight(1f)) {
+                    Text("TRANSPORT", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+                    Text(
+                        if (hasConfirmedTransport) "Viber bot API" else "Share sheet only",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        if (hasConfirmedTransport) "Delivery is confirmed by Viber."
+                        else "The app prepares drafts; you send them inside Viber.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.subText,
+                    )
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -359,7 +394,7 @@ private fun ViberOverviewCockpit(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        if (pendingCount > 0) "$pendingCount Pending" else "All Delivered",
+                        if (pendingCount > 0) "$pendingCount waiting" else "Nothing waiting",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (pendingCount > 0) Color(0xFFF59E0B) else Color(0xFF10B981),
                         fontWeight = FontWeight.Bold,
@@ -373,33 +408,26 @@ private fun ViberOverviewCockpit(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                // Pending Box
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(Radii.chip))
-                        .background(Color(0xFF0F172A))
-                        .padding(12.dp),
-                ) {
-                    Column {
-                        Text("QUEUED / PENDING", style = MaterialTheme.typography.labelSmall, color = sk.subText)
-                        Text("$pendingCount", style = MaterialTheme.typography.titleLarge, color = Color(0xFFF59E0B), fontWeight = FontWeight.Black)
-                    }
+                // Three counted states, each labelled with what actually
+                // happened. "Sent" is only ever the bot-confirmed count.
+                DispatchCount("READY", waitingCount - failedCount, Color(0xFFF59E0B), sk, Modifier.weight(1f))
+                DispatchCount("SHARED", sharedCount, sk.sky, sk, Modifier.weight(1f))
+                // A "sent" column would read as a permanent zero without a
+                // transport that can confirm one, so it is only shown when the
+                // bot API can actually produce that state.
+                if (hasConfirmedTransport) {
+                    DispatchCount("SENT", sentCount, Color(0xFF10B981), sk, Modifier.weight(1f))
+                } else {
+                    DispatchCount("FAILED", failedCount, Color(0xFFF87171), sk, Modifier.weight(1f))
                 }
-
-                // Sent Box
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(Radii.chip))
-                        .background(Color(0xFF0F172A))
-                        .padding(12.dp),
-                ) {
-                    Column {
-                        Text("DELIVERED / SENT", style = MaterialTheme.typography.labelSmall, color = sk.subText)
-                        Text("$sentCount", style = MaterialTheme.typography.titleLarge, color = Color(0xFF10B981), fontWeight = FontWeight.Black)
-                    }
-                }
+            }
+            if (failedCount > 0) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "$failedCount failed and can be shared again below.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFFF87171),
+                )
             }
 
             Spacer(Modifier.height(16.dp))
@@ -409,7 +437,7 @@ private fun ViberOverviewCockpit(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Button(
-                    onClick = onSendAll,
+                    onClick = if (hasConfirmedTransport) onTransmitAll else onShareNext,
                     enabled = !isSendingAll && pendingCount > 0,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = sk.brand,
@@ -421,20 +449,62 @@ private fun ViberOverviewCockpit(
                     if (isSendingAll) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text("Dispatching...")
+                        Text("Transmitting…")
                     } else {
-                        Text("🚀 Send All Queued Now", fontWeight = FontWeight.Bold)
+                        Icon(
+                            painterResource(
+                                if (hasConfirmedTransport) R.drawable.ic_forward else R.drawable.ic_share
+                            ),
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (hasConfirmedTransport) "Transmit all" else "Share next",
+                            fontWeight = FontWeight.Bold,
+                        )
                     }
                 }
 
                 OutlinedButton(
-                    onClick = onClearSent,
+                    onClick = onClearHandedOff,
                     shape = RoundedCornerShape(Radii.chip),
                     border = BorderStroke(1.dp, sk.glassBorder),
                 ) {
-                    Text("Clear Sent", color = sk.subText)
+                    Text("Clear history", color = sk.subText)
                 }
             }
+        }
+    }
+}
+
+/** One outbox count with the state it counts, in vector-only styling. */
+@Composable
+private fun DispatchCount(
+    label: String,
+    value: Int,
+    tint: Color,
+    sk: SkillColors,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(Radii.chip))
+            .background(Color(0xFF0F172A))
+            .padding(12.dp),
+    ) {
+        Column {
+            Text(
+                label, style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "$value",
+                style = MaterialTheme.typography.titleLarge,
+                color = tint,
+                fontWeight = FontWeight.Black,
+            )
         }
     }
 }
@@ -454,13 +524,19 @@ private fun AutomationRulesCard(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("AUTOMATION TRIGGERS", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+            Text("WHAT GETS PREPARED", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "These rules decide what the app drafts for you. They never send anything on their own.",
+                style = MaterialTheme.typography.labelSmall,
+                color = sk.subText,
+            )
             Spacer(Modifier.height(12.dp))
 
             // Switch 1: Demand
             RuleSwitchRow(
-                title = "⚡ Auto-Send Unallocated Demand",
-                subtitle = "Matches new client demand to certified reportees & drafts Viber candidate note",
+                title = "Auto-Draft Unallocated Demand",
+                subtitle = "Matches new client demand to certified reportees and prepares a candidate note for you to share",
                 checked = config.autoSendDemand,
                 onCheckedChange = { onConfigChanged(config.copy(autoSendDemand = it)) },
                 sk = sk,
@@ -470,8 +546,8 @@ private fun AutomationRulesCard(
 
             // Switch 2: Weekly
             RuleSwitchRow(
-                title = "📅 Auto-Send Weekly Standpoints",
-                subtitle = "Monday 08:00 AM delivery standpoint notes for each active reportee",
+                title = "Prepare Weekly Standpoints",
+                subtitle = "Drafts a Monday delivery standpoint note for each active reportee",
                 checked = config.autoSendWeekly,
                 onCheckedChange = { onConfigChanged(config.copy(autoSendWeekly = it)) },
                 sk = sk,
@@ -481,8 +557,8 @@ private fun AutomationRulesCard(
 
             // Switch 3: Nudges
             RuleSwitchRow(
-                title = "🚨 Auto-Send Delivery Compliance Nudges",
-                subtitle = "Flags missing session recordings & nudges delivering instructor",
+                title = "Prepare Compliance Nudges",
+                subtitle = "Drafts a nudge for the delivering instructor when a session recording is missing",
                 checked = config.autoSendNudges,
                 onCheckedChange = { onConfigChanged(config.copy(autoSendNudges = it)) },
                 sk = sk,
@@ -491,60 +567,39 @@ private fun AutomationRulesCard(
             Spacer(Modifier.height(16.dp))
 
             // Dispatch Mode Segment
-            Text("DISPATCH STRATEGY", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+            Text("TRANSPORT", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
             Spacer(Modifier.height(8.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ModeChip(
-                    title = "Bot REST API",
+                    title = "Bot API",
                     selected = config.dispatchMode == ViberConfig.MODE_BOT_API,
                     onClick = { onConfigChanged(config.copy(dispatchMode = ViberConfig.MODE_BOT_API)) },
                     modifier = Modifier.weight(1f),
                     sk = sk,
                 )
+                // One share option, not two: the withdrawn accessibility mode
+                // now behaves exactly like the Intent path, so offering both as
+                // separate transports implied a capability that does not exist.
                 ModeChip(
-                    title = "App Auto-Send",
-                    selected = config.dispatchMode == ViberConfig.MODE_ACCESSIBILITY,
-                    onClick = { onConfigChanged(config.copy(dispatchMode = ViberConfig.MODE_ACCESSIBILITY)) },
-                    modifier = Modifier.weight(1f),
-                    sk = sk,
-                )
-                ModeChip(
-                    title = "1-Tap Share",
-                    selected = config.dispatchMode == ViberConfig.MODE_INTENT_NOTIFICATION,
+                    title = "Share sheet",
+                    selected = config.dispatchMode != ViberConfig.MODE_BOT_API,
                     onClick = { onConfigChanged(config.copy(dispatchMode = ViberConfig.MODE_INTENT_NOTIFICATION)) },
                     modifier = Modifier.weight(1f),
                     sk = sk,
                 )
             }
 
-            if (config.dispatchMode == ViberConfig.MODE_ACCESSIBILITY && !isAccessibilityEnabled) {
-                Spacer(Modifier.height(12.dp))
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF451A03)),
-                    border = BorderStroke(1.dp, Color(0xFFF59E0B)),
-                    shape = RoundedCornerShape(Radii.chip),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "Accessibility Service is OFF",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFFCD34D),
-                            fontWeight = FontWeight.Bold,
-                        )
-                        TextButton(onClick = onOpenAccessibilitySettings) {
-                            Text("Enable Service", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
+            Spacer(Modifier.height(10.dp))
+            Text(
+                if (config.dispatchMode == ViberConfig.MODE_BOT_API)
+                    "With a bot token configured, messages are transmitted and Viber confirms delivery."
+                else
+                    "Both share options open Viber with the draft prefilled. You choose the chat and send it there, so the app records them as shared, never as sent.",
+                style = MaterialTheme.typography.labelSmall,
+                color = sk.subText,
+            )
+
         }
     }
 }
@@ -610,7 +665,7 @@ private fun ModeChip(
 private fun ViberOutboxItemCard(
     item: ViberOutboxItem,
     onPreview: () -> Unit,
-    onRetry: () -> Unit,
+    onShare: () -> Unit,
     onCopy: () -> Unit,
     sk: SkillColors,
 ) {
@@ -663,7 +718,7 @@ private fun ViberOutboxItemCard(
 
                 // Status Badge
                 Text(
-                    item.status,
+                    ViberOutboxItem.label(item.status),
                     style = MaterialTheme.typography.labelSmall,
                     color = when (item.status) {
                         ViberOutboxItem.STATUS_SENT -> Color(0xFF10B981)
@@ -718,11 +773,22 @@ private fun ViberOutboxItemCard(
                 }
                 Spacer(Modifier.width(6.dp))
                 Button(
-                    onClick = onRetry,
+                    onClick = onShare,
                     colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
                     shape = RoundedCornerShape(Radii.chip),
                 ) {
-                    Text(if (item.status == ViberOutboxItem.STATUS_SENT) "Resend" else "Send")
+                    Icon(
+                        painterResource(R.drawable.ic_share),
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        if (item.status == ViberOutboxItem.STATUS_SENT ||
+                            item.status == ViberOutboxItem.STATUS_SHARED_EXTERNALLY
+                        ) "Share again" else "Share"
+                    )
                 }
             }
         }
@@ -748,7 +814,7 @@ private fun ViberConfigDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "Configure your Viber Public Account / Bot Token for silent background cloud dispatch.",
+                    "A Viber Public Account bot token lets the backend transmit messages and record a confirmed delivery. Without one, the app can only prepare drafts for you to share.",
                     style = MaterialTheme.typography.bodySmall,
                     color = sk.subText,
                 )

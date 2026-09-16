@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
@@ -42,6 +43,7 @@ import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.ToneChip
 import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.skill
+import com.example.skillsync.core.ui.Avatar
 import com.example.skillsync.core.ui.LocalNotify
 import androidx.compose.material3.Text
 
@@ -231,6 +233,9 @@ fun HrMonthlyReportScreen(
                                     "Platinum" to allReportees.count { it.trainerIndex.tierLevel == 2 },
                                     "High Performer" to allReportees.count { it.trajectory == "High Performer" },
                                     "Needs Coaching" to allReportees.count { it.trajectory == "Needs Coaching" },
+                                    "Bench" to allReportees.count {
+                                        it.trajectory == "Bench Upskilling" || it.utilisationPct < 50
+                                    },
                                 )
                                 items(filterItems) { (label, count) ->
                                     val active = selectedFilter == label
@@ -340,45 +345,57 @@ private fun MonthNavBar(
 
 @Composable
 private fun TeamSummaryCard(ts: TeamSummaryData, sk: SkillColors) {
+    // Exceptions the month actually produced, so the headline states a finding
+    // instead of repeating the headcount that the chip already carries.
+    val exceptions = ts.totalNegativeFeedback + ts.totalNegativeHr + ts.certGapCount
     SkillCard(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Team Monthly Overview", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = sk.bodyText)
-                ToneChip("${ts.headcount} Reportees", tint = sk.sky)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "MONTH IN REVIEW",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.labelText, fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
+                    )
+                    Text(
+                        if (exceptions == 0) "No exceptions raised this month"
+                        else "$exceptions exception${if (exceptions == 1) "" else "s"} to review",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (exceptions == 0) sk.good else sk.warn,
+                    )
+                }
+                ToneChip("${ts.headcount} reportees", tint = sk.sky)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SummaryMetric("Headcount", ts.headcount.toString(), sk, Modifier.weight(1f))
-                SummaryMetric("Avg Util", "${ts.avgUtilisation.toInt()}%", sk, Modifier.weight(1f), sk.cyan)
-                SummaryMetric("HR Score", "${ts.avgHrScore.toInt()}/100", sk, Modifier.weight(1f), sk.good)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // One flat figure strip: no per-KPI border, no second nesting level.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                SummaryMetric("Avg util", "${ts.avgUtilisation.toInt()}%", sk, Modifier.weight(1f), sk.cyan)
+                SummaryMetric("HR score", "${ts.avgHrScore.toInt()}", sk, Modifier.weight(1f), sk.good)
                 SummaryMetric("Batches", ts.totalBatches.toString(), sk, Modifier.weight(1f), sk.frost)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 SummaryMetric(
-                    "Neg Feedback",
-                    ts.totalNegativeFeedback.toString(),
-                    sk,
-                    Modifier.weight(1f),
+                    "Neg feedback", ts.totalNegativeFeedback.toString(), sk, Modifier.weight(1f),
                     if (ts.totalNegativeFeedback > 0) sk.warn else sk.good,
                 )
                 SummaryMetric(
-                    "Cert Gaps",
-                    ts.certGapCount.toString(),
-                    sk,
-                    Modifier.weight(1f),
+                    "Cert gaps", ts.certGapCount.toString(), sk, Modifier.weight(1f),
                     if (ts.certGapCount > 0) sk.warn else sk.good,
                 )
+                SummaryMetric(
+                    "HR incidents", ts.totalNegativeHr.toString(), sk, Modifier.weight(1f),
+                    if (ts.totalNegativeHr > 0) sk.warn else sk.good,
+                )
             }
-            if (ts.totalPositiveHr > 0 || ts.totalNegativeHr > 0) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SummaryMetric("HR Positive", ts.totalPositiveHr.toString(), sk, Modifier.weight(1f), sk.good)
-                    SummaryMetric("HR Incidents", ts.totalNegativeHr.toString(), sk, Modifier.weight(1f),
-                        if (ts.totalNegativeHr > 0) sk.warn else sk.good)
-                    Spacer(Modifier.weight(1f))
-                }
+            if (ts.totalPositiveHr > 0) {
+                Text(
+                    "${ts.totalPositiveHr} positive HR note${if (ts.totalPositiveHr == 1) "" else "s"} recorded.",
+                    style = MaterialTheme.typography.labelSmall, color = sk.good,
+                )
             }
         }
     }
@@ -439,14 +456,7 @@ private fun SummaryMetric(
     modifier: Modifier = Modifier,
     valueColor: Color? = null,
 ) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(Radii.kpi))
-            .background(sk.surface1.copy(alpha = 0.65f))
-            .border(1.dp, sk.glassBorder.copy(alpha = 0.50f), RoundedCornerShape(Radii.kpi))
-            .padding(horizontal = 8.dp, vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    Column(modifier) {
         Text(
             value,
             fontWeight = FontWeight.Bold,
@@ -457,8 +467,7 @@ private fun SummaryMetric(
             label.uppercase(),
             color = sk.labelText,
             style = MaterialTheme.typography.labelSmall,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 2.dp),
+            maxLines = 1,
         )
     }
 }
@@ -491,21 +500,9 @@ private fun ReporteeSnapshotCard(
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             // Header row
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Score badge
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(hrScoreColor(rep.hrScore, sk).copy(alpha = 0.18f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        rep.hrScore.toString(),
-                        fontWeight = FontWeight.Bold,
-                        color = hrScoreColor(rep.hrScore, sk),
-                        fontSize = 14.sp,
-                    )
-                }
+                // The monthly payload carries no photo URL, so the monogram is
+                // the honest identity here rather than an empty silhouette.
+                Avatar(name = rep.name.ifBlank { rep.email }, photoUrl = null, size = 38.dp)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Row(
@@ -526,7 +523,7 @@ private fun ReporteeSnapshotCard(
                         )
                         if (rep.trainerIndex.totalScore > 0) {
                             ToneChip(
-                                "TI ${rep.trainerIndex.totalScore.toInt()} ${rep.trainerIndex.tierBadge.substringBefore(" ")}",
+                                "TI ${rep.trainerIndex.totalScore.toInt()} ${rep.trainerIndex.tier.substringAfter(": ").ifBlank { "" }}",
                                 when (rep.trainerIndex.tierLevel) {
                                     1 -> sk.good
                                     2 -> sk.sky
@@ -549,14 +546,10 @@ private fun ReporteeSnapshotCard(
                 }
             }
 
-            // Inline KPI row (always visible)
+            // Evidence chips: only the exceptions, since utilisation, batches,
+            // Qubits and the Trainer Index already read in the header.
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (rep.avgQubits > 0) {
-                    MiniChip("Qubits ${rep.avgQubits.toInt()}", sk.brand)
-                }
-                if (rep.trainerIndex.totalScore > 0) {
-                    MiniChip("TI ${rep.trainerIndex.totalScore.toInt()}", sk.amber)
-                }
+                MiniChip("HR ${rep.hrScore}", hrScoreColor(rep.hrScore, sk))
                 if (rep.hrPositiveCount > 0) {
                     MiniChip("+${rep.hrPositiveCount} HR", sk.good)
                 }
@@ -577,31 +570,17 @@ private fun ReporteeSnapshotCard(
                     .ifBlank { rep.structuredFeedback.formattedText.ifBlank { buildReporteeText(rep, "") } }
                 val shown = rewritten.ifBlank { variant }
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(sk.surface1, RoundedCornerShape(8.dp))
-                        .padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "Message for ${rep.name.substringBefore(" ").ifBlank { "reportee" }}",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = sk.bodyText,
-                        )
-                        CadenceSegmentToggle(
-                            weekendSelected = monthendSelected,
-                            onChange = onCadenceChange,
-                            primaryLabel = "This month",
-                            endLabel = "Month end",
-                            sk = sk,
-                        )
-                    }
+                    Text(
+                        (if (monthendSelected) "MONTH END NOTE FOR " else "THIS MONTH FOR ") +
+                            rep.name.substringBefore(" ").ifBlank { "REPORTEE" }.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = sk.labelText,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.08.em,
+                    )
                     com.example.skillsync.feature.communication.ui.MessageReviewCard(
                         text = shown,
                         busy = rewriting,
@@ -623,50 +602,10 @@ private fun ReporteeSnapshotCard(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     HorizontalDivider(color = sk.cardBorder)
 
-                    // 1. STRENGTH BLOCK
-                    if (rep.structuredFeedback.strength.isNotBlank()) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            color = sk.good.copy(alpha = 0.08f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.good.copy(alpha = 0.35f)),
-                        ) {
-                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("STRENGTH", style = MaterialTheme.typography.labelSmall, color = sk.good, fontWeight = FontWeight.Bold)
-                                Text(rep.structuredFeedback.strength, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
-                            }
-                        }
-                    }
-
-                    // 2. AREA OF IMPROVEMENT BLOCK
-                    if (rep.structuredFeedback.areaOfImprovement.isNotBlank()) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            color = sk.warn.copy(alpha = 0.08f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.warn.copy(alpha = 0.35f)),
-                        ) {
-                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("AREA OF IMPROVEMENT", style = MaterialTheme.typography.labelSmall, color = sk.warn, fontWeight = FontWeight.Bold)
-                                Text(rep.structuredFeedback.areaOfImprovement, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
-                            }
-                        }
-                    }
-
-                    // 3. OTHER FEEDBACK / MANAGER'S VERDICT BLOCK
-                    if (rep.structuredFeedback.otherFeedback.isNotBlank()) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            color = sk.cyan.copy(alpha = 0.08f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.cyan.copy(alpha = 0.35f)),
-                        ) {
-                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("OTHER FEEDBACK / MANAGER'S VERDICT", style = MaterialTheme.typography.labelSmall, color = sk.cyan, fontWeight = FontWeight.Bold)
-                                Text(rep.structuredFeedback.otherFeedback, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
-                            }
-                        }
-                    }
+                    // Evidence, on coloured rails rather than three more cards.
+                    EvidenceBlock("Strength", rep.structuredFeedback.strength, sk.good, sk)
+                    EvidenceBlock("Area of improvement", rep.structuredFeedback.areaOfImprovement, sk.warn, sk)
+                    EvidenceBlock("Manager verdict", rep.structuredFeedback.otherFeedback, sk.cyan, sk)
 
                     // 4. TRAINER INDEX SCORECARD (20 CRITERIA)
                     if (rep.trainerIndex.totalScore > 0) {
@@ -686,7 +625,7 @@ private fun ReporteeSnapshotCard(
                                         Text("HR TRAINER INDEX (TI – 13/08/26)", style = MaterialTheme.typography.labelSmall, color = sk.amber, fontWeight = FontWeight.Bold)
                                         Text("${rep.trainerIndex.tier} (${rep.trainerIndex.totalScore.toInt()} pts)", style = MaterialTheme.typography.bodyMedium, color = sk.bodyText, fontWeight = FontWeight.Bold)
                                     }
-                                    ToneChip("Inspect 20 Criteria ↗", sk.amber)
+                                    ToneChip("Inspect 20 criteria", sk.amber)
                                 }
                                 Text(
                                     "Util: ${rep.trainerIndex.utilizationPts.toInt()} · Quality/AI: ${(rep.trainerIndex.qualityPts + rep.trainerIndex.beastAiPts).toInt()} · Certs: ${(rep.trainerIndex.certificationsPts + rep.trainerIndex.instructorPts).toInt()} · Knowledge: ${rep.trainerIndex.knowledgeSharingPts.toInt()}",
@@ -712,16 +651,10 @@ private fun ReporteeSnapshotCard(
                     // ── Rewrite studio: monthly evaluation → Teams house style ──
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         com.example.skillsync.feature.communication.ui.ComposerModelStrip()
-                        if (rewritten.isBlank()) {
-                            com.example.skillsync.feature.communication.ui.ComposerStageLabel(
-                                1, "Verified context", com.example.skillsync.feature.communication.ui.ComposerTints.context,
-                                note = "this month's evaluation",
-                            )
-                        } else {
-                            com.example.skillsync.feature.communication.ui.ComposerStageLabel(
-                                3, "Generated message", com.example.skillsync.feature.communication.ui.ComposerTints.generated,
-                            )
-                        }
+                        com.example.skillsync.feature.communication.ui.ComposerStageLabel(
+                            1, "Verified context", com.example.skillsync.feature.communication.ui.ComposerTints.context,
+                            note = "this month's evaluation",
+                        )
                         com.example.skillsync.feature.communication.ui.ComposerStageLabel(
                             2, "Manager instruction", com.example.skillsync.feature.communication.ui.ComposerTints.instruction,
                         )
@@ -730,6 +663,11 @@ private fun ReporteeSnapshotCard(
                             onValueChange = { myMessage = it; rewritten = "" },
                             placeholder = "A point to emphasise — verified facts are always included",
                         )
+                        if (rewritten.isNotBlank()) {
+                            com.example.skillsync.feature.communication.ui.ComposerStageLabel(
+                                3, "Generated message", com.example.skillsync.feature.communication.ui.ComposerTints.generated,
+                            )
+                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             androidx.compose.material3.FilledTonalButton(
                                 onClick = {
@@ -771,41 +709,6 @@ private fun ReporteeSnapshotCard(
                         }
                     }
 
-                    // Quick Action Buttons
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                val text = (rewritten.ifBlank { rep.structuredFeedback.formattedText.ifBlank { buildReporteeText(rep, "") } })
-                                copyToClipboard(context, text)
-                                notify.success("Copied feedback for ${rep.name.substringBefore(" ")}")
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, sk.brand),
-                        ) {
-                            Text(if (rewritten.isBlank()) "Copy Feedback" else "Copy Rewritten", fontSize = 12.sp, color = sk.ice)
-                        }
-
-                        Button(
-                            onClick = {
-                                val shareText = rewritten.ifBlank { rep.structuredFeedback.formattedText }
-                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, shareText)
-                                    putExtra(Intent.EXTRA_SUBJECT, "Manager Evaluation — ${rep.name}")
-                                }
-                                context.startActivity(Intent.createChooser(shareIntent, "Share Evaluation"))
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = sk.brand),
-                        ) {
-                            Text("Share Review", fontSize = 12.sp, color = Color.White)
-                        }
-                    }
                 }
             }
         }
@@ -865,6 +768,34 @@ private fun TrainerIndexCriteriaDialog(
         },
         containerColor = sk.cardBg,
     )
+}
+
+/**
+ * One piece of written evidence against a coloured rail. Renders nothing when
+ * the source text is blank, so an absent strength never leaves an empty card.
+ */
+@Composable
+private fun EvidenceBlock(label: String, body: String, tint: Color, sk: SkillColors) {
+    if (body.isBlank()) return
+    Row(Modifier.fillMaxWidth()) {
+        Box(
+            Modifier
+                .width(2.dp)
+                .heightIn(min = 28.dp)
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(1.dp))
+                .background(tint),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = tint, fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
+            )
+            Text(body, style = MaterialTheme.typography.bodySmall, color = sk.bodyText, lineHeight = 18.sp)
+        }
+    }
 }
 
 @Composable
