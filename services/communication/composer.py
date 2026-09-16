@@ -60,11 +60,13 @@ def compose_from_plan_detailed(plan: CommunicationPlan, context=None) -> Tuple[s
     outcome = _try_llm_generation(plan)
     if outcome.result:
         r = outcome.result
-        return _clean_formatting(r.text), Provenance(r.provider, r.model, fallback_used=False, attempts=1,
-                                                     elapsed_ms=outcome.elapsed_ms, timeout_reason=outcome.timeout_reason)
+        return _clean_formatting(r.text), Provenance(
+            r.provider, r.model, fallback_used=False, attempts=1, elapsed_ms=outcome.elapsed_ms,
+            timeout_reason=outcome.timeout_reason, attempted_providers=list(outcome.tried))
     return _compose_deterministic(plan, context), Provenance(
-        DETERMINISTIC, "", fallback_used=True, attempts=0,
-        elapsed_ms=outcome.elapsed_ms, timeout_reason=outcome.timeout_reason)
+        DETERMINISTIC, "", fallback_used=True, attempts=1 if outcome.tried else 0,
+        elapsed_ms=outcome.elapsed_ms, timeout_reason=outcome.timeout_reason,
+        attempted_providers=list(outcome.tried))
 
 
 def _try_llm_generation(plan: CommunicationPlan) -> ProviderOutcome:
@@ -331,9 +333,16 @@ def _clean_formatting(text: str) -> str:
 MORNING_TEAM_GREETING = "MORNING_TEAM_GREETING"
 MORNING_WEEKDAYS = ("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY")
 
+# The greeting policy's stock language: motivational-poster and corporate
+# filler the manager's voice never uses. Matched on normalised text, so
+# punctuation and capitalisation ("Let's make it shine!") cannot slip past.
+# Deliberately short — the deterministic weekday bank is preferred over
+# mediocre model output, so this does not need to be an exhaustive blacklist.
 MORNING_BANNED_PHRASES = (
     "stay focused", "keep the momentum", "finish strong", "make today count", "steady progress",
     "give 100%", "crush your goals", "have a productive day", "wishing everyone", "have a smooth day",
+    "make it shine", "stay awesome", "keep pushing forward", "lets make it great", "lets crush",
+    "keep it going strong", "onwards and upwards",
 )
 
 MORNING_GREETING_PROMPT = """You write one short weekday morning greeting from a senior delivery manager to their training team, to be pasted into Microsoft Teams or Viber.
@@ -351,7 +360,7 @@ SHAPE: a fresh opening line, one weekday-appropriate thought, and a very short c
 Vary openings naturally - do not begin with "Good morning team".
 Rotate themes: team connection, appreciation, quality, learning, collaboration, ownership, conversations, small wins, helping each other, work-life balance, light workplace humour, occasional motivation.
 
-NEVER USE: "stay focused", "keep the momentum", "finish strong", "make today count", "steady progress", "give 100%", "crush your goals", "have a productive day", "wishing everyone", "have a smooth day".
+NEVER USE motivational-poster or corporate filler, including: "stay focused", "keep the momentum", "finish strong", "make today count", "steady progress", "give 100%", "crush your goals", "have a productive day", "wishing everyone", "have a smooth day", "make it shine", "stay awesome", "keep pushing forward", "lets make it great", "lets crush", "keep it going strong", "onwards and upwards".
 
 ANTI-REPEAT: you are given the manager's recent greetings. Do not reuse their opening, sentence structure, thought, joke or closing.
 
@@ -435,6 +444,12 @@ def sanitize_morning_greeting(text: str) -> str:
 _DAY_NAMES = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
+def _normalise_phrase(text: str) -> str:
+    """Lowercase, drop apostrophes ("let's" -> "lets"), other punctuation to spaces."""
+    flat = re.sub(r"['’]", "", str(text or "").lower())
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", flat)).strip()
+
+
 def _opening(text: str) -> str:
     """First sentence or line, normalised — the part a repeated greeting shares."""
     head = re.split(r"(?<=[.!?])\s|\n", str(text or "").strip(), maxsplit=1)[0]
@@ -470,8 +485,9 @@ def morning_greeting_issues(text: str, recent: list, weekday: str = "") -> list:
     if re.search(r"~[^~\n]+~\s*[.!]?\s*$", text.strip()):
         # ~strike~ renders as crossed-out text; as a sign-off it reads as a retraction.
         issues.append("strikethrough used as a closing")
+    flat = _normalise_phrase(text)
     for phrase in MORNING_BANNED_PHRASES:
-        if phrase in low:
+        if _normalise_phrase(phrase) in flat:
             issues.append(f"banned phrase: {phrase}")
     if re.search(r"[\U0001F300-\U0001FAFF☀-➿]", text):
         issues.append("contains emoji")
@@ -552,6 +568,7 @@ def compose_morning_greeting(weekday: str, recent: list, variation: int = 0) -> 
     attempts = 0
     elapsed_ms = 0
     timeout_reason = ""
+    tried: list = []
     for _ in range(2):  # first attempt + at most one corrective retry
         remaining_ms = providers.INTERACTIVE_BUDGET_MS - elapsed_ms
         if remaining_ms < 2000:
@@ -562,16 +579,20 @@ def compose_morning_greeting(weekday: str, recent: list, variation: int = 0) -> 
         )
         elapsed_ms += outcome.elapsed_ms
         timeout_reason = timeout_reason or outcome.timeout_reason
+        tried += [p for p in outcome.tried if p not in tried]
+        if outcome.tried:
+            attempts += 1  # a provider was actually called this round
         if not outcome.result:
             break  # timed out or nothing available — a retry would only add latency
-        attempts += 1
         clean = sanitize_morning_greeting(outcome.result.text)
         corrections = morning_greeting_issues(clean, recent, weekday)
         if not corrections:
             return clean, Provenance(outcome.result.provider, outcome.result.model, fallback_used=False,
-                                     attempts=attempts, elapsed_ms=elapsed_ms, timeout_reason=timeout_reason)
+                                     attempts=attempts, elapsed_ms=elapsed_ms, timeout_reason=timeout_reason,
+                                     attempted_providers=list(tried))
         if outcome.timed_out:
             break  # a slow provider already cost a timeout; do not spend another on a retry
     return (_compose_morning_deterministic(weekday, recent, variation),
             Provenance(DETERMINISTIC, "", fallback_used=True, attempts=attempts,
-                       elapsed_ms=elapsed_ms, timeout_reason=timeout_reason))
+                       elapsed_ms=elapsed_ms, timeout_reason=timeout_reason,
+                       attempted_providers=list(tried)))

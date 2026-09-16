@@ -99,10 +99,13 @@ class Provenance:
     attempts: int = 0
     elapsed_ms: int = 0
     timeout_reason: str = ""
+    #: Providers actually called, in order, across every attempt ("ollama", "openai", ...).
+    attempted_providers: List[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         d = {"provider": self.provider, "model": self.model, "fallback_used": self.fallback_used,
-             "attempts": self.attempts, "elapsed_ms": self.elapsed_ms}
+             "attempts": self.attempts, "attempted_providers": list(self.attempted_providers),
+             "elapsed_ms": self.elapsed_ms}
         if self.timeout_reason:
             d["timeout_reason"] = self.timeout_reason
         return d
@@ -288,6 +291,17 @@ _PROVIDERS: Dict[str, Callable[[str, str, float, int], Optional[ProviderResult]]
 }
 
 
+def _configured(name: str) -> bool:
+    """True when server config enables this provider, so it is worth calling."""
+    if name == "ollama":
+        return _ollama_base_url() is not None
+    if name == "azure":
+        return bool(os.getenv("AZURE_OPENAI_ENDPOINT") and (os.getenv("AZURE_OPENAI_KEY") or os.getenv("AZURE_OPENAI_API_KEY")))
+    if name == "openai":
+        return bool(os.getenv("OPENAI_API_KEY"))
+    return False
+
+
 def generate(system: str, user: str, temperature: float = 0.2, max_tokens: int = 400,
              budget_ms: Optional[int] = None) -> ProviderOutcome:
     """Try providers in configured order; stop at the first text or at 'deterministic'.
@@ -311,6 +325,8 @@ def _run_chain(system: str, user: str, temperature: float, max_tokens: int, outc
     for name in provider_order():
         if name == "deterministic":
             break
+        if not _configured(name):
+            continue  # unconfigured providers are skipped, not "attempted"
         deadline = _deadline.get()
         if deadline is not None and deadline - time.monotonic() <= 0.05:
             outcome.timeout_reason = outcome.timeout_reason or "request budget exhausted"

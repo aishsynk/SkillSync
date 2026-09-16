@@ -59,7 +59,7 @@ class MorningGreetingServiceTest(unittest.TestCase):
             self.assertTrue(r.requires_communication)
             self.assertTrue(r.text)
             self.assertTrue(r.validation.passed, r.validation.issues)
-            self.assertEqual({"provider": "DETERMINISTIC", "model": "", "fallback_used": True, "attempts": 0}, core(r.provenance))
+            self.assertEqual({"provider": "DETERMINISTIC", "model": "", "fallback_used": True, "attempts": 0, "attempted_providers": []}, core(r.provenance))
 
     def test_weekend_is_suppressed_and_never_calls_a_model(self):
         with mock.patch.object(providers, "generate") as gen:
@@ -76,7 +76,7 @@ class MorningGreetingServiceTest(unittest.TestCase):
         gen.assert_called_once()
         self.assertEqual(GOOD_WEDNESDAY, r.text)
         self.assertEqual("LLM_OLLAMA", r.generation_mode)
-        self.assertEqual({"provider": "OLLAMA", "model": "qwen2.5:7b", "fallback_used": False, "attempts": 1}, core(r.provenance))
+        self.assertEqual({"provider": "OLLAMA", "model": "qwen2.5:7b", "fallback_used": False, "attempts": 1, "attempted_providers": ["ollama"]}, core(r.provenance))
         self.assertEqual(40, r.provenance["elapsed_ms"])
 
     def test_invalid_greeting_is_retried_once_with_corrective_guidance(self):
@@ -98,7 +98,7 @@ class MorningGreetingServiceTest(unittest.TestCase):
         self.assertEqual(2, gen.call_count)  # exactly one retry, never more
         self.assertNotIn("crush", r.text.lower())
         self.assertEqual("DETERMINISTIC_GENERATOR", r.generation_mode)
-        self.assertEqual({"provider": "DETERMINISTIC", "model": "", "fallback_used": True, "attempts": 2}, core(r.provenance))
+        self.assertEqual({"provider": "DETERMINISTIC", "model": "", "fallback_used": True, "attempts": 2, "attempted_providers": ["ollama"]}, core(r.provenance))
         self.assertEqual(80, r.provenance["elapsed_ms"])
 
     def test_timeout_falls_back_immediately_without_a_corrective_retry(self):
@@ -107,7 +107,8 @@ class MorningGreetingServiceTest(unittest.TestCase):
             r = self.gen("WEDNESDAY")
         self.assertEqual(1, gen.call_count)
         self.assertTrue(r.text)
-        self.assertEqual({"provider": "DETERMINISTIC", "model": "", "fallback_used": True, "attempts": 0,
+        self.assertEqual({"provider": "DETERMINISTIC", "model": "", "fallback_used": True, "attempts": 1,
+                          "attempted_providers": ["ollama"],
                           "timeout_reason": "OLLAMA timed out after 10000ms"}, core(r.provenance))
         self.assertEqual(10_000, r.provenance["elapsed_ms"])
 
@@ -120,6 +121,25 @@ class MorningGreetingServiceTest(unittest.TestCase):
         self.assertEqual(1, gen.call_count)
         self.assertEqual("DETERMINISTIC", r.provenance["provider"])
         self.assertEqual(1, r.provenance["attempts"])
+
+    def test_stock_motivational_language_is_rejected_whatever_the_punctuation(self):
+        for bad in ("Today's a good day to catch up and learn. Let's make it shine!",
+                    "Nice work midweek, everyone - stay awesome, team, and share a win.",
+                    "Halfway through the week, so keep pushing forward and help each other.",
+                    "Share one thing you learned today, and let's CRUSH the rest of it.",
+                    "A good midweek check-in, everyone. Keep it going strong!",
+                    "Share what is working today. Onwards and upwards, everyone!"):
+            issues = composer.morning_greeting_issues(bad, [], "WEDNESDAY")
+            self.assertTrue(any(i.startswith("banned phrase") for i in issues), bad)
+        self.assertEqual([], composer.morning_greeting_issues(GOOD_WEDNESDAY, [], "WEDNESDAY"))
+
+    def test_mediocre_model_output_is_replaced_by_the_weekday_bank(self):
+        shiny = "Today's a good day to catch up and learn from each other. Let's make it shine!"
+        with mock.patch.object(providers, "generate", return_value=ok(shiny)):
+            r = self.gen("WEDNESDAY")
+        self.assertNotIn("make it shine", r.text.lower())
+        self.assertEqual("DETERMINISTIC", r.provenance["provider"])
+        self.assertEqual(["ollama"], r.provenance["attempted_providers"])
 
     def test_wrong_weekday_personality_is_rejected(self):
         issues = composer.morning_greeting_issues("Happy Tuesday, all. _Enjoy the weekend soon._ Keep sharing ideas.", [], "WEDNESDAY")

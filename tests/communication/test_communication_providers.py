@@ -256,12 +256,28 @@ class CommunicationServiceProviderTest(ProviderTestBase):
         self.assertNotIn("timeout_reason", r.provenance)
         self.assertEqual("LLM_OLLAMA", r.generation_mode)
 
+    def test_unconfigured_providers_are_not_reported_as_attempted(self):
+        r = self.svc.generate(MANAGER, {"recipient": {"type": "TEAM"}, "myMessage": "status please"})
+        self.assertEqual([], r.provenance["attempted_providers"])
+        self.assertEqual(0, r.provenance["attempts"])
+
+    def test_attempted_providers_records_the_real_chain(self):
+        os.environ.update(OLLAMA_BASE_URL=BASE, OPENAI_API_KEY="k")
+        fake = FakeHttp(chat_error=ProviderTimeout("slow"))
+        with mock.patch.object(providers, "_http_json", fake):
+            r = self.svc.generate(MANAGER, {"recipient": {"type": "TEAM"}, "myMessage": "status please"})
+        self.assertEqual("OPENAI", r.provenance["provider"])
+        self.assertEqual(["ollama", "openai"], r.provenance["attempted_providers"])
+        self.assertTrue(r.provenance["timeout_reason"].startswith("OLLAMA timed out"))
+
     def test_timeout_provenance_on_deterministic_fallback(self):
         os.environ["OLLAMA_BASE_URL"] = BASE
         with mock.patch.object(providers, "_http_json", FakeHttp(chat_error=ProviderTimeout("slow"))):
             r = self.svc.generate(MANAGER, {"recipient": {"type": "TEAM"}, "myMessage": "please confirm availability for next week"})
         self.assertEqual("DETERMINISTIC", r.provenance["provider"])
         self.assertTrue(r.provenance["fallback_used"])
+        self.assertEqual(["ollama"], r.provenance["attempted_providers"])
+        self.assertEqual(1, r.provenance["attempts"])
         self.assertTrue(r.provenance["timeout_reason"].startswith("OLLAMA timed out"))
 
     def test_morning_greeting_timeout_is_not_retried(self):

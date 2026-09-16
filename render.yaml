@@ -41,6 +41,15 @@ services:
     #   OLLAMA_MODEL             installed general chat model (honoured if installed)
     #   OLLAMA_TIMEOUT_SECONDS   default 10, hard cap 20 (interactive requests)
     #   OLLAMA_KEEP_ALIVE        default 15m (keeps the model loaded between calls)
+    # OLLAMA_MODEL is intentionally unset: no local model has been approved for
+    # SkillSync copy yet. qwen-coder-fast was measured and rejected (2/20 inside
+    # the 10s budget, poor writing). Recommended evaluation order when a local
+    # model is wanted, smallest first:
+    #   1. gemma3:1b   (~815 MB)
+    #   2. llama3.2:3b (~2.0 GB)
+    # The question is not benchmark score: can it write natural SkillSync
+    # manager copy consistently inside the 10s interactive timeout on this CPU?
+    # See AI/INFRA_EPHEMERAL_STATE_AUDIT_2026_09_16.md for the storage follow-up.
     # Unset OLLAMA_BASE_URL => Ollama skipped with no network call. OpenAI/Azure
     # use OPENAI_API_KEY / AZURE_OPENAI_* as before.
     #
