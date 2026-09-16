@@ -31,18 +31,29 @@ Follow only the ANDROID workflow:
 
 `Inspect → Implement → Compile → Unit Test → Lint → Build/Assemble → Validate User Flows`
 
-- **Releases:** always check `https://github.com/aishsynk/SkillSync/releases`
-  first — the sole source of truth for the next version, never
-  `build.gradle.kts`/`AI/PROGRESS.md`/tags/memory. Version is
-  `MAJOR.MINOR.PATCH.BUILD` (e.g. `3.80.13.188` = `versionName "3.80.13"` +
-  `versionCode 188`); for a normal release only `versionCode` (the rightmost,
-  4th component) increments — `versionName` stays fixed until `versionCode`'s
-  portion reaches 999, which rolls the next component up (see
-  `AI/DECISIONS.md`, "Versioning rule replaced"). Rebrand alone is never a
-  MINOR bump. Preserve package name, signing key, and user data. Generate
-  APK/AAB and validate upgrade from the previous version. Uninstall/reinstall
-  requirement or data loss = release blocker. Every completed, validated
-  user-facing fix should result in a new published release unless the
+- **Releases — permanent rule:** Before proposing, calculating, committing,
+  tagging, or publishing any SkillSync version, check the highest published
+  release at `https://github.com/aishsynk/SkillSync/releases`. Do not rely
+  on `build.gradle.kts`, local git history/tags, `AI/PROGRESS.md`,
+  `AI/CONTEXT.md`, `AI/DECISIONS.md`, memory, or chat history for the next
+  version — those decay the moment a new release is published elsewhere.
+  Version is `MAJOR.MINOR.PATCH.BUILD` (e.g. `3.80.16.194` = `versionName
+  "3.80.16"` + `versionCode 194`). To compute the next release:
+  1. Read the highest published release's tag from GitHub Releases.
+  2. `versionCode = that release's versionCode + 1`.
+  3. For a normal new feature release, also increment the `3.80.x` patch
+     digit (`versionName`) — e.g. `3.80.16.194` → `3.80.17.195`.
+  4. Only reuse the same `versionName` with just a higher `versionCode`
+     (a same-version rebuild/hotfix) when explicitly instructed that this
+     release is a rebuild/hotfix of the same already-published version —
+     never infer that on your own (this is the one case the 2026-09-15
+     "build-only increments" note in `AI/DECISIONS.md` still describes;
+     it is not the default for a new feature release).
+  Rebrand alone is never a MINOR bump. Preserve package name, signing key,
+  and user data. Generate APK/AAB and validate upgrade from the previous
+  version. Uninstall/reinstall requirement or data loss = release blocker.
+  Every completed, validated user-facing fix should result in a new
+  published release unless the
   operator explicitly says test-only/do-not-release/hold.
 - **WEB/VS and BACKEND/API workflows do not apply** to this repo; never trigger
   Web/Azure production deployment from Android work unless the task explicitly

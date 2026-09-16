@@ -3173,21 +3173,80 @@ SkillSync/SkillEdge product identity are unchanged.
 
 ---
 
+### Delivery Operations V2 rebuild (branch `delivery-ops-v2-rebuild`, not merged)
+
+Calendar-first rebuild of the Delivery Operations screen (`TeamCalendarScreen.kt`,
+`Version2Workspaces.kt`'s `DeliveryOperationsWorkspace`), scoped to this screen only:
+
+- Removed the duplicate "ACTIVE DELIVERIES" card list and KPI banner that
+  repeated the exact same batches the calendar/agenda already showed —
+  there is now one source of detailed event presentation per context
+  (summary = counts only, calendar = compact overview, agenda = detail).
+- Added a compact `OperationsSummaryStrip` (Events / Delivery-Batch /
+  Leave / Mock / Webinar / Trainers Active), computed from the same
+  `buildCalendarEvents()` parser the calendar itself renders from, not a
+  second independently-scored tally.
+- Hoisted Month/Week/Day calendar state (`currentYearMonth`,
+  `selectedDate`) from `TeamCalendarScreen` up into
+  `DeliveryOperationsWorkspace` so the summary strip can report counts
+  scoped to the month actually on screen.
+- Month-cell and week-view event chips rebuilt as real two-line WHAT/WHO
+  (`shortCourseTitle` + `shortTrainerName`), replacing a single-line
+  truncated "Course: Full Sentence Title... — Trainer" run-on — trainer
+  identity is now visible directly in Month, Week and agenda views, not
+  just the course.
+- Audited the full `batch_engagement_df` data path (`backend.py
+  _build_trainer`) and confirmed RMS exposes no `activity_type`/category
+  field: every row is literally an RMS batch, and Mock/Webinar/Upskilling/
+  Meeting are all keyword-reclassified from that same table. Leave is the
+  one category with a genuinely separate source (`readiness.next_leave`).
+  Relabelled `EventCategory.DELIVERY` to **"Delivery / Batch"** everywhere
+  (filter chip, summary stat, agenda/detail badge) to reflect this
+  honestly, instead of fabricating a second, always-zero "Batches" count.
+- Agenda cards (`EventCardRow`) now use the shared `Avatar` component
+  (photo-or-initials) instead of a bare category glyph.
+- Added `DeliveryOperationsScreenshotTest.kt`, a real-device/emulator
+  instrumented test (JUnit4 `createAndroidComposeRule` + `captureToImage`,
+  explicitly NOT Robolectric) producing 8 named screenshots via
+  `connectedDebugAndroidTest`. **Visual capture and manual review remain
+  pending** — this sandbox has no usable Android emulator/device (`adb`,
+  `emulator` not on PATH, no `ANDROID_HOME`, no `/dev/kvm`), so the suite
+  has only been compiled here, never executed against a real device.
+
+**Current test/lint baseline (unchanged by this branch):** 274 unit tests,
+same 10 documented baseline failures by identity, 0 new; lintDebug 6
+documented baseline errors (all in `PilotScreenshotInstrumentedTest.kt` /
+`PilotScreenshotTest.kt`, files untouched by this work), 0 new.
+`compileDebugKotlin`, `compileReleaseKotlin`, `compileDebugAndroidTestKotlin`,
+`assembleDebug`, `assembleRelease`: all BUILD SUCCESSFUL.
+
+Not merged to `main`, no version bump, no tag, no release. Pushed as
+branch `delivery-ops-v2-rebuild` only, pending the operator's visual
+review of the screenshot suite run in a real Windows dev environment.
+
+---
+
 ### Session handover
 
 - **Last model/tool used:** Claude (Opus/Sonnet 5, this session).
-- **Current project state:** v3.80.16.193 is the release in progress from
-  this entry; v3.80.15.192 remains the last confirmed-published release at
-  the start of this task and must not be modified, retagged or removed.
-- **Files recently modified:** `MainScreenViewModel.kt`, `MainScreen.kt`,
-  `AllocationDeskScreen.kt`, `build.gradle.kts` (version bump), plus the
-  test files listed in §42.
-- **Known issues/blockers:** none open. The Render backend's ephemeral
-  state (documented in `AI/INFRA_EPHEMERAL_STATE_AUDIT_2026_09_16.md`) is a
-  standing characteristic, not a regression — a cold-cache request can
-  still take a few seconds to resolve on a fresh backend spin-up; Plan and
-  People both now handle that honestly (loading/polling, never a false
-  empty state).
-- **Next recommended actions:** none pending unless the operator requests
-  further work. If continuing, re-read this entry and `AGENTS.md` first,
-  and confirm the latest GitHub Release before doing anything else.
+- **Current project state:** `main` is unchanged at v3.80.16.193 (last
+  published release, per the versioning-rule fix logged above — do not
+  reintroduce the `3.80.17.194` mis-versioning). Delivery Operations V2 is
+  in progress on branch `delivery-ops-v2-rebuild`, not merged, pending
+  operator visual review of the screenshot suite (see entry above).
+- **Files recently modified (on `delivery-ops-v2-rebuild`, not `main`):**
+  `TeamCalendarScreen.kt`, `Version2Workspaces.kt`, `ScreenRenderTest.kt`,
+  `DeliveryOperationsScreenshotTest.kt` (new).
+- **Known issues/blockers:** this sandbox cannot run
+  `connectedDebugAndroidTest` (no emulator/device) — the Delivery
+  Operations visual gate needs to be run and reviewed in the normal
+  Windows dev environment before that branch can be merged/released. The
+  Render backend's ephemeral state
+  (`AI/INFRA_EPHEMERAL_STATE_AUDIT_2026_09_16.md`) remains a standing
+  characteristic, not a regression.
+- **Next recommended actions:** run
+  `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.skillsync.ui.DeliveryOperationsScreenshotTest`
+  on a machine with an emulator/device, review the 8 PNGs against the
+  visual acceptance criteria, then merge/version/release only after that
+  passes. If continuing otherwise, re-read this entry and `AGENTS.md`
+  first, and confirm the latest GitHub Release before doing anything else.
