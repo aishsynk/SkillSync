@@ -15,8 +15,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.skillsync.R
 import com.example.skillsync.core.ui.list
 import com.example.skillsync.core.ui.str
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
+import com.example.skillsync.core.ui.ShimmerBox
 import com.example.skillsync.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,12 +54,7 @@ fun PipelineRadarScreen(
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
                 when (val s = state) {
-                    is PipelineRadarState.Loading -> Box(
-                        Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        SkillSyncLoadingState()
-                    }
+                    is PipelineRadarState.Loading -> PreDemandSkeleton()
                     is PipelineRadarState.Error -> Box(
                         Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
@@ -81,6 +81,21 @@ fun PipelineRadarScreen(
                                 contentPadding = PaddingValues(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
+                                item {
+                                    val horizonNote = if (total > 0) {
+                                        "$total signed confirmation" + (if (total == 1) "" else "s") +
+                                            " in the 14-30 day horizon" +
+                                            (if (uncovered > 0) ", $uncovered with nobody on the team able to teach it yet." else ", all coverable by the team.")
+                                    } else {
+                                        "Nothing signed in the 14-30 day horizon."
+                                    }
+                                    Text(
+                                        horizonNote,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = sk.bodyText,
+                                    )
+                                }
+
                                 // Pulse Metric Strip
                                 item {
                                     Row(
@@ -111,8 +126,11 @@ fun PipelineRadarScreen(
                                 if (items.isEmpty()) {
                                     item {
                                         SkillSyncEmptyState(
-                                            title = "No Pending Confirmations",
-                                            description = "No pending advance Service Confirmations currently detected on the radar.",
+                                            title = "No signed or likely demand detected in the next 14-30 days.",
+                                            description = "Advance Service Confirmations land here as sales confirms them, with the " +
+                                                "courses, lead times and which reportees can already teach them. Nothing is " +
+                                                "projected or invented while the radar is clear.",
+                                            iconRes = R.drawable.ic_search,
                                         )
                                     }
                                 } else {
@@ -225,6 +243,68 @@ private fun PipelineItemCard(item: Map<*, *>, onOpenTrainer: (String, String) ->
                         modifier = Modifier.pressable { onOpenTrainer(tEmail, tName) },
                     )
                 }
+            }
+        }
+    }
+}
+
+
+/**
+ * Radar loading state: the shape of the real page (horizon line, metric strip,
+ * confirmation rows) in shimmer, so a slow build reads as "the radar is
+ * sweeping" rather than as three empty grey boxes on a blank screen.
+ */
+@Composable
+private fun PreDemandSkeleton() {
+    val sk = MaterialTheme.skill
+    Column(
+        Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = sk.sky)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Sweeping the 14-30 day pipeline\u2026",
+                style = MaterialTheme.typography.bodySmall, color = sk.subText,
+            )
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("SIGNED ORDERS", "TEAM COVERED", "ACTION NEEDED").forEach { label ->
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(Radii.kpi))
+                        .background(sk.surface1)
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    ShimmerBox(width = 28.dp, height = 22.dp)
+                    Text(
+                        label, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                        color = sk.labelText, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                    )
+                }
+            }
+        }
+        repeat(3) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Radii.card))
+                    .background(sk.surface1)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ShimmerBox(width = 30.dp, height = 30.dp, shape = RoundedCornerShape(8.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ShimmerBox(width = 190.dp, height = 12.dp)
+                        ShimmerBox(width = 120.dp, height = 10.dp)
+                    }
+                }
+                ShimmerBox(height = 10.dp, modifier = Modifier.fillMaxWidth())
             }
         }
     }

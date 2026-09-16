@@ -13,12 +13,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import com.example.skillsync.R
 import com.example.skillsync.feature.ai.*
 import com.example.skillsync.theme.*
@@ -39,7 +42,7 @@ import androidx.compose.material3.Text
  * rest. Telling the manager that up front is what makes the refusals readable
  * as a designed behaviour rather than a bug.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CopilotScreen(
     team: TeamFact,
@@ -123,15 +126,23 @@ fun CopilotScreen(
                     SectionHeading("Ask", "Tap one, or type your own below")
                 }
                 item {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                        items(Agent.starters(team)) { starter ->
+                    // FlowRow, not a LazyRow: the starters are short and few, and
+                    // the horizontal list was clipping the last chip against the
+                    // gutter with no affordance that it scrolled.
+                    FlowRow(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                        verticalArrangement = Arrangement.spacedBy(Space.sm),
+                    ) {
+                        Agent.starters(team).forEach { starter ->
                             Text(
                                 starter,
                                 style = MaterialTheme.typography.labelMedium,
                                 color = sk.ice,
-                                maxLines = 1,
+                                maxLines = 2,
                                 modifier = Modifier
-                                    .background(sk.glass, RoundedCornerShape(Radii.chip))
+                                    .clip(RoundedCornerShape(Radii.chip))
+                                    .background(sk.glass)
                                     .pressable {
                                         question = starter
                                         answer = Agent.ask(starter, team, weights)
@@ -172,25 +183,30 @@ fun CopilotScreen(
 @Composable
 private fun ScopeNote(team: TeamFact) {
     val sk = MaterialTheme.skill
-    Column(
+    Row(
         Modifier
             .fillMaxWidth()
             .glassSurface(RoundedCornerShape(Radii.card))
-            .padding(Space.lg),
-        verticalArrangement = Arrangement.spacedBy(Space.xs),
+            .padding(Space.md),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            "Reads your live RMS data",
-            style = MaterialTheme.typography.titleSmall,
-            color = sk.bodyText,
-        )
-        Text(
-            "${team.trainers.size} reportees, utilisation, certifications, feedback, " +
-                "readiness and open demand. It answers delivery questions and will say so " +
-                "when a question is outside what it can check.",
-            style = MaterialTheme.typography.bodySmall,
-            color = sk.subText,
-        )
+        IconSlot(sk.sky, size = 30.dp) {
+            Icon(painterResource(R.drawable.ic_search), null, tint = sk.sky, modifier = Modifier.size(16.dp))
+        }
+        Spacer(Modifier.width(Space.md))
+        Column(Modifier.weight(1f)) {
+            Text(
+                "Reads your live RMS data",
+                style = MaterialTheme.typography.labelLarge,
+                color = sk.bodyText,
+            )
+            Text(
+                "${team.trainers.size} reportees · utilisation, certifications, feedback, " +
+                    "readiness, open demand. Outside that it says so.",
+                style = MaterialTheme.typography.labelSmall,
+                color = sk.subText,
+            )
+        }
     }
 }
 
@@ -210,7 +226,7 @@ private fun AnswerCard(a: Answer, onTrainerClick: (String, String) -> Unit) {
                 color = sk.bodyText,
                 modifier = Modifier.weight(1f),
             )
-            ToneChip(a.confidence.name.lowercase(), tint)
+            ToneChip("confidence " + a.confidence.name.lowercase(), tint)
         }
         if (a.detail.isNotBlank()) {
             Text(a.detail, style = MaterialTheme.typography.bodyMedium, color = sk.subText)
@@ -255,56 +271,93 @@ private fun SuggestionCard(
 ) {
     val sk = MaterialTheme.skill
     var showWhy by remember { mutableStateOf(false) }
+    val tint = severityFor(suggestion.kind).tint()
 
-    SkillCard(Modifier.fillMaxWidth(), severity = severityFor(suggestion.kind)) {
+    Column(
+        Modifier.fillMaxWidth().accentGlass(tint).padding(Space.md),
+        verticalArrangement = Arrangement.spacedBy(Space.sm),
+    ) {
+        // Action, then who it concerns, on one line — the card's identity is
+        // the pairing, not a headline that wraps over three lines.
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ToneChip(suggestion.kind.label, severityFor(suggestion.kind).tint())
-            Spacer(Modifier.weight(1f))
+            ToneChip(suggestion.kind.label, tint)
+            Spacer(Modifier.width(Space.sm))
             Text(
-                "${suggestion.score}",
-                style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                suggestion.subject,
+                style = MaterialTheme.typography.labelMedium,
                 color = sk.labelText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                painterResource(R.drawable.ic_chevron),
+                contentDescription = null,
+                tint = sk.subText,
+                modifier = Modifier.size(16.dp),
             )
         }
         Text(
             suggestion.headline,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.bodyMedium,
             color = sk.bodyText,
             modifier = Modifier.pressable(onOpen),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+        // The reason is never mid-sentence truncated any more: it shows in full
+        // to two lines, and tapping reveals the evidence behind it.
         Text(
-            if (showWhy) suggestion.rationale else suggestion.rationale.take(96).let {
-                if (suggestion.rationale.length > 96) "$it…" else it
-            },
+            suggestion.rationale,
             style = MaterialTheme.typography.bodySmall,
             color = sk.subText,
+            maxLines = if (showWhy) Int.MAX_VALUE else 2,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.pressable { showWhy = !showWhy },
         )
         if (showWhy && suggestion.evidence.isNotEmpty()) {
+            Text(
+                "EVIDENCE",
+                style = MaterialTheme.typography.labelSmall,
+                color = sk.labelText, fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
+            )
             suggestion.evidence.forEach { line ->
                 Text("· $line", style = MaterialTheme.typography.bodySmall, color = sk.labelText)
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-            FilledTonalButton(
-                onClick = onAccept,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(Radii.chip),
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = sk.aqua.copy(alpha = 0.18f),
-                    contentColor = sk.aqua,
-                ),
-            ) { Text("Useful", style = MaterialTheme.typography.labelLarge) }
-            OutlinedButton(
-                onClick = onDismiss,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(Radii.chip),
-            ) {
-                Text("Not now", style = MaterialTheme.typography.labelLarge, color = sk.subText)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CompactFeedback("Useful", R.drawable.ic_check, sk.aqua, onAccept)
+            Spacer(Modifier.width(Space.lg))
+            CompactFeedback("Not now", R.drawable.ic_forward, sk.subText, onDismiss)
+            Spacer(Modifier.weight(1f))
+            if (!showWhy && suggestion.evidence.isNotEmpty()) {
+                Text(
+                    "Why",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = sk.sky,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(Radii.chip))
+                        .pressable { showWhy = true }
+                        .padding(horizontal = Space.sm, vertical = 4.dp),
+                )
             }
         }
+    }
+}
+
+/** Icon-plus-label feedback action; deliberately not a full-width button. */
+@Composable
+private fun CompactFeedback(label: String, iconRes: Int, tint: Color, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(Radii.chip))
+            .pressable(onClick)
+            .padding(horizontal = Space.sm, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(iconRes), contentDescription = null, tint = tint, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(5.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = tint)
     }
 }
 

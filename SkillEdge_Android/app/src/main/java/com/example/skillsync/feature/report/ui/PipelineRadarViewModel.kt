@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.skillsync.core.data.ManagerRepository
 import com.example.skillsync.core.data.DataSource
+import com.example.skillsync.core.data.RepositoryResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -16,6 +17,13 @@ sealed class PipelineRadarState {
 
 class PipelineRadarViewModel(
     private val repo: ManagerRepository = ManagerRepository(),
+    /**
+     * Test seam, same pattern as PrioritiesViewModel: production keeps the
+     * repository call byte-for-byte, while a screenshot/unit test injects a
+     * deterministic lambda so the real network is never attempted.
+     */
+    private val fetchPipeline: suspend (String, Boolean) -> RepositoryResult<Map<String, Any>> =
+        { manager, fresh -> repo.preDemandPipeline(manager, fresh) },
 ) : ViewModel() {
     private val _state = MutableStateFlow<PipelineRadarState>(PipelineRadarState.Loading)
     val state: StateFlow<PipelineRadarState> = _state
@@ -41,7 +49,7 @@ class PipelineRadarViewModel(
         viewModelScope.launch {
             if (fresh) _refreshing.value = true else _state.value = PipelineRadarState.Loading
             try {
-                val res = repo.preDemandPipeline(manager, fresh)
+                val res = fetchPipeline(manager, fresh)
                 val d = res.data
                 if (d != null) {
                     _state.value = PipelineRadarState.Success(d, res.source)

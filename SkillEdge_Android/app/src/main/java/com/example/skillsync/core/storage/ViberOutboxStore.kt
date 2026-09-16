@@ -24,6 +24,21 @@ data class ViberOutboxItem(
     val errorMessage: String? = null,
 ) {
     companion object {
+        /**
+         * Prepared but not yet cleared for sharing. Kept distinct from
+         * [STATUS_READY_TO_SHARE] so "the app wrote something" and "the manager
+         * accepted it" are never the same fact.
+         */
+        const val STATUS_DRAFT = "DRAFT"
+
+        /**
+         * Reviewed and waiting for the manager to hand it to Viber. This is what
+         * the legacy [STATUS_QUEUED] value has always meant in practice, so both
+         * are treated as the same state on read and [STATUS_QUEUED] stays as the
+         * persisted value to avoid rewriting outboxes already on disk.
+         */
+        const val STATUS_READY_TO_SHARE = "READY_TO_SHARE"
+
         const val STATUS_QUEUED = "QUEUED"
         const val STATUS_SENDING = "SENDING"
         /** Confirmed sent — only ever set from a real Viber Bot API 200 response. */
@@ -42,6 +57,24 @@ data class ViberOutboxItem(
         const val CAT_WEEKLY = "WEEKLY_STANDPOINT"
         const val CAT_WEEKEND = "WEEKEND_WRAP"
         const val CAT_DELIVERY = "DELIVERY_NUDGE"
+
+        /** Statuses that still await the manager's hand-off to Viber. */
+        val AWAITING_HANDOFF = setOf(STATUS_QUEUED, STATUS_READY_TO_SHARE, STATUS_DRAFT)
+
+        /**
+         * What the UI is allowed to call each status. "Sent" appears only for
+         * [STATUS_SENT], which the dispatcher sets only from a confirmed Viber
+         * Bot API response; everything the share sheet produces reads as shared.
+         */
+        fun label(status: String): String = when (status) {
+            STATUS_SENT -> "Sent"
+            STATUS_SHARED_EXTERNALLY -> "Shared externally"
+            STATUS_FAILED -> "Failed"
+            STATUS_SKIPPED -> "Not transmitted"
+            STATUS_SENDING -> "Transmitting"
+            STATUS_DRAFT -> "Draft"
+            else -> "Ready to share"
+        }
     }
 }
 

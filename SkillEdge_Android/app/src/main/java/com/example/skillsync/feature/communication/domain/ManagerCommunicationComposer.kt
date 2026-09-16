@@ -42,13 +42,23 @@ object ManagerCommunicationComposer {
             facts += FactItem("avg_rating_count", request.evidence.learnerRatingCount, "VERIFIED_SKILLSYNC_CONTEXT")
         }
 
+        // The brief purposes compose from the same evidence sentences as the
+        // periodic updates, so the offline mirror reuses that branch rather
+        // than falling through to the generic one.
+        val planPurpose = when (request.purpose) {
+            CommunicationPurpose.WEEKLY_TEAM_BRIEF, CommunicationPurpose.MONTHLY_TEAM_REVIEW ->
+                CommunicationPurpose.TEAM_PERIODIC_UPDATE.id
+            CommunicationPurpose.WEEKLY_REPORTEE_BRIEF, CommunicationPurpose.MONTHLY_REPORTEE_REVIEW ->
+                CommunicationPurpose.INDIVIDUAL_PERIODIC_UPDATE.id
+            else -> request.purpose.id
+        }
         val plan = ContextSelectionPlan(
-            intent = request.purpose.id,
+            intent = planPurpose,
             userMessage = "",
             myMessage = request.managerInstruction,
             recipientName = request.audience.name,
             recipientType = request.audience.type.name,
-            purpose = request.purpose.id,
+            purpose = planPurpose,
             urgency = "NORMAL",
             tone = "professional",
             selectedFacts = facts,

@@ -36,6 +36,9 @@ import com.example.skillsync.theme.SkillColors
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.pressable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.em
 import com.example.skillsync.theme.skill
 import com.example.skillsync.feature.training.ui.BatchShare
 import com.example.skillsync.feature.training.ui.BulkBatchShare
@@ -135,20 +138,14 @@ fun PrioritiesScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = onOpenPipelineRadar) {
-                            Icon(painterResource(R.drawable.ic_calendar), "Pre-Demand Pipeline Radar", tint = sk.ice)
-                        }
-                        IconButton(onClick = onOpenDeliveryCompliance) {
-                            Icon(painterResource(R.drawable.ic_check), "Live Delivery Compliance", tint = sk.ice)
-                        }
+                        // Only actions that belong to this inbox. Pipeline Radar,
+                        // Delivery Compliance and Capacity Runway are reached from
+                        // Today's Operations matrix, so they are not repeated here.
                         IconButton(onClick = { openBulkShare() }) {
                             Icon(painterResource(R.drawable.ic_mail), "Share unallocated pipeline", tint = sk.ice)
                         }
                         IconButton(onClick = onOpenRamp) {
                             Icon(painterResource(R.drawable.ic_people), "New trainer ramp", tint = sk.ice)
-                        }
-                        IconButton(onClick = onOpenRunway) {
-                            Icon(painterResource(R.drawable.ic_trend), "Capacity Runway", tint = sk.ice)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
@@ -219,7 +216,39 @@ fun PrioritiesScreen(
                                 )
                             }
                         }
-                        items(visibleItems, key = { it.id.ifBlank { it.title } }) { item ->
+                        // Ranked bands, so severity reads before the list does.
+                        val bands = listOf(
+                            Triple("Critical", "high", sk.crit),
+                            Triple("Upcoming", "medium", sk.warn),
+                            Triple("Later", "low", sk.subText),
+                        )
+                        bands.forEach { (label, severity, tint) ->
+                            val band = visibleItems.filter { it.severity == severity }
+                            if (band.isEmpty()) return@forEach
+                            item(key = "band_" + severity) {
+                                BandHeading(label, band.size, tint)
+                            }
+                            items(band, key = { it.id.ifBlank { it.title } }) { item ->
+                                PriorityCard(
+                                    item = item,
+                                    sk = sk,
+                                    onClick = {
+                                        when (item.targetType) {
+                                            "demand" -> onOpenDemand(item.targetId)
+                                            "trainer" -> onOpenTrainer(item.targetId, item.targetName)
+                                            else -> onOpenActions()
+                                        }
+                                    },
+                                    hint = communicateHintFor(item),
+                                    onCommunicate = communicateHintFor(item)?.let { hint ->
+                                        { onCommunicate(hint.recipientType, hint.recipientName, hint.purpose, hint.relatedEntityType, hint.relatedEntityId) }
+                                    },
+                                )
+                            }
+                        }
+                        // Anything the backend ranked outside the three bands.
+                        val other = visibleItems.filterNot { it.severity in listOf("high", "medium", "low") }
+                        items(other, key = { it.id.ifBlank { it.title } }) { item ->
                             PriorityCard(
                                 item = item,
                                 sk = sk,
@@ -230,6 +259,7 @@ fun PrioritiesScreen(
                                         else -> onOpenActions()
                                     }
                                 },
+                                hint = communicateHintFor(item),
                                 onCommunicate = communicateHintFor(item)?.let { hint ->
                                     { onCommunicate(hint.recipientType, hint.recipientName, hint.purpose, hint.relatedEntityType, hint.relatedEntityId) }
                                 },
@@ -310,6 +340,11 @@ private fun BulkShareBar(count: Int, onShare: () -> Unit) {
                 Icon(painterResource(R.drawable.ic_mail), "Share pipeline", tint = sk.brand, modifier = Modifier.size(18.dp))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    "RECOMMENDED ACTION",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                    color = sk.labelText, fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
+                )
                 Text(
                     "Share pipeline with team",
                     color = sk.bodyText,
@@ -485,31 +520,73 @@ private fun PriorityCard(
     item: PriorityItem,
     sk: SkillColors,
     onClick: () -> Unit,
+    hint: CommunicateHint? = null,
     onCommunicate: (() -> Unit)? = null,
 ) {
     val stripe = severityColor(item.severity, sk)
     val metadata = buildString {
         append(kindLabel(item.kind))
         if (item.coverable) append(" · coverable")
-        if (item.due.isNotBlank()) append(" · Due ${item.due}")
+        if (item.due.isNotBlank()) append(" · due ${item.due}")
+    }
+    // A named ask only when the planner resolved a real individual; otherwise a
+    // neutral "Message". Neither claims that person is available.
+    val first = hint?.recipientName?.substringBefore(" ").orEmpty()
+    val askLabel = when {
+        onCommunicate == null -> null
+        hint?.recipientType == "INDIVIDUAL" && first.isNotBlank() -> "Ask $first"
+        else -> "Message"
     }
     Box(Modifier.fillMaxWidth().accentGlass(stripe).pressable(onClick)) {
-        ActionRow(
-            title = item.title,
-            modifier = Modifier.padding(horizontal = Space.md),
-            supportingText = item.detail,
-            metadata = metadata,
-            tint = stripe,
-            primaryActionLabel = if (onCommunicate != null) "Communicate" else null,
-            onPrimaryAction = onCommunicate,
-            secondaryContent = {
-                Icon(
-                    painterResource(R.drawable.ic_chevron),
-                    contentDescription = null,
-                    tint = sk.subText,
-                    modifier = Modifier.size(18.dp),
-                )
-            },
+        Column(Modifier.padding(horizontal = Space.md)) {
+            ActionRow(
+                title = item.title,
+                supportingText = item.detail,
+                metadata = metadata,
+                tint = stripe,
+                secondaryContent = {
+                    Icon(
+                        painterResource(R.drawable.ic_chevron),
+                        contentDescription = null,
+                        tint = sk.subText,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
+            )
+            if (askLabel != null && onCommunicate != null) {
+                Row(
+                    Modifier
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .pressable(onCommunicate)
+                        .semantics { contentDescription = askLabel + " about " + item.title },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(painterResource(R.drawable.ic_mail), contentDescription = null, tint = sk.sky, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(askLabel, style = MaterialTheme.typography.labelLarge, color = sk.sky, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
+/** Band heading for the ranked inbox: severity label plus how many sit in it. */
+@Composable
+private fun BandHeading(label: String, count: Int, tint: Color) {
+    val sk = MaterialTheme.skill
+    Row(
+        Modifier.fillMaxWidth().padding(top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(width = 3.dp, height = 14.dp).clip(RoundedCornerShape(2.dp)).background(tint))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            label.uppercase(),
+            style = MaterialTheme.typography.labelMedium, color = tint,
+            fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
         )
+        Spacer(Modifier.width(6.dp))
+        Text(count.toString(), style = MaterialTheme.typography.labelMedium, color = sk.labelText)
     }
 }

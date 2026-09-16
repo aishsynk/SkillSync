@@ -3050,3 +3050,70 @@ device smoke-test checklist handed to the operator in §38's report — this
 sandboxed session still has no device/emulator/browser access. That
 checklist stands unchanged; only the artifact it should be run against has
 changed from a debug side-install to the real release APK.
+
+## 41. v3.80.15.192 released — inner pages V2 and communication recovery
+
+Branch `inner-pages-v2` (commits `cd1c901`..`2da8c46`) merged to `main` and
+released as v3.80.15.192, bumping from the published v3.80.14.191 baseline.
+
+**Weekly/Monthly Communication Intelligence recovery (P0).** Weekly team,
+weekly reportee, monthly team (This Month / Month End), and monthly
+reportee (This Month / Month End) all recomposed through Communication
+Intelligence — `compose_brief_deterministic` and the shared `brief_issues`
+policy validator (`services/communication/briefs.py`) — with a formatted
+preview, a raw Copy/Share payload, and the permanent invariant enforced:
+low utilisation is never rendered as availability.
+
+**Inner pages, phases 1 and 2.** Nine inner screens rebuilt against real
+backend data with honest empty/loading/error states instead of placeholder
+UI:
+- This Week V2 — ranked action inbox (Critical/Upcoming/Later), named
+  candidate action only when a skill-matched, verified-available person is
+  resolved.
+- Capacity Runway V2 — aggregate trainer-day capacity kept visibly distinct
+  from batch coverability, with skill/timing reasons for every gap.
+- Delivery Sentinel — genuine correctness fix: compliance rate is `N/A`
+  when active batches = 0, never a fabricated 100%.
+- Pre-Demand Radar — structured branded loading skeleton and an explicit,
+  honest empty state instead of blank boxes.
+- HR Monthly Review V2 — conclusion-first executive overview, avatar
+  identity, coloured-rail evidence blocks, monthly/month-end message cadence.
+- Skill Requests V2 — real Approve/Decline workflow against RMS, proper
+  empty state, per-request evidence (course, level, submitted date).
+- Delivery Agent V2 — compact copilot layout, wrapping prompt chips
+  (FlowRow, no clipping), evidence-backed recommendation cards.
+- Accounts Book V2 — delivery concentration intelligence: every percentage
+  states its numerator, denominator and time window; proportional
+  distribution bar; no ambiguous "100% of batches" claims.
+- Viber Dispatch Centre — Automation Status / Rules / Outbox / History
+  structure, no emoji UI, and a truthfulness fix: background automation
+  no longer marks share-sheet items as sent; status vocabulary is strictly
+  DRAFT / READY_TO_SHARE / SHARED_EXTERNALLY / SENT, with SENT reserved for
+  a confirmed bot-API transport.
+
+**Two release blockers found and closed during final gate review:**
+1. `MessageReviewCard` (shared component, used by every generated-message
+   surface) squeezed its fourth action ("Share") to near-zero width at
+   360dp, wrapping the label character-by-character. Fixed once in the
+   shared component with a 2x2 action grid when four actions are present.
+2. `_compose_manager_message` — a legacy, unvalidated composer — was still
+   feeding HR Monthly and Weekly Report messages directly into API
+   responses, bypassing the policy validator the interactive path is held
+   to. It could emit banned filler ("keep me posted") and, in the team
+   forward-looking branch, a direct low-utilisation-equals-availability
+   claim. All 8 call sites now route through a new `_brief_report_message`,
+   which reuses the existing deterministic composer and validator — one
+   message policy, not two. Regression tests pin both the fix and the bug
+   the fix closes (`tests/test_brief_report_message.py`,
+   `MessageReviewCardActionLayoutTest.kt`).
+
+**Validation baseline for this release:**
+- Backend: 478 passed, 0 failed.
+- Android: 262 tests, same 10 documented baseline failures, 0 new.
+- Lint: same 6 documented baseline errors, 0 new.
+- `compileDebugKotlin`, `compileReleaseKotlin`, `assembleDebug`: all
+  BUILD SUCCESSFUL.
+
+**Version:** `versionCode` 191 → 192, `versionName` "3.80.14" → "3.80.15",
+tag `v3.80.15.192`. `applicationId`, signing configuration, and the
+SkillSync/SkillEdge product identity are unchanged.

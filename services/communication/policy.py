@@ -75,6 +75,12 @@ PURPOSES = (
     "APPRECIATION",
     "CORRECTIVE_MESSAGE",
     "GENERAL_PROFESSIONAL",
+    # Weekday morning greeting and the weekly/monthly manager briefs.
+    "MORNING_TEAM_GREETING",
+    "WEEKLY_TEAM_BRIEF",
+    "WEEKLY_REPORTEE_BRIEF",
+    "MONTHLY_TEAM_REVIEW",
+    "MONTHLY_REPORTEE_REVIEW",
 )
 
 

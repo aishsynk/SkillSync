@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.skillsync.core.data.ManagerRepository
 import com.example.skillsync.core.data.DataSource
+import com.example.skillsync.core.data.RepositoryResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -16,6 +17,13 @@ sealed class DeliveryComplianceState {
 
 class DeliveryComplianceViewModel(
     private val repo: ManagerRepository = ManagerRepository(),
+    /**
+     * Test seam, same pattern as PrioritiesViewModel: production keeps the
+     * repository call byte-for-byte, while a screenshot/unit test injects a
+     * deterministic lambda so the real network is never attempted.
+     */
+    private val fetchCompliance: suspend (String, Boolean) -> RepositoryResult<Map<String, Any>> =
+        { manager, fresh -> repo.deliveryCompliance(manager, fresh) },
 ) : ViewModel() {
     private val _state = MutableStateFlow<DeliveryComplianceState>(DeliveryComplianceState.Loading)
     val state: StateFlow<DeliveryComplianceState> = _state
@@ -41,7 +49,7 @@ class DeliveryComplianceViewModel(
         viewModelScope.launch {
             if (fresh) _refreshing.value = true else _state.value = DeliveryComplianceState.Loading
             try {
-                val res = repo.deliveryCompliance(manager, fresh)
+                val res = fetchCompliance(manager, fresh)
                 val d = res.data
                 if (d != null) {
                     _state.value = DeliveryComplianceState.Success(d, res.source)

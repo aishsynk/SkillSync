@@ -732,7 +732,7 @@ class ScreenRenderTest {
 
     @Test
     fun prioritiesScreen_unstaffedDemandOffersCommunicateWithRealDemandContext() {
-        // "Communicate" only appears where the item genuinely names a
+        // The compact ask action only appears where the item genuinely names a
         // recipient/purpose — proven here by asserting the exact
         // (recipientType, purpose, relatedEntityType, relatedEntityId) the
         // shared Communication engine receives, not a pre-written sentence.
@@ -767,7 +767,7 @@ class ScreenRenderTest {
                 )
             }
         }
-        compose.onNodeWithText("Communicate").performClick()
+        compose.onNodeWithText("Message").performClick()
         org.junit.Assert.assertEquals(
             listOf("TEAM", "", "AVAILABILITY_REQUEST", "demand", "DEM-900"), captured,
         )
@@ -819,7 +819,7 @@ class ScreenRenderTest {
                 )
             }
         }
-        compose.onNodeWithText("Communicate").performClick()
+        compose.onNodeWithText("Ask Niharika").performClick()
         org.junit.Assert.assertEquals(
             listOf("INDIVIDUAL", "Niharika N", "AVAILABILITY_REQUEST", "demand", "DEM-900"), captured,
         )
@@ -857,6 +857,7 @@ class ScreenRenderTest {
             }
         }
         compose.onNodeWithText("Overdue action: Confirm travel").assertExists()
+        compose.onAllNodesWithText("Message").assertCountEquals(0)
         compose.onAllNodesWithText("Communicate").assertCountEquals(0)
     }
 

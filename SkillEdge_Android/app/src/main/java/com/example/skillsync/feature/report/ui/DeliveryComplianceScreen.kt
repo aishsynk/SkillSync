@@ -102,6 +102,7 @@ fun DeliveryComplianceScreen(
                         val violations = (d["violations_count"] as? Number)?.toInt() ?: 0
                         // A missing figure is unknown, not "fully compliant" — never default
                         // this to 100.0 (see ScoreHints/anti-fabrication precedent elsewhere).
+                        val atRisk = (d["at_risk_count"] as? Number)?.toInt() ?: 0
                         val rate = (d["compliance_rate_percent"] as? Number)?.toDouble()
 
                         PullToRefreshBox(
@@ -115,24 +116,70 @@ fun DeliveryComplianceScreen(
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
                                 item {
-                                    Surface(
-                                        color = sk.surface1.copy(alpha = 0.85f),
-                                        shape = RoundedCornerShape(Radii.card),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, sk.glassBorder),
-                                        modifier = Modifier.fillMaxWidth(),
+                                    // Audit scorecard. With no active delivery there is no
+                                    // denominator, so the rate reads N/A - never 100%.
+                                    val auditable = total > 0
+                                    Column(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(Radii.card))
+                                            .background(sk.surface1)
+                                            .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(Radii.card))
+                                            .padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(12.dp),
                                     ) {
-                                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                                Text("RECORDING COMPLIANCE SCORECARD", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)
-                                                ToneChip(
-                                                    rate?.let { "${it}% Rate" } ?: "Rate unknown",
-                                                    tint = if (rate == null) sk.subText else if (violations > 0) sk.crit else sk.good,
-                                                )
+                                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                "RECORDING COMPLIANCE",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = sk.labelText, fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                            ToneChip(
+                                                if (auditable && rate != null) "$rate% compliant" else "N/A",
+                                                tint = when {
+                                                    !auditable || rate == null -> sk.subText
+                                                    violations > 0 -> sk.crit
+                                                    else -> sk.good
+                                                },
+                                            )
+                                        }
+                                        if (!auditable) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                IconSlot(tint = sk.subText, size = 40.dp) {
+                                                    Icon(
+                                                        painterResource(R.drawable.ic_check), contentDescription = null,
+                                                        tint = sk.subText, modifier = Modifier.size(20.dp),
+                                                    )
+                                                }
+                                                Spacer(Modifier.width(12.dp))
+                                                Column {
+                                                    Text(
+                                                        "No active deliveries to audit today.",
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                        color = sk.frost, fontWeight = FontWeight.SemiBold,
+                                                    )
+                                                    Text(
+                                                        "A compliance rate needs at least one running batch, so nothing is scored.",
+                                                        style = MaterialTheme.typography.bodySmall, color = sk.subText,
+                                                    )
+                                                }
                                             }
-                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                                PulseMetric(label = "Active Batches", value = total.toString(), tint = sk.sky, modifier = Modifier.weight(1f))
-                                                PulseMetric(label = "Recordings OK", value = compliant.toString(), tint = sk.good, modifier = Modifier.weight(1f))
-                                                PulseMetric(label = "Missing Uploads", value = violations.toString(), tint = if (violations > 0) sk.crit else sk.subText, modifier = Modifier.weight(1f))
+                                        } else {
+                                            // Proportional audit bar: compliant / due today / missing.
+                                            Row(
+                                                Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                            ) {
+                                                if (compliant > 0) Box(Modifier.weight(compliant.toFloat()).fillMaxHeight().background(sk.good))
+                                                if (atRisk > 0) Box(Modifier.weight(atRisk.toFloat()).fillMaxHeight().background(sk.warn))
+                                                if (violations > 0) Box(Modifier.weight(violations.toFloat()).fillMaxHeight().background(sk.crit))
+                                            }
+                                            Row(Modifier.fillMaxWidth()) {
+                                                AuditStat("Active", total, sk.sky, Modifier.weight(1f))
+                                                AuditStat("Uploaded", compliant, sk.good, Modifier.weight(1f))
+                                                AuditStat("Due today", atRisk, if (atRisk > 0) sk.warn else sk.subText, Modifier.weight(1f))
+                                                AuditStat("Missing", violations, if (violations > 0) sk.crit else sk.subText, Modifier.weight(1f))
                                             }
                                         }
                                     }
@@ -140,18 +187,12 @@ fun DeliveryComplianceScreen(
 
                                 if (active.isEmpty()) {
                                     item {
-                                        Surface(
-                                            color = sk.surface2.copy(alpha = 0.6f),
-                                            shape = RoundedCornerShape(Radii.card),
-                                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                                        ) {
-                                            Text(
-                                                "No active deliveries running today across your reportees.",
-                                                color = sk.subText,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                modifier = Modifier.padding(24.dp),
-                                            )
-                                        }
+                                        Text(
+                                            "Recording audits appear here while a reportee is mid-delivery.",
+                                            color = sk.subText,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(top = 4.dp),
+                                        )
                                     }
                                 } else {
                                     items(active) { deliveryMap ->
@@ -168,6 +209,18 @@ fun DeliveryComplianceScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AuditStat(label: String, value: Int, tint: Color, modifier: Modifier = Modifier) {
+    val sk = MaterialTheme.skill
+    Column(modifier) {
+        Text(value.toString(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = tint)
+        Text(
+            label.uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+            color = sk.labelText, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

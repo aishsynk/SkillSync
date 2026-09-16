@@ -94,20 +94,24 @@ fun CapacityRunwayScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        item { SummaryLine(s, sk) }
+                        item { CoverageInsight(s, sk) }
+                        item { CoverageExplanation(s, sk) }
                         item { WeekBars(s.weeks, sk) }
                         if (s.upskilling.isNotEmpty()) {
                             item {
-                                Text(
-                                    "Start these upskills now",
-                                    color = sk.bodyText,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    modifier = Modifier.padding(top = 4.dp),
-                                )
+                                Column(Modifier.padding(top = 4.dp)) {
+                                    Text(
+                                        "Start these upskills now",
+                                        color = sk.bodyText, fontWeight = FontWeight.Bold, fontSize = 15.sp,
+                                    )
+                                    Text(
+                                        "Ranked by how many uncovered batches each one unlocks.",
+                                        color = sk.subText, style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
                             }
                             items(s.upskilling.size) { i ->
-                                UpskillCard(s.upskilling[i], sk, onOpenTrainer)
+                                UpskillCard(i + 1, s.upskilling[i], sk, onOpenTrainer)
                             }
                         }
                         item { Spacer(Modifier.height(24.dp)) }
@@ -122,6 +126,92 @@ private fun humanDate(iso: String): String = try {
     LocalDate.parse(iso).format(DateTimeFormatter.ofPattern("d MMM", Locale.UK))
 } catch (_: Exception) {
     iso
+}
+
+/**
+ * The four figures a planner reads first. Skill gaps counts the uncovered
+ * batches the upskilling list would unlock, so it is real data, not a guess.
+ */
+@Composable
+private fun CoverageInsight(s: RunwayState.Success, sk: SkillColors) {
+    val sum = s.summary
+    val skillGapBatches = s.upskilling.sumOf { it.opensBatches }
+    Box(Modifier.fillMaxWidth().glassSurface()) {
+        Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth()) {
+                InsightCell("Coverage", "${sum.totalCoverable}/${sum.totalDemand}", if (sum.totalCoverable < sum.totalDemand) sk.amber else sk.good, sk, Modifier.weight(1f))
+                InsightCell("Free capacity", "${sum.trainerDaysAvailable} days", sk.sky, sk, Modifier.weight(1f))
+            }
+            Row(Modifier.fillMaxWidth()) {
+                InsightCell("Demand", "${sum.trainerDaysDemanded} days", sk.brand, sk, Modifier.weight(1f))
+                InsightCell(
+                    "Skill gaps",
+                    if (skillGapBatches > 0) "$skillGapBatches batches" else "none",
+                    if (skillGapBatches > 0) sk.crit else sk.good, sk, Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun InsightCell(label: String, value: String, tint: Color, sk: SkillColors, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(value, color = tint, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+        Text(
+            label.uppercase(), color = sk.labelText, fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * The business story the old screen never told: free trainer-days can exceed
+ * demanded trainer-days while batches stay uncovered, because capacity is only
+ * usable if the right person is free at the right time with the right skill.
+ * Every clause here is conditional on real data.
+ */
+@Composable
+private fun CoverageExplanation(s: RunwayState.Success, sk: SkillColors) {
+    val sum = s.summary
+    val uncovered = (sum.totalDemand - sum.totalCoverable).coerceAtLeast(0)
+    if (uncovered == 0) return
+    val aggregateLooksFine = sum.trainerDaysAvailable >= sum.trainerDaysDemanded
+    val skillGapBatches = s.upskilling.sumOf { it.opensBatches }
+    val gapCourses = s.upskilling.take(3).map { it.course }
+    val tightWeeks = s.weeks.count { it.gap > 0 }
+
+    val reasons = buildList {
+        if (skillGapBatches > 0) {
+            add("skill: nobody on the team can teach " + gapCourses.joinToString(", ") +
+                (if (s.upskilling.size > 3) " and others" else ""))
+        }
+        if (tightWeeks > 0) {
+            add("timing: " + tightWeeks + (if (tightWeeks == 1) " week is" else " weeks are") + " short of capacity even where the skill exists")
+        }
+    }
+    Box(Modifier.fillMaxWidth().accentGlass(if (aggregateLooksFine) sk.amber else sk.crit)) {
+        Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                if (aggregateLooksFine) "Capacity exists, coverage does not" else "Capacity is short of demand",
+                color = sk.frost, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                if (aggregateLooksFine) {
+                    "${sum.trainerDaysAvailable} trainer-days are free against ${sum.trainerDaysDemanded} trainer-days of demand, yet $uncovered " +
+                        "${if (uncovered == 1) "batch cannot" else "batches cannot"} be covered. " +
+                        "Aggregate trainer-days are not coverage."
+                } else {
+                    "${sum.trainerDaysAvailable} trainer-days are free against ${sum.trainerDaysDemanded} trainer-days of demand, and " +
+                        "$uncovered ${if (uncovered == 1) "batch cannot" else "batches cannot"} be covered."
+                },
+                color = sk.bodyText, style = MaterialTheme.typography.bodyMedium,
+            )
+            reasons.forEach { reason ->
+                Text("\u2022  " + reason, color = sk.subText, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
 }
 
 @Composable
@@ -172,40 +262,52 @@ private fun WeekBars(weeks: List<RunwayWeek>, sk: SkillColors) {
                         Modifier.weight(1f).fillMaxHeight(),
                         contentAlignment = Alignment.BottomCenter,
                     ) {
-                        // demand bar
-                        Box(
-                            Modifier
-                                .fillMaxWidth(0.72f)
-                                .fillMaxHeight(demandFrac.coerceIn(0f, 1f))
-                                .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                                .background(barColor),
-                        )
-                        // capacity marker
-                        Box(
-                            Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .padding(bottom = chartHeight * capFrac.coerceIn(0f, 1f))
-                                .height(2.dp)
-                                .background(sk.good),
-                        )
+                        // Demand bar. A week with no demand draws nothing at all
+                        // rather than a meaningless zero-height stub.
+                        if (w.demandBatches > 0) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth(0.72f)
+                                    .fillMaxHeight(demandFrac.coerceIn(0.04f, 1f))
+                                    .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                                    .background(barColor),
+                            )
+                        }
+                        // Capacity line, only where capacity actually exists.
+                        if (w.teamAvailable > 0) {
+                            Box(
+                                Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .padding(bottom = chartHeight * capFrac.coerceIn(0f, 1f))
+                                    .height(2.dp)
+                                    .background(sk.good),
+                            )
+                        }
                     }
                 }
             }
+            // Zero baseline, so bar heights are read against a real axis.
+            Box(Modifier.fillMaxWidth().height(1.dp).background(sk.cardBorder))
             Spacer(Modifier.height(6.dp))
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 weeks.forEach { w ->
-                    Text(
-                        humanDate(w.weekStart),
-                        color = sk.subText,
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        modifier = Modifier.weight(1f),
-                    )
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            humanDate(w.weekStart),
+                            color = if (w.gap > 0) sk.amber else sk.subText,
+                            fontSize = 11.sp, textAlign = TextAlign.Center, maxLines = 1,
+                        )
+                        if (w.gap > 0) {
+                            Text(
+                                "short ${w.gap}",
+                                color = sk.crit, fontSize = 9.sp, maxLines = 1,
+                            )
+                        }
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -230,7 +332,7 @@ private fun LegendDot(color: Color, label: String, sk: SkillColors) {
  * pair Today and This Week already use — an "opportunity" tint (sky), not a
  * severity one, since an upskill suggestion isn't an attention item. */
 @Composable
-private fun UpskillCard(u: RunwayUpskill, sk: SkillColors, onOpenTrainer: (String, String) -> Unit) {
+private fun UpskillCard(rank: Int, u: RunwayUpskill, sk: SkillColors, onOpenTrainer: (String, String) -> Unit) {
     val metadata = buildString {
         if (u.examCode.isNotBlank()) append(u.examCode).append(" · ")
         append("opens ${u.opensBatches} ${if (u.opensBatches == 1) "batch" else "batches"}")
@@ -244,7 +346,7 @@ private fun UpskillCard(u: RunwayUpskill, sk: SkillColors, onOpenTrainer: (Strin
             .then(if (clickable) Modifier.pressable { onOpenTrainer(u.nearestTrainer, u.nearestTrainerName) } else Modifier),
     ) {
         ActionRow(
-            title = u.course,
+            title = "$rank.  " + u.course,
             modifier = Modifier.padding(horizontal = Space.md),
             supportingText = u.why,
             metadata = metadata,

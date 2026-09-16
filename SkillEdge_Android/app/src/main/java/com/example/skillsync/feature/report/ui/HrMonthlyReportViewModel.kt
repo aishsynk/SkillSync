@@ -121,9 +121,20 @@ class HrMonthlyReportViewModel(
 
     fun init(email: String, context: Context) {
         appContext = context.applicationContext
+        // No signed-in manager means no report to scope; keep whatever is shown.
+        if (email.isBlank()) return
         if (managerEmail == email && _state.value is HrReportState.Success) return
         managerEmail = email
         load()
+    }
+
+    /**
+     * Test seam: render a known backend snapshot without touching the cache or
+     * the network, so a screenshot test exercises the real parse and the real
+     * composables rather than a hand-built state object.
+     */
+    internal fun renderSnapshot(raw: Map<String, Any>) {
+        _state.value = HrReportState.Success(parse(raw))
     }
 
     private fun cacheKey() = "hr_report_${managerEmail}_${currentMonth.format(fmt)}"

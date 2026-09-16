@@ -114,6 +114,10 @@ from repositories.opportunity_store import OpportunityStore
 from repositories.capability_store import CapabilityStore
 from services.communication.service import CommunicationService
 from services.capability.capability_service import CapabilityService
+from services.communication.briefs import (
+    TEAM_WEEK, REPORTEE_WEEK, TEAM_MONTH, REPORTEE_MONTH,
+    CURRENT, PERIOD_END, select_brief_facts, compose_brief_deterministic, brief_issues,
+)
 
 app = Flask(__name__)
 CORS(app)
@@ -9061,53 +9065,81 @@ def message_compose():
     _rkey = {"weekly": "message_weekly", "weekend": "message_weekend",
              "monthly": "message_monthly", "monthend": "message_monthend"}[cadence]
 
+    # Cadence maps to a real purpose + timeframe, not a template switch.
+    _purpose = {
+        ("weekly", "team"): "WEEKLY_TEAM_BRIEF", ("weekend", "team"): "WEEKLY_TEAM_BRIEF",
+        ("monthly", "team"): "MONTHLY_TEAM_REVIEW", ("monthend", "team"): "MONTHLY_TEAM_REVIEW",
+        ("weekly", "reportee"): "WEEKLY_REPORTEE_BRIEF", ("weekend", "reportee"): "WEEKLY_REPORTEE_BRIEF",
+        ("monthly", "reportee"): "MONTHLY_REPORTEE_REVIEW", ("monthend", "reportee"): "MONTHLY_REPORTEE_REVIEW",
+    }
+    _timeframe = "period_end" if cadence in ("weekend", "monthend") else "current"
+
     if not target:
+        # The report's prebuilt digest is the deterministic prose for this
+        # purpose, so it doubles as the fallback when no model is available.
+        # The report's prebuilt digest comes from the legacy template composer;
+        # it is offered only as a candidate and is used only if it passes the
+        # same brief policy check the model output must pass.
         digest = report.get(_dkey) or report.get("team_digest") or ""
-        if my_message.strip():
-            gen_res = _communication_service.generate(
-                manager,
-                {
-                    "recipient": {"type": "TEAM"},
-                    "myMessage": my_message,
-                    "channel": "MS_TEAMS_OR_VIBER",
-                },
-                verified_context=report.get("team_summary", {}),
-            )
-            digest = gen_res.text if gen_res.requires_communication else _compose_manager_message("team", cadence, {"period_key": key, "manager_first": manager.split("@")[0].split(".")[0].title(), "month_label": report.get("month", "")}, my_message=my_message)
-        return jsonify({"message": digest, "scope": "team", "cadence": cadence,
-                        "length": len(digest)}), 200
+        facts = report.get("team_message_facts") or {}
+        if not isinstance(facts, dict) or not facts:
+            facts = dict(report.get("team_summary") or {})
+        facts.setdefault("month_label", report.get("month", ""))
+        facts.setdefault("period_ref", report.get("week_label") or report.get("month", ""))
+        gen_res = _communication_service.generate(
+            manager,
+            {
+                "purpose": _purpose[(cadence, "team")],
+                "timeframe": _timeframe,
+                "recipient": {"type": "TEAM"},
+                "myMessage": my_message,
+                "channel": "MS_TEAMS_OR_VIBER",
+                "verifiedFacts": facts,
+                "fallbackText": digest,
+            },
+        )
+        message = gen_res.text or digest
+        return jsonify({"message": message, "scope": "team", "cadence": cadence,
+                        "purpose": gen_res.purpose, "timeframe": _timeframe,
+                        "facts_used": gen_res.facts_used, "provenance": gen_res.provenance,
+                        "validation": {"passed": gen_res.validation.passed, "issues": gen_res.validation.issues},
+                        "length": len(message)}), 200
 
     row = next((r for r in (report.get("reportees") or [])
                 if str(r.get("email", "")).strip().lower() == target), None)
     if row is None:
         return error_response("TARGET_NOT_IN_TEAM", "That reportee is not on this manager's roster.", 404)
     sf = row.get("structured_feedback") or {}
-    prebuilt = row.get(_rkey) or sf.get(_rkey)
-    if prebuilt and not my_message.strip():
-        return jsonify({"message": prebuilt, "scope": "reportee", "cadence": cadence,
-                        "target": target, "length": len(prebuilt)}), 200
     facts = _reportee_message_facts(
         row if not sf else {**row, "learner_feedback": sf.get("learner_feedback", row.get("learner_feedback"))},
         cadence, demand_rows=[], skills_courses=[],
         month_label=report.get("month", ""),
     )
     facts["opp_courses"] = row.get("opportunity_courses") or facts.get("opp_courses") or []
-    if my_message.strip():
-        r_name = (row.get("name") or "").split()[0] if row.get("name") else "there"
-        gen_res = _communication_service.generate(
-            manager,
-            {
-                "recipient": {"name": r_name, "type": "REPORTEE"},
-                "myMessage": my_message,
-                "channel": "MS_TEAMS_OR_VIBER",
-            },
-            verified_context=facts,
-        )
-        msg = gen_res.text if gen_res.requires_communication else _compose_manager_message("reportee", cadence, facts, my_message=my_message)
-    else:
-        msg = _compose_manager_message("reportee", cadence, facts, my_message=my_message)
+    facts.setdefault("name", row.get("name") or "")
+    facts.setdefault("period_ref", report.get("week_label") or report.get("month", ""))
+    r_name = (row.get("name") or "").split()[0] if row.get("name") else ""
+    # Deterministic prose for this person/purpose — the prebuilt report line if
+    # present, otherwise the existing composer; used as the model's fallback.
+    fallback = row.get(_rkey) or sf.get(_rkey) or ""
+    gen_res = _communication_service.generate(
+        manager,
+        {
+            "purpose": _purpose[(cadence, "reportee")],
+            "timeframe": _timeframe,
+            "recipient": {"name": row.get("name") or r_name, "type": "REPORTEE"},
+            "myMessage": my_message,
+            "channel": "MS_TEAMS_OR_VIBER",
+            "verifiedFacts": facts,
+            "fallbackText": fallback,
+        },
+    )
+    msg = gen_res.text or fallback
     return jsonify({"message": msg, "scope": "reportee", "cadence": cadence,
-                    "target": target, "length": len(msg)}), 200
+                    "target": target, "purpose": gen_res.purpose, "timeframe": _timeframe,
+                    "facts_used": gen_res.facts_used, "provenance": gen_res.provenance,
+                    "validation": {"passed": gen_res.validation.passed, "issues": gen_res.validation.issues},
+                    "length": len(msg)}), 200
 
 
 @app.errorhandler(404)
@@ -9901,6 +9933,88 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
     return _trim_message_to_limit(msg)
 
 
+# ── weekly/monthly report messages: routed through Communication Intelligence ──
+#
+# _compose_manager_message above is retained only as the emergency fallback
+# inside _brief_report_message, never returned to a caller unvalidated (see
+# there). Every report route composes through compose_brief_deterministic,
+# the same deterministic composer and banned-phrase/availability policy the
+# interactive /api/v2/communication/generate path uses (services/communication
+# /briefs.py) — one policy, not two.
+
+_BRIEF_PURPOSE = {
+    ("team", "weekly"): TEAM_WEEK, ("team", "weekend"): TEAM_WEEK,
+    ("team", "monthly"): TEAM_MONTH, ("team", "monthend"): TEAM_MONTH,
+    ("reportee", "weekly"): REPORTEE_WEEK, ("reportee", "weekend"): REPORTEE_WEEK,
+    ("reportee", "monthly"): REPORTEE_MONTH, ("reportee", "monthend"): REPORTEE_MONTH,
+}
+_BRIEF_TIMEFRAME = {
+    "weekly": CURRENT, "monthly": CURRENT, "weekend": PERIOD_END, "monthend": PERIOD_END,
+}
+
+
+def _team_brief_facts(f: dict) -> dict:
+    """Map the existing team fact dict (_hr_team_facts / _team_facts) to the
+    key vocabulary compose_brief_deterministic reads. Same values, same
+    definitions — no new calculation, just a name alignment."""
+    f = f or {}
+    out = {
+        "headcount": f.get("headcount"), "delivering": f.get("delivering"),
+        "total_batches": f.get("total_batches"), "total_pax": f.get("total_pax"),
+        "open_demand": f.get("open_demand"), "coverable_open": f.get("coverable_open"),
+        "total_gaps": f.get("total_gaps"), "at_risk": f.get("at_risk"),
+        "avg_rating": f.get("avg_rating"), "top_performers": f.get("top_performers"),
+        "month_label": f.get("month_label"), "period_ref": f.get("period_key"),
+        # A workload band, never an availability claim — compose_brief_deterministic
+        # never renders "free"/"available" from this key.
+        "bench": f.get("bench"),
+    }
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def _reportee_brief_facts(f: dict) -> dict:
+    """Map the existing reportee fact dict (from _reportee_message_facts) to
+    the key vocabulary compose_brief_deterministic reads."""
+    f = f or {}
+    out = {
+        "current_course": f.get("current_course"), "upcoming_course": f.get("upcoming_course"),
+        "batches_delivered": f.get("batches_done"), "total_pax": f.get("pax"),
+        "utilisation": f.get("util"), "avg_rating": f.get("rating"),
+        "rating_count": f.get("rating_count"), "cert_gap_courses": f.get("cert_gap_courses"),
+        "month_label": f.get("month_label"), "period_ref": f.get("period_key"),
+    }
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def _brief_report_message(scope: str, cadence: str, f: dict, recipient_name: str = "") -> str:
+    """The one composer for every weekly/monthly team/reportee report message.
+
+    Uses the same deterministic composer and the same brief_issues() policy
+    check the interactive path applies to model output — so a report message
+    can never carry a banned phrase or an unauthoritative availability claim.
+    Falls back to the legacy composer's prose ONLY if it independently passes
+    that same check; if it does not, a minimal, policy-clean line is used
+    instead of ever exposing unvalidated text.
+    """
+    purpose = _BRIEF_PURPOSE.get((scope, cadence))
+    timeframe = _BRIEF_TIMEFRAME.get(cadence, CURRENT)
+    if purpose is None:
+        return ""
+    raw = _team_brief_facts(f) if scope == "team" else _reportee_brief_facts(f)
+    text = compose_brief_deterministic(purpose, raw, timeframe, recipient_name=recipient_name)
+    facts = select_brief_facts(raw, purpose, timeframe)
+    if not brief_issues(text, facts, purpose, recipient_name):
+        return text
+    # compose_brief_deterministic is policy-clean by construction, so this
+    # path is not expected to run; it exists so nothing unvalidated ever
+    # reaches a manager or reportee.
+    legacy = _compose_manager_message(scope, cadence, f)
+    if not brief_issues(legacy, facts, purpose, recipient_name):
+        return legacy
+    first = str(f.get("first") or (recipient_name.split(" ")[0] if recipient_name else "there"))
+    return f"Hi {first}," if scope == "reportee" else "Hello team,"
+
+
 def _reportee_message_facts(snap: dict, cadence: str, demand_rows=None,
                             skills_courses=None, month_label: str = "") -> dict:
     """Flatten a weekly/monthly reportee snapshot into composer facts with full AI Mind intelligence."""
@@ -10418,8 +10532,8 @@ def _generate_manager_evaluation(
         "monthly", demand_rows=demand_rows or [],
         skills_courses=skills_courses or course_names, month_label=month_label,
     )
-    message = _compose_manager_message("reportee", "monthly", _mfacts)
-    message_monthend = _compose_manager_message("reportee", "monthend", _mfacts)
+    message = _brief_report_message("reportee", "monthly", _mfacts, recipient_name=name)
+    message_monthend = _brief_report_message("reportee", "monthend", _mfacts, recipient_name=name)
 
     return {
         "strength": strength_text,
@@ -11190,8 +11304,8 @@ def hr_monthly_report():
         "avg_rating": round(sum(_hr_rated) / len(_hr_rated), 1) if _hr_rated else None,
         "period_key": month_start_iso[:7], "month_label": month_label,
     }
-    team_digest = _compose_manager_message("team", "monthly", _hr_team_facts)
-    team_digest_monthend = _compose_manager_message("team", "monthend", _hr_team_facts)
+    team_digest = _brief_report_message("team", "monthly", _hr_team_facts)
+    team_digest_monthend = _brief_report_message("team", "monthend", _hr_team_facts)
 
     _resp = {
         "loading":     False,
@@ -11202,6 +11316,9 @@ def hr_monthly_report():
         "team_message": team_digest,
         "team_digest_monthly": team_digest,
         "team_digest_monthend": team_digest_monthend,
+        # Verified team facts, exposed so /api/v2/message/compose can run the
+        # Communication Intelligence brief path without recomputing anything.
+        "team_message_facts": _hr_team_facts,
         "team_summary": {
             "headcount":                 len(out),
             "reportee_count":            len(out),
@@ -13146,8 +13263,8 @@ def weekly_report_v2():
             demand_rows=(unalloc_raw if isinstance(unalloc_raw, list) else []),
             skills_courses=skill_course_names,
         )
-        _msg_weekend = _compose_manager_message("reportee", "weekend", _msg_facts)
-        standpoint_text = _compose_manager_message("reportee", "weekly", _msg_facts)
+        _msg_weekend = _brief_report_message("reportee", "weekend", _msg_facts, recipient_name=t["name"])
+        standpoint_text = _brief_report_message("reportee", "weekly", _msg_facts, recipient_name=t["name"])
 
         return {
             "email":           email,
@@ -13227,8 +13344,8 @@ def weekly_report_v2():
         "top_performers": _top_performers, "avg_rating": _team_avg_rating,
         "period_key": week_start_iso,
     }
-    team_digest_text = _compose_manager_message("team", "weekly", _team_facts)
-    team_digest_weekend = _compose_manager_message("team", "weekend", _team_facts)
+    team_digest_text = _brief_report_message("team", "weekly", _team_facts)
+    team_digest_weekend = _brief_report_message("team", "weekend", _team_facts)
 
     _resp = {
         "loading":       False,
@@ -13250,6 +13367,7 @@ def weekly_report_v2():
         "team_digest":   team_digest_text,
         "team_digest_weekly":  team_digest_text,
         "team_digest_weekend": team_digest_weekend,
+        "team_message_facts": _team_facts,
         "reportees":     out,
     }
     _warm_store(f"weekly::{manager_email}::{week_start_iso}", _resp)
@@ -14446,7 +14564,10 @@ def _delivery_compliance_build(manager_email: str) -> dict:
     compliant_count = sum(1 for d in active_deliveries if d["compliance_status"] == "COMPLIANT")
     violations_count = sum(1 for d in active_deliveries if d["compliance_status"] == "RECORDING_MISSING_URGENT")
     at_risk_count = sum(1 for d in active_deliveries if d["compliance_status"] == "PENDING_TODAY")
-    compliance_rate = round((compliant_count / total_active * 100), 1) if total_active > 0 else 100.0
+    # No active delivery means there is nothing to audit, which is not 100%
+    # compliance. The rate stays null so the client shows N/A rather than
+    # presenting absence of data as perfect performance.
+    compliance_rate = round((compliant_count / total_active * 100), 1) if total_active > 0 else None
 
     return {
         "active_deliveries": active_deliveries,

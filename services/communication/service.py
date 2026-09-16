@@ -43,6 +43,7 @@ from domain.communication.models import (
 from repositories.communication_store import CommunicationStore
 
 from . import policy
+from .briefs import BRIEF_PURPOSES, brief_issues, compose_brief
 from .composer import MORNING_TEAM_GREETING, compose_from_plan_detailed, compose_morning_greeting, morning_greeting_issues
 from .context_selector import ContextSelector, NO_MEANINGFUL_MESSAGE
 from .intent import analyze
@@ -64,8 +65,11 @@ class CommunicationService:
     ) -> GeneratedMessage:
         """Central communication intelligence entry point."""
         req = request or {}
-        if str(req.get("purpose", "")).upper() == MORNING_TEAM_GREETING:
+        purpose_id = str(req.get("purpose", "")).upper()
+        if purpose_id == MORNING_TEAM_GREETING:
             return self._morning_greeting(req)
+        if purpose_id in BRIEF_PURPOSES:
+            return self._brief(purpose_id, req)
         recipient_map = req.get("recipient") or {}
         recipient = CommunicationRecipient(
             name=str(recipient_map.get("name") or "").strip(),
@@ -180,6 +184,43 @@ class CommunicationService:
             purpose=MORNING_TEAM_GREETING, tone="warm", selected_facts=facts, rejected_facts=[],
             generation_mode=mode, requires_communication=True, no_message_reason=None,
             sensitive_facts_removed=[], provenance=provenance.as_dict(),
+        )
+
+    def _brief(self, purpose: str, req: dict) -> GeneratedMessage:
+        """Weekly/monthly manager brief. Facts come from the caller (report
+        builders); this only selects, writes and validates. The caller's
+        deterministic prose is the fallback, so a message is always returned."""
+        raw_facts = req.get("verifiedFacts") or req.get("verified_facts") or {}
+        if not isinstance(raw_facts, dict):
+            raw_facts = {}
+        timeframe = str(req.get("timeframe") or "current").lower()
+        recipient = req.get("recipient") or {}
+        recipient_name = str(recipient.get("name") or "")
+        fallback = str(req.get("fallbackText") or req.get("fallback_text") or "")
+        recent = req.get("recentMessages") or req.get("recent_messages") or []
+        if not isinstance(recent, list):
+            recent = []
+        text, provenance, facts = compose_brief(
+            purpose, raw_facts, timeframe=timeframe, recipient_name=recipient_name,
+            manager_instruction=str(req.get("myMessage") or req.get("my_message") or ""),
+            recent=[str(r) for r in recent], deterministic_fallback=fallback,
+        )
+        fact_labels = [f"{k}={v}" for k, v in facts]
+        # Validated whatever wrote it — model or deterministic composer.
+        issues = brief_issues(text, facts, purpose, recipient_name)
+        return GeneratedMessage(
+            text=text,
+            validation=ValidationResult(passed=not issues, issues=issues),
+            facts_used=fact_labels,
+            purpose=purpose,
+            tone="warm",
+            selected_facts=fact_labels,
+            rejected_facts=[],
+            generation_mode=provenance.generation_mode,
+            requires_communication=bool(text.strip()),
+            no_message_reason=None if text.strip() else "No verified facts to report for this period.",
+            sensitive_facts_removed=[],
+            provenance=provenance.as_dict(),
         )
 
     # ── history ─────────────────────────────────────────────────────────────
