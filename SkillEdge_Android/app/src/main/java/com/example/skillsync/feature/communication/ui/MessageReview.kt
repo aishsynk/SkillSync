@@ -30,6 +30,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -130,37 +131,79 @@ fun MessageReviewCard(
             Text(provenanceNote, style = MaterialTheme.typography.labelSmall, color = sk.subText)
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (onRegenerate != null) {
-                ReviewAction(R.drawable.ic_refresh, "Regenerate", sk.subText, enabled = !busy, onClick = onRegenerate)
+        val hasRegenerate = onRegenerate != null
+        val hasEdit = onTextChange != null
+        // Four actions (Regenerate + Edit + Copy + Share) don't fit on one row
+        // at 360dp without squeezing the last one to near-zero width, which
+        // wrapped "Share" character-by-character. A 2x2 grid keeps every
+        // label and touch target full-size instead of shrinking text.
+        if (hasRegenerate && hasEdit) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(Modifier.fillMaxWidth()) {
+                    ReviewAction(
+                        R.drawable.ic_refresh, "Regenerate", sk.subText, enabled = !busy,
+                        onClick = onRegenerate!!, modifier = Modifier.weight(1f),
+                    )
+                    ReviewAction(
+                        R.drawable.ic_gap, if (editing) "Done" else "Edit", sk.subText, enabled = !busy,
+                        onClick = { editing = !editing }, modifier = Modifier.weight(1f),
+                    )
+                }
+                Row(Modifier.fillMaxWidth()) {
+                    ReviewAction(
+                        R.drawable.ic_copy, "Copy", sk.sky, enabled = text.isNotBlank() && !busy,
+                        onClick = onCopy, modifier = Modifier.weight(1f),
+                    )
+                    ReviewAction(
+                        R.drawable.ic_share, "Share", sk.sky, enabled = text.isNotBlank() && !busy,
+                        onClick = onShare, modifier = Modifier.weight(1f),
+                    )
+                }
             }
-            if (onTextChange != null) {
-                ReviewAction(
-                    R.drawable.ic_gap, if (editing) "Done" else "Edit", sk.subText, enabled = !busy,
-                    onClick = { editing = !editing },
-                )
+        } else {
+            // Three or fewer actions fit naturally on one row.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (hasRegenerate) {
+                    ReviewAction(R.drawable.ic_refresh, "Regenerate", sk.subText, enabled = !busy, onClick = onRegenerate!!)
+                }
+                if (hasEdit) {
+                    ReviewAction(
+                        R.drawable.ic_gap, if (editing) "Done" else "Edit", sk.subText, enabled = !busy,
+                        onClick = { editing = !editing },
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                ReviewAction(R.drawable.ic_copy, "Copy", sk.sky, enabled = text.isNotBlank() && !busy, onClick = onCopy)
+                ReviewAction(R.drawable.ic_share, "Share", sk.sky, enabled = text.isNotBlank() && !busy, onClick = onShare)
             }
-            Spacer(Modifier.weight(1f))
-            ReviewAction(R.drawable.ic_copy, "Copy", sk.sky, enabled = text.isNotBlank() && !busy, onClick = onCopy)
-            ReviewAction(R.drawable.ic_share, "Share", sk.sky, enabled = text.isNotBlank() && !busy, onClick = onShare)
         }
     }
 }
 
 @Composable
-private fun ReviewAction(icon: Int, label: String, tint: Color, enabled: Boolean, onClick: () -> Unit) {
+private fun ReviewAction(
+    icon: Int,
+    label: String,
+    tint: Color,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val alpha = if (enabled) 1f else 0.4f
     Row(
-        Modifier
-            .height(44.dp)
+        modifier
+            .heightIn(min = 44.dp)
             .clip(RoundedCornerShape(8.dp))
             .then(if (enabled) Modifier.pressable(onClick) else Modifier)
             .semantics { role = Role.Button; contentDescription = "$label message" }
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(painterResource(icon), contentDescription = null, tint = tint.copy(alpha = alpha), modifier = Modifier.size(15.dp))
         Spacer(Modifier.width(5.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = tint.copy(alpha = alpha), fontWeight = FontWeight.SemiBold)
+        Text(
+            label, style = MaterialTheme.typography.labelMedium, color = tint.copy(alpha = alpha),
+            fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
     }
 }

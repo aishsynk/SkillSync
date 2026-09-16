@@ -4,7 +4,9 @@ import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -31,6 +33,7 @@ import com.example.skillsync.feature.viber.ui.ViberAutomationScreen
 import com.example.skillsync.feature.viber.ui.ViberAutomationViewModel
 import com.example.skillsync.theme.AuroraBackground
 import com.example.skillsync.theme.SkillSyncTheme
+import com.example.skillsync.theme.skill
 import org.junit.Rule
 import org.junit.Test
 
@@ -351,5 +354,58 @@ class InnerPagesPhase2ScreenshotTest {
         // Scroll to the outbox and history sections.
         compose.onRoot().performTouchInput { swipeUp() }
         save("14_viber_outbox")
+    }
+
+    // ── Release blocker verification: MessageReviewCard 4-action layout ────
+    //
+    // Regenerate + Edit + Copy + Share used to squeeze "Share" to near-zero
+    // width and wrap it character-by-character. Fixed with a 2x2 action grid
+    // in the shared MessageReviewCard. Captured here in both real contexts
+    // that use it with all four actions: HR Monthly's team card (the real
+    // production screen) and the Weekly team card's message surface (the
+    // same shared MessageReviewCard call the real WeeklyReportScreen team
+    // card makes, at the same 360dp width).
+
+    @Test
+    fun hr_monthly_team_final_screenshot() {
+        val vm = HrMonthlyReportViewModel()
+        vm.renderSnapshot(hrPayload())
+        start {
+            HrMonthlyReportScreen(managerEmail = "", onBack = {}, vm = vm)
+        }
+        save("hr_monthly_team_final")
+    }
+
+    @Test
+    fun weekly_team_message_final_screenshot() {
+        start {
+            com.example.skillsync.theme.SkillCard(modifier = androidx.compose.ui.Modifier.fillMaxWidth()) {
+                androidx.compose.foundation.layout.Column(
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+                ) {
+                    androidx.compose.material3.Text(
+                        "Message to the team",
+                        style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = androidx.compose.material3.MaterialTheme.skill.bodyText,
+                        // ^ resolves via the imported `skill` extension above
+                    )
+                    // The exact production MessageReviewCard call the real
+                    // WeeklyReportScreen team card makes (feature/report/ui/
+                    // WeeklyReportScreen.kt), with Weekly-team-shaped verified
+                    // text and all four actions wired.
+                    com.example.skillsync.feature.communication.ui.MessageReviewCard(
+                        text = "Team, this week the team delivered 4 batches to 40 participants. " +
+                            "2 batches on the board are still unstaffed, 1 of which this team can " +
+                            "already teach. 1 certification gap remains open across the team.",
+                        onTextChange = {},
+                        onRegenerate = {},
+                        onCopy = {},
+                        onShare = {},
+                    )
+                }
+            }
+        }
+        save("weekly_team_message_final")
     }
 }

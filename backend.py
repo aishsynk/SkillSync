@@ -114,6 +114,10 @@ from repositories.opportunity_store import OpportunityStore
 from repositories.capability_store import CapabilityStore
 from services.communication.service import CommunicationService
 from services.capability.capability_service import CapabilityService
+from services.communication.briefs import (
+    TEAM_WEEK, REPORTEE_WEEK, TEAM_MONTH, REPORTEE_MONTH,
+    CURRENT, PERIOD_END, select_brief_facts, compose_brief_deterministic, brief_issues,
+)
 
 app = Flask(__name__)
 CORS(app)
@@ -9929,6 +9933,88 @@ def _compose_manager_message(scope: str, cadence: str, f: dict,
     return _trim_message_to_limit(msg)
 
 
+# ── weekly/monthly report messages: routed through Communication Intelligence ──
+#
+# _compose_manager_message above is retained only as the emergency fallback
+# inside _brief_report_message, never returned to a caller unvalidated (see
+# there). Every report route composes through compose_brief_deterministic,
+# the same deterministic composer and banned-phrase/availability policy the
+# interactive /api/v2/communication/generate path uses (services/communication
+# /briefs.py) — one policy, not two.
+
+_BRIEF_PURPOSE = {
+    ("team", "weekly"): TEAM_WEEK, ("team", "weekend"): TEAM_WEEK,
+    ("team", "monthly"): TEAM_MONTH, ("team", "monthend"): TEAM_MONTH,
+    ("reportee", "weekly"): REPORTEE_WEEK, ("reportee", "weekend"): REPORTEE_WEEK,
+    ("reportee", "monthly"): REPORTEE_MONTH, ("reportee", "monthend"): REPORTEE_MONTH,
+}
+_BRIEF_TIMEFRAME = {
+    "weekly": CURRENT, "monthly": CURRENT, "weekend": PERIOD_END, "monthend": PERIOD_END,
+}
+
+
+def _team_brief_facts(f: dict) -> dict:
+    """Map the existing team fact dict (_hr_team_facts / _team_facts) to the
+    key vocabulary compose_brief_deterministic reads. Same values, same
+    definitions — no new calculation, just a name alignment."""
+    f = f or {}
+    out = {
+        "headcount": f.get("headcount"), "delivering": f.get("delivering"),
+        "total_batches": f.get("total_batches"), "total_pax": f.get("total_pax"),
+        "open_demand": f.get("open_demand"), "coverable_open": f.get("coverable_open"),
+        "total_gaps": f.get("total_gaps"), "at_risk": f.get("at_risk"),
+        "avg_rating": f.get("avg_rating"), "top_performers": f.get("top_performers"),
+        "month_label": f.get("month_label"), "period_ref": f.get("period_key"),
+        # A workload band, never an availability claim — compose_brief_deterministic
+        # never renders "free"/"available" from this key.
+        "bench": f.get("bench"),
+    }
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def _reportee_brief_facts(f: dict) -> dict:
+    """Map the existing reportee fact dict (from _reportee_message_facts) to
+    the key vocabulary compose_brief_deterministic reads."""
+    f = f or {}
+    out = {
+        "current_course": f.get("current_course"), "upcoming_course": f.get("upcoming_course"),
+        "batches_delivered": f.get("batches_done"), "total_pax": f.get("pax"),
+        "utilisation": f.get("util"), "avg_rating": f.get("rating"),
+        "rating_count": f.get("rating_count"), "cert_gap_courses": f.get("cert_gap_courses"),
+        "month_label": f.get("month_label"), "period_ref": f.get("period_key"),
+    }
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def _brief_report_message(scope: str, cadence: str, f: dict, recipient_name: str = "") -> str:
+    """The one composer for every weekly/monthly team/reportee report message.
+
+    Uses the same deterministic composer and the same brief_issues() policy
+    check the interactive path applies to model output — so a report message
+    can never carry a banned phrase or an unauthoritative availability claim.
+    Falls back to the legacy composer's prose ONLY if it independently passes
+    that same check; if it does not, a minimal, policy-clean line is used
+    instead of ever exposing unvalidated text.
+    """
+    purpose = _BRIEF_PURPOSE.get((scope, cadence))
+    timeframe = _BRIEF_TIMEFRAME.get(cadence, CURRENT)
+    if purpose is None:
+        return ""
+    raw = _team_brief_facts(f) if scope == "team" else _reportee_brief_facts(f)
+    text = compose_brief_deterministic(purpose, raw, timeframe, recipient_name=recipient_name)
+    facts = select_brief_facts(raw, purpose, timeframe)
+    if not brief_issues(text, facts, purpose, recipient_name):
+        return text
+    # compose_brief_deterministic is policy-clean by construction, so this
+    # path is not expected to run; it exists so nothing unvalidated ever
+    # reaches a manager or reportee.
+    legacy = _compose_manager_message(scope, cadence, f)
+    if not brief_issues(legacy, facts, purpose, recipient_name):
+        return legacy
+    first = str(f.get("first") or (recipient_name.split(" ")[0] if recipient_name else "there"))
+    return f"Hi {first}," if scope == "reportee" else "Hello team,"
+
+
 def _reportee_message_facts(snap: dict, cadence: str, demand_rows=None,
                             skills_courses=None, month_label: str = "") -> dict:
     """Flatten a weekly/monthly reportee snapshot into composer facts with full AI Mind intelligence."""
@@ -10446,8 +10532,8 @@ def _generate_manager_evaluation(
         "monthly", demand_rows=demand_rows or [],
         skills_courses=skills_courses or course_names, month_label=month_label,
     )
-    message = _compose_manager_message("reportee", "monthly", _mfacts)
-    message_monthend = _compose_manager_message("reportee", "monthend", _mfacts)
+    message = _brief_report_message("reportee", "monthly", _mfacts, recipient_name=name)
+    message_monthend = _brief_report_message("reportee", "monthend", _mfacts, recipient_name=name)
 
     return {
         "strength": strength_text,
@@ -11218,8 +11304,8 @@ def hr_monthly_report():
         "avg_rating": round(sum(_hr_rated) / len(_hr_rated), 1) if _hr_rated else None,
         "period_key": month_start_iso[:7], "month_label": month_label,
     }
-    team_digest = _compose_manager_message("team", "monthly", _hr_team_facts)
-    team_digest_monthend = _compose_manager_message("team", "monthend", _hr_team_facts)
+    team_digest = _brief_report_message("team", "monthly", _hr_team_facts)
+    team_digest_monthend = _brief_report_message("team", "monthend", _hr_team_facts)
 
     _resp = {
         "loading":     False,
@@ -13177,8 +13263,8 @@ def weekly_report_v2():
             demand_rows=(unalloc_raw if isinstance(unalloc_raw, list) else []),
             skills_courses=skill_course_names,
         )
-        _msg_weekend = _compose_manager_message("reportee", "weekend", _msg_facts)
-        standpoint_text = _compose_manager_message("reportee", "weekly", _msg_facts)
+        _msg_weekend = _brief_report_message("reportee", "weekend", _msg_facts, recipient_name=t["name"])
+        standpoint_text = _brief_report_message("reportee", "weekly", _msg_facts, recipient_name=t["name"])
 
         return {
             "email":           email,
@@ -13258,8 +13344,8 @@ def weekly_report_v2():
         "top_performers": _top_performers, "avg_rating": _team_avg_rating,
         "period_key": week_start_iso,
     }
-    team_digest_text = _compose_manager_message("team", "weekly", _team_facts)
-    team_digest_weekend = _compose_manager_message("team", "weekend", _team_facts)
+    team_digest_text = _brief_report_message("team", "weekly", _team_facts)
+    team_digest_weekend = _brief_report_message("team", "weekend", _team_facts)
 
     _resp = {
         "loading":       False,
