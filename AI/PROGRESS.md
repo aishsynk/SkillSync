@@ -10,6 +10,22 @@
 
 ---
 
+# Release closeout — v3.80.14.191 (2026-09-16)
+
+**Today Executive Refinement + Morning Note — approved and released.**
+
+- Today executive dashboard refinement complete: flat header (no capsule), manager brief hero with untruncated date and equal stat wells, titled section panels with three border levels, compact Needs You Today rows, 2x2 Pulse with capacity/availability folded in, restrained Demand CTA, denser Communicate row, delivery rows with real capability photos, trimmed bottom-nav clearance.
+- Morning Note complete: MORNING_TEAM_GREETING through CommunicationPlanner/CommunicationComposer, weekday personality Mon-Fri, one stable persisted draft per local weekday (Android DigestStateStore), Regenerate/Copy/Share, weekend suppression, recent-history anti-repeat, greeting-only copy payload.
+- Operations matrix complete: 2-column executive tile grid across Planning / Delivery / People / Automation, consistent tile geometry, no filler tile.
+- Communication Intelligence model providers complete: one provider boundary (services/communication/providers.py) with COMMUNICATION_PROVIDER_ORDER (ollama, azure, openai, deterministic), Ollama support with model discovery, 10s interactive timeout / 20s request budget / keep_alive, output validation with one corrective retry, deterministic weekday fallback, diagnostic provenance. OLLAMA_MODEL intentionally unset; no local model approved yet.
+- Final visual validation passed: 9 real-emulator captures (API 35, 360dp) reviewed top to bottom; two defects fixed (bottom-nav whitespace, Communicate tile density).
+- Android baseline: 255 tests, the same 10 known pre-existing failures (ScreenRenderTest dashboard x6, PilotScreenshotTest x4), 0 new. Lint: 6 pre-existing errors in PilotScreenshot*Test.
+- Backend latest validated suite: 445 passed, 0 failed.
+- Release: versionCode 191, versionName 3.80.14, tag v3.80.14.191.
+- Open follow-up (separate infrastructure task, not in this release): AI/INFRA_EPHEMERAL_STATE_AUDIT_2026_09_16.md — Render Free ephemeral storage.
+
+---
+
 # Session Handover Summary
 
 - **Date and Time:** 2026-09-13T03:38:00+05:30
