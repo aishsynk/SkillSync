@@ -510,12 +510,23 @@ private fun ReporteeSnapshotCard(
                 Avatar(name = rep.name.ifBlank { rep.email }, photoUrl = null, size = 38.dp)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Row(
+                    // Name on its own line so it never competes with the status
+                    // chips for width — that competition was what clipped the
+                    // Trainer Index chip down to "TI" with no score or tier.
+                    Text(
+                        rep.name.ifBlank { rep.email },
+                        fontWeight = FontWeight.Bold, color = sk.bodyText,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.clickable { onTrainerClick() },
-                        verticalAlignment = Alignment.CenterVertically,
+                    )
+                    // Badges wrap onto a second line rather than being silently
+                    // clipped when the card is narrow.
+                    FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(top = 2.dp),
                     ) {
-                        Text(rep.name.ifBlank { rep.email }, fontWeight = FontWeight.Bold, color = sk.bodyText, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
                         ToneChip(
                             rep.trajectory,
                             when (rep.trajectory) {
@@ -527,8 +538,10 @@ private fun ReporteeSnapshotCard(
                             }
                         )
                         if (rep.trainerIndex.totalScore > 0) {
+                            val tierName = rep.trainerIndex.tier.substringAfter(": ").ifBlank { rep.trainerIndex.tier }
                             ToneChip(
-                                "TI ${rep.trainerIndex.totalScore.toInt()} ${rep.trainerIndex.tier.substringAfter(": ").ifBlank { "" }}",
+                                "TI ${rep.trainerIndex.totalScore.toInt()}" +
+                                    (if (tierName.isNotBlank()) " · $tierName" else ""),
                                 when (rep.trainerIndex.tierLevel) {
                                     1 -> sk.good
                                     2 -> sk.sky
