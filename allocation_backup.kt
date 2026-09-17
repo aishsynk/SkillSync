@@ -1,11 +1,6 @@
 package com.example.skillsync.feature.training.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.core.tween
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -24,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -191,14 +185,6 @@ internal fun AllocationDeskContent(
     }
 
     // ── KPI strip facts — every one a count over a real, already-present field.
-    
-    val (internationalPriority, otherDemand) = remember(sorted) {
-        sorted.partition { (batch, _, _) ->
-            val mode = batch.str("delivery_mode").uppercase()
-            batch.bool("is_international") && (mode.contains("ILT") || mode.contains("FMAT"))
-        }
-    }
-
     val total = summary?.int("total") ?: batches.size
     val urgentCount = enriched.count { it.third.second }
     val coverableCount = batches.count { it.str("coverage_status") != "No Coverage" }
@@ -274,31 +260,7 @@ internal fun AllocationDeskContent(
             }
         }
 
-        
-        if (internationalPriority.isNotEmpty()) {
-            item {
-                InternationalPriorityZone(
-                    items = internationalPriority,
-                    newIds = newIds,
-                    expandedId = expandedId,
-                    onToggleExpand = { id -> expandedId = if (expandedId == id) null else id },
-                    onOpenDetails = { onBatchClick(it) }
-                )
-            }
-            item {
-                Text(
-                    "OTHER DEMAND",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = sk.labelText,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 4.dp, start = 4.dp)
-                )
-                Box(Modifier.fillMaxWidth().height(1.dp).background(sk.cardBorder))
-            }
-        }
-
-        itemsIndexed(otherDemand, key = { _, t -> t.first.str("demand_id").ifBlank { t.first.str("course_name") } }) { _, (batch, days, flags) ->
-
+        itemsIndexed(sorted, key = { _, t -> t.first.str("demand_id").ifBlank { t.first.str("course_name") } }) { _, (batch, days, flags) ->
             val id = batch.str("demand_id")
             PlanBatchCard(
                 b = batch,
@@ -713,141 +675,6 @@ private fun CapacityPlanningCard(
                             color = if (pct == 100) sk.subText else sk.warn,
                             fontWeight = FontWeight.SemiBold,
                         )
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-// ── International Priority ───────────────────────────────────────────────────
-
-@Composable
-private fun InternationalPriorityZone(
-    items: List<Triple<Map<*, *>, Int?, Triple<Boolean, Boolean, Boolean>>>,
-    newIds: Set<String>,
-    expandedId: String?,
-    onToggleExpand: (String) -> Unit,
-    onOpenDetails: (Map<*, *>) -> Unit
-) {
-    val sk = MaterialTheme.skill
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(400)) + slideInVertically(tween(400)) { 20 }
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            // Header
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Brush.horizontalGradient(listOf(sk.brand, sk.azure, sk.cyan)))
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(painterResource(R.drawable.ic_globe), null, tint = sk.cyan, modifier = Modifier.size(24.dp))
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("INTERNATIONAL ILT / FMAT", color = Color.White, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text("Strategic delivery opportunities", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
-                    Text("Travel / international readiness required", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
-                }
-                Text("${items.size}", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            }
-
-            // Items
-            items.forEachIndexed { index, (batch, days, flags) ->
-                val id = batch.str("demand_id")
-                PlanInternationalBatchCard(
-                    b = batch, days = days, blocked = flags.first, urgent = flags.second,
-                    isNew = id in newIds, expanded = expandedId == id,
-                    onToggleExpand = { onToggleExpand(id) }, onOpenDetails = { onOpenDetails(batch) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlanInternationalBatchCard(
-    b: Map<*, *>, days: Int?, blocked: Boolean, urgent: Boolean,
-    isNew: Boolean, expanded: Boolean, onToggleExpand: () -> Unit, onOpenDetails: () -> Unit
-) {
-    val sk = MaterialTheme.skill
-    val mode = b.str("delivery_mode").uppercase()
-    val pax = b.intOrNull("participants") ?: 0
-    val location = b.str("location").ifBlank { "Location TBA" }
-    
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(400))
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(6.dp))
-                .background(sk.surface1)
-                .border(1.dp, sk.azure.copy(alpha=0.5f), RoundedCornerShape(6.dp))
-                .clickable { onToggleExpand() }
-        ) {
-            Row(
-                Modifier.fillMaxWidth().background(sk.azure.copy(alpha=0.1f)).padding(horizontal = 12.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("INTERNATIONAL $mode", color = sk.azure, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                if (pax > 0) Text("$pax pax", color = sk.azure, style = MaterialTheme.typography.labelSmall)
-            }
-            
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ToneChip("PRIORITY", sk.cyan)
-                    ToneChip(mode, sk.brand)
-                    ToneChip("GLOBAL OPPORTUNITY", sk.azure)
-                }
-                
-                Text(location, style = MaterialTheme.typography.titleSmall, color = sk.bodyText)
-                
-                Text(b.str("course_name").ifBlank{"Course TBA"}, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                
-                Text(
-                    listOfNotNull(
-                        b.str("start_date").takeIf { it.isNotBlank() }?.shortDate(),
-                        b.str("end_date").takeIf { it.isNotBlank() }?.shortDate(),
-                    ).joinToString(" – ").takeIf { it.isNotBlank() } ?: "Dates pending",
-                    style = MaterialTheme.typography.labelSmall, color = sk.subText
-                )
-
-                if (blocked) {
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).background(sk.crit.copy(alpha=0.1f)).border(1.dp, sk.crit.copy(alpha=0.3f), RoundedCornerShape(4.dp)).padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(painterResource(R.drawable.ic_alert), null, tint = sk.crit, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Column {
-                            Text("NO TRAINER HOLDS THIS COURSE", color = sk.crit, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                            Text("Capability gap detected", color = sk.crit, style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                }
-            }
-            if (expanded) {
-                Column(Modifier.fillMaxWidth().padding(12.dp).border(1.dp, sk.cardBorder, RoundedCornerShape(6.dp)).padding(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(painterResource(R.drawable.ic_people), null, tint = sk.subText, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Travel readiness unknown", style = MaterialTheme.typography.labelSmall, color = sk.subText)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Button(onClick = onOpenDetails, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = sk.azure)) {
-                        Text("View Intelligence & Recommend")
                     }
                 }
             }

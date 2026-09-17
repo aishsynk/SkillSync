@@ -569,9 +569,9 @@ private fun HeroActionRow(onCommunicate: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(Radii.chip))
+            .clip(RoundedCornerShape(4.dp))
             .background(sk.brand.copy(alpha = 0.16f))
-            .border(1.dp, sk.brand.copy(alpha = 0.4f), RoundedCornerShape(Radii.chip))
+            .border(1.dp, sk.brand.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
             .pressable(onCommunicate)
             .padding(vertical = Space.sm),
         horizontalArrangement = Arrangement.Center,
@@ -719,7 +719,7 @@ private fun UtilisationSection(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .background(badgeColor.copy(alpha = 0.12f), RoundedCornerShape(Radii.chip))
+                        .background(badgeColor.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
                         .padding(horizontal = Space.md, vertical = Space.xs),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -1248,7 +1248,7 @@ private fun CapabilitySection(
             onDismissRequest = { selectedCourse = null },
             containerColor = sk.cardBg,
         ) {
-            Column(Modifier.padding(16.dp).fillMaxWidth()) {
+            Column(Modifier.padding(12.dp).fillMaxWidth()) {
                 Text(
                     selectedCourse ?: "",
                     style = MaterialTheme.typography.headlineSmall,
@@ -1473,7 +1473,7 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .background(sk.amber.copy(alpha = 0.12f), RoundedCornerShape(Radii.chip))
+                        .background(sk.amber.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
                         .padding(horizontal = Space.md, vertical = Space.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -1504,7 +1504,7 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .background(sk.amber.copy(alpha = 0.12f), RoundedCornerShape(Radii.chip))
+                            .background(sk.amber.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
                             .padding(horizontal = Space.md, vertical = Space.sm),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -1564,7 +1564,7 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold, color = dColor,
                         modifier = Modifier
-                            .background(dColor.copy(alpha = 0.12f), RoundedCornerShape(Radii.chip))
+                            .background(dColor.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
                             .padding(horizontal = 8.dp, vertical = 2.dp),
                     )
                 }
@@ -1590,7 +1590,7 @@ private fun FeedbackSection(feedback: Map<*, *>?) {
                             "${t.str("theme")} (${t.int("mentions") ?: 0})",
                             style = MaterialTheme.typography.labelSmall, color = c,
                             modifier = Modifier
-                                .background(c.copy(alpha = 0.12f), RoundedCornerShape(Radii.chip))
+                                .background(c.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
                                 .padding(horizontal = 8.dp, vertical = 3.dp),
                         )
                     }
@@ -2244,7 +2244,7 @@ private fun LearnerSentimentWordCloudSection(sentiment: Map<String, Any>?) {
                     val count = (kw["count"] as? Number)?.toInt() ?: 1
                     Surface(
                         color = sk.good.copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(Radii.chip),
+                        shape = RoundedCornerShape(4.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, sk.good.copy(alpha = 0.35f)),
                     ) {
                         Text(
@@ -2272,7 +2272,7 @@ private fun LearnerSentimentWordCloudSection(sentiment: Map<String, Any>?) {
                     val count = (kw["count"] as? Number)?.toInt() ?: 1
                     Surface(
                         color = sk.amber.copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(Radii.chip),
+                        shape = RoundedCornerShape(4.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, sk.amber.copy(alpha = 0.35f)),
                     ) {
                         Text(
@@ -2297,7 +2297,7 @@ private fun LearnerSentimentWordCloudSection(sentiment: Map<String, Any>?) {
                     val theme = q.str("theme")
                     if (quoteText.isNotBlank()) {
                         Surface(
-                            color = sk.surface2.copy(alpha = 0.6f),
+                            color = sk.surface1.copy(alpha = 0.6f),
                             shape = RoundedCornerShape(8.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, sk.cardBorder),
                             modifier = Modifier.fillMaxWidth(),

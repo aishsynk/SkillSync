@@ -113,9 +113,9 @@ internal fun TeamMemberCard(
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(Radii.card))
+            .clip(RoundedCornerShape(4.dp))
             .background(sk.cardBg)
-            .border(1.dp, sk.cardBorder, RoundedCornerShape(Radii.card))
+            .border(1.dp, sk.cardBorder, RoundedCornerShape(4.dp))
             .pressable(onClick),
     ) {
         // Glowing severity indicator bar on the left edge

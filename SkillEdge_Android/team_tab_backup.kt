@@ -381,7 +381,7 @@ internal fun TeamTab(
                     height = 120.dp,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(4.dp)),
+                        .clip(RoundedCornerShape(Radii.card)),
                 )
             }
         } else if (shown.isEmpty()) {

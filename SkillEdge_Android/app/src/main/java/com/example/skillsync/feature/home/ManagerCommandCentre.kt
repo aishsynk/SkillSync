@@ -286,7 +286,7 @@ fun ManagerCommandCentre(
         // ════════════════════════════════════════════════════════════════════
         // 3. NEEDS YOU TODAY — level-1 container, compact priority rows.
         // ════════════════════════════════════════════════════════════════════
-        TodayPanel(
+        AdminPanel(
             title = "Needs you today",
             icon = R.drawable.ic_flag,
             tint = if (attentionItems.any { it.severity == Severity.Critical }) sk.crit else sk.good,
@@ -317,7 +317,7 @@ fun ManagerCommandCentre(
         // ════════════════════════════════════════════════════════════════════
         // 3. PULSE — four KPI widgets, each with a real current-value bar.
         // ════════════════════════════════════════════════════════════════════
-        TodayPanel(
+        AdminPanel(
             title = "Pulse",
             icon = R.drawable.ic_trend,
             tint = sk.cyan,
@@ -410,7 +410,7 @@ fun ManagerCommandCentre(
         // ════════════════════════════════════════════════════════════════════
         // 5. DEMAND — the intelligence leads; Allocate is a restrained action.
         // ════════════════════════════════════════════════════════════════════
-        TodayPanel(
+        AdminPanel(
             title = "Demand",
             icon = R.drawable.ic_book,
             tint = if (unallocatedDemand.isNotEmpty()) sk.crit else sk.brand,
@@ -459,7 +459,7 @@ fun ManagerCommandCentre(
         // ════════════════════════════════════════════════════════════════════
         // 6. COMMUNICATE
         // ════════════════════════════════════════════════════════════════════
-        TodayPanel(title = "Communicate", icon = R.drawable.ic_mail, tint = sk.indigoDeep) {
+        AdminPanel(title = "Communicate", icon = R.drawable.ic_mail, tint = sk.indigoDeep) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 CommunicateAction(R.drawable.ic_people, "Team", sk.sky, Modifier.weight(1f)) {
                     onOpenCommunication("TEAM", "", "GENERAL_PROFESSIONAL", "", "")
@@ -496,7 +496,7 @@ fun ManagerCommandCentre(
         // ════════════════════════════════════════════════════════════════════
         // 7. DELIVERY OUTLOOK — stats and the real feed in one panel.
         // ════════════════════════════════════════════════════════════════════
-        TodayPanel(
+        AdminPanel(
             title = "Delivery outlook",
             icon = R.drawable.ic_calendar,
             tint = sk.emerald,
@@ -548,7 +548,7 @@ fun ManagerCommandCentre(
         // ════════════════════════════════════════════════════════════════════
         if (certCoverage != null) {
             val certTint = sk.violet
-            TodayPanel(title = "Certification coverage", icon = R.drawable.ic_certificate, tint = certTint, onClick = onOpenPriorities, contentSpacing = Space.sm, bodyPadding = Space.md) {
+            AdminPanel(title = "Certification coverage", icon = R.drawable.ic_certificate, tint = certTint, onClick = onOpenPriorities, contentSpacing = Space.sm, bodyPadding = Space.md) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("$certCoverage%", style = MaterialTheme.typography.headlineLarge, color = certTint, fontWeight = FontWeight.Black)
                     Spacer(Modifier.width(Space.md))
@@ -565,7 +565,7 @@ fun ManagerCommandCentre(
         // 9. TOP PERFORMERS — People-style trainer rows.
         // ════════════════════════════════════════════════════════════════════
         if (topPerformers.isNotEmpty()) {
-            TodayPanel(
+            AdminPanel(
                 title = "Top performers",
                 icon = R.drawable.ic_award,
                 tint = sk.amber,
@@ -605,7 +605,7 @@ fun ManagerCommandCentre(
                 OpTile("Viber automation", "Auto-dispatch queue", R.drawable.ic_share, onOpenViberAutomation),
             )),
         )
-        TodayPanel(title = "Operations", icon = R.drawable.ic_home, tint = sk.brand, contentSpacing = Space.md) {
+        AdminPanel(title = "Operations", icon = R.drawable.ic_home, tint = sk.brand, contentSpacing = Space.md) {
             groups.forEach { (domain, domainTint, tiles) ->
                 Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -638,7 +638,7 @@ fun ManagerCommandCentre(
  * cards — the section hierarchy is now carried by the container itself.
  */
 @Composable
-private fun TodayPanel(
+private fun AdminPanel(
     title: String,
     icon: Int,
     tint: Color,
@@ -655,7 +655,7 @@ private fun TodayPanel(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val sk = MaterialTheme.skill
-    val shape = RoundedCornerShape(Radii.card)
+    val shape = RoundedCornerShape(6.dp)
     Column(
         modifier
             .fillMaxWidth()

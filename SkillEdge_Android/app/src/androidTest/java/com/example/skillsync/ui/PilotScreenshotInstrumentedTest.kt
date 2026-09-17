@@ -63,8 +63,212 @@ class PilotScreenshotInstrumentedTest {
         val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
         storage.openOutputFile("$name.png").use { out ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+        
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
         }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
     }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+    
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
 
     private fun ok(data: Map<String, Any>) = RepositoryResult(data, DataSource.LIVE)
 
@@ -137,13 +341,829 @@ class PilotScreenshotInstrumentedTest {
                                 capability = capabilityPayload(),
                                 capabilityLoading = false,
                                 email = "aishwar.c@koenig-solutions.com",
-                                onTrainerClick = { _, _ -> }, onOpenProfile = {}, onDrill = {},
-                            )
-                        }
-                    }
-                }
+                                onTrainerClick = { _, _ -> 
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
             }
         }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}, onOpenProfile = {
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}, onDrill = {
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+},
+                            )
+                        
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+                    
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+                
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+            
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+        
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
         compose.waitForIdle()
         save("today_top")
 
@@ -161,7 +1181,109 @@ class PilotScreenshotInstrumentedTest {
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("OPERATIONS"))
         compose.waitForIdle()
         save("today_operations")
+    
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
     }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
 
     /**
      * The 2026-09-15 "Today / Manager Brief — Complete UI/UX Recovery" pass —
@@ -186,13 +1308,829 @@ class PilotScreenshotInstrumentedTest {
                                 capability = capabilityPayload(),
                                 capabilityLoading = false,
                                 email = "aishwar.c@koenig-solutions.com",
-                                onTrainerClick = { _, _ -> }, onOpenProfile = {}, onDrill = {},
-                            )
-                        }
-                    }
-                }
+                                onTrainerClick = { _, _ -> 
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
             }
         }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}, onOpenProfile = {
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}, onDrill = {
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+},
+                            )
+                        
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+                    
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+                
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+            
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+        
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
         compose.waitForIdle()
         save("01_header_identity")
 
@@ -223,7 +2161,109 @@ class PilotScreenshotInstrumentedTest {
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("AUTOMATION"))
         compose.waitForIdle()
         save("07b_operations_tiles")
+    
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
     }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
 
     // ── This Week ────────────────────────────────────────────────────────────
 
@@ -256,17 +2296,935 @@ class PilotScreenshotInstrumentedTest {
             SkillSyncTheme {
                 PrioritiesScreen(
                     managerEmail = "aishwar.c@koenig-solutions.com",
-                    onOpenDemand = {}, onOpenTrainer = { _, _ -> }, onOpenActions = {}, onBack = {},
-                    vm = PrioritiesViewModel(
-                        fetchPriorities = { _, _ -> ok(prioritiesPayload()) },
-                        fetchAllocation = { _, _ -> ok(mapOf("batches" to emptyList<Map<String, Any>>())) },
-                    ),
+                    onOpenDemand = {
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
                 )
             }
         }
         compose.waitForIdle()
-        save("this_week_populated")
+        save("plan_international_single")
     }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}, onOpenTrainer = { _, _ -> 
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}, onOpenActions = {
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}, onBack = {
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+},
+                    vm = PrioritiesViewModel(
+                        fetchPriorities = { _, _ -> ok(prioritiesPayload()) 
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+},
+                        fetchAllocation = { _, _ -> ok(mapOf("batches" to emptyList<Map<String, Any>>())) 
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+},
+                    ),
+                )
+            
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+        
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+        compose.waitForIdle()
+        save("this_week_populated")
+    
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
 
     @Test
     fun thisWeek_empty_screenshot() {
@@ -275,19 +3233,937 @@ class PilotScreenshotInstrumentedTest {
             SkillSyncTheme {
                 PrioritiesScreen(
                     managerEmail = "aishwar.c@koenig-solutions.com",
-                    onOpenDemand = {}, onOpenTrainer = { _, _ -> }, onOpenActions = {}, onBack = {},
-                    vm = PrioritiesViewModel(
-                        fetchPriorities = { _, _ ->
-                            ok(mapOf("items" to emptyList<Map<String, Any>>(), "counts" to emptyMap<String, Any>(), "loading" to false))
-                        },
-                        fetchAllocation = { _, _ -> ok(mapOf("batches" to emptyList<Map<String, Any>>())) },
-                    ),
+                    onOpenDemand = {
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
                 )
             }
         }
         compose.waitForIdle()
-        save("this_week_empty")
+        save("plan_international_single")
     }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}, onOpenTrainer = { _, _ -> 
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}, onOpenActions = {
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}, onBack = {
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+},
+                    vm = PrioritiesViewModel(
+                        fetchPriorities = { _, _ ->
+                            ok(mapOf("items" to emptyList<Map<String, Any>>(), "counts" to emptyMap<String, Any>(), "loading" to false))
+                        
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+},
+                        fetchAllocation = { _, _ -> ok(mapOf("batches" to emptyList<Map<String, Any>>())) 
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+},
+                    ),
+                )
+            
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+        
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+        compose.waitForIdle()
+        save("this_week_empty")
+    
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
 
     // ── Capacity Runway ──────────────────────────────────────────────────────
 
@@ -318,12 +4194,726 @@ class PilotScreenshotInstrumentedTest {
             SkillSyncTheme {
                 CapacityRunwayScreen(
                     managerEmail = "aishwar.c@koenig-solutions.com",
-                    onOpenTrainer = { _, _ -> }, onBack = {},
-                    vm = CapacityRunwayViewModel(fetchRunway = { _, _ -> ok(runwayPayload()) }),
+                    onOpenTrainer = { _, _ -> 
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
                 )
             }
         }
         compose.waitForIdle()
-        save("capacity_runway")
+        save("plan_international_single")
     }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}, onBack = {
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+},
+                    vm = CapacityRunwayViewModel(fetchRunway = { _, _ -> ok(runwayPayload()) 
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}),
+                )
+            
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+        
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+        compose.waitForIdle()
+        save("capacity_runway")
+    
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
+}
+
+    // ── Plan Command Centre Tests ──────────────────────────────────────────
+
+    private fun mockPlanPayload(internationalCount: Int, isBlocked: Boolean): Map<String, Any> {
+        val batches = mutableListOf<Map<String, Any>>()
+        
+        // Add international batches
+        for (i in 1..internationalCount) {
+            batches.add(mapOf(
+                "demand_id" to "INT-900$i",
+                "course_name" to "PL-300T00: Design and Manage Analytics Solutions",
+                "customer" to "Global Corp",
+                "start_date" to "2026-11-01",
+                "end_date" to "2026-11-05",
+                "delivery_mode" to "FMAT",
+                "location" to "Riyadh, Saudi Arabia",
+                "participants" to 15,
+                "is_international" to true,
+                "coverage_status" to if (isBlocked && i == 1) "No Coverage" else "Available"
+            ))
+        }
+
+        // Add normal batches
+        batches.add(mapOf(
+            "demand_id" to "DOM-100",
+            "course_name" to "AZ-104: Azure Administrator",
+            "customer" to "Local Corp",
+            "start_date" to "2026-12-01",
+            "delivery_mode" to "VILT",
+            "location" to "",
+            "participants" to 10,
+            "is_international" to false,
+            "coverage_status" to "Available"
+        ))
+
+        return mapOf("batches" to batches, "summary" to mapOf("total" to batches.size))
+    }
+
+    @Test
+    fun plan_international_single() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_single")
+    }
+
+    @Test
+    fun plan_international_multiple() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(3, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_multiple")
+    }
+
+    @Test
+    fun plan_international_blocked() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(1, true),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_international_blocked")
+    }
+
+    @Test
+    fun plan_no_international() {
+        LocalCache.init(InstrumentationRegistry.getInstrumentation().targetContext)
+        compose.setContent {
+            SkillSyncTheme {
+                com.example.skillsync.feature.training.ui.AllocationDeskContent(
+                    data = mockPlanPayload(0, false),
+                    newIds = emptySet(),
+                    onBatchClick = {}
+                )
+            }
+        }
+        compose.waitForIdle()
+        save("plan_no_international")
+    }
+
 }

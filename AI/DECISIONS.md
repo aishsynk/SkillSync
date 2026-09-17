@@ -1045,3 +1045,14 @@ Important decisions and their rationale. Add new entries at the top (newest firs
 ## 2026-09-16 - Plan and Demand Details own separate jobs; person-level matching never lives on Plan
 - **Decision:** The Plan / Demand & Planning screen answers "what demand needs planning?" — an unallocated-batch command centre (KPI strip, planning focus insight, filters, expandable batch cards). It must never contain trainer/reportee candidate matching, ranked candidate cards, "Grow the Team", or manager-recommendation banners. Demand Details (`BatchDetailScreen.kt`) answers "who can handle this demand?" and owns all of that — candidate ranking, verified availability, Grow the Team, assignment actions. Plan does not fetch data (e.g. upskilling/Grow-the-Team) that only Demand Details displays.
 - **Rationale:** A manager can have dozens of open unallocated batches; doing person-level matching inline on that list makes scrolling effectively unbounded, increases rendering/fetch cost for content most views never need, and mixes two different workflows (triage vs. staffing one batch) into one screen. This boundary is intentional and should not be reversed by a future redesign that tries to "make Plan richer" by pulling matching back in.
+## 2026-09-17 — Design V4 Milestone & International Priority Rule
+
+**Decision: Design V4 / Color Admin Admin-Portal UX**
+The manager experience has fully transitioned to the Design V4 standard. The design system explicitly enforces density, 4dp/8dp/12dp spacing constraints, non-overlapping glassSurface applications, and distinct primitive usage (tables/list-groups over homogeneous rounded cards).
+
+**Decision: International ILT / FMAT Priority (MANDATORY)**
+A strict business rule has been implemented in the Plan Command Centre (AllocationDeskScreen):
+- Any demand with is_international == true AND delivery_mode containing ILT or FMAT will **always** render in a dedicated, high-priority zone above all other demand.
+- Normal sorting mechanisms (by urgency, date, etc.) operate exclusively within the partitioned zones (Priority vs. Ordinary) and never intertwine them.
+- Visuals use a specific Royal -> Azure -> Cyan header sweep and globe vectors to signify strategic importance.
+- Truthfulness bounds (unknown readiness, missing capability blockers) remain unconditionally respected inside this priority zone.

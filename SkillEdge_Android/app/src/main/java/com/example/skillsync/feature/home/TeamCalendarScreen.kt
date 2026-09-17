@@ -433,7 +433,7 @@ private fun CalendarTopHeader(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .glassSurface(RoundedCornerShape(Radii.card))
+            .glassSurface(RoundedCornerShape(4.dp))
             .padding(horizontal = Space.md, vertical = Space.sm),
         verticalArrangement = Arrangement.spacedBy(Space.xs),
     ) {
@@ -608,7 +608,7 @@ private fun SpanningMonthCalendarGrid(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .glassSurface(RoundedCornerShape(Radii.card))
+            .glassSurface(RoundedCornerShape(4.dp))
             .padding(Space.sm),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -812,7 +812,7 @@ private fun SelectedDayInspectionCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .glassSurface(RoundedCornerShape(Radii.card))
+            .glassSurface(RoundedCornerShape(4.dp))
             .padding(Space.md),
         verticalArrangement = Arrangement.spacedBy(Space.sm),
     ) {
@@ -884,7 +884,7 @@ private fun WeekScheduleView(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .glassSurface(RoundedCornerShape(Radii.card))
+            .glassSurface(RoundedCornerShape(4.dp))
             .padding(Space.sm),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -998,7 +998,7 @@ private fun DayScheduleView(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .glassSurface(RoundedCornerShape(Radii.card))
+                    .glassSurface(RoundedCornerShape(4.dp))
                     .padding(Space.xl),
                 contentAlignment = Alignment.Center,
             ) {
