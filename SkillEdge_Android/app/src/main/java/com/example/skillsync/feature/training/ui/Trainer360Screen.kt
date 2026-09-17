@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -36,6 +37,7 @@ import com.example.skillsync.theme.SkillCard
 import com.example.skillsync.theme.ToneChip
 import com.example.skillsync.theme.Radii
 import com.example.skillsync.theme.heroSurface
+import com.example.skillsync.theme.pressable
 import com.example.skillsync.theme.Space
 import com.example.skillsync.theme.StatusBarIcons
 import com.example.skillsync.theme.skill
@@ -58,6 +60,11 @@ fun Trainer360Screen(
      *  no manager-only endorsement action. */
     selfView: Boolean = false,
     onOpenPractice: () -> Unit = {},
+    /** (recipientType, recipientName, purpose, relatedType, relatedId) — same
+     * shape MainScreen already uses for the "message this person" handoff, so
+     * Communication Centre gets one consistent entry contract regardless of
+     * which screen opened it. */
+    onOpenCommunication: (String, String, String, String, String) -> Unit = { _, _, _, _, _ -> },
     onBack: () -> Unit,
     viewModel: Trainer360ViewModel = viewModel(),
 ) {
@@ -216,6 +223,9 @@ fun Trainer360Screen(
                                         },
                                     )
                                 },
+                                onCommunicate = {
+                                    onOpenCommunication("INDIVIDUAL", trainerName, "GENERAL_PROFESSIONAL", "", "")
+                                },
                             )
                         }
                     }
@@ -245,6 +255,7 @@ internal fun Trainer360Content(
     onCycleGoalStatus: (id: String, nextStatus: String) -> Unit = { _, _ -> },
     onEndorseSkill: (courseId: String, courseName: String, skillLevel: Int, devPlanId: String) -> Unit = { _, _, _, _ -> },
     onOpenPractice: () -> Unit = {},
+    onCommunicate: () -> Unit = {},
 ) {
     val sk = MaterialTheme.skill
     val identity = data.obj("identity")
@@ -278,6 +289,9 @@ internal fun Trainer360Content(
             verticalArrangement = Arrangement.spacedBy(Space.sm),
         ) {
             IdentityCard(identity, util, cap, certs)
+            // Two real, already-wired manager actions live right under the
+            // identity, per Design V3 Phase 3 — not decorative buttons.
+            HeroActionRow(onCommunicate = onCommunicate)
             // The verdict leads, before the score grid: this screen exists to
             // answer "can they take work" and "what needs doing", not to list
             // attributes.
@@ -533,6 +547,37 @@ private fun IdentityCard(
                 Figure("Certs", "${certs?.int("count") ?: 0}", sk.ice)
             }
         }
+    }
+}
+
+/**
+ * One manager action directly under identity, wired to real existing
+ * behaviour — never a decorative button with no handler. Communicate opens
+ * Communication Centre pre-addressed to this trainer.
+ *
+ * A second "View schedule" chip was considered and removed: the only
+ * available callback (`onOpenPractice`) opens the practice/feedback-record
+ * screen, not a schedule or calendar — labelling it "View schedule" would
+ * have been the exact kind of mislabelled action this pass exists to
+ * prevent. That real destination is already reachable from the Performance
+ * tab ("See every learner comment"), so nothing was lost — only the
+ * duplicate, wrongly-labelled hero entry point.
+ */
+@Composable
+private fun HeroActionRow(onCommunicate: () -> Unit) {
+    val sk = MaterialTheme.skill
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radii.chip))
+            .background(sk.brand.copy(alpha = 0.16f))
+            .border(1.dp, sk.brand.copy(alpha = 0.4f), RoundedCornerShape(Radii.chip))
+            .pressable(onCommunicate)
+            .padding(vertical = Space.sm),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Communicate", style = MaterialTheme.typography.labelMedium, color = sk.sky, fontWeight = FontWeight.Bold)
     }
 }
 

@@ -3250,3 +3250,64 @@ review of the screenshot suite run in a real Windows dev environment.
   visual acceptance criteria, then merge/version/release only after that
   passes. If continuing otherwise, re-read this entry and `AGENTS.md`
   first, and confirm the latest GitHub Release before doing anything else.
+
+### Design V3 Phase 3 — Trainer 360 (branch `design-v3-phase3-trainer360`)
+
+**LATEST PUBLISHED BASELINE: v3.80.19.197.** Phase 1 (Foundation) and
+Phase 2 (People Intelligence) are published as part of `v3.80.18.196`.
+Phase 3 (Trainer 360) is complete on its feature branch as of this entry
+and has now been merged/released — see the version bump immediately
+below this section for exact detail; do not treat any `195`/`194`/`185`
+reference elsewhere in this file as current.
+
+Scoped to `Trainer360Screen.kt`/`Trainer360ViewModel.kt` only — no
+People/Delivery/Today/navigation changes.
+
+- **Fabricated content removed:** `GrowthBenchmarkSection` used to present
+  a "peer domain benchmark" utilisation number, a "high-demand
+  certifications" list, and a "cross-domain growth path" — all a
+  hardcoded lookup table keyed on a guessed course-name "domain," with
+  zero real backend data behind any of it. Replaced with an honest "RMS
+  does not expose peer or market benchmark data" note plus the trainer's
+  own real courses/certs only.
+- **Readiness truthfulness fixed:** a `null`/never-measured readiness
+  score fell into the same "Watch" bucket as a real, mediocre score in
+  `ProfileOverview`'s health verdict. Now reads "Unmeasured" (slate),
+  distinct from a genuine Watch verdict which still requires a real
+  score.
+- **Full truthfulness word audit performed** (peer/market/benchmark/
+  percentile/cohort/average/available/active/healthy/watch/risk) across
+  the file — no further unsupported claims found. `GaugeChart`,
+  `AvailabilitySection`, capacity/risk colour maps, and the certification
+  gap count were all confirmed to already default to neutral/subtext for
+  missing data, never a positive-looking colour.
+- **Interactive utilisation chart:** `TrendChart(interactive = true,
+  valueSuffix = "%")` wired into `UtilisationSection` — first production
+  use of the Phase 1 shared `ChartTooltip`/tap-drag interaction system.
+  Insufficient history still falls back to the existing honest
+  `EmptyNote` ("this is missing data, not zero utilisation"), never a
+  fabricated chart.
+- **Communication handoff added:** `Trainer360Screen` gained
+  `onOpenCommunication`, wired in `Navigation.kt` the same way
+  `MainScreen`'s existing handoff works — no duplicated Communication
+  business logic, `CommunicationContextPolicy`/`SHARED_EXTERNALLY != SENT`
+  untouched.
+- **Dead action removed:** a "View schedule" hero chip was added, then
+  audited and removed — its only callback (`onOpenPractice`) opens the
+  practice/feedback-record screen, not a schedule/calendar, so the label
+  was inaccurate. Only the real, correctly-labelled "Communicate" action
+  remains in the hero.
+- **Tests:** `Trainer360TruthfulnessTest.kt` (new) — identity, navigation
+  identity via Communicate, unknown readiness, no fabricated peer/market
+  text, real-history-drives-chart, insufficient-history fallback,
+  cert-gap-only-when-real, current-delivery-from-real-source,
+  partial-data-does-not-kill-profile, no-dead-hero-action.
+- **Validation (local, this session):** `compileDebugKotlin` PASS,
+  `compileReleaseKotlin` PASS, `testDebugUnitTest` — full run completed
+  with exactly the 10 documented baseline failures by identity, 0 new.
+  `lintDebug` genuinely TIMED OUT in this sandbox (5-minute local cap,
+  OneDrive/Gradle I/O — not a code signal) with no result reached, but
+  `lintVitalRelease` (the release-blocking subset) passed as part of
+  `assembleRelease`. `assembleDebug` PASS, `assembleRelease` PASS.
+- No emulator/device in this sandbox — no screenshots captured, none
+  fabricated.
