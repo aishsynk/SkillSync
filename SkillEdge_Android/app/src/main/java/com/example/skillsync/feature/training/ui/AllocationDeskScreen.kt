@@ -484,7 +484,8 @@ private fun SectionHeader(title: String, subtitle: String, count: Int, color: Co
 }
 
 @Composable
-private fun PlanBatchCard(
+@androidx.annotation.VisibleForTesting
+internal fun PlanBatchCard(
     b: Map<*, *>, urgent: Boolean, blocked: Boolean, thisWeek: Boolean, isNew: Boolean, expanded: Boolean, onToggleExpand: () -> Unit, onClick: () -> Unit, categoryTheme: String = "ilo"
 ) {
     val sk = MaterialTheme.skill
@@ -567,24 +568,74 @@ private fun PlanBatchCard(
                     Text("RECOMMENDED TRAINERS", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)
                     Text("Client exclusions and leave are checked when you open this batch.", style = MaterialTheme.typography.labelSmall, color = sk.subText)
                     Spacer(Modifier.height(8.dp))
-                    candidates.take(3).forEach { c ->
+                    candidates.filter { it.str("trainer_name").isNotBlank() }.take(3).forEach { c ->
                         val isBlocked = c.bool("blocked")
-                        val dotTint = if (isBlocked) sk.red else sk.good
+                        val displayCoverage = if (isBlocked) "Blocked" else c.str("coverage").ifBlank { "Not Assessed" }
+                        val coverageColor = if (isBlocked) sk.red else when (displayCoverage) {
+                            "Best Match", "Good Match" -> sk.green
+                            "Available with Upskilling" -> sk.amber
+                            "No Coverage", "Not Assessed" -> sk.warn
+                            else -> sk.subText
+                        }
+                        // Explicitly check if match is absent. Do not fabricate 0.
+                        val matchVal = c.intOrNull("match")
+                        val matchColor = if (isBlocked) sk.red else (matchVal?.let { relevanceColor(it) } ?: sk.subText)
+
                         Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(dotTint))
+                                Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(matchColor))
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
-                                    Text(c.str("trainer_name").ifBlank{"Unknown Trainer"}, style = MaterialTheme.typography.labelMedium, color = if (isBlocked) sk.subText else sk.bodyText, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
-                                    Text(c.str("backup_role").ifBlank{"Primary Trainer"} + " · " + (c.intOrNull("suitability_score") ?: 90) + " suitability", style = MaterialTheme.typography.labelSmall, color = sk.subText)
-                                    Spacer(Modifier.height(4.dp))
-                                    Box(Modifier.background(sk.surface1, RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                                        Text("Availability unknown", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                                    Text(c.str("trainer_name"), style = MaterialTheme.typography.labelMedium, color = if (isBlocked) sk.subText else sk.bodyText, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
+                                    val backupRole = c.str("backup_role")
+                                    val suitability = c.intOrNull("suitability_score")
+                                    val roleText = listOfNotNull(
+                                        backupRole.ifBlank { null },
+                                        suitability?.let { "$it suitability" }
+                                    ).joinToString(" · ")
+                                    if (roleText.isNotBlank()) {
+                                        Text(roleText, style = MaterialTheme.typography.labelSmall, color = sk.subText)
                                     }
                                     Spacer(Modifier.height(4.dp))
-                                    Text("Skill 100 · Ready " + (c.intOrNull("suitability_score") ?: 98) + " · Avail 100 · Cert 100 · Lang 100", style = MaterialTheme.typography.bodySmall, color = sk.subText)
+                                    val availabilityStatus = c.str("availability_status")
+                                    Box(Modifier.background(sk.surface1, RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                                        Text(
+                                            when (availabilityStatus) {
+                                                "available" -> "Available for these dates"
+                                                "conflict" -> "Schedule conflict"
+                                                else -> "Availability unverified"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = when (availabilityStatus) {
+                                                "available" -> sk.green
+                                                "conflict" -> sk.red
+                                                else -> sk.warn
+                                            }
+                                        )
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                    c.obj("suitability_components")?.let { parts ->
+                                        val metrics = listOfNotNull(
+                                            parts.intOrNull("skill")?.let { "Skill $it" },
+                                            parts.intOrNull("readiness")?.let { "Ready $it" },
+                                            parts.intOrNull("availability")?.let { "Avail $it" },
+                                            parts.intOrNull("certification")?.let { "Cert $it" },
+                                            parts.intOrNull("language")?.let { "Lang $it" }
+                                        )
+                                        if (metrics.isNotEmpty()) {
+                                            Text(
+                                                metrics.joinToString(" · "),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = sk.subText, maxLines = 1,
+                                            )
+                                        }
+                                    }
                                 }
-                                if (!isBlocked) Text("Best Match", style = MaterialTheme.typography.labelMedium, color = sk.good, fontWeight = FontWeight.Bold)
+                                Text(
+                                    displayCoverage,
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = coverageColor,
+                                )
                             }
                         }
                     }
