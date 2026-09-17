@@ -300,16 +300,32 @@ internal fun AllocationDeskContent(
         itemsIndexed(otherDemand, key = { _, t -> t.first.str("demand_id").ifBlank { t.first.str("course_name") } }) { _, (batch, days, flags) ->
 
             val id = batch.str("demand_id")
-            PlanBatchCard(
-                b = batch,
-                days = days,
-                blocked = flags.first,
-                urgent = flags.second,
-                isNew = id in newIds,
-                expanded = expandedId == id,
-                onToggleExpand = { expandedId = if (expandedId == id) null else id },
-                onOpenDetails = { onBatchClick(batch) },
-            )
+            val mode = batch.str("delivery_mode").uppercase()
+            val isIltOrFmat = mode.contains("ILT") || mode.contains("FMAT")
+            
+            if (isIltOrFmat) {
+                DeliveryOpportunityCard(
+                    b = batch,
+                    days = days,
+                    blocked = flags.first,
+                    urgent = flags.second,
+                    isNew = id in newIds,
+                    expanded = expandedId == id,
+                    onToggleExpand = { expandedId = if (expandedId == id) null else id },
+                    onOpenDetails = { onBatchClick(batch) },
+                )
+            } else {
+                PlanBatchCard(
+                    b = batch,
+                    days = days,
+                    blocked = flags.first,
+                    urgent = flags.second,
+                    isNew = id in newIds,
+                    expanded = expandedId == id,
+                    onToggleExpand = { expandedId = if (expandedId == id) null else id },
+                    onOpenDetails = { onBatchClick(batch) },
+                )
+            }
         }
 
         item { Spacer(Modifier.height(20.dp)) }
@@ -762,7 +778,7 @@ private fun InternationalPriorityZone(
             // Items
             items.forEachIndexed { index, (batch, days, flags) ->
                 val id = batch.str("demand_id")
-                PlanInternationalBatchCard(
+                DeliveryOpportunityCard(
                     b = batch, days = days, blocked = flags.first, urgent = flags.second,
                     isNew = id in newIds, expanded = expandedId == id,
                     onToggleExpand = { onToggleExpand(id) }, onOpenDetails = { onOpenDetails(batch) }
@@ -773,14 +789,25 @@ private fun InternationalPriorityZone(
 }
 
 @Composable
-private fun PlanInternationalBatchCard(
+private fun DeliveryOpportunityCard(
     b: Map<*, *>, days: Int?, blocked: Boolean, urgent: Boolean,
     isNew: Boolean, expanded: Boolean, onToggleExpand: () -> Unit, onOpenDetails: () -> Unit
 ) {
     val sk = MaterialTheme.skill
     val mode = b.str("delivery_mode").uppercase()
     val pax = b.intOrNull("participants") ?: 0
-    val location = b.str("location").ifBlank { "Location TBA" }
+    val international = b.bool("is_international")
+    
+    val city = b.str("city")
+    val country = b.str("country")
+    val loc = b.str("location")
+    val location = when {
+        city.isNotBlank() && country.isNotBlank() -> "$city, $country"
+        loc.isNotBlank() && country.isNotBlank() -> "$loc, $country"
+        city.isNotBlank() -> city
+        country.isNotBlank() -> country
+        else -> "Location not provided"
+    }
     
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
@@ -801,7 +828,7 @@ private fun PlanInternationalBatchCard(
                 Modifier.fillMaxWidth().background(sk.azure.copy(alpha=0.1f)).padding(horizontal = 12.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("INTERNATIONAL $mode", color = sk.azure, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                Text(if (international) "INTERNATIONAL $mode" else mode, color = sk.azure, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                 if (pax > 0) Text("$pax pax", color = sk.azure, style = MaterialTheme.typography.labelSmall)
             }
             
@@ -809,10 +836,14 @@ private fun PlanInternationalBatchCard(
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     ToneChip("PRIORITY", sk.cyan)
                     ToneChip(mode, sk.brand)
-                    ToneChip("GLOBAL OPPORTUNITY", sk.azure)
+                    if (international) ToneChip("GLOBAL OPPORTUNITY", sk.azure)
                 }
                 
-                Text(location, style = MaterialTheme.typography.titleSmall, color = sk.bodyText)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(painterResource(R.drawable.ic_globe), null, tint = sk.subText, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(location, style = MaterialTheme.typography.titleSmall, color = sk.bodyText)
+                }
                 
                 Text(b.str("course_name").ifBlank{"Course TBA"}, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 
@@ -840,12 +871,14 @@ private fun PlanInternationalBatchCard(
             }
             if (expanded) {
                 Column(Modifier.fillMaxWidth().padding(12.dp).border(1.dp, sk.cardBorder, RoundedCornerShape(6.dp)).padding(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(painterResource(R.drawable.ic_people), null, tint = sk.subText, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Travel readiness unknown", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                    if (international) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(painterResource(R.drawable.ic_people), null, tint = sk.subText, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Travel readiness required", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                        }
+                        Spacer(Modifier.height(8.dp))
                     }
-                    Spacer(Modifier.height(8.dp))
                     Button(onClick = onOpenDetails, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = sk.azure)) {
                         Text("View Intelligence & Recommend")
                     }

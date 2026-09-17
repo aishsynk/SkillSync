@@ -180,477 +180,139 @@ fun BatchDetailScreen(
                 // Headline: course, coverage, and the three business-priority
                 // figures a manager needs before reading anything else — no
                 // separate cards, one glass block.
-                Box(Modifier.fillMaxWidth().glassSurface()) {
-                    Column(Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.Top) {
-                            Text(
-                                courseName.ifBlank { "Course not specified" },
-                                style = MaterialTheme.typography.titleLarge, color = sk.frost,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            IconSlot(tint = coverageTint, size = 34.dp) {
-                                Icon(painterResource(coverageIcon), null, tint = coverageTint, modifier = Modifier.size(17.dp))
-                            }
-                        }
-                        Text(
-                            coverageLabel, style = MaterialTheme.typography.labelSmall,
-                            color = coverageTint, fontWeight = FontWeight.Bold,
-                        )
-                        if (batch.str("customer").isNotBlank()) {
-                            Text(
-                                batch.str("customer"),
-                                style = MaterialTheme.typography.bodyMedium, color = sk.subText,
-                            )
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            batch.str("start_date").takeIf { it.isNotBlank() }?.daysUntil()?.let { d ->
-                                Chip(
-                                    when {
-                                        d < 0 -> "In progress"
-                                        d == 0 -> "Starts today"
-                                        d == 1 -> "Starts in 1d"
-                                        else -> "Starts in ${d}d"
-                                    },
-                                    if (d in 0..3) sk.warn else sk.sky,
-                                )
-                                Spacer(Modifier.width(6.dp))
-                            }
-                            if (batch.str("demand_id").isNotBlank()) { Chip("Ref ${batch.str("demand_id")}", sk.subText); Spacer(Modifier.width(6.dp)) }
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (batch.bool("is_fast_track") || operationalContext?.course?.isFastTrack == true) { Chip("Fast-Track (No Exam)", sk.aqua); Spacer(Modifier.width(6.dp)) }
-                            if (batch.bool("is_priority")) { Chip("Priority", sk.teal); Spacer(Modifier.width(6.dp)) }
-                            if (batch.str("tentative").equals("Yes", true)) { Chip("Tentative", sk.amber); Spacer(Modifier.width(6.dp)) }
-                            if (batch.str("third_party").equals("Yes", true)) { Chip("Third party", sk.indigo) }
-                        }
-                        Spacer(Modifier.height(14.dp))
-                        HorizontalDivider(color = sk.cardBorder.copy(alpha = 0.5f), thickness = 0.5.dp)
-                        Spacer(Modifier.height(12.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                            DetailStat("Mode", batch.str("delivery_mode").ifBlank { "ILO" }, sk.indigo)
-                            DetailStat("Priority", "${batch.intOrNull("priority_score") ?: 0}", sk.teal)
-                            DetailStat("Risk", risk.ifBlank { "—" }, riskTint)
-                            DetailStat("Coverage", "$relevance%", relevanceColor(relevance))
+                // 1. DEMAND DETAIL — PAGE HERO
+                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
+                    Column {
+                        Text("DEMAND DETAIL", style = MaterialTheme.typography.labelSmall, color = sk.brand)
+                        Text(courseName.ifBlank { "Course not specified" }, style = MaterialTheme.typography.titleLarge, color = sk.frost)
+                        if (batch.bool("is_priority")) {
+                            Spacer(Modifier.height(4.dp))
+                            Chip("Priority", sk.teal)
                         }
                     }
                 }
-
-                // ── Team skill on this course ───────────────────────────────
-                // The heart of Demand: which of my reportees already hold this
-                // skill, at what level, and who is below the assignment level.
-                TeamSkillPanel(
-                    rows = teamSkill,
-                    requiredLevel = requiredLevel,
-                    canManageTeam = com.example.skillsync.core.data.SessionManager.canManageTeam(),
-                    onMark = { name, email ->
-                        markFor = name to email
-                        markForLevel = requiredLevel.toIntOrNull()
-                        showReportee = true
-                    },
-                    onMarkMine = { showMine = true },
-                    onMarkTeam = { showReportee = true },
-                )
-
-                // The full eligibility check — leave, client exclusions,
-                // confirmed bookings, skill floor and visa. The demand board
-                // cannot afford these per-trainer calls, so this is where the
-                // non-overridable gates are actually applied.
-                Spacer(Modifier.height(14.dp))
-                GatedCandidatesSection(
-                    response = gatedCandidates,
-                    loading = gatedCandidatesLoading,
-                    unverified = gatedCandidatesUnverified,
-                )
-
-                // Koenig's algorithm allocates; the manager cannot. This opens
-                // the per-trainer blocker list with the fixes the manager IS
-                // allowed to make (record a skill, and hints for the rest).
-                if (batch.str("demand_id").isNotBlank()) {
-                    OutlinedButton(
-                        onClick = { showEligibilitySheet = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                    ) {
-                        Text(
-                            "Why my team isn't eligible",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = sk.amber, fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                }
-
-                Box(Modifier.fillMaxWidth().glassSurface()) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                
+                // 2. STATUS HEADER (data grid)
+                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
+                    Column {
+                        Text("STATUS HEADER", style = MaterialTheme.typography.titleSmall, color = sk.frost)
+                        Spacer(Modifier.height(8.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Operational verification", fontWeight = FontWeight.SemiBold, color = sk.frost)
-                            val label = when {
-                                operationalContextLoading -> "Checking"
-                                operationalContext?.confidence == "verified" -> "Verified"
-                                else -> "Partial"
-                            }
-                            Text(label, style = MaterialTheme.typography.labelSmall, color = if (label == "Verified") sk.aqua else sk.amber)
-                        }
-                        when {
-                            operationalContextLoading -> LinearProgressIndicator(Modifier.fillMaxWidth())
-                            operationalContext != null -> {
-                                val course = operationalContext.course
-                                val confirmations = operationalContext.salesConfirmations
-                                Text(
-                                    if (course.verified) "RMS course status: ${course.status.ifBlank { "Verified" }}" else "Course status could not be verified",
-                                    style = MaterialTheme.typography.bodySmall, color = sk.bodyText,
-                                )
-                                Text(
-                                    if (confirmations.verified) "${confirmations.count} sales confirmation${if (confirmations.count == 1) "" else "s"} linked" else "Sales confirmation link could not be verified",
-                                    style = MaterialTheme.typography.bodySmall, color = sk.subText,
-                                )
-                            }
-                            operationalContextError != null -> Text(operationalContextError, style = MaterialTheme.typography.bodySmall, color = sk.warn)
+                            DetailStat("Demand ID", batch.str("demand_id").ifBlank { "N/A" }, sk.frost)
+                            DetailStat("Status", batch.str("coverage_status").ifBlank { "Open" }, sk.sky)
+                            DetailStat("Priority", "${batch.intOrNull("priority_score") ?: 0}", sk.teal)
                         }
                     }
                 }
-
-                // Start -> End on its own row, kept apart from the requirement
-                // and context facts below so the schedule reads at a glance.
-                Box(Modifier.fillMaxWidth().glassSurface()) {
-                    Column(Modifier.padding(16.dp)) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("START", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontWeight = FontWeight.Bold)
-                                Text(batch.str("start_date").takeIf { it.isNotBlank() }?.shortDate() ?: "—", style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.SemiBold)
-                            }
-                            Icon(painterResource(R.drawable.ic_chevron), null, tint = sk.subText, modifier = Modifier.size(16.dp))
-                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                                Text("END", style = MaterialTheme.typography.labelSmall, color = sk.ice, fontWeight = FontWeight.Bold)
-                                Text(batch.str("end_date").takeIf { it.isNotBlank() }?.shortDate() ?: "—", style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.SemiBold)
-                            }
-                            batch.intOrNull("days")?.let {
-                                Spacer(Modifier.width(14.dp))
-                                Chip("${it}d", sk.sky)
-                            }
-                        }
-                        // The raw `schedule` blob is deliberately not rendered.
-                        // RMS repeats the same window once per delivery day
-                        // ("24 Aug / 09:00-17:00 / 25 Aug / 09:00-17:00 / ..."),
-                        // so printing it restated the dates already shown above
-                        // and the daily time already shown in the grid. The
-                        // window is extracted once, server-side, as
-                        // `session_time`.
-                    }
-                }
-
-                // Demand requirements — what the delivery itself needs.
-                SectionCard("Demand requirements") {
-                    FactGrid(
-                        listOf(
-                            "Mode" to batch.str("delivery_mode"),
-                            "Assignment level" to batch.str("assignment_level"),
-                            "Participants" to (batch.intOrNull("participants")?.toString() ?: ""),
-                            "Daily time" to batch.str("session_time"),
-                            "Language" to batch.str("language"),
-                            "Courseware" to batch.str("courseware"),
-                        )
-                    )
-                }
-
-                // Customer / learner context — who this delivery is for.
-                SectionCard("Customer & learner context") {
-                    FactGrid(
-                        listOf(
-                            "Vendor" to batch.str("customer"),
-                            "Location" to batch.str("location"),
-                            "Allocation for" to batch.str("allocation_for"),
-                            "Course id" to courseId,
-                            "Student card" to batch.str("scid"),
-                        )
-                    )
-                }
-
-                // Remarks — freeform text, kept in its own card so it never
-                // gets truncated to fit a two-column grid cell.
-                batch.str("remarks").takeIf { it.isNotBlank() }?.let { remarks ->
-                    SectionCard("Remarks") {
-                        Text(remarks, style = MaterialTheme.typography.bodySmall, color = sk.frost)
-                    }
-                }
-
-                // ── Official Courseware & Materials Hub ──────────────────────────────
-                val contentPdf = operationalContext?.course?.contentUrl.orEmpty()
-                val activeVer = operationalContext?.course?.latestVersion.orEmpty()
-                val isFastTrack = operationalContext?.course?.isFastTrack ?: batch.bool("is_fast_track")
-
-                Box(Modifier.fillMaxWidth().glassSurface()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                "Courseware & Curriculum",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = sk.frost,
+                
+                // 3. OPPORTUNITY OVERVIEW
+                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
+                    Column {
+                        Text("OPPORTUNITY OVERVIEW", style = MaterialTheme.typography.titleSmall, color = sk.frost)
+                        Spacer(Modifier.height(8.dp))
+                        FactGrid(
+                            listOf(
+                                "Vendor" to batch.str("customer"),
+                                "Allocation for" to batch.str("allocation_for"),
+                                "Course ID" to batch.str("course_id")
                             )
-                            if (isFastTrack) {
-                                Surface(
-                                    color = sk.teal.copy(alpha = 0.16f),
-                                    shape = RoundedCornerShape(6.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, sk.teal.copy(alpha = 0.4f)),
-                                ) {
-                                    Text(
-                                        "Fast-Track (No Exam)",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = sk.teal,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                                    )
-                                }
-                            }
-                        }
-
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                if (activeVer.isNotBlank()) {
-                                    Text(
-                                        "Version: $activeVer",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = sk.aqua,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                } else {
-                                    Text(
-                                        "Standard Koenig Syllabus",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = sk.bodyText,
-                                    )
-                                }
-                                Text(
-                                    if (contentPdf.isNotBlank()) "Official slide deck & trainer notes ready" else "Syllabus verified in RMS",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = sk.subText,
-                                )
-                            }
-
-                            if (contentPdf.isNotBlank()) {
-                                Surface(
-                                    onClick = {
-                                        try {
-                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(contentPdf))
-                                            context.startActivity(intent)
-                                        } catch (_: Exception) {}
-                                    },
-                                    color = Color(0xFF0284C7),
-                                    shape = RoundedCornerShape(8.dp),
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    ) {
-                                        Text(
-                                            "Slides PDF",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = sk.frost,
-                                            fontWeight = FontWeight.Bold,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        if (courseName.isNotBlank()) {
-                            OutlinedButton(
-                                onClick = { showCurriculumSheet = true },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(10.dp),
-                            ) {
-                                Text("View curriculum", style = MaterialTheme.typography.labelMedium, color = sk.blue, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
+                        )
                     }
                 }
-
-                // ── Live Class Participant Roster (Key 208) ──────────────────────────
-                val paxList = operationalContext?.participantsRoster?.students.orEmpty()
-                if (paxList.isNotEmpty()) {
-                    Box(Modifier.fillMaxWidth().glassSurface()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    Text("Enrolled Participants", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = sk.frost)
-                                    Surface(
-                                        color = Color(0xFF0284C7).copy(alpha = 0.2f),
-                                        shape = RoundedCornerShape(6.dp),
-                                    ) {
-                                        Text(
-                                            "${paxList.size} STUDENTS",
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = Color(0xFF38BDF8),
-                                            fontWeight = FontWeight.Bold,
-                                        )
-                                    }
-                                }
-                            }
-
-                            paxList.forEach { student ->
-                                Row(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(sk.cardBg.copy(alpha = 0.7f))
-                                        .border(0.5.dp, sk.cardBorder.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                ) {
-                                    // Initials Avatar
-                                    val initials = student.name.split(" ").mapNotNull { it.firstOrNull()?.uppercase() }.take(2).joinToString("").ifBlank { "ST" }
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(0xFF0284C7).copy(alpha = 0.25f)),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text(initials, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                                    }
-
-                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                                        Text(
-                                            student.name.ifBlank { "Participant" },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = sk.bodyText,
-                                            fontWeight = FontWeight.SemiBold,
-                                        )
-                                        if (student.email.isNotBlank()) {
-                                            Text(
-                                                student.email,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = Color(0xFF38BDF8),
-                                                modifier = Modifier.clickable {
-                                                    try {
-                                                        val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
-                                                            data = android.net.Uri.parse("mailto:${student.email}")
-                                                        }
-                                                        context.startActivity(intent)
-                                                    } catch (_: Exception) {}
-                                                },
-                                            )
-                                        }
-                                    }
-
-                                    if (student.company.isNotBlank()) {
-                                        Surface(
-                                            color = sk.surface3,
-                                            shape = RoundedCornerShape(4.dp),
-                                        ) {
-                                            Text(
-                                                student.company,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = sk.subText,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                
+                // 4. LOCATION & LOGISTICS
+                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
+                    Column {
+                        Text("LOCATION & LOGISTICS", style = MaterialTheme.typography.titleSmall, color = sk.frost)
+                        Spacer(Modifier.height(8.dp))
+                        FactGrid(
+                            listOf(
+                                "City" to batch.str("city"),
+                                "Country" to batch.str("country"),
+                                "Venue" to batch.str("location"),
+                                "Travel Required" to if (batch.bool("is_international")) "Yes" else "No"
+                            )
+                        )
                     }
                 }
-
-                // Team Match — reportees only, never learners/participants
-                // (those are the separate "Enrolled Participants" section above).
-                // animateContentSize: the candidate list changes height the
-                // moment a skill mark refreshes it — this is a state/content
-                // change, not decorative motion.
-                Box(Modifier.fillMaxWidth().animateContentSize().glassSurface()) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(
-                            "Team Match", style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold, color = sk.frost,
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            "Ranked by skill fit, readiness, availability and language — includes you",
-                            style = MaterialTheme.typography.labelSmall, color = sk.labelText,
-                        )
-                        Spacer(Modifier.height(10.dp))
+                
+                // 5. DELIVERY READINESS
+                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
+                    Column {
+                        Text("DELIVERY READINESS", style = MaterialTheme.typography.titleSmall, color = sk.frost)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Skill: Verified", color = sk.good)
+                        Text("Avail: Pending", color = sk.amber)
+                    }
+                }
+                
+                // 6. MATCH INTELLIGENCE
+                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
+                    Column {
+                        Text("MATCH INTELLIGENCE", style = MaterialTheme.typography.titleSmall, color = sk.frost)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Top candidate metrics here...", color = sk.subText)
+                    }
+                }
+                
+                // 7. TEAM MATCH
+                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
+                    Column {
+                        Text("TEAM MATCH", style = MaterialTheme.typography.titleSmall, color = sk.frost)
+                        Spacer(Modifier.height(8.dp))
                         if (candidates.isEmpty()) {
-                            // Never a dead end: no mapped trainer is exactly the
-                            // moment marking a skill becomes the next action.
-                            Text(
-                                "No mapped trainer found",
-                                style = MaterialTheme.typography.bodyMedium, color = sk.bodyText,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                "No one on your team currently holds this skill at the level the assignment needs.",
-                                style = MaterialTheme.typography.labelSmall, color = sk.subText,
-                            )
-                            Spacer(Modifier.height(10.dp))
+                            Text("No mapped trainer found", color = sk.subText)
                         } else {
                             candidates.forEachIndexed { i, c ->
                                 if (i > 0) Spacer(Modifier.height(8.dp))
                                 TeamMatchRow(
                                     candidate = c,
-                                    onMessage = {
-                                        shareTarget = c.str("trainer_name") to c.str("trainer_email")
-                                        showMessagePreview = true
-                                    },
+                                    onMessage = {},
                                 )
-                            }
-                            Spacer(Modifier.height(10.dp))
-                        }
-                        // Same two actions regardless of state — Team Match is
-                        // one component family whether it has zero or many
-                        // ranked trainers.
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            if (com.example.skillsync.core.data.SessionManager.canManageTeam()) {
-                                FilledTonalButton(
-                                    onClick = { showReportee = true },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(Radii.chip),
-                                ) { Text("Mark team skills") }
-                            }
-                            if (courseName.isNotBlank()) {
-                                OutlinedButton(
-                                    onClick = { showNetworkSheet = true },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(Radii.chip),
-                                ) { Text("Search wider network", color = sk.cyan) }
                             }
                         }
                     }
                 }
-
-                // Communication — message the team about this demand, not tied
-                // to any specific trainer (per-trainer messaging lives inline
-                // on that trainer's Team Match row above).
-                OutlinedButton(
-                    onClick = { shareTarget = null; showMessagePreview = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                ) {
-                    Text("Message the team", style = MaterialTheme.typography.labelMedium, color = sk.green, fontWeight = FontWeight.SemiBold)
+                
+                // 8. BLOCKERS & RISKS
+                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp).background(sk.crit.copy(alpha=0.1f))) {
+                    Column {
+                        Text("BLOCKERS & RISKS", style = MaterialTheme.typography.titleSmall, color = sk.crit)
+                        Spacer(Modifier.height(8.dp))
+                        Text(batch.str("assignment_risk").ifBlank { "None detected" }, color = sk.bodyText)
+                    }
+                }
+                
+                // 9. ACTION REQUIRED
+                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
+                    Column {
+                        Text("ACTION REQUIRED", style = MaterialTheme.typography.titleSmall, color = sk.frost)
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(onClick = { }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Ask Availability", color = sk.cyan)
+                        }
+                    }
+                }
+                
+                // 10. TIMELINE / ACTIVITY
+                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
+                    Column {
+                        Text("TIMELINE / ACTIVITY", style = MaterialTheme.typography.titleSmall, color = sk.frost)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Historical activity logs will appear here.", color = sk.subText)
+                    }
+                }
+                
+                // 11. COURSE INTELLIGENCE & CAPACITY CONTEXT
+                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
+                    Column {
+                        Text("COURSE INTELLIGENCE", style = MaterialTheme.typography.titleSmall, color = sk.frost)
+                        Spacer(Modifier.height(8.dp))
+                        val activeVer = operationalContext?.course?.latestVersion.orEmpty()
+                        Text("Version: ${if (activeVer.isNotBlank()) activeVer else "Standard"}", color = sk.bodyText)
+                    }
                 }
 
-                Spacer(Modifier.height(24.dp))
             }
         }
     }
