@@ -409,6 +409,16 @@ fun MainNavigation() {
                 onOpenPractice = {
                     current = TrainerPractice(screen.trainerEmail, screen.trainerName)
                 },
+                onOpenCommunication = { recipientType, recipientName, purpose, relatedType, relatedId ->
+                    current = Communication(
+                        email = screen.email,
+                        relatedEntityId = relatedId,
+                        relatedEntityType = relatedType,
+                        initialRecipientType = recipientType,
+                        initialRecipientName = recipientName,
+                        initialPurpose = purpose,
+                    )
+                },
                 onBack = { current = Main(screen.email, HomeTab.TEAM) },
             )
 
