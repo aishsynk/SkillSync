@@ -64,6 +64,29 @@ fun BatchDetailScreen(
     val context = LocalContext.current
     StatusBarIcons(lightIcons = true)
 
+    
+    
+
+    
+    val notify = com.example.skillsync.core.ui.LocalNotify.current
+    LaunchedEffect(markState) {
+        when (markState) {
+            is MarkState.Done -> {
+                notify.success("Skill saved to RMS", markState.message)
+                onClearMark()
+            }
+            is MarkState.Unconfirmed -> {
+                notify.warn("Saved, but not confirmed", markState.message)
+                onClearMark()
+            }
+            is MarkState.Failed -> {
+                notify.error("Not saved", markState.message)
+                onClearMark()
+            }
+            else -> Unit
+        }
+    }
+
     var showMine by remember { mutableStateOf(false) }
     var showReportee by remember { mutableStateOf(false) }
     var showCurriculumSheet by remember { mutableStateOf(false) }
@@ -138,24 +161,7 @@ fun BatchDetailScreen(
     // Material's default snackbar was the only surface in the app that did not
     // use the design tokens, and it gave a confirmed write, an unconfirmed one
     // and an outright failure the same neutral styling.
-    val notify = com.example.skillsync.core.ui.LocalNotify.current
-    LaunchedEffect(markState) {
-        when (markState) {
-            is MarkState.Done -> {
-                notify.success("Skill saved to RMS", markState.message)
-                onClearMark()
-            }
-            is MarkState.Unconfirmed -> {
-                notify.warn("Saved, but not confirmed", markState.message)
-                onClearMark()
-            }
-            is MarkState.Failed -> {
-                notify.error("Not saved", markState.message)
-                onClearMark()
-            }
-            else -> Unit
-        }
-    }
+    
 
     val (coverageLabel, coverageTint, coverageIcon) = coverageStyle(batch.str("coverage_status"))
     val risk = batch.str("assignment_risk")
@@ -255,6 +261,7 @@ fun BatchDetailScreen(
                     }
                 }
                 
+                
                 // 7. TEAM MATCH
                 Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
                     Column {
@@ -267,14 +274,57 @@ fun BatchDetailScreen(
                                 if (i > 0) Spacer(Modifier.height(8.dp))
                                 TeamMatchRow(
                                     candidate = c,
-                                    onMessage = {},
+                                    requiredLevel = batch.str("required_skill_level").toIntOrNull() ?: 0,
+                                    onMessage = {
+                                        shareTarget = c.str("trainer_name") to c.str("trainer_email")
+                                        showMessagePreview = true
+                                    },
+                                    onMark = {
+                                        markFor = c.str("trainer_name") to c.str("trainer_email")
+                                        markForLevel = batch.str("required_skill_level").toIntOrNull()
+                                        showReportee = true
+                                    }
                                 )
                             }
                         }
                     }
                 }
-                
-                // 8. BLOCKERS & RISKS
+                Spacer(Modifier.height(14.dp))
+                // 8. SKILLS / SKILL MARKING
+                TeamSkillPanel(
+                    rows = batch.list("team_skill").mapNotNull { it as? Map<*, *> },
+                    requiredLevel = batch.str("required_skill_level"),
+                    canManageTeam = com.example.skillsync.core.data.SessionManager.canManageTeam(),
+                    onMark = { name, email ->
+                        markFor = name to email
+                        markForLevel = batch.str("required_skill_level").toIntOrNull()
+                        showReportee = true
+                    },
+                    onMarkMine = { showMine = true },
+                    onMarkTeam = { showReportee = true }
+                )
+                Spacer(Modifier.height(14.dp))
+                GatedCandidatesSection(
+                    response = gatedCandidates,
+                    loading = gatedCandidatesLoading,
+                    unverified = gatedCandidatesUnverified,
+                )
+                if (batch.str("demand_id").isNotBlank()) {
+                    Spacer(Modifier.height(14.dp))
+                    OutlinedButton(
+                        onClick = { showEligibilitySheet = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                    ) {
+                        Text(
+                            "Why my team isn't eligible",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = sk.amber, fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+
+                // 9. BLOCKERS & RISKS
                 Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp).background(sk.crit.copy(alpha=0.1f))) {
                     Column {
                         Text("BLOCKERS & RISKS", style = MaterialTheme.typography.titleSmall, color = sk.crit)
@@ -283,7 +333,7 @@ fun BatchDetailScreen(
                     }
                 }
                 
-                // 9. ACTION REQUIRED
+                // 10. ACTION REQUIRED
                 Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
                     Column {
                         Text("ACTION REQUIRED", style = MaterialTheme.typography.titleSmall, color = sk.frost)
@@ -294,7 +344,7 @@ fun BatchDetailScreen(
                     }
                 }
                 
-                // 10. TIMELINE / ACTIVITY
+                // 11. TIMELINE / ACTIVITY
                 Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
                     Column {
                         Text("TIMELINE / ACTIVITY", style = MaterialTheme.typography.titleSmall, color = sk.frost)
@@ -303,7 +353,7 @@ fun BatchDetailScreen(
                     }
                 }
                 
-                // 11. COURSE INTELLIGENCE & CAPACITY CONTEXT
+                // 12. COURSE INTELLIGENCE & CAPACITY CONTEXT
                 Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
                     Column {
                         Text("COURSE INTELLIGENCE", style = MaterialTheme.typography.titleSmall, color = sk.frost)
@@ -547,7 +597,7 @@ private fun candidateState(c: Map<*, *>, sk: com.example.skillsync.theme.SkillCo
  * because their suitability score is high.
  */
 @Composable
-private fun TeamMatchRow(candidate: Map<*, *>, onMessage: () -> Unit) {
+private fun TeamMatchRow(candidate: Map<*, *>, requiredLevel: Int, onMessage: () -> Unit, onMark: () -> Unit) {
     val sk = MaterialTheme.skill
     val state = candidateState(candidate, sk)
     val isDnc = candidate.bool("dnc_flag")
@@ -617,7 +667,16 @@ private fun TeamMatchRow(candidate: Map<*, *>, onMessage: () -> Unit) {
             Text("Client-requested trainer", style = MaterialTheme.typography.labelSmall, color = sk.amber, fontWeight = FontWeight.Bold)
         }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            val email = candidate.str("trainer_email")
+            if (email.isNotBlank()) {
+                val held = candidate.str("held_skill_level").toIntOrNull() ?: 0
+                if (held >= requiredLevel && requiredLevel > 0) {
+                    TextButton(onClick = onMark) { Text("Skill Marked", color = sk.aqua) }
+                } else {
+                    TextButton(onClick = onMark) { Text("Mark Skill", color = sk.amber) }
+                }
+            }
             TextButton(onClick = onMessage) { Text("Message", color = sk.sky) }
         }
     }
