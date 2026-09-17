@@ -233,9 +233,11 @@ fun BatchDetailScreen(
                         Spacer(Modifier.height(8.dp))
                         FactGrid(
                             listOf(
-                                "City" to batch.str("city"),
-                                "Country" to batch.str("country"),
-                                "Venue" to batch.str("location"),
+                                  "Location" to (
+                                      if (batch.str("location").isNotBlank()) batch.str("location")
+                                      else if (batch.str("city").isNotBlank() && batch.str("country").isNotBlank()) "${batch.str("city")}, ${batch.str("country")}"
+                                      else "Location not provided"
+                                  ),
                                 "Travel Required" to if (batch.bool("is_international")) "Yes" else "No"
                             )
                         )

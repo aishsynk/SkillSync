@@ -2,22 +2,28 @@
 
 ## Current Project Status
 - **Project Type**: ANDROID (Kotlin, Jetpack Compose, Native)
-- **Status**: COMPLETED Design V4 Final Visual Milestone.
+- **Status**: COMPLETED Design V4 Final Visual Milestone, INCLUDING functional parity restoration.
 - **Last Model Used**: Gemini Pro
 - **Last Tool/Agent Used**: Antigravity
 - **Last Update Date/Time**: 2026-09-17T21:43:00+05:30
 
 ## Work Completed
-- Published baseline before this release: 3.80.19.197.
-- **Design V4 work included in this release**:
-  - **Plan V4**: Canonical ILT/FMAT premium design applied correctly without regressing functionality.
-  - **International ILT/FMAT priority rule**: Pinned above domestic demand visually and systematically.
-  - **India ILT/FMAT premium visual treatment**: Rendered via the exact same layout template without fabricating "GLOBAL OPPORTUNITY" labels.
-  - **City/Country location rule**: Accurately mapped out City, Country and prioritized them visually.
-  - **Demand Detail enterprise rebuild**: Transformed into an 11-section operational dashboard with strict truthfulness in readiness parsing and candidate evaluations.
+- Published baseline before this release: 3.80.20.198 (already published).
+- **Design V4 Parity Restoration**:
+  - Restored TeamSkillPanel functionality and GatedCandidatesSection.
+  - Reintroduced contextual row actions: "Mark Skill" and "Skill Marked" directly inside TeamMatchRow using the original callbacks (onMarkSkill, onClearMark).
+  - Restored 
+otify usage and fixed compilation errors.
+- **Testing**:
+  - Created and ran 4 new emulator screenshot tests:
+    - demand_detail_skill_unmarked
+    - demand_detail_skill_mark_action
+    - demand_detail_skill_marked
+    - demand_detail_multiple_candidates_skill_actions
+  - Tests successfully executed on the managed emulator.
 
 ## Current/Pending Work
-- Branch validation, compilation checks, versioning to v3.80.20.198, and release processing.
+- Validated all checklist items for Functional Parity.
 
 ## Known Blockers
 - None.
