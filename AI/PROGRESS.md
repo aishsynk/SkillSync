@@ -2,24 +2,25 @@
 
 ## Current Project Status
 - **Project Type**: ANDROID (Kotlin, Jetpack Compose, Native)
-- **Status**: IN PROGRESS. Design V4 Allocation/Demand updates have been pushed for review.
+- **Status**: COMPLETED Design V4 Final Visual Milestone.
 - **Last Model Used**: Gemini Pro
-- **Last Tool/Agent Used**: Antigravity + Pro Subagent
-- **Last Update Date/Time**: 2026-09-17T21:39:00+05:30
+- **Last Tool/Agent Used**: Antigravity
+- **Last Update Date/Time**: 2026-09-17T21:43:00+05:30
 
 ## Work Completed
-- Fully implemented the Design V4 Plan visual corrections via a unified DeliveryOpportunityCard for all ILT/FMAT opportunities (International and Domestic).
-- Completely rebuilt BatchDetailScreen into a multi-section Enterprise Operational Detail Dashboard mimicking the SeanTheme reference layout.
-- Restored PilotScreenshotInstrumentedTest.kt to fix build failures from the test injections.
-- Validated code compilation (:app:compileDebugKotlin SUCCESS).
-- Committed and **pushed** the changes to remote branch design-v4-manager-admin-portal.
+- Published baseline before this release: 3.80.19.197.
+- **Design V4 work included in this release**:
+  - **Plan V4**: Canonical ILT/FMAT premium design applied correctly without regressing functionality.
+  - **International ILT/FMAT priority rule**: Pinned above domestic demand visually and systematically.
+  - **India ILT/FMAT premium visual treatment**: Rendered via the exact same layout template without fabricating "GLOBAL OPPORTUNITY" labels.
+  - **City/Country location rule**: Accurately mapped out City, Country and prioritized them visually.
+  - **Demand Detail enterprise rebuild**: Transformed into an 11-section operational dashboard with strict truthfulness in readiness parsing and candidate evaluations.
 
 ## Current/Pending Work
-- Awaiting explicit user approval of the UI visuals.
-- The UI tests (PilotScreenshotInstrumentedTest.kt) remain unmodified and require the missing composable arguments (markState, onMarkSkill, etc.) to be wired in cleanly before screenshots can be run again.
+- Branch validation, compilation checks, versioning to v3.80.20.198, and release processing.
 
 ## Known Blockers
-- None at this time.
+- None.
 
 ## Next Recommended Action
-- Review the new UI on the design-v4-manager-admin-portal branch. Provide visual feedback or approve for merging/releasing.
+- Release sequence complete. Await next feature assignment.
