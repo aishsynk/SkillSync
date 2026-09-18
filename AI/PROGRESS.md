@@ -95,3 +95,21 @@ otify usage and fixed compilation errors.
 **Blockers:** None.
 **Pending Actions:** Manual Visual QA on emulator/device; remaining Design V2 backlog (dense sortable data table, 5-tab bottom nav, Motion split rules).
 
+## [2026-09-18T18:25:00+05:30]
+**Model:** opencode (big-pickle)
+**Files Modified:** SkillEdge_Android/.../training/data/PortfolioContentFit.kt (NEW), SkillEdge_Android/.../training/ui/BatchDetailScreen.kt, SkillEdge_Android/.../core/data/DataRepository.kt, SkillEdge_Android/.../test/.../training/data/PortfolioContentFitTest.kt (NEW), AI/PROGRESS.md, AI/DECISIONS.md
+**Work Completed — Demand Details real team analysis + content-based fit + share-to-team workflow:**
+- **Root-cause finding:** the Demand page's message/analysis plumbing was dead code. `shareTarget`/`showMessagePreview` were never set anywhere, so the team broadcast (`BatchShare`, which matches the MSG-service template exactly) could never open; the "why isn't my team eligible" sheet and `TeamMatchRow` were also unwired.
+- **Content/portfolio matching (the PL-300 → custom Power BI case):** new pure-Kotlin `PortfolioContentFit` computes token overlap between the demand (name + id) and each trainer's real held skills from the `api/v2/capability/portfolio` snapshot (held course titles + certification names/codes), including joined course-code pairing (`PL-300` → `pl300`). Clearly labelled as derived ("Content · POWER BI, DAX — derived from held skills") and never shown as an eligibility verdict; RMS gated allocation stays authoritative. People not evaluated for the demand but with strong overlap appear in "ADJACENT SKILLS ON FILE".
+- **Demand page wiring:** new action card "Draft team message" + "Copy message"; per-trainer Message/Content-fit rows via now-wired `TeamMatchRow`; "ADJACENT SKILLS ON FILE" list; "Full eligibility breakdown" button opens the previously-dead `EligibilitySheet`; **a successful Mark Skill now opens the team message draft directly** (mark → share msg to all).
+- `ManagerRepository.teamCapability(email)` added, reading the existing `capability_$email` cache (zero extra network when already synced) — same key MainScreen/TeamTab use.
+**Validation:**
+- `PortfolioContentFitTest` (8 tests: custom-Power-BI↔PL-300, exact-code, unrelated no-match, cert-name matching, empty portfolio, single-weak-token guard, code normalization, case-insensitivity): all PASS.
+- Gate (ScreenRenderTest + AllocationDeskScreenTest + HonestCandidateRenderingTest): 63 tests / 9 failed — exactly the pre-existing baseline (6 dashboard + 3 AllocationDeskScreen below-fold). Zero new failures.
+- Lint: 6E / 77W / 4H — errors unchanged (pre-existing `ViewModelConstructorInComposable` in PilotScreenshot harness); zero findings in changed files.
+- `./gradlew :app:assembleDebug --no-daemon` -> BUILD SUCCESSFUL.
+- Note: two orphaned Gradle 9.1.0 daemons from the earlier build were stuck in an idle/memory-release loop (caused the 2h build hang); killed both, re-ran with `--no-daemon`. No code impact.
+**Current Status:** Gate-clean increment completed; no release cut this session.
+**Blockers:** None.
+**Pending Actions:** Manual Visual QA on emulator/device (open any Demand Detail → verify team analysis + content fit + draft/copy message + mark → auto team draft). Remaining Design V2 backlog unchanged. The 3 pre-existing AllocationDeskScreenTest failures remain Robolectric below-fold limitations.
+

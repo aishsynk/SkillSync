@@ -244,6 +244,16 @@ class ManagerRepository(
     /** Real leave and commitments for every reportee, one row each. */
     suspend fun teamReadiness(manager: String): Map<String, Any> = api.getTeamReadiness(manager)
 
+    /**
+     * Team capability snapshot, read from the same `capability_<email>` cache
+     * [teamIntelligence] and [syncAll] populate — so the Demand Detail page
+     * costs no network call when the manager's team data is already synced. The
+     * map is the `api/v2/capability/portfolio` payload (per-reportee held
+     * `courses` and `certification.held`), the source for content-based skill fit.
+     */
+    suspend fun teamCapability(email: String, fresh: Boolean = false): RepositoryResult<Map<String, Any>> =
+        cachedMap("capability_$email", fresh) { api.getTeamCapability(email, fresh.flag()) }
+
     suspend fun teamIntelligence(email: String, fresh: Boolean): TeamIntelligence = coroutineScope {
         val capability = async {
             cachedMap("capability_$email", fresh) { api.getTeamCapability(email, fresh.flag()) }

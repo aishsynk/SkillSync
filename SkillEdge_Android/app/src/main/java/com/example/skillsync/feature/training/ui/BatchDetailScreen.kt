@@ -33,6 +33,7 @@ import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.core.ui.*
 import com.example.skillsync.feature.home.CourseCurriculumSheet
+import com.example.skillsync.feature.training.data.PortfolioContentFit
 import kotlinx.coroutines.launch
 import androidx.compose.material3.Text
 
@@ -68,12 +69,28 @@ fun BatchDetailScreen(
     
 
     
+    var showMine by remember { mutableStateOf(false) }
+    var showReportee by remember { mutableStateOf(false) }
+    var showCurriculumSheet by remember { mutableStateOf(false) }
+    var showNetworkSheet by remember { mutableStateOf(false) }
+    var showEligibilitySheet by remember { mutableStateOf(false) }
+    var shareTarget by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var showMessagePreview by remember { mutableStateOf(false) }
+    // Per-row "Mark" from the team-skill panel: preselect that reportee and,
+    // where known, open the dialog at the assignment's required level.
+    var markFor by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var markForLevel by remember { mutableStateOf<Int?>(null) }
+
     val notify = com.example.skillsync.core.ui.LocalNotify.current
     LaunchedEffect(markState) {
         when (markState) {
             is MarkState.Done -> {
                 notify.success("Skill saved to RMS", markState.message)
                 onClearMark()
+                // Mark Skill → share message to all: the demand broadcast is the
+                // whole point of marking, so open the team draft right away.
+                shareTarget = null
+                showMessagePreview = true
             }
             is MarkState.Unconfirmed -> {
                 notify.warn("Saved, but not confirmed", markState.message)
@@ -87,24 +104,46 @@ fun BatchDetailScreen(
         }
     }
 
-    var showMine by remember { mutableStateOf(false) }
-    var showReportee by remember { mutableStateOf(false) }
-    var showCurriculumSheet by remember { mutableStateOf(false) }
-    var showNetworkSheet by remember { mutableStateOf(false) }
-    var showEligibilitySheet by remember { mutableStateOf(false) }
-    var shareTarget by remember { mutableStateOf<Pair<String, String>?>(null) }
-    var showMessagePreview by remember { mutableStateOf(false) }
-    // Per-row "Mark" from the team-skill panel: preselect that reportee and,
-    // where known, open the dialog at the assignment's required level.
-    var markFor by remember { mutableStateOf<Pair<String, String>?>(null) }
-    var markForLevel by remember { mutableStateOf<Int?>(null) }
-
     val courseId = batch.str("course_id")
     val courseName = batch.str("course_name")
     val relevance = batch.int("relevance")
     val candidates = batch.list("candidates")
     val teamSkill = batch.list("team_skill")
     val requiredLevel = batch.str("assignment_level")
+
+    // Team skill portfolio (api/v2/capability/portfolio, cached) — the source
+    // for the content-fit analysis. A trainer cleared for PL-300 must surface
+    // for a custom Power BI course even though RMS matches by exact name.
+    val managerRepo = remember { com.example.skillsync.core.data.ManagerRepository() }
+    var portfolio by remember { mutableStateOf<Map<String, Any>?>(null) }
+    var portfolioLoading by remember { mutableStateOf(true) }
+    var portfolioError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(managerEmail) {
+        portfolioLoading = true
+        portfolioError = null
+        val result = managerRepo.teamCapability(managerEmail, fresh = false)
+        portfolio = result.data
+        portfolioError = result.error
+        portfolioLoading = false
+    }
+
+    // Derivative — deliberately NOT an eligibility verdict. RMS owns allocation.
+    fun heldSkillTitlesFor(email: String): List<String> {
+        if (email.isBlank()) return emptyList()
+        val row = portfolio?.rows("trainers")
+            ?.firstOrNull { it.str("trainer_email").equals(email, ignoreCase = true) } ?: return emptyList()
+        return buildList {
+            row.list("courses").forEach { c ->
+                c.str("course").takeIf { it.isNotBlank() }?.let { add(it) }
+            }
+            row.obj("certification")?.list("held").orEmpty().forEach { cert ->
+                cert.str("name").takeIf { it.isNotBlank() }?.let { add(it) }
+                cert.str("code").takeIf { it.isNotBlank() }?.let { add(it) }
+            }
+        }.distinct()
+    }
+    fun contentFitFor(email: String): PortfolioContentFit.ContentFit =
+        PortfolioContentFit.fit(courseName, courseId, heldSkillTitlesFor(email))
 
     val effectiveToc = operationalContext?.course?.contentUrl?.takeIf { it.isNotBlank() }
         ?: batch.str("toc_url").takeIf { it.isNotBlank() }
@@ -197,6 +236,43 @@ fun BatchDetailScreen(
                             Spacer(Modifier.width(16.dp))
                             Box(Modifier.clip(RoundedCornerShape(12.dp)).background(coverageTint.copy(alpha = 0.2f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
                                 Text(coverageLabel, style = MaterialTheme.typography.labelSmall, color = coverageTint, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+                
+                // 1b. MESSAGE THE TEAM ABOUT THIS DEMAND
+                Box(Modifier.fillMaxWidth().glassSurface().padding(12.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "Share this demand with your team",
+                            style = MaterialTheme.typography.titleSmall, color = sk.frost, fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "The exact RMS broadcast for this assignment — course, assignment ID, schedule, mode, customer, pax and TOC — editable before you send.",
+                            style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    shareTarget = null
+                                    showMessagePreview = true
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(Radii.chip),
+                            ) {
+                                Icon(painterResource(R.drawable.ic_share), null, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Draft team message", color = sk.sky)
+                            }
+                            OutlinedButton(
+                                onClick = { BatchShare.copyMessage(context, messageFor(null), htmlFor(null)) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(Radii.chip),
+                            ) {
+                                Icon(painterResource(R.drawable.ic_check), null, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Copy message", color = sk.sky)
                             }
                         }
                     }
@@ -312,81 +388,102 @@ fun BatchDetailScreen(
                     }
                 }
                 
-                // 11. RECOMMENDED ALLOCATION
-                if (gatedCandidates != null && gatedCandidates.candidates.isNotEmpty()) {
-                    SectionCard("RECOMMENDED ALLOCATION") {
-                        gatedCandidates.candidates.forEachIndexed { i, c ->
-                            if (i > 0) Spacer(Modifier.height(12.dp))
-                            val isBlocked = c["blocked"] == true
-                            val displayCoverage = if (isBlocked) "Blocked" else (c["coverage"] as? String).orEmpty().ifBlank { "Not Assessed" }
-                            val coverageColor = if (isBlocked) sk.red else when (displayCoverage) {
-                                "Best Match", "Good Match" -> sk.green
-                                "Available with Upskilling" -> sk.amber
-                                "No Coverage", "Not Assessed" -> sk.warn
-                                else -> sk.subText
+                // 11. TEAM ANALYSIS — WHO CAN · WHO CANNOT · WHY
+                SectionCard("TEAM ANALYSIS — CAN · CANNOT · WHY") {
+                    if (portfolioLoading) {
+                        Text("Loading team skill portfolio for content fit...", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    gatedCandidates?.let { g ->
+                        val members = remember(g.candidates, g.blocked) {
+                            (g.candidates + g.blocked)
+                                .distinctBy { it.str("trainer_email").lowercase() }
+                        }
+                        if (members.isEmpty()) {
+                            Text("No team member has been evaluated for this demand yet.", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                        } else {
+                            members.forEachIndexed { i, c ->
+                                if (i > 0) Spacer(Modifier.height(10.dp))
+                                TeamMatchRow(
+                                    candidate = c,
+                                    requiredLevel = requiredLevel.toIntOrNull() ?: 0,
+                                    contentFit = contentFitFor(c.str("trainer_email")),
+                                    onMessage = {
+                                        val email = c.str("trainer_email")
+                                        if (email.isNotBlank()) shareTarget = c.str("trainer_name") to email
+                                        showMessagePreview = true
+                                    },
+                                    onMark = {
+                                        val email = c.str("trainer_email")
+                                        if (email.isNotBlank()) {
+                                            markFor = c.str("trainer_name") to email
+                                            markForLevel = requiredLevel.toIntOrNull()
+                                            showReportee = true
+                                        }
+                                    },
+                                )
                             }
-                            Column {
-                                Text(c["trainer_name"] as? String ?: "", style = MaterialTheme.typography.bodyMedium, color = sk.bodyText, fontWeight = FontWeight.Bold)
-                                
-                                val backupRole = c["backup_role"] as? String
-                                val suitability = c["suitability_score"]
-                                val roleText = buildString {
-                                    if (!backupRole.isNullOrBlank()) append("$backupRole · ")
-                                    if (suitability != null) append("$suitability suitability")
-                                }
-                                if (roleText.isNotBlank()) {
-                                    Text(roleText, style = MaterialTheme.typography.labelSmall, color = sk.subText)
-                                }
+                        }
+                    }
+                    if (gatedCandidates == null && !gatedCandidatesLoading) {
+                        Text("Eligibility evaluation not loaded for this demand yet.", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                    }
 
-                                val parts = c["suitability_components"] as? Map<*, *>
-                                if (parts != null) {
-                                    val metrics = listOfNotNull(
-                                        (parts["skill"] as? Number)?.let { "Skill $it" },
-                                        (parts["readiness"] as? Number)?.let { "Ready $it" },
-                                        (parts["availability"] as? Number)?.let { "Avail $it" },
-                                        (parts["certification"] as? Number)?.let { "Cert $it" },
-                                        (parts["language"] as? Number)?.let { "Lang $it" }
+                    // The PL-300 → custom Power BI case: people NOT evaluated for
+                    // this demand whose held skills overlap its content.
+                    val neighbours = remember(portfolio, gatedCandidates) {
+                        portfolio?.rows("trainers").orEmpty().filter { t ->
+                            val email = t.str("trainer_email").lowercase()
+                            email.isNotBlank() &&
+                                gatedCandidates?.candidates?.none { it.str("trainer_email").equals(email, true) } != false &&
+                                gatedCandidates?.blocked?.none { it.str("trainer_email").equals(email, true) } != false &&
+                                contentFitFor(email).strong
+                        }
+                    }
+                    if (neighbours.isNotEmpty()) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "ADJACENT SKILLS ON FILE",
+                            style = MaterialTheme.typography.labelSmall, color = sk.labelText,
+                            fontWeight = FontWeight.Bold, letterSpacing = 0.08.em,
+                        )
+                        Text(
+                            "Derived from held course & certification titles — not an eligibility verdict.",
+                            style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                        )
+                        neighbours.forEach { t ->
+                            val fit = contentFitFor(t.str("trainer_email"))
+                            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(8.dp).clip(CircleShape).background(sk.aqua))
+                                Spacer(Modifier.width(8.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        t.str("trainer_name").ifBlank { "Trainer" },
+                                        style = MaterialTheme.typography.bodySmall, color = sk.bodyText, fontWeight = FontWeight.SemiBold,
                                     )
-                                    if (metrics.isNotEmpty()) {
-                                        Text(metrics.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = sk.subText)
-                                    }
+                                    Text(
+                                        "Content · ${fit.matchedTokens.joinToString(" · ").uppercase()}",
+                                        style = MaterialTheme.typography.labelSmall, color = sk.aqua,
+                                    )
+                                    Text(
+                                        "Holds: ${fit.heldTitles.joinToString(" | ")}",
+                                        style = MaterialTheme.typography.labelSmall, color = sk.subText,
+                                    )
                                 }
-
-                                val availabilityStatus = c["availability_status"] as? String
-                                val availText = when (availabilityStatus) {
-                                    "available" -> "Available for these dates"
-                                    "conflict" -> "Schedule conflict"
-                                    else -> "Availability unverified"
-                                }
-                                val availColor = when (availabilityStatus) {
-                                    "available" -> sk.green
-                                    "conflict" -> sk.warn
-                                    else -> sk.subText
-                                }
-                                Text(availText, style = MaterialTheme.typography.labelSmall, color = availColor)
-
-                                Spacer(Modifier.height(4.dp))
-                                Text(displayCoverage, style = MaterialTheme.typography.labelSmall, color = coverageColor, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
-                }
-                
-                // 12. WHY NOT ELIGIBLE
-                if (gatedCandidates != null && gatedCandidates.blocked.isNotEmpty()) {
-                    SectionCard("WHY NOT ELIGIBLE") {
-                        gatedCandidates.blocked.forEachIndexed { i, b ->
-                            if (i > 0) Spacer(Modifier.height(8.dp))
-                            Column {
-                                Text(b["trainer_name"] as? String ?: "", style = MaterialTheme.typography.bodySmall, color = sk.bodyText, fontWeight = FontWeight.Bold)
-                                val reason = (b["reason"] as? String) ?: (b["message"] as? String) ?: "Does not meet requirements"
-                                Text(reason, style = MaterialTheme.typography.labelSmall, color = sk.warn)
-                            }
-                        }
+                    if (portfolioError != null && !portfolioLoading) {
+                        Spacer(Modifier.height(4.dp))
+                        Text("Content fit unavailable: $portfolioError", style = MaterialTheme.typography.labelSmall, color = sk.warn)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = { showEligibilitySheet = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(Radii.chip)) {
+                        Text("Full eligibility breakdown — why each trainer is blocked", color = sk.sky)
                     }
                 }
                 
-                // 13 & 14. ACTION STRIP & SEARCH WIDER TRAINER NETWORK
+                // 12 & 13. ACTION STRIP & SEARCH WIDER TRAINER NETWORK
                 Spacer(Modifier.height(8.dp))
                 Button(
                     onClick = { showNetworkSheet = true },
@@ -637,7 +734,13 @@ private fun candidateState(c: Map<*, *>, sk: com.example.skillsync.theme.SkillCo
  * because their suitability score is high.
  */
 @Composable
-private fun TeamMatchRow(candidate: Map<*, *>, requiredLevel: Int, onMessage: () -> Unit, onMark: () -> Unit) {
+private fun TeamMatchRow(
+    candidate: Map<*, *>,
+    requiredLevel: Int,
+    contentFit: PortfolioContentFit.ContentFit = PortfolioContentFit.ContentFit.NONE,
+    onMessage: () -> Unit,
+    onMark: () -> Unit,
+) {
     val sk = MaterialTheme.skill
     val state = candidateState(candidate, sk)
     val isDnc = candidate.bool("dnc_flag")
@@ -675,6 +778,26 @@ private fun TeamMatchRow(candidate: Map<*, *>, requiredLevel: Int, onMessage: ()
         }
 
         Text(state.reason, style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
+
+        // Content/portfolio fit — derived from held skills, never an eligibility
+        // claim. Shown ranked as its own signal so the PL-300 → custom Power BI
+        // case surfaces even when the exact course name is absent.
+        if (contentFit.strong) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(sk.aqua))
+                Spacer(Modifier.width(8.dp))
+                Column {
+                    Text(
+                        "Content · ${contentFit.matchedTokens.joinToString(" · ").uppercase()}",
+                        style = MaterialTheme.typography.labelSmall, color = sk.aqua, fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "Holds: ${contentFit.heldTitles.joinToString(" | ")}",
+                        style = MaterialTheme.typography.labelSmall, color = sk.subText, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
 
         // Skill fit / suitability is shown, but a hard eligibility failure
         // keeps its own tint rather than borrowing the (possibly high) match
@@ -717,7 +840,11 @@ private fun TeamMatchRow(candidate: Map<*, *>, requiredLevel: Int, onMessage: ()
                     TextButton(onClick = onMark) { Text("Mark Skill", color = sk.amber) }
                 }
             }
-            TextButton(onClick = onMessage) { Text("Message", color = sk.sky) }
+            TextButton(onClick = onMessage) {
+                Icon(painterResource(R.drawable.ic_share), null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Message", color = sk.sky)
+            }
         }
     }
 }

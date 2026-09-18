@@ -24,7 +24,7 @@ android {
         applicationId = "com.example.skillsync"
         minSdk = 24
         targetSdk = 34
-        versionCode = 200
+        versionCode = 201
         versionName = "3.80.21"
         manifestPlaceholders["appName"] = "SkillSync"
     }
