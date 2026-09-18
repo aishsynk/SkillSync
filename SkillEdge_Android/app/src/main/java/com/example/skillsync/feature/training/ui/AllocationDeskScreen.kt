@@ -49,7 +49,7 @@ import com.example.skillsync.theme.accentGlass
 import com.example.skillsync.theme.glassSurface
 import com.example.skillsync.theme.skill
 import com.example.skillsync.core.ui.*
-import androidx.compose.material3.Text
+import androidx.compose.ui.text.style.TextAlign
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -106,6 +106,14 @@ internal fun coverageStyle(coverage: String): Triple<String, Color, Int> {
  * This is the single classifier both the chip and the sentence read from.
  */
 private data class PlanState(val label: String, val reason: String, val tint: Color, val icon: Int)
+
+private data class RegionalData(
+    val country: String,
+    val flag: String,
+    val total: Int,
+    val matched: Int,
+    val isInternational: Boolean
+)
 
 private fun planState(coverage: String, sk: com.example.skillsync.theme.SkillColors): PlanState = when (coverage) {
     "No Coverage" -> PlanState(
@@ -222,14 +230,11 @@ internal fun AllocationDeskContent(
         item { PlanHeader(total = total, newCount = newIds.size) }
 
         item {
-            if (batches.isEmpty() && total == 0) {
-                PlanKpiSkeleton()
-            } else {
-                PlanKpiStrip(
+            PlanKpiStrip(
                     unallocated = total, urgent = urgentCount, coverable = coverableCount,
                     blocked = blockedCount, thisWeek = thisWeekCount, international = internationalCount,
+                    capacityPlan = capacityPlan
                 )
-            }
         }
 
         if (batches.isNotEmpty()) {
@@ -237,6 +242,14 @@ internal fun AllocationDeskContent(
         }
 
         item { CapacityPlanningCard(capacityPlan, capacityPlanLoading) }
+
+        if (batches.isNotEmpty()) {
+            item { AllocationFunnelCard(batches, summary) }
+        }
+
+        item { RegionalCoverageCard(batches) }
+
+        item { TopExposureCard(batches) }
 
         item {
             Column {
@@ -330,23 +343,50 @@ private fun PlanHeader(total: Int, newCount: Int) {
 // ── KPI strip ────────────────────────────────────────────────────────────────
 
 @Composable
-private fun PlanKpiStrip(unallocated: Int, urgent: Int, coverable: Int, blocked: Int, thisWeek: Int, international: Int) {
+private fun PlanKpiStrip(
+    unallocated: Int, urgent: Int, coverable: Int, blocked: Int, thisWeek: Int, international: Int,
+    capacityPlan: com.example.skillsync.core.network.CapacityPlanResponse? = null,
+) {
     val sk = MaterialTheme.skill
+
+    // Compute deltas vs previous week from capacity plan
+    val (unallocatedDelta, urgentDelta, coverableDelta) = computeKpiDeltas(capacityPlan)
+
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        PlanKpi("UNALLOCATED", unallocated.toString(), sk.frost)
-        PlanKpi("URGENT", urgent.toString(), if (urgent > 0) sk.crit else sk.good)
-        PlanKpi("COVERABLE", coverable.toString(), sk.sky)
-        PlanKpi("BLOCKED", blocked.toString(), if (blocked > 0) sk.warn else sk.good)
-        PlanKpi("THIS WEEK", thisWeek.toString(), sk.indigo)
-        if (international > 0) PlanKpi("INTERNATIONAL", international.toString(), sk.teal)
+        PlanKpi("UNALLOCATED", unallocated.toString(), sk.frost, delta = unallocatedDelta)
+        PlanKpi("URGENT", urgent.toString(), if (urgent > 0) sk.crit else sk.good, delta = urgentDelta)
+        PlanKpi("COVERABLE", coverable.toString(), sk.sky, delta = coverableDelta)
+        PlanKpi("BLOCKED", blocked.toString(), if (blocked > 0) sk.warn else sk.good, delta = null)
+        PlanKpi("THIS WEEK", thisWeek.toString(), sk.indigo, delta = null)
+        PlanKpi("INTERNATIONAL", international.toString(), sk.teal, delta = null)
     }
 }
 
+private fun computeKpiDeltas(
+    capacityPlan: com.example.skillsync.core.network.CapacityPlanResponse?
+): Triple<Int?, Int?, Int?> /* unallocated, urgent, coverable */ {
+    val weeks = capacityPlan?.weeks ?: return Triple(null, null, null)
+    if (weeks.size < 2) return Triple(null, null, null)
+
+    val currentWeek = weeks.first()
+    val previousWeek = weeks[1]
+
+    // Map capacity plan fields to KPI deltas
+    // unallocated ~ demand, urgent ~ priority, coverable ~ strongCoverage, blocked ~ uncovered
+    val unallocatedDelta = currentWeek.demand - previousWeek.demand
+    val urgentDelta = currentWeek.priority - previousWeek.priority
+    val coverableDelta = currentWeek.strongCoverage - previousWeek.strongCoverage
+    // blocked and thisWeek don't have direct mapping, return null
+    return Triple(unallocatedDelta, urgentDelta, coverableDelta)
+}
+
 @Composable
-private fun PlanKpi(label: String, value: String, tint: Color) {
+private fun PlanKpi(
+    label: String, value: String, tint: Color, delta: Int? = null
+) {
     val sk = MaterialTheme.skill
     Column(
         Modifier
@@ -355,7 +395,20 @@ private fun PlanKpi(label: String, value: String, tint: Color) {
             .background(sk.surface1.copy(alpha = 0.65f))
             .padding(horizontal = 10.dp, vertical = 10.dp),
     ) {
-        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = tint)
+        Column {
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = tint)
+            delta?.let { d ->
+                val isPositive = d > 0
+                val deltaColor = if (isPositive) sk.good else sk.crit
+                val deltaSign = if (isPositive) "+" else ""
+                Text(
+                    "$deltaSign$d vs last week",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                    color = deltaColor,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
         // Two lines at a smaller size rather than clipping — "UNALLOCATED" and
         // "COVERABLE" both overflowed a single line at this width.
         Text(
@@ -372,7 +425,175 @@ private fun PlanKpiSkeleton() {
     }
 }
 
-// ── Planning intelligence — one real, derived insight, never generative filler.
+// ── Allocation Funnel: open demand → matched → scheduled → delivered ───────
+@Composable
+private fun AllocationFunnelCard(
+    batches: List<Map<*, *>>,
+    summary: Map<*, *>?
+) {
+    val sk = MaterialTheme.skill
+    val total = summary?.int("total") ?: batches.size
+    val matched = batches.count { it.str("coverage_status") != "No Coverage" }
+    val scheduled = batches.count { it.str("allocation_status") == "scheduled" }
+    val delivered = batches.count { it.str("allocation_status") == "delivered" }
+    val openDemand = total - matched
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.surface1),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("ALLOCATION FUNNEL", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FunnelStage("OPEN DEMAND", openDemand, sk.frost)
+                FunnelArrow(sk.labelText)
+                FunnelStage("COVERED", matched, sk.sky)
+                FunnelArrow(sk.labelText)
+                FunnelStage("SCHEDULED", scheduled, sk.indigo)
+                FunnelArrow(sk.labelText)
+                FunnelStage("DELIVERED", delivered, sk.good)
+            }
+            Spacer(Modifier.height(8.dp))
+            // Conversion rates
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                ConversionRate("Open → Covered", total, matched)
+                ConversionRate("Covered → Scheduled", matched, scheduled)
+                ConversionRate("Scheduled → Delivered", scheduled, delivered)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FunnelStage(label: String, count: Int, color: Color) {
+    val sk = MaterialTheme.skill
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+        Spacer(Modifier.height(4.dp))
+        Text(count.toString(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = color)
+    }
+}
+
+@Composable
+private fun FunnelArrow(color: Color) {
+    Text("→", style = MaterialTheme.typography.titleMedium, color = color, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp))
+}
+
+@Composable
+private fun ConversionRate(label: String, from: Int, to: Int) {
+    val sk = MaterialTheme.skill
+    val rate = if (from > 0) (to * 100 / from) else 0
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp), color = sk.labelText, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Text("$rate%", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = sk.bodyText)
+    }
+}
+
+// ── Regional Coverage Breakdown ────────────────────────────────────────────
+@Composable
+private fun RegionalCoverageCard(batches: List<Map<*, *>>) {
+    val sk = MaterialTheme.skill
+
+    // Group batches by country/region
+    val regionalData = batches
+        .groupBy { it.str("country").ifBlank { "Unknown" } }
+        .map { (country, countryBatches) ->
+            val total = countryBatches.size
+            val matched = countryBatches.count { it.str("coverage_status") != "No Coverage" }
+            val international = countryBatches.any { it.bool("is_international") }
+            val flag = when (country) {
+                "India" -> "🇮🇳"
+                "United Kingdom", "UK" -> "🇬🇧"
+                "United States", "USA" -> "🇺🇸"
+                "Germany" -> "🇩🇪"
+                "Singapore" -> "🇸🇬"
+                "UAE" -> "🇦🇪"
+                else -> "🌍"
+            }
+            RegionalData(country, flag, total, matched, international)
+        }
+        .sortedByDescending { it.total } // sort by total batches desc
+
+    if (regionalData.isEmpty()) return
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.surface1),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("REGIONAL COVERAGE", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+
+            Column(
+                Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                regionalData.forEach { data ->
+                    val coveragePct = if (data.total > 0) (data.matched * 100 / data.total) else 0
+                    val color = when {
+                        coveragePct >= 80 -> sk.good
+                        coveragePct >= 60 -> sk.warn
+                        else -> sk.crit
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        // Country with flag
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(data.flag, style = MaterialTheme.typography.titleSmall)
+                            Spacer(Modifier.width(8.dp))
+                            Column(horizontalAlignment = Alignment.Start) {
+                                Text(data.country, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = sk.bodyText)
+                                if (data.isInternational) {
+                                    Text("International", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp), color = sk.amber)
+                                }
+                            }
+                        }
+
+                        // Coverage bar
+                        Column(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text("${data.matched}/${data.total} covered", style = MaterialTheme.typography.labelSmall, color = sk.labelText)
+                                Text("$coveragePct%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = color)
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            LinearProgressIndicator(
+                                progress = { (data.matched / data.total.toFloat()).coerceIn(0f, 1f) },
+                                color = color,
+                                trackColor = sk.surface1,
+                                modifier = Modifier.fillMaxWidth().height(6.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 @Composable
 private fun PlanningFocus(blocked: Int, total: Int, batches: List<Map<*, *>>) {
     val sk = MaterialTheme.skill
@@ -646,6 +867,65 @@ internal fun PlanBatchCard(
                     Spacer(Modifier.width(8.dp))
                     Icon(painterResource(R.drawable.ic_globe), null, modifier = Modifier.size(16.dp))
                 }
+            }
+        }
+    }
+}
+
+// ── Ranked list with trailing stat: highest-exposure courses (Design V2) ──
+// Aggregates only fields already present on every batch row — the trailing
+// stat is the open-batch count with a blocked sub-count, so the list genuinely
+// answers "which courses are consuming the team's attention" without inventing
+// any score or metric. A certification "renewal campaign" card was deliberately
+// NOT added: this screen's only capacity data is demand coverage (`coverage_pct`
+// on CapacityPlanResponse), and presenting that as certification status would
+// be misleading fabrication.
+@Composable
+private fun TopExposureCard(batches: List<Map<*, *>>) {
+    val sk = MaterialTheme.skill
+    val rows = remember(batches) {
+        batches
+            .groupBy { it.str("course_name").ifBlank { "Unspecified course" } }
+            .map { (course, courseBatches) ->
+                val open = courseBatches.size
+                val blocked = courseBatches.count { it.str("coverage_status") == "No Coverage" }
+                Triple(course, open, blocked)
+            }
+            .sortedWith(compareByDescending<Triple<String, Int, Int>> { it.second }.thenByDescending { it.third })
+            .take(5)
+    }
+    if (rows.size < 2) return
+
+    val maxOpen = rows.maxOf { it.second }.coerceAtLeast(1)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = sk.surface1),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("TOP EXPOSURE COURSES", style = MaterialTheme.typography.labelSmall, color = sk.labelText, fontWeight = FontWeight.Bold)
+            Text("Where unallocated demand is concentrated", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+            Spacer(Modifier.height(12.dp))
+            rows.forEach { (course, open, blocked) ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(course, style = MaterialTheme.typography.bodyMedium, color = sk.bodyText, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.height(6.dp))
+                        LinearProgressIndicator(
+                            progress = { (open / maxOpen.toFloat()).coerceIn(0f, 1f) },
+                            color = if (blocked > 0) sk.warn else sk.sky,
+                            trackColor = sk.surface1,
+                            modifier = Modifier.fillMaxWidth().height(4.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("$open", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = sk.frost)
+                        Text(if (blocked > 0) "$blocked blocked" else "all covered", style = MaterialTheme.typography.labelSmall, color = if (blocked > 0) sk.warn else sk.subText)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
             }
         }
     }

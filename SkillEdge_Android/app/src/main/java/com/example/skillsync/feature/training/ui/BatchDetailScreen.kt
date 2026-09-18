@@ -125,6 +125,10 @@ fun BatchDetailScreen(
             reference = batch.str("demand_id"),
             assignmentLevel = batch.str("assignment_level"),
             tocUrl = effectiveToc,
+            currency = "₹",
+            totalFee = operationalContext?.salesConfirmations?.count?.toString() ?: "",
+            csmName = operationalContext?.course?.status?.takeIf { it.isNotBlank() } ?: "",
+            scid = (operationalContext?.salesConfirmations?.ids as? List<String>)?.joinToString(", ")?.takeIf { it.isNotBlank() } ?: "",
         )
     }
 
@@ -183,188 +187,217 @@ fun BatchDetailScreen(
                 Modifier.fillMaxSize().padding(pv).verticalScroll(rememberScrollState()).padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                // Headline: course, coverage, and the three business-priority
-                // figures a manager needs before reading anything else — no
-                // separate cards, one glass block.
-                // 1. DEMAND DETAIL — PAGE HERO
+                // 1. DEMAND DETAIL - PAGE HERO
                 Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
                     Column {
-                        Text("DEMAND DETAIL", style = MaterialTheme.typography.labelSmall, color = sk.brand)
-                        Text(courseName.ifBlank { "Course not specified" }, style = MaterialTheme.typography.titleLarge, color = sk.frost)
-                        if (batch.bool("is_priority")) {
-                            Spacer(Modifier.height(4.dp))
-                            Chip("Priority", sk.teal)
-                        }
-                    }
-                }
-                
-                // 2. STATUS HEADER (data grid)
-                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
-                    Column {
-                        Text("STATUS HEADER", style = MaterialTheme.typography.titleSmall, color = sk.frost)
+                        Text(courseName.ifBlank { "Course not specified" }, style = MaterialTheme.typography.titleLarge, color = sk.frost, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(8.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            DetailStat("Demand ID", batch.str("demand_id").ifBlank { "N/A" }, sk.frost)
-                            DetailStat("Status", batch.str("coverage_status").ifBlank { "Open" }, sk.sky)
-                            DetailStat("Priority", "${batch.intOrNull("priority_score") ?: 0}", sk.teal)
-                        }
-                    }
-                }
-                
-                // 3. OPPORTUNITY OVERVIEW
-                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
-                    Column {
-                        Text("OPPORTUNITY OVERVIEW", style = MaterialTheme.typography.titleSmall, color = sk.frost)
-                        Spacer(Modifier.height(8.dp))
-                        FactGrid(
-                            listOf(
-                                "Vendor" to batch.str("customer"),
-                                "Allocation for" to batch.str("allocation_for"),
-                                "Course ID" to batch.str("course_id")
-                            )
-                        )
-                    }
-                }
-                
-                // 4. LOCATION & LOGISTICS
-                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
-                    Column {
-                        Text("LOCATION & LOGISTICS", style = MaterialTheme.typography.titleSmall, color = sk.frost)
-                        Spacer(Modifier.height(8.dp))
-                        FactGrid(
-                            listOf(
-                                  "Location" to (
-                                      if (batch.str("location").isNotBlank()) batch.str("location")
-                                      else if (batch.str("city").isNotBlank() && batch.str("country").isNotBlank()) "${batch.str("city")}, ${batch.str("country")}"
-                                      else "Location not provided"
-                                  ),
-                                "Travel Required" to if (batch.bool("is_international")) "Yes" else "No"
-                            )
-                        )
-                    }
-                }
-                
-                // 5. DELIVERY READINESS
-                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
-                    Column {
-                        Text("DELIVERY READINESS", style = MaterialTheme.typography.titleSmall, color = sk.frost)
-                        Spacer(Modifier.height(8.dp))
-                        Text("Skill: Verified", color = sk.good)
-                        Text("Avail: Pending", color = sk.amber)
-                    }
-                }
-                
-                // 6. MATCH INTELLIGENCE
-                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
-                    Column {
-                        Text("MATCH INTELLIGENCE", style = MaterialTheme.typography.titleSmall, color = sk.frost)
-                        Spacer(Modifier.height(8.dp))
-                        Text("Top candidate metrics here...", color = sk.subText)
-                    }
-                }
-                
-                
-                // 7. TEAM MATCH
-                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
-                    Column {
-                        Text("TEAM MATCH", style = MaterialTheme.typography.titleSmall, color = sk.frost)
-                        Spacer(Modifier.height(8.dp))
-                        if (candidates.isEmpty()) {
-                            Text("No mapped trainer found", color = sk.subText)
-                        } else {
-                            candidates.forEachIndexed { i, c ->
-                                if (i > 0) Spacer(Modifier.height(8.dp))
-                                TeamMatchRow(
-                                    candidate = c,
-                                    requiredLevel = batch.str("required_skill_level").toIntOrNull() ?: 0,
-                                    onMessage = {
-                                        shareTarget = c.str("trainer_name") to c.str("trainer_email")
-                                        showMessagePreview = true
-                                    },
-                                    onMark = {
-                                        markFor = c.str("trainer_name") to c.str("trainer_email")
-                                        markForLevel = batch.str("required_skill_level").toIntOrNull()
-                                        showReportee = true
-                                    }
-                                )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Ref ${batch.str("demand_id")}".takeIf { batch.str("demand_id").isNotBlank() } ?: "", style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                            Spacer(Modifier.width(16.dp))
+                            Box(Modifier.clip(RoundedCornerShape(12.dp)).background(coverageTint.copy(alpha = 0.2f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                                Text(coverageLabel, style = MaterialTheme.typography.labelSmall, color = coverageTint, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
-                Spacer(Modifier.height(14.dp))
-                // 8. SKILLS / SKILL MARKING
+                
+                // Operational Context Error Banner
+                if (operationalContextError != null) {
+                    Box(Modifier.fillMaxWidth().padding(12.dp).background(sk.warn.copy(alpha = 0.15f)).padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(painterResource(R.drawable.ic_alert), contentDescription = "Warning", tint = sk.warn, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(operationalContextError, style = MaterialTheme.typography.bodySmall, color = sk.warn, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+                
+                // 2. ELIGIBILITY SUMMARY
+                if (!gatedCandidatesLoading && gatedCandidates != null) {
+                    val eligibleCount = gatedCandidates.candidates.size
+                    val blockedCount = gatedCandidates.blocked.size
+                    Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
+                        Column {
+                            Text("ELIGIBILITY SUMMARY", style = MaterialTheme.typography.titleSmall, color = sk.frost)
+                            Spacer(Modifier.height(8.dp))
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                DetailStat("Eligible", "$eligibleCount", sk.good)
+                                DetailStat("Not Eligible", "$blockedCount", sk.warn)
+                            }
+                        }
+                    }
+                } else if (gatedCandidatesLoading) {
+                    Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
+                        Text("Checking eligibility pipeline...", style = MaterialTheme.typography.labelMedium, color = sk.sky)
+                    }
+                }
+
+                // 3 & 4. TEAM SKILL ON THIS COURSE / SKILL MARKING
                 TeamSkillPanel(
                     rows = batch.list("team_skill").mapNotNull { it as? Map<*, *> },
-                    requiredLevel = batch.str("required_skill_level"),
+                    requiredLevel = batch.str("assignment_level"),
                     canManageTeam = com.example.skillsync.core.data.SessionManager.canManageTeam(),
                     onMark = { name, email ->
                         markFor = name to email
-                        markForLevel = batch.str("required_skill_level").toIntOrNull()
+                        markForLevel = batch.str("assignment_level").toIntOrNull()
                         showReportee = true
                     },
                     onMarkMine = { showMine = true },
                     onMarkTeam = { showReportee = true }
                 )
-                Spacer(Modifier.height(14.dp))
-                GatedCandidatesSection(
-                    response = gatedCandidates,
-                    loading = gatedCandidatesLoading,
-                    unverified = gatedCandidatesUnverified,
-                )
-                if (batch.str("demand_id").isNotBlank()) {
-                    Spacer(Modifier.height(14.dp))
-                    OutlinedButton(
-                        onClick = { showEligibilitySheet = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                    ) {
-                        Text(
-                            "Why my team isn't eligible",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = sk.amber, fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                }
-
-                // 9. BLOCKERS & RISKS
-                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp).background(sk.crit.copy(alpha=0.1f))) {
-                    Column {
-                        Text("BLOCKERS & RISKS", style = MaterialTheme.typography.titleSmall, color = sk.crit)
-                        Spacer(Modifier.height(8.dp))
-                        Text(batch.str("assignment_risk").ifBlank { "None detected" }, color = sk.bodyText)
+                
+                // 6. OPERATIONAL VERIFICATION
+                val demandStatus = batch.str("demand_status").ifBlank { batch.str("status") }
+                if (demandStatus.isNotBlank()) {
+                    SectionCard("OPERATIONAL VERIFICATION") {
+                        Fact("RMS Course Status", demandStatus)
+                        Fact("Sales Confirmed", if (batch.bool("is_confirmed")) "Yes" else "Pending")
                     }
                 }
                 
-                // 10. ACTION REQUIRED
-                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
-                    Column {
-                        Text("ACTION REQUIRED", style = MaterialTheme.typography.titleSmall, color = sk.frost)
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedButton(onClick = { }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Ask Availability", color = sk.cyan)
+                // 7. DEMAND INFORMATION
+                SectionCard("DEMAND INFORMATION") {
+                    val scId = (operationalContext?.salesConfirmations?.ids as? List<String>)?.joinToString(", ")?.takeIf { it.isNotBlank() }
+                    val csm = operationalContext?.course?.status?.takeIf { it.isNotBlank() }
+                    val recordingLink = operationalContext?.course?.contentUrl?.takeIf { it.isNotBlank() }
+                    val country = batch.str("country")
+                    val region = batch.str("region")
+                    val totalFee = operationalContext?.salesConfirmations?.count
+                    
+                    FactGrid(
+                        listOf<Pair<String, String>>(
+                            "Start Date" to batch.str("start_date").longDate(),
+                            "End Date" to batch.str("end_date").longDate(),
+                            "Duration" to "${batch.intOrNull("days") ?: "-"} days",
+                            "Mode" to batch.str("delivery_mode"),
+                            "Vendor" to batch.str("customer"),
+                            "Level" to batch.str("assignment_level"),
+                            "Participants" to (batch.intOrNull("participants")?.toString() ?: "-"),
+                            "Daily Time" to batch.str("session_time"),
+                            "Language" to batch.str("language"),
+                            "Course ID" to batch.str("course_id"),
+                            "Allocation For" to batch.str("allocation_for"),
+                            "SCID" to (scId ?: "—"),
+                            "CSM Status" to (csm ?: "—"),
+                            "Total Fee" to (totalFee?.let { "₹$it" } ?: "—"),
+                            "Recording" to (recordingLink?.let { "Available" } ?: "—"),
+                            "Country" to country.ifBlank { "—" },
+                            "Region" to region.ifBlank { "—" },
+                        )
+                    )
+                }
+                
+                // 8. LOCATION
+                SectionCard("LOCATION") {
+                    Fact("Location", if (batch.str("location").isNotBlank()) batch.str("location") else if (batch.str("city").isNotBlank() && batch.str("country").isNotBlank()) "${batch.str("city")}, ${batch.str("country")}" else "Remote / Virtual")
+                    Fact("Travel", if (batch.bool("is_international")) "International Travel Required" else if (batch.str("delivery_mode").contains("ILO")) "No Travel" else "National Travel")
+                }
+                
+                // 9. COURSEWARE & CURRICULUM
+                if (effectiveToc.isNotBlank()) {
+                    SectionCard("COURSEWARE & CURRICULUM") {
+                        OutlinedButton(onClick = { showCurriculumSheet = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text("View Course Outline", color = sk.sky)
                         }
                     }
                 }
                 
-                // 11. TIMELINE / ACTIVITY
-                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
-                    Column {
-                        Text("TIMELINE / ACTIVITY", style = MaterialTheme.typography.titleSmall, color = sk.frost)
-                        Spacer(Modifier.height(8.dp))
-                        Text("Historical activity logs will appear here.", color = sk.subText)
+                // 10. ENROLLED PARTICIPANTS
+                val paxNames = operationalContext?.participantsRoster?.students?.joinToString(", ") { it.name }
+                if (!paxNames.isNullOrBlank()) {
+                    SectionCard("ENROLLED PARTICIPANTS") {
+                        Text(paxNames ?: "", style = MaterialTheme.typography.bodySmall, color = sk.bodyText)
                     }
                 }
                 
-                // 12. COURSE INTELLIGENCE & CAPACITY CONTEXT
-                Box(Modifier.fillMaxWidth().glassSurface().padding(16.dp)) {
-                    Column {
-                        Text("COURSE INTELLIGENCE", style = MaterialTheme.typography.titleSmall, color = sk.frost)
-                        Spacer(Modifier.height(8.dp))
-                        val activeVer = operationalContext?.course?.latestVersion.orEmpty()
-                        Text("Version: ${if (activeVer.isNotBlank()) activeVer else "Standard"}", color = sk.bodyText)
+                // 11. RECOMMENDED ALLOCATION
+                if (gatedCandidates != null && gatedCandidates.candidates.isNotEmpty()) {
+                    SectionCard("RECOMMENDED ALLOCATION") {
+                        gatedCandidates.candidates.forEachIndexed { i, c ->
+                            if (i > 0) Spacer(Modifier.height(12.dp))
+                            val isBlocked = c["blocked"] == true
+                            val displayCoverage = if (isBlocked) "Blocked" else (c["coverage"] as? String).orEmpty().ifBlank { "Not Assessed" }
+                            val coverageColor = if (isBlocked) sk.red else when (displayCoverage) {
+                                "Best Match", "Good Match" -> sk.green
+                                "Available with Upskilling" -> sk.amber
+                                "No Coverage", "Not Assessed" -> sk.warn
+                                else -> sk.subText
+                            }
+                            Column {
+                                Text(c["trainer_name"] as? String ?: "", style = MaterialTheme.typography.bodyMedium, color = sk.bodyText, fontWeight = FontWeight.Bold)
+                                
+                                val backupRole = c["backup_role"] as? String
+                                val suitability = c["suitability_score"]
+                                val roleText = buildString {
+                                    if (!backupRole.isNullOrBlank()) append("$backupRole · ")
+                                    if (suitability != null) append("$suitability suitability")
+                                }
+                                if (roleText.isNotBlank()) {
+                                    Text(roleText, style = MaterialTheme.typography.labelSmall, color = sk.subText)
+                                }
+
+                                val parts = c["suitability_components"] as? Map<*, *>
+                                if (parts != null) {
+                                    val metrics = listOfNotNull(
+                                        (parts["skill"] as? Number)?.let { "Skill $it" },
+                                        (parts["readiness"] as? Number)?.let { "Ready $it" },
+                                        (parts["availability"] as? Number)?.let { "Avail $it" },
+                                        (parts["certification"] as? Number)?.let { "Cert $it" },
+                                        (parts["language"] as? Number)?.let { "Lang $it" }
+                                    )
+                                    if (metrics.isNotEmpty()) {
+                                        Text(metrics.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = sk.subText)
+                                    }
+                                }
+
+                                val availabilityStatus = c["availability_status"] as? String
+                                val availText = when (availabilityStatus) {
+                                    "available" -> "Available for these dates"
+                                    "conflict" -> "Schedule conflict"
+                                    else -> "Availability unverified"
+                                }
+                                val availColor = when (availabilityStatus) {
+                                    "available" -> sk.green
+                                    "conflict" -> sk.warn
+                                    else -> sk.subText
+                                }
+                                Text(availText, style = MaterialTheme.typography.labelSmall, color = availColor)
+
+                                Spacer(Modifier.height(4.dp))
+                                Text(displayCoverage, style = MaterialTheme.typography.labelSmall, color = coverageColor, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
                     }
                 }
-
+                
+                // 12. WHY NOT ELIGIBLE
+                if (gatedCandidates != null && gatedCandidates.blocked.isNotEmpty()) {
+                    SectionCard("WHY NOT ELIGIBLE") {
+                        gatedCandidates.blocked.forEachIndexed { i, b ->
+                            if (i > 0) Spacer(Modifier.height(8.dp))
+                            Column {
+                                Text(b["trainer_name"] as? String ?: "", style = MaterialTheme.typography.bodySmall, color = sk.bodyText, fontWeight = FontWeight.Bold)
+                                val reason = (b["reason"] as? String) ?: (b["message"] as? String) ?: "Does not meet requirements"
+                                Text(reason, style = MaterialTheme.typography.labelSmall, color = sk.warn)
+                            }
+                        }
+                    }
+                }
+                
+                // 13 & 14. ACTION STRIP & SEARCH WIDER TRAINER NETWORK
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = { showNetworkSheet = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = sk.surface1, contentColor = sk.cyan),
+                    shape = RoundedCornerShape(24.dp)
+                ) {
+                    Text("Search Wider Trainer Network", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.width(8.dp))
+                    Icon(painterResource(R.drawable.ic_globe), null, modifier = Modifier.size(16.dp))
+                }
             }
         }
     }
@@ -577,9 +610,14 @@ private fun candidateState(c: Map<*, *>, sk: com.example.skillsync.theme.SkillCo
     val certCovered = c.bool("certification_covered")
     val heldLvl = c.str("held_skill_level")
     val reqLvl = c.str("required_skill_level")
+    val gate = c.str("gate")
 
     return when {
         isDnc -> CandidateState("BLOCKED", sk.crit, "Client exclusion (DNC) — cannot be allocated to this account")
+        gate == "certification_gap" -> CandidateState("BLOCKED", sk.crit, "Certification required: ${c.str("detail").ifBlank { "Course certification required" }}")
+        gate == "client_exclusion" -> CandidateState("BLOCKED", sk.crit, "Client restriction: ${c.str("detail").ifBlank { "Client exclusion on this account" }}")
+        gate == "leave_conflict" -> CandidateState("BLOCKED", sk.crit, "Leave conflict: ${c.str("detail").ifBlank { "Trainer on leave during assignment window" }}")
+        gate == "travel_advisory" -> CandidateState("BLOCKED", sk.crit, "Travel advisory: ${c.str("detail").ifBlank { "Travel advisory for destination" }}")
         isBlocked -> CandidateState("BLOCKED", sk.crit, "Blocked on recent feedback or a confirmed conflict")
         meetsLevel == false -> CandidateState(
             "NOT ELIGIBLE", sk.crit,

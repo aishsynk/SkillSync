@@ -215,10 +215,10 @@ fun NetworkStaffingSheet(
                                                             courseName = courseName,
                                                             location = location,
                                                         )
+                                                        val encodedBody = Uri.encode(body)
+                                                        val encodedSubject = Uri.encode("Staffing Opportunity: $courseName")
                                                         val intent = Intent(Intent.ACTION_SENDTO).apply {
-                                                            data = Uri.parse("mailto:$email")
-                                                            putExtra(Intent.EXTRA_SUBJECT, "Staffing Opportunity: $courseName")
-                                                            putExtra(Intent.EXTRA_TEXT, body)
+                                                            data = Uri.parse("mailto:$email?subject=$encodedSubject&body=$encodedBody")
                                                         }
                                                         context.startActivity(intent)
                                                     } catch (_: Exception) {}

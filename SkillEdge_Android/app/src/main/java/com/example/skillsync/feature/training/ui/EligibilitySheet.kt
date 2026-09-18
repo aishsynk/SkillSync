@@ -312,5 +312,9 @@ private fun gateLabelFor(gate: String, detail: String): String = when (gate) {
     "international_travel_window" -> "International travel: $detail"
     "shift_window" -> "Shift: $detail"
     "mock_rating", "mock_missing" -> "Mock: $detail"
+    "certification_gap" -> "Certification required: $detail"
+    "client_exclusion" -> "Client restriction: $detail"
+    "leave_conflict" -> "Leave conflict: $detail"
+    "travel_advisory" -> "Travel advisory: $detail"
     else -> detail.ifBlank { gate }
 }

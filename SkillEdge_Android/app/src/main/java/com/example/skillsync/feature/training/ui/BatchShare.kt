@@ -50,6 +50,10 @@ object BatchShare {
         val reference: String = "",
         val assignmentLevel: String = "",
         val tocUrl: String = "",
+        val currency: String = "",
+        val totalFee: String = "",
+        val csmName: String = "",
+        val scid: String = "",
     )
 
     private fun schedule(b: Batch): String = when {
@@ -192,14 +196,17 @@ object BatchShare {
 
         appendLine("Course : ${b.courseName.ifBlank { "To be confirmed" }}")
         if (b.reference.isNotBlank()) appendLine("Assignment ID : ${b.reference}")
+        if (b.scid.isNotBlank()) appendLine("SCID : ${b.scid}")
         appendLine("Schedule : ${underline(schedule(b))}")
         if (b.sessionTime.isNotBlank()) appendLine("Daily Time : ${underline(b.sessionTime)}")
         if (b.deliveryMode.isNotBlank()) appendLine("Delivery Mode : ${b.deliveryMode}")
         if (b.location.isNotBlank()) appendLine("Location : ${b.location}")
         if (b.vendor.isNotBlank()) appendLine("Customer : ${b.vendor}")
+        if (b.csmName.isNotBlank()) appendLine("CSM : ${b.csmName}")
         if (b.language.isNotBlank()) appendLine("Language : ${b.language}")
         if (b.participants.isNotBlank() && b.participants != "0") appendLine("Pax Count : ${b.participants}")
         if (b.assignmentLevel.isNotBlank()) appendLine("Assignment Level : ${b.assignmentLevel}")
+        if (b.totalFee.isNotBlank() && b.currency.isNotBlank()) appendLine("Total Fee : ${b.currency} ${b.totalFee}")
         // The URL is held verbatim (not sanitised) so the trainer can tap it.
         if (b.tocUrl.isNotBlank()) appendLine("TOC : ${b.tocUrl}")
         appendLine()
