@@ -109,7 +109,7 @@ otify usage and fixed compilation errors.
 - Lint: 6E / 77W / 4H — errors unchanged (pre-existing `ViewModelConstructorInComposable` in PilotScreenshot harness); zero findings in changed files.
 - `./gradlew :app:assembleDebug --no-daemon` -> BUILD SUCCESSFUL.
 - Note: two orphaned Gradle 9.1.0 daemons from the earlier build were stuck in an idle/memory-release loop (caused the 2h build hang); killed both, re-ran with `--no-daemon`. No code impact.
-**Current Status:** Gate-clean increment completed; no release cut this session.
+**Current Status:** Release v3.80.21.201 published and validated on GitHub (tag v3.80.21.201, signed v2/v3 APK, SHA-256 dca74331188a947a7e3fefffa6ba60a2788640d20a801b18219305dc869981e8). Upgrade path from 200 preserved (same signing key, same applicationId; 200 → 201 same-signature upgrade).
 **Blockers:** None.
-**Pending Actions:** Manual Visual QA on emulator/device (open any Demand Detail → verify team analysis + content fit + draft/copy message + mark → auto team draft). Remaining Design V2 backlog unchanged. The 3 pre-existing AllocationDeskScreenTest failures remain Robolectric below-fold limitations.
+**Pending Actions:** Manual Visual QA on emulator/device; remaining Design V2 backlog (dense sortable data table, 5-tab bottom nav, Motion split rules).
 
